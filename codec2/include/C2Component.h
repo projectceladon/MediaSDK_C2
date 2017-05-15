@@ -511,7 +511,7 @@ public:
 
 struct C2ComponentInfo {
     // TBD
-
+    C2String name; // to start with
 };
 
 class C2AllocatorStore {
@@ -543,6 +543,7 @@ public:
 };
 
 class C2ComponentStore {
+public:
     /**
      * Creates a component.
      *
