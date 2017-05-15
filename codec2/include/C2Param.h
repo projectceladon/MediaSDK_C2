@@ -27,6 +27,9 @@
 #include <string>
 #include <type_traits>
 
+#include <cstring>
+#include <cstddef>
+
 #define C2_PACK __attribute__((packed))
 
 namespace android {
@@ -661,11 +664,15 @@ private:
     Primitive mValue;
 };
 
+#ifdef C2_IMPLEMENTATION // to prevent duplicated symbols reported by linker
+
 template<> const int32_t &C2Value::Primitive::ref<int32_t>() const { return i32; }
 template<> const int64_t &C2Value::Primitive::ref<int64_t>() const { return i64; }
 template<> const uint32_t &C2Value::Primitive::ref<uint32_t>() const { return u32; }
 template<> const uint64_t &C2Value::Primitive::ref<uint64_t>() const { return u64; }
 template<> const float &C2Value::Primitive::ref<float>() const { return fp; }
+
+#endif
 
 template<> constexpr C2Value::Type C2Value::typeFor<int32_t>() { return INT32; }
 template<> constexpr C2Value::Type C2Value::typeFor<int64_t>() { return INT64; }
@@ -1011,18 +1018,33 @@ public: \
  *  ~~~~~~~~~~~~~
  *
  */
+
+// fieldList variable defined in header, this caused multiple definiton of the symbol
+// if the header is used more than once in a project
+// to avoid that C2_IMPLEMENTATION symbol should be defined in one source file only
+// => variable will be defined once
+// otherwise no variable is defined, DoNothing inline function is used to open bracket {
+#ifdef C2_IMPLEMENTATION
 #define C2FIELD(member, name) \
   C2FieldDescriptor(&((_type*)(nullptr))->member, name),
-
+#else
+#define C2FIELD(member, name)
+#endif
 /// \deprecated
 #define C2SOLE_FIELD(member, name) \
   C2FieldDescriptor(&_type::member, name, 0)
 
 /// Define a structure with matching baseIndex and start describing its fields.
 /// This must be at the end of the structure definition.
+#ifdef C2_IMPLEMENTATION
 #define DEFINE_AND_DESCRIBE_C2STRUCT(name) \
     DEFINE_C2STRUCT(name) }  C2_PACK; \
     const std::initializer_list<const C2FieldDescriptor> C2##name##Struct::fieldList = {
+#else
+#define DEFINE_AND_DESCRIBE_C2STRUCT(name) \
+    DEFINE_C2STRUCT(name) }  C2_PACK; \
+    inline void name##DoNothing() {
+#endif
 
 /// Define a flexible structure with matching baseIndex and start describing its fields.
 /// This must be at the end of the structure definition.

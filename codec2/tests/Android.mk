@@ -3,7 +3,7 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 
-LOCAL_MODULE := codec2_test
+LOCAL_MODULE := codec2_test_mfx # as module conflicts with the one from android O tree
 
 LOCAL_MODULE_TAGS := tests
 

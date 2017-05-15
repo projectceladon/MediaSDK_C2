@@ -8,7 +8,7 @@ LOCAL_C_INCLUDES += \
         $(TOP)/frameworks/av/media/libstagefright/codec2/include \
         $(TOP)/frameworks/native/include/media/hardware \
 
-LOCAL_MODULE:= libstagefright_codec2
+LOCAL_MODULE:= libstagefright_codec2_mfx # as module conflicts with the one from android O tree
 LOCAL_CFLAGS += -Werror -Wall
 LOCAL_CLANG := true
 LOCAL_SANITIZE := unsigned-integer-overflow signed-integer-overflow
