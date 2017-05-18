@@ -11,8 +11,11 @@
 using namespace android;
 
 static void prepareConfFile() {
-
+#ifndef ANDROID
     std::string home = std::getenv("HOME");
+#else
+    std::string home = std::getenv("/data/local/tmp");
+#endif
     std::ofstream fileConf(home + "/mfx_c2_store.conf");
     fileConf << "C2.Intel.sw_vd.h264 : libmfx_c2_components_sw.so" << std::endl;
     fileConf.close();
@@ -22,8 +25,12 @@ void test_GetC2ComponentStore() {
 
     prepareConfFile();
 
+    std::cout << "preparedConfFile \n";
+
     std::shared_ptr<android::C2ComponentStore> componentStore;
     status_t status = GetC2ComponentStore(&componentStore);
+
+    std::cout << "GetC2ComponentStore called \n";
 
     bool success = (status == C2_OK) && (componentStore != nullptr);
     if(!success) {

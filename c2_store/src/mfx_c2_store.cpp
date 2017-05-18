@@ -17,7 +17,10 @@ Defined help functions:
 *********************************************************************************/
 #include "mfx_c2_store.h"
 #include "mfx_c2.h"
+#include "mfx_defs.h"
 #include "mfx_c2_defs.h"
+#include "mfx_debug.h"
+#include "mfx_c2_debug.h"
 
 #define EXPORT __attribute__((visibility("default")))
 
@@ -28,14 +31,20 @@ using namespace android;
 
 EXPORT status_t GetC2ComponentStore(std::shared_ptr<C2ComponentStore>* const componentStore) {
 
+    MFX_DEBUG_TRACE_FUNC;
+
     status_t creationStatus = C2_OK;
     static std::shared_ptr<MfxC2ComponentStore> g_componentStore =
         std::shared_ptr<MfxC2ComponentStore>(MfxC2ComponentStore::Create(&creationStatus));
     *componentStore = g_componentStore;
+
+    MFX_DEBUG_TRACE_android_C2Error(creationStatus);
     return creationStatus;
 }
 
 MfxC2ComponentStore* MfxC2ComponentStore::Create(status_t* status) {
+
+    MFX_DEBUG_TRACE_FUNC;
 
     MfxC2ComponentStore* store = new (std::nothrow)MfxC2ComponentStore();
     if (store != nullptr) {
@@ -47,6 +56,9 @@ MfxC2ComponentStore* MfxC2ComponentStore::Create(status_t* status) {
     } else {
         *status = C2_NO_MEMORY;
     }
+
+    MFX_DEBUG_TRACE_android_C2Error(*status);
+    MFX_DEBUG_TRACE_P(store);
     return store;
 }
 
@@ -98,11 +110,11 @@ status_t MfxC2ComponentStore::config_nb(
  */
 static void mfx_c2_get_field(const char *line, char **str, size_t *str_size)
 {
-    MFX_C2_AUTO_TRACE_FUNC();
+    MFX_DEBUG_TRACE_FUNC;
 
     if (!line || !str || !str_size) return;
 
-    MFX_C2_AUTO_TRACE_S(line);
+    MFX_DEBUG_TRACE_S(line);
 
     *str = (char*)line;
     for(; strchr(FIELD_SEP, **str) && (**str); ++(*str));
@@ -112,22 +124,22 @@ static void mfx_c2_get_field(const char *line, char **str, size_t *str_size)
         for(; !strchr(FIELD_SEP, *p) && (*p); ++p);
         *str_size = (p - *str);
 
-        MFX_C2_AUTO_TRACE_I32(*str_size);
+        MFX_DEBUG_TRACE_I32(*str_size);
     }
     else
     {
-        MFX_C2_AUTO_TRACE_MSG("field not found");
+        MFX_DEBUG_TRACE_MSG("field not found");
         *str = NULL;
         *str_size = 0;
-        MFX_C2_AUTO_TRACE_I32(*str_size);
+        MFX_DEBUG_TRACE_I32(*str_size);
     }
 }
 
 status_t MfxC2ComponentStore::readConfigFile()
 {
-    MFX_C2_AUTO_TRACE_FUNC();
+    MFX_DEBUG_TRACE_FUNC;
     status_t c2_res = C2_OK;
-    char config_filename[MFX_C2_MAX_PATH] = {0};
+    char config_filename[MFX_MAX_PATH] = {0};
     FILE* config_file = NULL;
 
 #ifndef ANDROID
@@ -135,18 +147,19 @@ status_t MfxC2ComponentStore::readConfigFile()
         char* home = getenv("HOME");
         if (home)
         {
-            snprintf(config_filename, MFX_C2_MAX_PATH, "%s/.%s", home, MFX_C2_CONFIG_FILE_NAME);
+            snprintf(config_filename, MFX_MAX_PATH, "%s/.%s", home, MFX_C2_CONFIG_FILE_NAME);
             config_file = fopen(config_filename, "r");
         }
     }
 #endif
     if (!config_file)
     {
-        snprintf(config_filename, MFX_C2_MAX_PATH, "%s/%s", MFX_C2_CONFIG_FILE_PATH, MFX_C2_CONFIG_FILE_NAME);
+        snprintf(config_filename, MFX_MAX_PATH, "%s/%s", MFX_C2_CONFIG_FILE_PATH, MFX_C2_CONFIG_FILE_NAME);
         config_file = fopen(config_filename, "r");
     }
     if (config_file)
     {
+        MFX_DEBUG_TRACE_S(config_filename);
         char line[MAX_LINE_LENGTH] = {0}, *str = NULL;
         char *name = NULL, *module = NULL;
         size_t line_length = 0, n = 0;//, i = 0;
@@ -159,8 +172,8 @@ status_t MfxC2ComponentStore::readConfigFile()
                 line[n-1] = '\0';
                 --line_length;
             }
-            MFX_C2_AUTO_TRACE_S(line);
-            MFX_C2_AUTO_TRACE_I32(line_length);
+            MFX_DEBUG_TRACE_S(line);
+            MFX_DEBUG_TRACE_I32(line_length);
 
             // getting name
             mfx_c2_get_field(line, &str, &n);
@@ -168,21 +181,21 @@ status_t MfxC2ComponentStore::readConfigFile()
             if (!n || !(str[n])) continue; // line is empty or field is the last one
             name = str;
             name[n] = '\0';
-            MFX_C2_AUTO_TRACE_S(name);
+            MFX_DEBUG_TRACE_S(name);
 
             // getting module
             mfx_c2_get_field(str+n+1, &str, &n);
             if (!n) continue;
             module = str;
             module[n] = '\0';
-            MFX_C2_AUTO_TRACE_S(value);
+            MFX_DEBUG_TRACE_S(module);
 
             // getting optional flags, roles left for further implementation
             components_registry_.emplace_back(name, module);
         }
         fclose(config_file);
     }
-    MFX_C2_AUTO_TRACE_P(components_registry_);
-    MFX_C2_AUTO_TRACE_U32(c2_res);
+    MFX_DEBUG_TRACE_I32(components_registry_.size());
+    MFX_DEBUG_TRACE_android_C2Error(c2_res);
     return c2_res;
 }
