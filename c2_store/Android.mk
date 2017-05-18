@@ -23,7 +23,7 @@ LOCAL_LDFLAGS += \
 
 LOCAL_SHARED_LIBRARIES := libdl liblog
 
-LOCAL_STATIC_LIBRARIES += libmfx_mock_codec2
+LOCAL_STATIC_LIBRARIES += libmfx_mock_codec2 libmfx_c2_utils
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libmfx_c2_store

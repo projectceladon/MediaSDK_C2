@@ -8,14 +8,16 @@ Copyright(c) 2011-2017 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************
 
-File: mfx_c2_defs.h
+File: mfx_defs.h
 
 *********************************************************************************/
 
-#ifndef __MFX_C2_DEFS_H__
-#define __MFX_C2_DEFS_H__
+#ifndef __MFX_DEFS_H__
+#define __MFX_DEFS_H__
 
-#define MFX_C2_CONFIG_FILE_NAME "mfx_c2_store.conf"
-#define MFX_C2_CONFIG_FILE_PATH "/etc"
+#define MFX_MAX_PATH 260
 
-#endif // #ifndef __MFX_C2_DEFS_H__
+#define MFX_GET_ARRAY_SIZE(_array) \
+    sizeof(_array)/sizeof(_array[0])
+
+#endif // #ifndef __MFX_DEFS_H__
