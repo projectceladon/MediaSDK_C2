@@ -22,14 +22,34 @@ using namespace android;
 struct ComponentDesc
 {
     const char* component_name;
+    const char* module_name;
     int flags;
     status_t creation_status;
 };
 
 ComponentDesc g_components[] = {
-    { "C2.MockComponent", 0, C2_OK },
-    { "C2.h264ve", 0, C2_NOT_FOUND },
+    { "C2.MockComponent", "libmfx_c2_components.so", 0, C2_OK },
+    { "C2.NonExistingComponent", "libmfx_c2_components.so", 0, C2_NOT_FOUND },
 };
+
+static bool ModuleInMemory(const std::string& module)
+{
+    std::ostringstream ss;
+    ss << "/proc/" << getpid() << "/maps";
+
+    std::ifstream fs(ss.str());
+    std::string line;
+
+    bool found = false;
+
+    while(std::getline(fs, line)) {
+        if(line.find(module) != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    return found;
+}
 
 static bool PrepareConfFile()
 {
@@ -41,7 +61,7 @@ static bool PrepareConfFile()
     std::ofstream fileConf(home + "/mfx_c2_store.conf");
 
     for(const auto& component : g_components) {
-        fileConf << component.component_name << " : libmfx_c2_components.so";
+        fileConf << component.component_name << " : " << component.module_name;
         if(component.flags != 0) {
             fileConf << " : " << component.flags;
         }
@@ -99,6 +119,97 @@ TEST(MfxComponentStore, getComponents)
 
         EXPECT_EQ(found, true);
     }
+}
+
+TEST(MfxComponentStore, createComponent)
+{
+    std::shared_ptr<android::C2ComponentStore> componentStore;
+    GetCachedC2ComponentStore(&componentStore);
+
+    for(const auto& component_desc : g_components) {
+        std::shared_ptr<C2Component> component;
+        status_t status = componentStore->createComponent(component_desc.component_name, &component);
+        EXPECT_EQ(status, component_desc.creation_status);
+        if(component_desc.creation_status == C2_OK) {
+            EXPECT_NE(component, nullptr);
+
+            if(component != nullptr) {
+
+                EXPECT_EQ(ModuleInMemory(component_desc.module_name), true);
+
+                std::shared_ptr<C2ComponentInterface> component_itf = component->intf();
+                EXPECT_NE(component_itf, nullptr);
+                if(component_itf != nullptr) {
+                    EXPECT_EQ(component_itf->getName(), component_desc.component_name);
+                }
+
+                component_itf = nullptr;
+                component = nullptr;
+                EXPECT_EQ(ModuleInMemory(component_desc.module_name), false);
+            }
+       }
+    }
+}
+
+TEST(MfxComponentStore, createInterface)
+{
+    std::shared_ptr<android::C2ComponentStore> componentStore;
+    GetCachedC2ComponentStore(&componentStore);
+
+    for(const auto& component_desc : g_components) {
+        std::shared_ptr<C2ComponentInterface> component_itf;
+        status_t status = componentStore->createInterface(component_desc.component_name, &component_itf);
+        EXPECT_EQ(status, component_desc.creation_status);
+
+        if(component_desc.creation_status == C2_OK) {
+            EXPECT_NE(component_itf, nullptr);
+            EXPECT_EQ(ModuleInMemory(component_desc.module_name), true);
+
+            if(component_itf != nullptr) {
+                EXPECT_EQ(component_itf->getName(), component_desc.component_name);
+
+                component_itf = nullptr;
+                EXPECT_EQ(ModuleInMemory(component_desc.module_name), false);
+            }
+        }
+    }
+}
+
+TEST(MfxComponentStore, copyBuffer)
+{
+    std::shared_ptr<android::C2ComponentStore> componentStore;
+    GetCachedC2ComponentStore(&componentStore);
+
+    std::shared_ptr<C2GraphicBuffer> src;
+    std::shared_ptr<C2GraphicBuffer> dst;
+
+    status_t status = componentStore->copyBuffer(src, dst);
+    EXPECT_EQ(status, C2_NOT_IMPLEMENTED);
+}
+
+TEST(MfxComponentStore, query_nb)
+{
+    std::shared_ptr<android::C2ComponentStore> componentStore;
+    GetCachedC2ComponentStore(&componentStore);
+
+    std::vector<C2Param* const> stackParams;
+    std::vector<C2Param::Index> heapParamIndices;
+    std::vector<std::unique_ptr<C2Param>> heapParams;
+
+    status_t status = componentStore->query_nb(stackParams, heapParamIndices, &heapParams);
+    EXPECT_EQ(status, C2_NOT_IMPLEMENTED);
+}
+
+TEST(MfxComponentStore, config_nb)
+{
+    std::shared_ptr<android::C2ComponentStore> componentStore;
+    GetCachedC2ComponentStore(&componentStore);
+
+    std::vector<C2Param* const> params;
+    std::list<std::unique_ptr<C2SettingResult>> failures;
+
+    status_t status = componentStore->config_nb(params, &failures);
+    EXPECT_EQ(status, C2_NOT_IMPLEMENTED);
 }
 
 int main(int argc, char** argv)

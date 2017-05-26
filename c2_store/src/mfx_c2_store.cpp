@@ -21,8 +21,9 @@ Defined help functions:
 #include "mfx_c2_defs.h"
 #include "mfx_debug.h"
 #include "mfx_c2_debug.h"
+#include "mfx_c2_component.h"
 
-#define EXPORT __attribute__((visibility("default")))
+#include <dlfcn.h>
 
 #define MAX_LINE_LENGTH 1024
 #define FIELD_SEP " \t:"
@@ -38,6 +39,7 @@ EXPORT status_t GetC2ComponentStore(std::shared_ptr<C2ComponentStore>* const com
         std::shared_ptr<MfxC2ComponentStore>(MfxC2ComponentStore::Create(&creationStatus));
     *componentStore = g_componentStore;
 
+    MFX_DEBUG_TRACE_P(g_componentStore.get());
     MFX_DEBUG_TRACE_android_C2Error(creationStatus);
     return creationStatus;
 }
@@ -63,22 +65,94 @@ MfxC2ComponentStore* MfxC2ComponentStore::Create(status_t* status) {
 }
 
 status_t MfxC2ComponentStore::createComponent(C2String name, std::shared_ptr<C2Component>* const component) {
-    (void)name;
-    (void)component;
-    return C2_NOT_IMPLEMENTED;
+
+    MFX_DEBUG_TRACE_FUNC;
+
+    status_t result = C2_OK;
+    if(component != nullptr) {
+
+        auto it = components_registry_.find(name);
+        if(it != components_registry_.end()) {
+
+            auto dso_deleter = [] (void* handle) { dlclose(handle); };
+            std::unique_ptr<void, decltype(dso_deleter)> dso(loadModule(it->second.dso_name_), dso_deleter);
+            if(dso != nullptr) {
+
+                CreateMfxC2ComponentFunc* create_func =
+                    reinterpret_cast<CreateMfxC2ComponentFunc*>(dlsym(dso.get(), CREATE_MFX_C2_COMPONENT_FUNC_NAME));
+                if(create_func != nullptr) {
+
+                    MfxC2Component* mfx_component;
+                    result = (*create_func)(name.c_str(), it->second.flags_, &mfx_component);
+                    if(result == C2_OK) {
+                        void* dso_handle = dso.release(); // release handle to be captured into lambda deleter
+                        auto component_deleter = [dso_handle] (MfxC2Component* p) { delete p; dlclose(dso_handle); };
+                        *component = std::shared_ptr<MfxC2Component>(mfx_component, component_deleter);
+                    }
+                }
+                else {
+                    MFX_LOG_ERROR("Module %s is invalid", it->second.dso_name_.c_str());
+                    result = C2_NOT_FOUND;
+                }
+            }
+            else {
+                MFX_LOG_ERROR("Cannot load module %s", it->second.dso_name_.c_str());
+                result = C2_NOT_FOUND;
+            }
+        }
+        else {
+            MFX_LOG_ERROR("Cannot find component %s", name.c_str());
+            result = C2_NOT_FOUND;
+        }
+    }
+    else {
+        MFX_LOG_ERROR("output component ptr is null");
+        result = C2_BAD_VALUE;
+    }
+
+    MFX_DEBUG_TRACE_android_C2Error(result);
+    return result;
 }
 
 status_t MfxC2ComponentStore::createInterface(C2String name, std::shared_ptr<C2ComponentInterface>* const interface) {
-    (void)name;
-    (void)interface;
-    return C2_NOT_IMPLEMENTED;
+
+    MFX_DEBUG_TRACE_FUNC;
+
+    std::shared_ptr<C2Component> component;
+    status_t result = createComponent(name, &component);
+
+    if(result == C2_OK) {
+        *interface = component->intf();
+    }
+    return result;
 }
 
 std::vector<std::unique_ptr<const C2ComponentInfo>> MfxC2ComponentStore::getComponents() {
-    return std::vector<std::unique_ptr<const C2ComponentInfo>>();
+
+    MFX_DEBUG_TRACE_FUNC;
+    std::vector<std::unique_ptr<const C2ComponentInfo>> result;
+
+    try {
+        for(const auto& it_pair : components_registry_ ) {
+            std::unique_ptr<C2ComponentInfo> info = std::make_unique<C2ComponentInfo>();
+            info->name = it_pair.first;
+            MFX_DEBUG_TRACE_S(info->name.c_str());
+            result.push_back(std::move(info));
+        }
+    }
+    catch(std::exception& e) {
+        MFX_DEBUG_TRACE_MSG("Exception caught");
+        MFX_DEBUG_TRACE_S(e.what());
+    }
+
+    return result;
 }
 
 status_t MfxC2ComponentStore::copyBuffer(std::shared_ptr<C2GraphicBuffer> src, std::shared_ptr<C2GraphicBuffer> dst) {
+
+    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_MSG("Unimplemented method is called");
+
     (void)src;
     (void)dst;
     return C2_NOT_IMPLEMENTED;
@@ -89,6 +163,9 @@ status_t MfxC2ComponentStore::query_nb(
         const std::vector<C2Param::Index> &heapParamIndices,
         std::vector<std::unique_ptr<C2Param>>*const heapParams) {
 
+    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_MSG("Unimplemented method is called");
+
     (void)stackParams;
     (void)heapParamIndices;
     (void)heapParams;
@@ -98,6 +175,9 @@ status_t MfxC2ComponentStore::query_nb(
 status_t MfxC2ComponentStore::config_nb(
         const std::vector<C2Param * const> &params,
         std::list<std::unique_ptr<C2SettingResult>>*const failures) {
+
+    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_MSG("Unimplemented method is called");
 
     (void)params;
     (void)failures;
@@ -161,7 +241,7 @@ status_t MfxC2ComponentStore::readConfigFile()
     {
         MFX_DEBUG_TRACE_S(config_filename);
         char line[MAX_LINE_LENGTH] = {0}, *str = NULL;
-        char *name = NULL, *module = NULL;
+        char *name = NULL, *module = NULL, *str_flags = NULL;
         size_t line_length = 0, n = 0;//, i = 0;
 
         while (NULL != (str = fgets(line, MAX_LINE_LENGTH, config_file)))
@@ -190,12 +270,41 @@ status_t MfxC2ComponentStore::readConfigFile()
             module[n] = '\0';
             MFX_DEBUG_TRACE_S(module);
 
-            // getting optional flags, roles left for further implementation
-            components_registry_.emplace_back(name, module);
+            // getting optional flags
+            if ((size_t)(str+n+1 - line) < line_length)
+            {
+                mfx_c2_get_field(str+n+1, &str, &n);
+                if (n)
+                {
+                    str_flags = str;
+                    str_flags[n] = '\0';
+                    MFX_DEBUG_TRACE_S(str_flags);
+                }
+            }
+            int flags = (str_flags) ? strtol(str_flags, NULL, 16) : 0;
+
+            components_registry_.emplace(std::string(name), ComponentDesc(module, flags));
         }
         fclose(config_file);
     }
     MFX_DEBUG_TRACE_I32(components_registry_.size());
     MFX_DEBUG_TRACE_android_C2Error(c2_res);
     return c2_res;
+}
+
+void* MfxC2ComponentStore::loadModule(const std::string& name) {
+
+    MFX_DEBUG_TRACE_FUNC;
+
+    MFX_DEBUG_TRACE_S(name.c_str());
+
+    void* result = nullptr;
+
+    dlerror();
+    result = dlopen(name.c_str(), RTLD_NOW);
+    if(result == nullptr) {
+        MFX_LOG_ERROR("Module %s load is failed: %s", name.c_str(), dlerror());
+    }
+    MFX_DEBUG_TRACE_P(result);
+    return result;
 }

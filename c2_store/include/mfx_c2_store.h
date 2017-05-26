@@ -19,6 +19,8 @@ Defined help functions:
 
 #include <C2Component.h>
 
+#include <map>
+
 using namespace android;
 
 class MfxC2ComponentStore : public C2ComponentStore {
@@ -46,12 +48,16 @@ private: // C2ComponentStore overrides
 private: // implementation methods
     status_t readConfigFile();
 
+    void* loadModule(const std::string& name);
 private: // data
     struct ComponentDesc {
-        std::string name_;
-        std::string module_;
-        ComponentDesc(const char* name, const char* module):
-            name_(name), module_(module) {}
+        std::string dso_name_;
+        int flags_;
+        ComponentDesc(const char* dso_name, int flags):
+            dso_name_(dso_name), flags_(flags) {}
     };
-    std::vector<ComponentDesc> components_registry_; // no mutexed access needed as written only once before any read access
+    // this is a map between component names and component descriptions:
+    //   (component's flags, dso name, etc.)
+    // no mutexed access needed as written only once before any read access
+    std::map<std::string, ComponentDesc> components_registry_;
 };
