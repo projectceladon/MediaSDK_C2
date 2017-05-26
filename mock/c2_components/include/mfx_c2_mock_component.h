@@ -8,18 +8,21 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
-#ifndef __MFX_DEFS_H__
-#define __MFX_DEFS_H__
+#pragma once
 
-#define MFX_MAX_PATH 260
+#include "mfx_c2_component.h"
+#include "mfx_c2_components_registry.h"
 
-#define MFX_GET_ARRAY_SIZE(_array) \
-    sizeof(_array)/sizeof(_array[0])
+/*------------------------------------------------------------------------------*/
+class MfxC2MockComponent : public MfxC2Component
+{
+public:
+    MfxC2MockComponent(const android::C2String name, int flags);
 
-#define MFX_CLASS_NO_COPY(class_name) \
-    class_name(const class_name&) = delete; \
-    class_name& operator=(const class_name&) = delete;
+    MFX_CLASS_NO_COPY(MfxC2MockComponent)
 
-#define EXPORT __attribute__((visibility("default")))
+    static void RegisterClass(MfxC2ComponentsRegistry& registry);
 
-#endif // #ifndef __MFX_DEFS_H__
+protected:
+    android::status_t Init() override;
+};
