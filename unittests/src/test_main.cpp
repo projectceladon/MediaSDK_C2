@@ -8,21 +8,12 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
-#pragma once
+#include "test_utils.h"
 
-#include "mfx_c2_component.h"
-#include "mfx_c2_components_registry.h"
+int main(int argc, char** argv) {
 
-class MfxC2MockComponent : public MfxC2Component
-{
-protected:
-    MfxC2MockComponent(const android::C2String name, int flags);
+    (void)argc;
+    (void)argv;
 
-    MFX_CLASS_NO_COPY(MfxC2MockComponent)
-
-public:
-    static void RegisterClass(MfxC2ComponentsRegistry& registry);
-
-protected:
-    android::status_t Init() override;
-};
+    return RUN_ALL_TESTS();
+}

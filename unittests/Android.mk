@@ -5,7 +5,10 @@ include $(MFX_HOME)/android/mfx_env.mk
 include $(CLEAR_VARS)
 include $(MFX_HOME)/android/mfx_defs.mk
 
-LOCAL_SRC_FILES := $(addprefix src/, c2_store_test.cpp test_utils.cpp)
+LOCAL_SRC_FILES := \
+    src/c2_store_test.cpp \
+    src/test_utils.cpp \
+    src/test_main.cpp
 
 MFX_C2_HOME := $(MFX_HOME)/samples/sample_c2_plugins/
 
@@ -37,7 +40,11 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 include $(MFX_HOME)/android/mfx_defs.mk
 
-LOCAL_SRC_FILES := $(addprefix src/, c2_mock_component_test.cpp test_utils.cpp)
+LOCAL_SRC_FILES := \
+    src/c2_encoder_test.cpp \
+    src/c2_mock_component_test.cpp \
+    src/test_utils.cpp \
+    src/test_main.cpp
 
 LOCAL_C_INCLUDES := \
     $(MFX_C_INCLUDES) \
