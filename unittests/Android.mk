@@ -30,7 +30,7 @@ LOCAL_LDFLAGS += \
 LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_store
 
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE := mfx_c2_unittests
+LOCAL_MODULE := mfx_c2_store_unittests
 
 include $(BUILD_EXECUTABLE)
 
@@ -58,6 +58,6 @@ LOCAL_LDFLAGS += \
 LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_components
 
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE := mfx_c2_mock_unittests
+LOCAL_MODULE := mfx_c2_components_unittests
 
 include $(BUILD_EXECUTABLE)
