@@ -14,6 +14,19 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <functional>
 #include <vector>
 #include <iostream>
+#include <string.h>
+
+const char* CutPath(const char* path)
+{
+    const char* result = strrchr(path, '/');
+    if(result == nullptr) {
+        result = path;
+    }
+    else {
+        ++result; // next symbol after /
+    }
+    return result;
+}
 
 std::ostringstream g_failures_stream;
 
