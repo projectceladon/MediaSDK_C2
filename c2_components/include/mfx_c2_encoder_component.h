@@ -13,16 +13,24 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_component.h"
 #include "mfx_c2_components_registry.h"
 
-class MfxC2MockComponent : public MfxC2Component
+class MfxC2EncoderComponent : public MfxC2Component
 {
-protected:
-    MfxC2MockComponent(const android::C2String name, int flags);
+public:
+    enum EncoderType {
+        ENCODER_H264,
+    };
 
-    MFX_CLASS_NO_COPY(MfxC2MockComponent)
+protected:
+    MfxC2EncoderComponent(const android::C2String name, int flags, EncoderType encoder_type);
+
+    MFX_CLASS_NO_COPY(MfxC2EncoderComponent)
 
 public:
     static void RegisterClass(MfxC2ComponentsRegistry& registry);
 
 protected:
     android::status_t Init() override;
+
+private:
+    EncoderType encoder_type_;
 };

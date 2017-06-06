@@ -24,10 +24,12 @@ protected:
     MfxC2Component(const android::C2String& name, int flags);
     MFX_CLASS_NO_COPY(MfxC2Component)
 
+    // provides static Create method to registrate in components registry
+    // variadic template args to be passed into component constructor
+    template<typename ComponentClass, typename... ArgTypes>
+    struct Factory;
+
 public:
-    template<typename ComponentClass>
-    static android::status_t Create(const char* name, int flags,
-        MfxC2Component** component);
     virtual ~MfxC2Component();
 
 private:
@@ -89,25 +91,38 @@ protected: // variables
     int flags_ = 0;
 };
 
-template<typename ComponentClass>
-android::status_t MfxC2Component::Create(const char* name, int flags,
-    MfxC2Component** component)
+template<typename ComponentClass, typename... ArgTypes>
+struct MfxC2Component::Factory
 {
-    android::status_t result = android::C2_OK;
-    MfxC2Component* component_created = new (std::nothrow) ComponentClass(name, flags);
-    if(component_created != nullptr) {
-        result = component_created->Init();
-        if(result == android::C2_OK) {
-            *component = component_created;
+    // method to create and init instance of component
+    // variadic args are passed to constructor
+    template<ArgTypes... arg_values>
+    static android::status_t Create(const char* name, int flags, MfxC2Component** component)
+    {
+        android::status_t result = android::C2_OK;
+        // class to make constructor public and get access to new operator
+        struct ConstructedClass : public ComponentClass
+        {
+        public:
+            ConstructedClass(const char* name, int flags, ArgTypes... constructor_args) :
+               ComponentClass(name, flags, constructor_args...) { }
+        };
+
+        MfxC2Component* component_created = new (std::nothrow) ConstructedClass(name, flags, arg_values...);
+        if(component_created != nullptr) {
+            result = component_created->Init();
+            if(result == android::C2_OK) {
+                *component = component_created;
+            }
+            else {
+                delete component_created;
+            }
         }
         else {
-            delete component_created;
+            result = android::C2_NO_MEMORY;
         }
+        return result;
     }
-    else {
-        result = android::C2_NO_MEMORY;
-    }
-    return result;
-}
+};
 
 #endif // #ifndef __MFX_C2_COMPONENT_H__

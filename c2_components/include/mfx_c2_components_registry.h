@@ -18,6 +18,9 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <map>
 #include <functional>
 
+// function declaration to make possible use this function statically too
+extern "C" CreateMfxC2ComponentFunc MfxCreateC2Component;
+
 class MfxC2ComponentsRegistry
 {
 private:

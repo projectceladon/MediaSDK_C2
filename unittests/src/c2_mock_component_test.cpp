@@ -24,8 +24,6 @@ using namespace android;
 
 #define MOCK_COMPONENT "C2.MockComponent"
 
-// function declaration for static linking which is supposed to be dynamically linked
-extern "C" CreateMfxC2ComponentFunc MfxCreateC2Component;
 
 TEST(MfxMockComponent, Create)
 {
@@ -34,7 +32,7 @@ TEST(MfxMockComponent, Create)
     status_t result = MfxCreateC2Component(MOCK_COMPONENT, flags, &c_mfx_component);
     std::shared_ptr<MfxC2Component> mfx_component(c_mfx_component);
     EXPECT_EQ(result, C2_OK);
-    ASSERT_NE(mfx_component, nullptr);
+    EXPECT_NE(mfx_component, nullptr);
 }
 
 TEST(MfxMockComponent, intf)
@@ -44,19 +42,14 @@ TEST(MfxMockComponent, intf)
     status_t result = MfxCreateC2Component(MOCK_COMPONENT, flags, &c_mfx_component);
     std::shared_ptr<MfxC2Component> mfx_component(c_mfx_component);
 
-    ASSERT_NE(mfx_component, nullptr);
+    EXPECT_NE(mfx_component, nullptr);
+    if(mfx_component != nullptr) {
+        std::shared_ptr<C2Component> c2_component = mfx_component;
+        std::shared_ptr<C2ComponentInterface> c2_component_intf = c2_component->intf();
 
-    std::shared_ptr<C2Component> c2_component = mfx_component;
-
-    std::shared_ptr<C2ComponentInterface> c2_component_intf = c2_component->intf();
-
-    EXPECT_EQ(c2_component_intf->getName(), MOCK_COMPONENT);
-}
-
-int main(int argc, char** argv) {
-
-    (void)argc;
-    (void)argv;
-
-    return RUN_ALL_TESTS();
+        EXPECT_NE(c2_component_intf, nullptr);
+        if(c2_component_intf != nullptr) {
+            EXPECT_EQ(c2_component_intf->getName(), MOCK_COMPONENT);
+        }
+    }
 }

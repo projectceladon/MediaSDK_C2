@@ -29,6 +29,7 @@ struct ComponentDesc
 
 ComponentDesc g_components[] = {
     { "C2.MockComponent", "libmfx_c2_components.so", 0, C2_OK },
+    { "C2.h264ve", "libmfx_c2_components.so", 0, C2_OK },
     { "C2.NonExistingComponent", "libmfx_c2_components.so", 0, C2_NOT_FOUND },
 };
 
@@ -66,8 +67,8 @@ static bool PrepareConfFile()
             fileConf << " : " << component.flags;
         }
         fileConf << std::endl;
-        fileConf.close();
     }
+    fileConf.close();
     return true;
 }
 
@@ -98,13 +99,7 @@ TEST(MfxComponentStore, getComponents)
 
     auto components = componentStore->getComponents();
 
-    size_t existing_count = 0;
-    for(const auto& component : g_components) {
-        if(component.creation_status == C2_OK)
-            ++existing_count;
-    }
-
-    EXPECT_EQ(components.size(), existing_count);
+    EXPECT_EQ(components.size(), MFX_GET_ARRAY_SIZE(g_components));
 
     for(size_t i = 0; i < components.size(); i++) {
         std::string actual_name = components[i]->name;
@@ -210,12 +205,4 @@ TEST(MfxComponentStore, config_nb)
 
     status_t status = componentStore->config_nb(params, &failures);
     EXPECT_EQ(status, C2_NOT_IMPLEMENTED);
-}
-
-int main(int argc, char** argv)
-{
-    (void)argc;
-    (void)argv;
-
-    return RUN_ALL_TESTS();
 }
