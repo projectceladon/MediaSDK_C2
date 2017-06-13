@@ -12,6 +12,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include "mfx_c2_component.h"
 #include "mfx_c2_components_registry.h"
+#include "mfx_dev.h"
 
 class MfxC2EncoderComponent : public MfxC2Component
 {
@@ -26,6 +27,9 @@ protected:
     MFX_CLASS_NO_COPY(MfxC2EncoderComponent)
 
 public:
+    virtual ~MfxC2EncoderComponent();
+
+public:
     static void RegisterClass(MfxC2ComponentsRegistry& registry);
 
 protected:
@@ -33,4 +37,7 @@ protected:
 
 private:
     EncoderType encoder_type_;
+    std::unique_ptr<MfxDev> device_;
+    MFXVideoSession session_;
+    std::unique_ptr<MFXVideoENCODE> encoder_;
 };
