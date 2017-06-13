@@ -17,6 +17,8 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_defs.h"
 #include "test_utils.h"
 
+#include <dlfcn.h>
+
 using namespace android;
 
 struct ComponentDesc
@@ -29,25 +31,16 @@ struct ComponentDesc
 
 ComponentDesc g_components[] = {
     { "C2.MockComponent", "libmfx_c2_components.so", 0, C2_OK },
-    { "C2.h264ve", "libmfx_c2_components.so", 0, C2_OK },
+    { "C2.h264ve", "libmfx_c2_components_hw.so", 0, C2_OK },
     { "C2.NonExistingComponent", "libmfx_c2_components.so", 0, C2_NOT_FOUND },
 };
 
 static bool ModuleInMemory(const std::string& module)
 {
-    std::ostringstream ss;
-    ss << "/proc/" << getpid() << "/maps";
-
-    std::ifstream fs(ss.str());
-    std::string line;
-
-    bool found = false;
-
-    while(std::getline(fs, line)) {
-        if(line.find(module) != std::string::npos) {
-            found = true;
-            break;
-        }
+    void* handle = dlopen(module.c_str(), RTLD_NOLOAD);
+    bool found = (handle != nullptr);
+    if(found) {
+        dlclose(handle);
     }
     return found;
 }
@@ -140,7 +133,8 @@ TEST(MfxComponentStore, createComponent)
 
                 component_itf = nullptr;
                 component = nullptr;
-                EXPECT_EQ(ModuleInMemory(component_desc.module_name), false);
+                EXPECT_EQ(ModuleInMemory(component_desc.module_name), false)
+                    << " module:" << component_desc.module_name;
             }
        }
     }
@@ -164,7 +158,8 @@ TEST(MfxComponentStore, createInterface)
                 EXPECT_EQ(component_itf->getName(), component_desc.component_name);
 
                 component_itf = nullptr;
-                EXPECT_EQ(ModuleInMemory(component_desc.module_name), false);
+                EXPECT_EQ(ModuleInMemory(component_desc.module_name), false)
+                    << " module:" << component_desc.module_name;
             }
         }
     }

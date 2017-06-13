@@ -30,18 +30,23 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define __MFX_VAAPI_DEBUG_H__
 
 #include "mfx_debug.h"
-#include <va/va.h>
 
+#ifdef LIBVA_SUPPORT
+
+#include <va/va.h>
 MFX_DEBUG_DECLARE_VALUE_DESC_PRINTF(VAStatus)
 
-#if MFX_DEBUG == MFX_DEBUG_YES
+#endif //LIBVA_SUPPORT
+
+
+#if MFX_DEBUG == MFX_DEBUG_YES && defined(LIBVA_SUPPORT)
 
 #define MFX_DEBUG_TRACE__VAStatus(_e) printf_VAStatus(MFX_DEBUG_TRACE_VAR, #_e, _e)
 
-#else // #if MFX_DEBUG == MFX_DEBUG_YES
+#else // #if MFX_DEBUG == MFX_DEBUG_YES && defined(LIBVA_SUPPORT)
 
 #define MFX_DEBUG_TRACE__VAStatus(_e)
 
-#endif // #if MFX_DEBUG == MFX_DEBUG_YES
+#endif // #if MFX_DEBUG == MFX_DEBUG_YES && defined(LIBVA_SUPPORT)
 
 #endif

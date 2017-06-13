@@ -42,16 +42,21 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #ifdef ANDROID
-#define MFX_ERROR_LOG_TAG "mediasdk_c2"
+#define MFX_LOG_TAG "mediasdk_c2"
 #include <android/log.h>
-#define MFX_PRINT_ERROR(...) \
-    __android_log_print(ANDROID_LOG_ERROR, MFX_ERROR_LOG_TAG, __VA_ARGS__)
+#define MFX_PRINT(LEVEL, ...) \
+    __android_log_print(LEVEL, MFX_LOG_TAG, __VA_ARGS__)
 #else
-#define MFX_PRINT_ERROR(...)
+#define MFX_PRINT(LEVEL, ...)
 #endif
 
+#define MFX_LOG(LEVEL, _arg, ...) \
+    MFX_PRINT(LEVEL, "%s: %s[line %d]: " _arg, MFX_DEBUG_MODULE_NAME, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+
 #define MFX_LOG_ERROR(_arg, ...) \
-    MFX_PRINT_ERROR("%s: %s[line %d]: " _arg, MFX_DEBUG_MODULE_NAME, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+    MFX_LOG(ANDROID_LOG_ERROR, _arg, ##__VA_ARGS__)
+#define MFX_LOG_INFO(_arg, ...) \
+    MFX_LOG(ANDROID_LOG_INFO, _arg, ##__VA_ARGS__)
 
 #if (MFX_DEBUG == MFX_DEBUG_YES) || (MFX_PERF == MFX_DEBUG_YES)
 
