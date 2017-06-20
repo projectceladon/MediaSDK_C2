@@ -2,6 +2,8 @@ LOCAL_PATH:= $(call my-dir)
 
 include $(MFX_HOME)/android/mfx_env.mk
 
+# =============================================================================
+
 include $(CLEAR_VARS)
 include $(MFX_HOME)/android/mfx_defs.mk
 
@@ -32,10 +34,15 @@ LOCAL_LDFLAGS += \
 
 LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_store
 
+LOCAL_MULTILIB := both
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := mfx_c2_store_unittests
+LOCAL_MODULE_STEM_32 := mfx_c2_store_unittests32
+LOCAL_MODULE_STEM_64 := mfx_c2_store_unittests64
 
 include $(BUILD_EXECUTABLE)
+
+# =============================================================================
 
 include $(CLEAR_VARS)
 include $(MFX_HOME)/android/mfx_defs.mk
@@ -64,7 +71,10 @@ LOCAL_LDFLAGS += \
 
 LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_components
 
+LOCAL_MULTILIB := both
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := mfx_c2_components_unittests
+LOCAL_MODULE_STEM_32 := mfx_c2_components_unittests32
+LOCAL_MODULE_STEM_64 := mfx_c2_components_unittests64
 
 include $(BUILD_EXECUTABLE)
