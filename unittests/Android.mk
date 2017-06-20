@@ -48,6 +48,7 @@ include $(CLEAR_VARS)
 include $(MFX_HOME)/android/mfx_defs.mk
 
 LOCAL_SRC_FILES := \
+    src/c2_decoder_test.cpp \
     src/c2_encoder_test.cpp \
     src/c2_mock_component_test.cpp \
     src/test_utils.cpp \

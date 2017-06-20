@@ -24,8 +24,8 @@ struct ComponentDesc
 };
 
 static ComponentDesc g_components_desc[] = {
-    { "C2.h264ve", 0, C2_OK },
-    { "C2.NonExistingEncoder", 0, C2_NOT_FOUND },
+    { "C2.h264vd", 0, C2_OK },
+    { "C2.NonExistingDecoder", 0, C2_NOT_FOUND },
 };
 
 static const ComponentDesc* GetComponentDesc(const std::string& component_name)
@@ -67,24 +67,24 @@ static std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name)
     return result;
 }
 
-TEST(MfxEncoderComponent, Create)
+TEST(MfxDecoderComponent, Create)
 {
     for(const auto& desc : g_components_desc) {
 
-        std::shared_ptr<MfxC2Component> encoder = GetCachedComponent(desc.component_name);
+        std::shared_ptr<MfxC2Component> decoder = GetCachedComponent(desc.component_name);
 
-        EXPECT_EQ(encoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;
+        EXPECT_EQ(decoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;
     }
 }
 
-TEST(MfxEncoderComponent, intf)
+TEST(MfxDecoderComponent, intf)
 {
     for(const auto& desc : g_components_desc) {
-        std::shared_ptr<MfxC2Component> encoder = GetCachedComponent(desc.component_name);
-        EXPECT_EQ(encoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;;
+        std::shared_ptr<MfxC2Component> decoder = GetCachedComponent(desc.component_name);
+        EXPECT_EQ(decoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;;
 
-        if(encoder != nullptr) {
-            std::shared_ptr<C2Component> c2_component = encoder;
+        if(decoder != nullptr) {
+            std::shared_ptr<C2Component> c2_component = decoder;
             std::shared_ptr<C2ComponentInterface> c2_component_intf = c2_component->intf();
 
             EXPECT_NE(c2_component_intf, nullptr);
