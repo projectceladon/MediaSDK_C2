@@ -13,7 +13,7 @@ LOCAL_CFLAGS += -Werror -Wall
 LOCAL_CLANG := true
 LOCAL_SANITIZE := unsigned-integer-overflow signed-integer-overflow
 
-include $(BUILD_SHARED_LIBRARY)
+#include $(BUILD_SHARED_LIBRARY) currently no need for this module
 
 ################################################################################
 
