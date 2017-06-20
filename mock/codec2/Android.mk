@@ -10,11 +10,13 @@ LOCAL_SRC_FILES := $(addprefix src/, $(notdir $(wildcard $(LOCAL_PATH)/src/*.cpp
 MFX_C_INCLUDES_C2 := $(LOCAL_PATH)/../../codec2/include/
 
 LOCAL_C_INCLUDES += \
-    $(MFX_C_INCLUDES_C2)
+    $(MFX_C_INCLUDES_C2) \
+    $(LOCAL_PATH)/include
 
 LOCAL_CFLAGS += \
     $(MFX_CFLAGS) \
-    -std=c++14
+    -std=c++14 \
+    -fexceptions
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libmfx_mock_codec2

@@ -23,7 +23,7 @@
 #include <list>
 #include <memory>
 
-typedef int C2Fence;
+//typedef int C2Fence;
 
 #ifdef __ANDROID__
 
@@ -131,6 +131,7 @@ public:
 private:
     class Impl;
     std::shared_ptr<Impl> mImpl;
+    friend class C2Event;
 };
 
 /**
@@ -143,6 +144,7 @@ private:
  */
 class C2Event {
 public:
+    C2Event();
     /**
      * Returns a fence for this event.
      */
@@ -223,9 +225,9 @@ public:
      *
      * \return acquired object potentially invalidated if waiting for the fence failed.
      */
-    T get();
+    T get() { return mT; }
 
-protected:
+public:
     C2Acquirable(C2Error error, C2Fence fence, T t) : C2Fence(fence), mInitialError(error), mT(t) { }
 
 private:
@@ -285,6 +287,11 @@ public:
     inline uint32_t size() const { return mSize; }
 
 protected:
+    inline explicit _C2LinearRangeAspect(uint32_t capacity)
+        : _C2LinearCapacityAspect(capacity),
+          mOffset(0),
+          mSize(capacity) { }
+
     inline explicit _C2LinearRangeAspect(const _C2LinearCapacityAspect *parent)
         : _C2LinearCapacityAspect(parent),
           mOffset(0),
@@ -408,6 +415,11 @@ class C2LinearAllocation;
 
 class C2Block1D : public _C2LinearRangeAspect {
 public:
+    C2Block1D(uint32_t capacity) :
+        _C2LinearRangeAspect(capacity) {}
+    C2Block1D(const _C2LinearCapacityAspect* parent) :
+       _C2LinearRangeAspect(parent) {}
+public:
     const C2Handle *handle() const;
 
 protected:
@@ -417,6 +429,9 @@ protected:
 private:
     class Impl;
     std::shared_ptr<Impl> mImpl;
+    friend class C2LinearBlock;
+    friend class C2ConstLinearBlock;
+    friend class C2BlockAllocatorImpl;
 };
 
 /**
@@ -426,6 +441,8 @@ private:
  */
 class C2ReadView : public _C2LinearCapacityAspect {
 public:
+    inline explicit C2ReadView(const _C2LinearCapacityAspect *parent)
+        : _C2LinearCapacityAspect(parent) { }
     /**
      * \return pointer to the start of the block or nullptr on error.
      */
@@ -450,6 +467,7 @@ public:
 private:
     class Impl;
     std::shared_ptr<Impl> mImpl;
+    friend class C2ConstLinearBlock;
 };
 
 /**
@@ -459,6 +477,8 @@ private:
  */
 class C2WriteView : public _C2EditableLinearRange {
 public:
+    inline explicit C2WriteView(const _C2LinearCapacityAspect *parent)
+        : _C2EditableLinearRange(parent) { }
     /**
      * Start of the block.
      *
@@ -481,6 +501,8 @@ private:
     /// \todo should this be unique_ptr to make this movable only - to avoid inconsistent regions
     /// between copies.
     std::shared_ptr<Impl> mImpl;
+
+    friend class C2LinearBlock;
 };
 
 /**
@@ -491,6 +513,8 @@ private:
  */
 class C2ConstLinearBlock : public C2Block1D {
 public:
+    C2ConstLinearBlock(const _C2LinearCapacityAspect* parent, C2Fence fence) :
+       C2Block1D(parent), mFence(fence) {}
     /**
      * Maps this block into memory and returns a read view for it.
      *
@@ -525,6 +549,9 @@ private:
  * consumers/readers as read-only const linear block(s).
  */
 class C2LinearBlock : public C2Block1D {
+public:
+    C2LinearBlock(uint32_t capacity) :
+        C2Block1D(capacity) {}
 public:
     /**
      * Maps this block into memory and returns a write view for it.
@@ -893,6 +920,10 @@ class _C2PlanarSection : public _C2PlanarCapacityAspect {
 /// \name Planar section interface
 /// @{
 public:
+    _C2PlanarSection(const _C2PlanarCapacityAspect *parent) :
+        _C2PlanarCapacityAspect(parent), mCrop(parent->width(), parent->height()) {}
+    _C2PlanarSection(uint32_t width, uint32_t height) :
+        _C2PlanarCapacityAspect(width, height), mCrop(width, height) {}
     // crop can be an empty rect, does not have to line up with subsampling
     // NOTE: we do not support floating-point crop
     inline const C2Rect crop() { return mCrop; }
@@ -916,11 +947,18 @@ private:
 
 class C2Block2D : public _C2PlanarSection {
 public:
+    C2Block2D(const _C2PlanarCapacityAspect *parent) :
+        _C2PlanarSection(parent) {}
+    C2Block2D(uint32_t width, uint32_t height) :
+        _C2PlanarSection(width, height) {}
     const C2Handle *handle() const;
 
 private:
     class Impl;
     std::shared_ptr<Impl> mImpl;
+    friend class C2GraphicBlock;
+    friend class C2ConstGraphicBlock;
+    friend class C2BlockAllocatorImpl;
 };
 
 /**
@@ -934,6 +972,8 @@ private:
  */
 class C2GraphicView : public _C2PlanarSection {
 public:
+    C2GraphicView(const _C2PlanarCapacityAspect *parent) :
+        _C2PlanarSection(parent) {}
     /**
      * \return pointer to the start of the block or nullptr on error.
      */
@@ -962,6 +1002,8 @@ public:
 private:
     class Impl;
     std::shared_ptr<Impl> mImpl;
+    friend class C2GraphicBlock;
+    friend class C2ConstGraphicBlock;
 };
 
 /**
@@ -972,6 +1014,8 @@ private:
  */
 class C2ConstGraphicBlock : public C2Block2D {
 public:
+    C2ConstGraphicBlock(const _C2PlanarCapacityAspect *parent, C2Fence fence) :
+        C2Block2D(parent), mFence(fence) {}
     /**
      * Maps this block into memory and returns a read view for it.
      *
@@ -1006,6 +1050,10 @@ private:
  */
 class C2GraphicBlock : public C2Block2D {
 public:
+    C2GraphicBlock(const _C2PlanarCapacityAspect *parent) :
+        C2Block2D(parent) {}
+    C2GraphicBlock(uint32_t width, uint32_t height) :
+        C2Block2D(width, height) {}
     /**
      * Maps this block into memory and returns a write view for it.
      *
@@ -1053,6 +1101,8 @@ class C2LinearChunksBuffer;
  */
 class C2BufferData {
 public:
+    C2BufferData(C2ConstGraphicBlock graphic_block);
+    C2BufferData(C2ConstLinearBlock linear_block);
     /**
      *  The type of buffer data.
      */
@@ -1101,6 +1151,7 @@ protected:
  */
 class C2Buffer {
 public:
+    C2Buffer(const C2BufferData& buffer_data);
     /**
      * Gets the buffer's data.
      *
@@ -1202,6 +1253,7 @@ protected:
 
 private:
 //    Type _mType;
+    C2BufferData buffer_data_;
 };
 
 /**
