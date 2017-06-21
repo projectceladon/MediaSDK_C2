@@ -69,7 +69,7 @@ LOCAL_CFLAGS += \
 LOCAL_LDFLAGS += \
     $(MFX_LDFLAGS)
 
-LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_components
+LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_components_pure
 
 LOCAL_MULTILIB := both
 LOCAL_MODULE_TAGS := optional
