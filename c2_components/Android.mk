@@ -44,7 +44,7 @@ define build_components
 
     LOCAL_STATIC_LIBRARIES += libmfx_c2_utils_va
   else
-  	MODULE_SUFFIX :=
+    MODULE_SUFFIX := _pure
 
     MSDK_IMPL := sw
 
