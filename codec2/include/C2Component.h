@@ -473,6 +473,10 @@ public:
      */
     virtual std::shared_ptr<C2ComponentInterface> intf() = 0;
 
+    virtual status_t registerListener(std::shared_ptr<C2ComponentListener>) = 0;
+
+    virtual status_t unregisterListener(std::shared_ptr<C2ComponentListener>) = 0;
+
 protected:
     virtual ~C2Component() = default;
 };

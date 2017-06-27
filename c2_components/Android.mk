@@ -28,7 +28,7 @@ define build_components
   LOCAL_SHARED_LIBRARIES := \
     libdl liblog
 
-  LOCAL_STATIC_LIBRARIES += libmfx_c2_utils libmfx_mock_c2_components
+  LOCAL_STATIC_LIBRARIES += libmfx_c2_utils libmfx_mock_c2_components libmfx_mock_codec2
 
   ifneq ($(1),pure)
     MODULE_SUFFIX := _$(1)

@@ -199,3 +199,34 @@ std::shared_ptr<C2ComponentInterface> MfxC2Component::intf()
     MFX_DEBUG_TRACE_P(result.get());
     return result;
 }
+
+status_t MfxC2Component::registerListener(std::shared_ptr<C2ComponentListener> listener)
+{
+    std::lock_guard<std::mutex> lock(listeners_mutex_);
+    listeners_.push_back(listener);
+    return C2_OK;
+}
+
+status_t MfxC2Component::unregisterListener(std::shared_ptr<C2ComponentListener> listener)
+{
+    std::lock_guard<std::mutex> lock(listeners_mutex_);
+    auto found = std::find(listeners_.begin(), listeners_.end(), listener);
+
+    if(found != listeners_.end()) {
+        listeners_.erase(found);
+    }
+
+    return (found != listeners_.end()) ? C2_OK : C2_NOT_FOUND;
+}
+
+void MfxC2Component::NotifyListeners(std::function<void(std::shared_ptr<C2ComponentListener>)> notify)
+{
+    std::list<std::shared_ptr<C2ComponentListener>> listeners_copy;
+    {
+        std::lock_guard<std::mutex> lock(listeners_mutex_);
+        listeners_copy = listeners_;
+    }
+    for(std::shared_ptr<C2ComponentListener> listener : listeners_copy) {
+        notify(listener);
+    }
+}
