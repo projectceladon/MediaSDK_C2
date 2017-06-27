@@ -51,6 +51,7 @@ LOCAL_SRC_FILES := \
     src/c2_decoder_test.cpp \
     src/c2_encoder_test.cpp \
     src/c2_mock_component_test.cpp \
+    src/c2_utils_test.cpp \
     src/test_utils.cpp \
     src/test_main.cpp
 
@@ -60,6 +61,7 @@ LOCAL_C_INCLUDES := \
     $(MFX_C2_HOME)/mock/c2_components/include \
     $(MFX_C2_HOME)/c2_components/include \
     $(MFX_C2_HOME)/unittests/include \
+    $(MFX_C2_HOME)/mock/codec2/include \
     $(MFX_C2_HOME)/c2_utils/include
 
 LOCAL_CFLAGS += \
@@ -69,6 +71,8 @@ LOCAL_CFLAGS += \
 
 LOCAL_LDFLAGS += \
     $(MFX_LDFLAGS)
+
+LOCAL_STATIC_LIBRARIES := libmfx_c2_utils libmfx_mock_codec2
 
 LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_components_pure
 
