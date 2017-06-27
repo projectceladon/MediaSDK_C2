@@ -13,34 +13,39 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <string>
 #include <sstream>
 
-const char* CutPath(const char* path);
 
 #define TEST(test_case_name, test_name) \
     void test_case_name##test_name(); \
-    static TestRegistration g_##test_case_name##test_name (#test_case_name, #test_name, &test_case_name##test_name); \
+    static testing::TestRegistration g_##test_case_name##test_name (#test_case_name, #test_name, &test_case_name##test_name); \
     void test_case_name##test_name()
 
 #define ASSERT_NE(p0, p1) \
     if(!((p0) != (p1))) \
-        throw std::ostringstream() << CutPath(__FILE__) << ":" << __LINE__  << " Assertion failed: " #p0 " != " #p1 " "
+        throw std::ostringstream() << testing::CutPath(__FILE__) << ":" << __LINE__  << " Assertion failed: " #p0 " != " #p1 " "
 
 #define ASSERT_EQ(p0, p1) \
     if(!((p0) == (p1))) \
-        throw std::ostringstream() << CutPath(__FILE__) << ":" << __LINE__  << " Assertion failed: " #p0 " == " #p1 " "
+        throw std::ostringstream() << testing::CutPath(__FILE__) << ":" << __LINE__  << " Assertion failed: " #p0 " == " #p1 " "
 
 #define ASSERT_GE(p0, p1) \
     if(!((p0) >= (p1))) \
-        throw std::ostringstream() << CutPath(__FILE__) << ":" << __LINE__  << " Assertion failed: " #p0 " >= " #p1 " "
+        throw std::ostringstream() << testing::CutPath(__FILE__) << ":" << __LINE__  << " Assertion failed: " #p0 " >= " #p1 " "
 
 #define EXPECT_EQ(p0, p1) \
     if(!((p0) == (p1))) \
-        g_failures_stream << std::endl << CutPath(__FILE__) << ":" << __LINE__  << " Condition failed: " #p0 " == " #p1 " "
+        testing::g_failures_stream << std::endl << testing::CutPath(__FILE__) << ":" << __LINE__  << " Condition failed: " #p0 " == " #p1 " "
 
 #define EXPECT_NE(p0, p1) \
     if(!((p0) != (p1))) \
-        g_failures_stream << std::endl << CutPath(__FILE__) << ":" << __LINE__  << " Condition failed: " #p0 " != " #p1 " "
+        testing::g_failures_stream << std::endl << testing::CutPath(__FILE__) << ":" << __LINE__  << " Condition failed: " #p0 " != " #p1 " "
 
 int RUN_ALL_TESTS();
+
+namespace testing {
+
+void InitGoogleTest(int* argc, char** argv);
+
+const char* CutPath(const char* path);
 
 typedef void (TestFunction)();
 
@@ -55,3 +60,4 @@ struct TestRegistration
 
 extern std::ostringstream g_failures_stream;
 
+} // namespace testing

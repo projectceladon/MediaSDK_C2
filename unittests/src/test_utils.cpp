@@ -15,6 +15,9 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <vector>
 #include <iostream>
 #include <string.h>
+#include <regex>
+
+namespace testing {
 
 const char* CutPath(const char* path)
 {
@@ -29,6 +32,8 @@ const char* CutPath(const char* path)
 }
 
 std::ostringstream g_failures_stream;
+
+static std::unique_ptr<std::regex> g_test_filter; // unique_ptr as optional
 
 std::vector<TestRegistration>& GetTestsRegistry()
 {
@@ -47,13 +52,49 @@ TestRegistration::TestRegistration(const std::string& test_case_name, const std:
     RegisterTest(*this);
 }
 
+void InitGoogleTest(int* argc, char** argv)
+{
+    for(int i = 1; i < *argc; ++i) {
+        std::string arg(argv[i]);
+
+        bool ok = false;
+
+        std::string prefix("--gtest_filter=");
+        if (!arg.compare(0, prefix.size(), prefix)) {
+            try {
+                g_test_filter = std::make_unique<std::regex>(arg.substr(prefix.size()));
+                ok = true;
+            } catch(const std::exception& ex) {
+                std::cout << "Regex exception: " << ex.what() << std::endl;
+            }
+        }
+
+        if(!ok) {
+            std::cout << "Invalid argument: " << arg << std::endl;
+        }
+    }
+}
+
+} // namespace testing
+
+using namespace testing;
+
 int RUN_ALL_TESTS()
 {
     int failed_tests = 0;
+    size_t executing_tests = GetTestsRegistry().size();
 
     for(const auto& test : GetTestsRegistry()) {
 
-        std::cout << test.test_case_name_ << ":" << test.test_name_;
+        std::string test_full_name = test.test_case_name_ + ":" + test.test_name_;
+        if(nullptr != g_test_filter) {
+            if(!regex_match(test_full_name.c_str(), *g_test_filter)) {
+                --executing_tests;
+                continue;
+            }
+        }
+
+        std::cout << test_full_name;
         g_failures_stream = std::ostringstream();
 
         try {
@@ -72,12 +113,20 @@ int RUN_ALL_TESTS()
             ++failed_tests;
         }
     }
+
+    std::cout << "\n";
+
     if(failed_tests != 0) {
-        std::cout << std::endl << failed_tests << " of " <<
-            GetTestsRegistry().size() << " test(s) FAILED" << std::endl;
+        std::cout << failed_tests << " of " << executing_tests << " test(s) FAILED";
     }
     else {
-        std::cout << std::endl << GetTestsRegistry().size() << " test(s) SUCCEEDED" << std::endl;
+        std::cout << executing_tests << " test(s) SUCCEEDED";
     }
+
+    if(executing_tests != GetTestsRegistry().size()) {
+        std::cout << "; " << GetTestsRegistry().size() - executing_tests << " test(s) SKIPPED";
+    }
+
+    std::cout << "\n" << std::endl;
     return failed_tests != 0;
 }

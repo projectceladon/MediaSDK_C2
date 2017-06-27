@@ -12,8 +12,6 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 int main(int argc, char** argv) {
 
-    (void)argc;
-    (void)argv;
-
+    ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
