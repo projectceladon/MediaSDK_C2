@@ -30,9 +30,9 @@ struct ComponentDesc
 };
 
 ComponentDesc g_components[] = {
-    { "C2.MockComponent", "libmfx_c2_components.so", 0, C2_OK },
+    { "C2.MockComponent", "libmfx_c2_components_pure.so", 0, C2_OK },
     { "C2.h264ve", "libmfx_c2_components_hw.so", 0, C2_OK },
-    { "C2.NonExistingComponent", "libmfx_c2_components.so", 0, C2_NOT_FOUND },
+    { "C2.NonExistingComponent", "libmfx_c2_components_pure.so", 0, C2_NOT_FOUND },
 };
 
 static bool ModuleInMemory(const std::string& module)
@@ -123,7 +123,8 @@ TEST(MfxComponentStore, createComponent)
 
             if(component != nullptr) {
 
-                EXPECT_EQ(ModuleInMemory(component_desc.module_name), true);
+                EXPECT_EQ(ModuleInMemory(component_desc.module_name), true) <<
+                    component_desc.module_name << " for " << component_desc.component_name;
 
                 std::shared_ptr<C2ComponentInterface> component_itf = component->intf();
                 EXPECT_NE(component_itf, nullptr);
