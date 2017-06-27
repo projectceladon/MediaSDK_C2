@@ -14,7 +14,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <C2Component.h>
 
 #include "mfx_defs.h"
-
+#include <mutex>
 
 class MfxC2Component : public android::C2ComponentInterface,
                        public android::C2Component,
@@ -85,10 +85,21 @@ protected: // android::C2Component
 
     std::shared_ptr<C2ComponentInterface> intf() override;
 
+    status_t registerListener(std::shared_ptr<android::C2ComponentListener> listener) override;
+
+    status_t unregisterListener(std::shared_ptr<android::C2ComponentListener> listener) override;
+
+protected:
+    void NotifyListeners(std::function<void(std::shared_ptr<android::C2ComponentListener>)> notify);
+
 protected: // variables
     android::C2String name_;
 
     int flags_ = 0;
+
+    std::list<std::shared_ptr<android::C2ComponentListener>> listeners_;
+
+    std::mutex listeners_mutex_;
 };
 
 template<typename ComponentClass, typename... ArgTypes>
