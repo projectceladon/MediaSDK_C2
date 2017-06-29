@@ -15,9 +15,13 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_defs.h"
 #include "mfx_c2_debug.h"
 #include "mfx_c2_component.h"
+
+#ifdef MOCK_COMPONENTS
 #include "mfx_c2_mock_component.h"
+#else
 #include "mfx_c2_decoder_component.h"
 #include "mfx_c2_encoder_component.h"
+#endif
 
 using namespace android;
 
@@ -40,9 +44,12 @@ MfxC2ComponentsRegistry::MfxC2ComponentsRegistry()
     // Here should be list of calls like this:
     // MfxC2SomeComponent::RegisterClass();
     // Auto-registration with global variables might not work within static libraries
+#ifdef MOCK_COMPONENTS
     MfxC2MockComponent::RegisterClass(*this);
+#else
     MfxC2DecoderComponent::RegisterClass(*this);
     MfxC2EncoderComponent::RegisterClass(*this);
+#endif
 }
 
 MfxC2ComponentsRegistry& MfxC2ComponentsRegistry::getInstance()

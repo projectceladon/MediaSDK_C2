@@ -12,7 +12,6 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "test_utils.h"
 #include "mfx_c2_component.h"
 #include "mfx_c2_components_registry.h"
-#include "mfx_c2_mock_component.h"
 
 using namespace android;
 
