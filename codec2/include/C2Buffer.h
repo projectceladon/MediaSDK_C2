@@ -419,6 +419,8 @@ public:
         _C2LinearRangeAspect(capacity) {}
     C2Block1D(const _C2LinearCapacityAspect* parent) :
        _C2LinearRangeAspect(parent) {}
+    C2Block1D(const _C2LinearCapacityAspect* parent, size_t offset, size_t size) :
+       _C2LinearRangeAspect(parent, offset, size) {}
 public:
     const C2Handle *handle() const;
 
@@ -515,6 +517,8 @@ class C2ConstLinearBlock : public C2Block1D {
 public:
     C2ConstLinearBlock(const _C2LinearCapacityAspect* parent, C2Fence fence) :
        C2Block1D(parent), mFence(fence) {}
+    C2ConstLinearBlock(const _C2LinearCapacityAspect* parent, size_t offset, size_t size, C2Fence fence) :
+       C2Block1D(parent, offset, size), mFence(fence) {}
     /**
      * Maps this block into memory and returns a read view for it.
      *

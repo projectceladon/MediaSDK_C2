@@ -1,0 +1,126 @@
+/********************************************************************************
+
+INTEL CORPORATION PROPRIETARY INFORMATION
+This software is supplied under the terms of a license agreement or nondisclosure
+agreement with Intel Corporation and may not be copied or disclosed except in
+accordance with the terms of that agreement
+Copyright(c) 2017 Intel Corporation. All Rights Reserved.
+
+*********************************************************************************/
+
+#include "mfx_defaults.h"
+#include "mfx_debug.h"
+#include "mfx_msdk_debug.h"
+
+#include <memory.h>
+
+#undef MFX_DEBUG_MODULE_NAME
+#define MFX_DEBUG_MODULE_NAME "mfx_defaults"
+
+void mfx_set_defaults_mfxFrameInfo(mfxFrameInfo* info)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    if (!info) return;
+    memset(info, 0, sizeof(mfxFrameInfo));
+}
+
+void mfx_set_defaults_mfxVideoParam_dec(mfxVideoParam* params)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxU32 CodecId = 0;
+
+    if (!params) return;
+    CodecId = params->mfx.CodecId;
+
+    memset(params, 0, sizeof(mfxVideoParam));
+    params->AsyncDepth = 0;
+    params->mfx.CodecId = CodecId;
+    params->mfx.NumThread = 0;
+
+    MFX_DEBUG_TRACE_mfxVideoParam_dec((*params))
+}
+
+void mfx_set_defaults_mfxVideoParam_vpp(mfxVideoParam* params)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    if (!params) return;
+    memset(params, 0, sizeof(mfxVideoParam));
+    /** @todo For vpp it is needed to set extended parameters also. */
+}
+
+void mfx_set_defaults_mfxVideoParam_enc(mfxVideoParam* params)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxU32 CodecId = 0;
+
+    if (!params) return;
+    CodecId = params->mfx.CodecId;
+
+    memset(params, 0, sizeof(mfxVideoParam));
+    params->mfx.CodecId = CodecId;
+    params->mfx.NumThread = 0;
+    switch (params->mfx.CodecId)
+    {
+    case MFX_CODEC_AVC:
+        // Setting mimimum number of parameters:
+        //  - TargetUsage: best speed: to mimimize number of used features
+        //  - RateControlMethod: constant bitrate
+        //  - PicStruct: progressive
+        //  - TargetKbps: 2222: some
+        //  - GopRefDist: 1: to exclude B-frames which can be unsupported on some devices
+        //  - GopPicSize: 15: some
+        //  - NumSlice: 1
+        params->mfx.CodecProfile = MFX_PROFILE_AVC_CONSTRAINED_BASELINE;
+        params->mfx.CodecLevel = MFX_LEVEL_AVC_51;
+        params->mfx.TargetUsage = MFX_TARGETUSAGE_BEST_SPEED;
+        params->mfx.FrameInfo.PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
+        params->mfx.TargetKbps = 2222;
+        params->mfx.RateControlMethod   = MFX_RATECONTROL_CBR;
+        params->mfx.GopRefDist = 1;
+        params->mfx.GopPicSize = 15;
+        params->mfx.NumSlice = 1;
+        break;
+    case MFX_CODEC_MPEG2:
+        // Setting mimimum number of parameters:
+        //  - TargetUsage: best speed: to mimimize number of used features
+        //  - RateControlMethod: constant bitrate
+        //  - PicStruct: progressive
+        //  - TargetKbps: 5000: some
+        //  - GopRefDist: 1: to exclude B-frames which can be unsupported on some devices
+        //  - GopPicSize: 15: some
+        params->mfx.TargetUsage = MFX_TARGETUSAGE_BEST_SPEED;
+        params->mfx.FrameInfo.PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
+        params->mfx.TargetKbps = 5000;
+        params->mfx.RateControlMethod = MFX_RATECONTROL_CBR;
+        params->mfx.GopRefDist = 1;
+        params->mfx.GopPicSize = 15;
+        break;
+    case MFX_CODEC_VP8:
+        params->mfx.CodecProfile = MFX_PROFILE_UNKNOWN;
+        params->mfx.CodecLevel = MFX_LEVEL_UNKNOWN;
+        params->mfx.TargetUsage = MFX_TARGETUSAGE_BEST_SPEED;
+        params->mfx.FrameInfo.PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
+        params->mfx.TargetKbps = 2000;
+        params->mfx.RateControlMethod = MFX_RATECONTROL_CBR;
+        params->mfx.GopPicSize = 0;
+        break;
+    case MFX_CODEC_HEVC:
+        params->mfx.CodecProfile = MFX_PROFILE_HEVC_MAIN;
+        params->mfx.CodecLevel = MFX_LEVEL_HEVC_6;
+        params->mfx.TargetUsage = MFX_TARGETUSAGE_BEST_SPEED;
+        params->mfx.FrameInfo.PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
+        params->mfx.TargetKbps = 3000;
+        params->mfx.RateControlMethod = MFX_RATECONTROL_CBR;
+        params->mfx.GopPicSize = 16;
+        params->mfx.GopRefDist = 1;
+        params->mfx.NumSlice = 1;
+        params->mfx.NumRefFrame = 1;
+        break;
+    default:
+        break;
+    };
+
+    MFX_DEBUG_TRACE_mfxVideoParam_enc((*params))
+}

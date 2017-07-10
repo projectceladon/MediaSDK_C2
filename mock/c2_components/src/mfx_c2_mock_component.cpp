@@ -103,21 +103,9 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
 
         worklet->output.buffers.front() = std::make_shared<C2Buffer>(out_buffer_data);
 
-        work->worklets_processed = 1;
-
     } while(false); // fake loop to have a cleanup point there
 
-    work->result = res;
-    MFX_DEBUG_TRACE_android_status_t(res);
-
-    std::weak_ptr<C2Component> weak_this = shared_from_this();
-
-    NotifyListeners([weak_this, &work] (std::shared_ptr<android::C2ComponentListener> listener)
-    {
-        std::vector<std::unique_ptr<C2Work>> work_items;
-        work_items.push_back(std::move(work));
-        listener->onWorkDone(weak_this, std::move(work_items));
-    });
+    NotifyWorkDone(std::move(work), res);
 }
 
 status_t MfxC2MockComponent::queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items)
