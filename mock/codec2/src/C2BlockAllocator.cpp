@@ -134,10 +134,8 @@ C2Acquirable<C2WriteView> C2LinearBlock::map()
 
 C2ConstLinearBlock C2LinearBlock::share(size_t offset, size_t size, C2Fence fence)
 {
-    C2ConstLinearBlock const_linears_block(this, fence);
+    C2ConstLinearBlock const_linears_block(this, offset, size, fence);
     const_linears_block.mImpl = std::make_shared<C2Block1D::Impl>();
-    (void)offset;
-    (void)size;
     const_linears_block.mImpl->data_ = mImpl->data_;
 
     return const_linears_block;

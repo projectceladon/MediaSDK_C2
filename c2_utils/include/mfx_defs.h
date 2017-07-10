@@ -12,6 +12,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #define __MFX_DEFS_H__
 
 #include <mfxvideo++.h>
+#include <mfxvp8.h>
 
 #define MFX_IMPLEMENTATION (MFX_IMPL_AUTO_ANY | MFX_IMPL_VIA_ANY)
 

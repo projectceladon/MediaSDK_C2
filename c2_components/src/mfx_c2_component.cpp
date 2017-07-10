@@ -10,6 +10,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include "mfx_c2_component.h"
 #include "mfx_debug.h"
+#include "mfx_c2_debug.h"
 #include "mfx_c2_components_registry.h"
 
 using namespace android;
@@ -229,4 +230,26 @@ void MfxC2Component::NotifyListeners(std::function<void(std::shared_ptr<C2Compon
     for(std::shared_ptr<C2ComponentListener> listener : listeners_copy) {
         notify(listener);
     }
+}
+
+void MfxC2Component::NotifyWorkDone(std::unique_ptr<android::C2Work>&& work, android::status_t sts)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    MFX_DEBUG_TRACE_android_status_t(sts);
+
+    if(C2_OK == sts) {
+        work->worklets_processed = 1;
+    }
+
+    work->result = sts;
+
+    std::weak_ptr<C2Component> weak_this = shared_from_this();
+
+    NotifyListeners([weak_this, &work] (std::shared_ptr<android::C2ComponentListener> listener)
+    {
+        std::vector<std::unique_ptr<C2Work>> work_items;
+        work_items.push_back(std::move(work));
+        listener->onWorkDone(weak_this, std::move(work_items));
+    });
 }

@@ -92,6 +92,8 @@ protected: // android::C2Component
 protected:
     void NotifyListeners(std::function<void(std::shared_ptr<android::C2ComponentListener>)> notify);
 
+    void NotifyWorkDone(std::unique_ptr<android::C2Work>&& work, android::status_t sts);
+
 protected: // variables
     android::C2String name_;
 
