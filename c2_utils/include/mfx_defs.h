@@ -13,6 +13,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include <mfxvideo++.h>
 #include <mfxvp8.h>
+#include <limits>
 
 #define MFX_IMPLEMENTATION (MFX_IMPL_AUTO_ANY | MFX_IMPL_VIA_ANY)
 
@@ -45,5 +46,18 @@ extern mfxVersion g_required_mfx_version;
     { memset(&(_obj), 0, sizeof(_obj)); }
 
 #define EXPORT __attribute__((visibility("default")))
+
+// The purpose of this template function is cast from wide range integer
+// to narrow range integer. Like int32_t -> uint8_t.
+// There is no overflow effects, when the value doesn't fit DstType range,
+// it gets DstValue min/max accordingly.
+template<typename DstType, typename SrcType>
+DstType ClampCast(const SrcType& v)
+{
+    const DstType lo = std::numeric_limits<DstType>::min();
+    const DstType hi = std::numeric_limits<DstType>::max();
+
+    return static_cast<DstType>( (v < lo) ? lo : ((v > hi) ? hi : v) );
+}
 
 #endif // #ifndef __MFX_DEFS_H__

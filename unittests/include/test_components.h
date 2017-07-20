@@ -18,6 +18,8 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <stdlib.h>
 #include <sstream>
 #include <functional>
+#include <random>
+#include <cmath>
 
 #include <C2Component.h>
 #include "mfx_c2_component.h"
@@ -118,3 +120,37 @@ void ForEveryComponent(
         comp_test(desc, c2_component, c2_component_intf);
     }
 }
+
+// Interface for filling/updating frame contents.
+class FrameGenerator
+{
+public:
+    virtual ~FrameGenerator() = default;
+    // NV12 format is assumed
+    virtual void Apply(uint32_t frame_index, uint8_t* data,
+        uint32_t width, uint32_t stride, uint32_t height) = 0;
+};
+
+// Renders vertical bar code representing frame index, binary coded,
+// frame divided vertically on 16 bars, every bar color represents one bit,
+// less significant bit on the left.
+class StripeGenerator : public FrameGenerator
+{
+public:
+    // NV12 format is assumed
+    void Apply(uint32_t frame_index, uint8_t* data,
+        uint32_t width, uint32_t stride, uint32_t height) override;
+};
+
+// Gaussian white noise is applied over existing frame contents.
+// Normal distribution with std variance == 5 is used.
+class NoiseGenerator : public FrameGenerator
+{
+public:
+    // NV12 format is assumed
+    void Apply(uint32_t /*frame_index*/, uint8_t* data,
+        uint32_t width, uint32_t stride, uint32_t height) override;
+private:
+    std::default_random_engine generator;
+    std::normal_distribution<double> distribution { 0.5, 5.0 };
+};

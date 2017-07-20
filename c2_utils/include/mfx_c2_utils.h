@@ -43,7 +43,9 @@ android::C2ParamField MakeC2ParamField()
 }
 
 std::unique_ptr<android::C2SettingResult> MakeC2SettingResult(
-    const android::C2ParamField& param_field, android::C2SettingResult::Failure failure);
+    const android::C2ParamField& param_field,
+    android::C2SettingResult::Failure failure,
+    std::initializer_list<android::C2ParamField> conflicting_fields = {} );
 
 status_t GetAggregateStatus(std::vector<std::unique_ptr<android::C2SettingResult>>* const failures);
 
