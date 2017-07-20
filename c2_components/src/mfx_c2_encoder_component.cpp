@@ -36,7 +36,8 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const android::C2String name, int f
     switch(encoder_type_) {
         case ENCODER_H264:
             params_descriptors_ = {
-                std::make_shared<C2ParamDescriptor>(false, "RateControl", C2RateControlSetting::typeIndex)
+                std::make_shared<C2ParamDescriptor>(false, "RateControl", C2RateControlSetting::typeIndex),
+                std::make_shared<C2ParamDescriptor>(false, "Bitrate", C2BitrateTuning::typeIndex)
             };
         break;
     }
@@ -147,7 +148,13 @@ mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
         }
 
         if (MFX_ERR_NONE == mfx_res) {
+
+            MFX_DEBUG_TRACE_MSG("Encoder initializing...");
+            MFX_DEBUG_TRACE_mfxVideoParam_enc(video_params_);
+
             mfx_res = encoder_->Init(&video_params_);
+            MFX_DEBUG_TRACE_MSG("Encoder initialized");
+            MFX_DEBUG_TRACE_mfxStatus(mfx_res);
 
             if (MFX_WRN_PARTIAL_ACCELERATION == mfx_res) {
                 MFX_DEBUG_TRACE_MSG("InitEncoder returns MFX_WRN_PARTIAL_ACCELERATION");
@@ -157,6 +164,7 @@ mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
 
         if (MFX_ERR_NONE == mfx_res) {
             mfx_res = encoder_->GetVideoParam(&video_params_);
+            MFX_DEBUG_TRACE_mfxVideoParam_enc(video_params_);
         }
 
         if (MFX_ERR_NONE != mfx_res) {
@@ -477,6 +485,15 @@ status_t MfxC2EncoderComponent::config_nb(const std::vector<C2Param* const> &par
                 }
                 break;
             }
+            case kParamIndexBitrate:
+                if(video_params_.mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
+                    video_params_.mfx.TargetKbps =
+                        static_cast<const C2BitrateTuning*>(param)->mValue;
+                } else {
+                    failures->push_back(MakeC2SettingResult(C2ParamField(param),
+                        C2SettingResult::CONFLICT, { MakeC2ParamField<C2RateControlSetting>() } ));
+                }
+                break;
             default:
                 failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE));
                 break;

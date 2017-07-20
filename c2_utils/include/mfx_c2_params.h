@@ -17,6 +17,7 @@ namespace android {
 enum C2ParamIndexKindVendor : uint32_t {
 
     kParamIndexRateControl = C2Param::BaseIndex::kVendorStart,
+    kParamIndexBitrate,
 };
 
 C2ENUM(C2RateControlMethod, int32_t,
@@ -26,5 +27,7 @@ C2ENUM(C2RateControlMethod, int32_t,
 
 typedef C2PortParam<C2Setting, C2SimpleValueStruct<C2RateControlMethod>, kParamIndexRateControl>::output
     C2RateControlSetting;
+
+typedef C2PortParam<C2Tuning, C2Int32Value, kParamIndexBitrate>::output C2BitrateTuning;
 
 } // namespace android

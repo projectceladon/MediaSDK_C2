@@ -20,58 +20,26 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <set>
 #include <future>
 #include <iostream>
+#include <fstream>
 
 using namespace android;
 
 const uint64_t FRAME_DURATION_US = 33333; // 30 fps
-const uint32_t FRAME_WIDTH = 640;
-const uint32_t FRAME_HEIGHT = 480;
+// Low res is chosen to speed up the tests.
+const uint32_t FRAME_WIDTH = 320;
+const uint32_t FRAME_HEIGHT = 240;
 const uint32_t FRAME_BUF_SIZE = FRAME_WIDTH * FRAME_HEIGHT * 3 / 2;
 
 const uint32_t FRAME_FORMAT = 0; // nv12
-const uint32_t FRAME_COUNT = 10;
+// This frame count is required by StaticBitrate test, the encoder cannot follow
+// bitrate on shorter frame sequences.
+const uint32_t FRAME_COUNT = 150; // 10 default GOP size
 const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
-
-const uint32_t STRIPE_COUNT = 16;
-
-struct YuvColor {
-    uint8_t Y;
-    uint8_t U;
-    uint8_t V;
-};
-
-const YuvColor FRAME_STRIPE_COLORS[2] =
-{
-    { 20, 230, 20 }, // dark-blue
-    { 150, 60, 230 } // bright-red
-};
-
-// Renders one row of striped image, in NV12 format.
-// Stripes are binary figuring frame_index.
-static void RenderStripedRow(uint32_t frame_index, uint32_t frame_width, bool luma, uint8_t* row)
-{
-    int x = 0;
-    for(uint32_t s = 0; s < STRIPE_COUNT; ++s) {
-        int stripe_right_edge = (s + 1) * (frame_width / 2) / STRIPE_COUNT; // in 2x2 blocks
-        const YuvColor& color = FRAME_STRIPE_COLORS[frame_index & 1/*lower bit*/];
-
-        for(; x < stripe_right_edge; ++x) {
-            if(luma) {
-                row[2 * x] = color.Y;
-                row[2 * x + 1] = color.Y;
-            } else {
-                row[2 * x] = color.U;
-                row[2 * x + 1] = color.V;
-            }
-        }
-
-        frame_index >>= 1; // next bit
-    }
-}
 
 static std::vector<C2ParamDescriptor> h264_params_desc =
 {
     { false, "RateControl", C2RateControlSetting::typeIndex },
+    { false, "Bitrate", C2BitrateTuning::typeIndex },
 };
 
 struct ComponentDesc
@@ -142,24 +110,16 @@ TEST(MfxEncoderComponent, Create)
 // and return correct information once queried (component name).
 TEST(MfxEncoderComponent, intf)
 {
-    for(const auto& desc : g_components_desc) {
-        std::shared_ptr<MfxC2Component> encoder = GetCachedComponent(desc.component_name);
-        EXPECT_EQ(encoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
-        if(encoder != nullptr) {
-            std::shared_ptr<C2Component> c2_component = encoder;
-            std::shared_ptr<C2ComponentInterface> c2_component_intf = c2_component->intf();
-
-            EXPECT_NE(c2_component_intf, nullptr);
-
-            if(c2_component_intf != nullptr) {
-                EXPECT_EQ(c2_component_intf->getName(), desc.component_name);
-            }
-        }
-    }
+        EXPECT_EQ(comp_intf->getName(), desc.component_name);
+    } );
 }
 
-static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work)
+static void PrepareWork(uint32_t frame_index,
+    std::unique_ptr<C2Work>* work,
+    const std::vector<FrameGenerator*>& generators)
 {
     *work = std::make_unique<C2Work>();
     C2BufferPack* buffer_pack = &((*work)->input);
@@ -201,24 +161,10 @@ static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work)
         EXPECT_EQ(sts, C2_OK);
         EXPECT_NE(data, nullptr);
 
-        if(nullptr == data) break;
-
         const uint32_t stride = FRAME_WIDTH;
 
-        uint8_t* top_row = data;
-        RenderStripedRow(frame_index, FRAME_WIDTH, true, top_row); // fill 1st luma row
-        uint8_t* row = top_row + stride;
-        for(uint32_t i = 1; i < FRAME_HEIGHT; ++i) {
-            memcpy(row, top_row, stride); // copy top_row down the frame
-            row += stride;
-        }
-
-        top_row = data + FRAME_HEIGHT * stride;
-        RenderStripedRow(frame_index, FRAME_WIDTH, false, top_row); // fill 1st chroma row
-        row = top_row + stride;
-        for(uint32_t i = 1; i < FRAME_HEIGHT / 2; ++i) {
-            memcpy(row, top_row, stride); // copy top_row down the frame
-            row += stride;
+        for(FrameGenerator* generator : generators) {
+            generator->Apply(frame_index, data, FRAME_WIDTH, stride, FRAME_HEIGHT);
         }
 
         C2Event event;
@@ -330,20 +276,24 @@ private:
 };
 
 static void Encode(
+    uint32_t frame_count,
     std::shared_ptr<C2Component> component,
-    std::shared_ptr<EncoderConsumer> validator)
+    std::shared_ptr<EncoderConsumer> validator,
+    const std::vector<FrameGenerator*>& generators)
 {
     component->registerListener(validator);
 
     status_t sts = component->start();
     EXPECT_EQ(sts, C2_OK);
 
-    for(uint32_t frame_index = 0; frame_index < FRAME_COUNT; ++frame_index) {
+    NoiseGenerator noise_generator;
+
+    for(uint32_t frame_index = 0; frame_index < frame_count; ++frame_index) {
         // prepare worklet and push
         std::unique_ptr<C2Work> work;
 
         // insert input data
-        PrepareWork(frame_index, &work);
+        PrepareWork(frame_index, &work, generators);
         std::list<std::unique_ptr<C2Work>> works;
         works.push_back(std::move(work));
 
@@ -364,6 +314,11 @@ static void Encode(
 // If --dump-output option is set, every encoded bitstream is saved into file
 // named as ./<test_case_name>/<test_name>/<component_name>-<run_index>.out,
 // for example: ./MfxEncoderComponent/EncodeBitExact/C2.h264ve-0.out
+// Encoded bitstream is bit exact with a result of run:
+// ./mfx_transcoder64 h264 -i ./C2.h264ve.input.yuv -o ./C2-2222.h264 -nv12 -h 480 -w 640 -f 30
+// -cbr -b 2222000 -CodecProfile 578 -CodecLevel 51 -TargetUsage 7 -hw
+// -GopPicSize 15 -GopRefDist 1 -PicStruct 0 -NumSlice 1 -crc
+
 TEST(MfxEncoderComponent, EncodeBitExact)
 {
     ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
@@ -377,6 +332,8 @@ TEST(MfxEncoderComponent, EncodeBitExact)
             GTestBinaryWriter writer(std::ostringstream()
                 << comp_intf->getName() << "-" << i << ".out");
 
+            StripeGenerator stripe_generator;
+
             EncoderConsumer::OnFrame on_frame = [&] (const uint8_t* data, size_t length) {
                 writer.Write(data, length);
                 binary[i].PushBack(data, length);
@@ -385,7 +342,7 @@ TEST(MfxEncoderComponent, EncodeBitExact)
             std::shared_ptr<EncoderConsumer> validator =
                 std::make_shared<EncoderConsumer>(on_frame);
 
-            Encode(comp, validator);
+            Encode(FRAME_COUNT, comp, validator, { &stripe_generator } );
         }
         // Every pair of results should be equal
         for (int i = 0; i < TESTS_COUNT - 1; ++i) {
@@ -486,6 +443,65 @@ TEST(MfxEncoderComponent, UnsupportedParam)
     } ); // ForEveryComponent
 }
 
+// Synthetic input frame sequence is generated for encoder.
+// It consists of striped frames where stripes figure frame index and
+// white noise is applied over the frames.
+// This sequence is encoded with different bitrates.
+// Expected bitstream size could be calculated from bitrate set, fps, frame count.
+// Actual bitstream size is checked to be no more 10% differ from expected.
+TEST(MfxEncoderComponent, StaticBitrate)
+{
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+
+        C2RateControlSetting param_rate_control;
+        param_rate_control.mValue = C2RateControlCBR;
+        C2BitrateTuning param_bitrate;
+
+        // these bit rates handles accurately for low res (320x240) and significant frame count (150)
+        const uint32_t bitrates[] = { 100, 500, 1000 };
+        const int TESTS_COUNT = MFX_GET_ARRAY_SIZE(bitrates);
+
+        for(int test_index = 0; test_index < TESTS_COUNT; ++test_index) {
+
+            StripeGenerator stripe_generator;
+            NoiseGenerator noise_generator;
+
+            param_bitrate.mValue = bitrates[test_index];
+
+            std::vector<C2Param* const> params = { &param_rate_control, &param_bitrate };
+            std::vector<std::unique_ptr<C2SettingResult>> failures;
+
+            status_t sts = comp_intf->config_nb(params, &failures);
+            EXPECT_EQ(sts, C2_OK);
+
+            GTestBinaryWriter writer(std::ostringstream() << comp_intf->getName()
+                << "-" << bitrates[test_index] << ".out");
+
+            int64_t bitstream_len = 0;
+
+            EncoderConsumer::OnFrame on_frame =
+                [&] (const uint8_t* data, size_t length) {
+
+                writer.Write(data, length);
+                bitstream_len += length;
+            };
+
+            std::shared_ptr<EncoderConsumer> validator =
+                std::make_shared<EncoderConsumer>(on_frame);
+
+            Encode(FRAME_COUNT, comp, validator, { &stripe_generator, &noise_generator } );
+
+            int64_t expected_len = FRAME_DURATION_US * FRAME_COUNT * 1000 * bitrates[test_index] /
+                (8 * 1000000);
+            EXPECT_TRUE(abs(bitstream_len - expected_len) < expected_len * 0.1)
+                << "Expected bitstream len: " << expected_len << " Actual: " << bitstream_len
+                << " for bitrate " << bitrates[test_index] << " kbit";
+
+        }
+    }); // ForEveryComponent
+}
+
 // Performs encoding of the same generated YUV input
 // with different rate control methods: CBR and CQP.
 // Outputs should differ.
@@ -505,6 +521,8 @@ TEST(MfxEncoderComponent, StaticRateControlMethod)
 
             param_rate_control.mValue = rate_control_values[test_index];
 
+            StripeGenerator stripe_generator;
+
             GTestBinaryWriter writer(std::ostringstream() <<
                 comp_intf->getName() << "-" << param_rate_control.mValue << ".out");
 
@@ -522,7 +540,7 @@ TEST(MfxEncoderComponent, StaticRateControlMethod)
             std::shared_ptr<EncoderConsumer> validator =
                 std::make_shared<EncoderConsumer>(on_frame);
 
-            Encode(comp, validator);
+            Encode(FRAME_COUNT, comp, validator, { &stripe_generator } );
         }
 
         // Every pair of results should be equal
