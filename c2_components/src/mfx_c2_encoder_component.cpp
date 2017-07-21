@@ -78,6 +78,28 @@ android::status_t MfxC2EncoderComponent::Init()
     return MfxStatusToC2(mfx_res);
 }
 
+status_t MfxC2EncoderComponent::DoStart()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    working_queue_.Start();
+    waiting_queue_.Start();
+
+    return C2_OK;
+}
+
+status_t MfxC2EncoderComponent::DoStop()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    waiting_queue_.Stop();
+    working_queue_.Stop();
+    FreeEncoder();
+    Reset();
+
+    return C2_OK;
+}
+
 void MfxC2EncoderComponent::Reset()
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -412,30 +434,4 @@ status_t MfxC2EncoderComponent::queue_nb(std::list<std::unique_ptr<android::C2Wo
     }
 
     return C2_OK;
-}
-
-status_t MfxC2EncoderComponent::start()
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    status_t res = C2_OK;
-
-    working_queue_.Start();
-    waiting_queue_.Start();
-
-    return res;
-}
-
-status_t MfxC2EncoderComponent::stop()
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    status_t res = C2_OK;
-
-    waiting_queue_.Stop();
-    working_queue_.Stop();
-    FreeEncoder();
-    Reset();
-
-    return res;
 }

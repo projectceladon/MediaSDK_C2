@@ -268,3 +268,26 @@ TEST(MfxMockComponent, Process)
         validator = nullptr;
     }
 }
+
+TEST(MfxMockComponent, State)
+{
+    status_t sts = C2_OK;
+    MfxC2Component* c_mfx_component;
+    status_t result = MfxCreateC2Component(MOCK_COMPONENT, 0/*flags*/, &c_mfx_component);
+    std::shared_ptr<C2Component> component(c_mfx_component);
+    EXPECT_NE(component, nullptr);
+    if(nullptr != component) {
+
+        sts = component->start();
+        EXPECT_EQ(sts, C2_OK);
+
+        sts = component->start();
+        EXPECT_EQ(sts, C2_BAD_STATE);
+
+        sts = component->stop();
+        EXPECT_EQ(sts, C2_OK);
+
+        sts = component->stop();
+        EXPECT_EQ(sts, C2_BAD_STATE);
+    }
+}

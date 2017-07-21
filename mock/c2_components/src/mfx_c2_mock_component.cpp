@@ -122,7 +122,14 @@ status_t MfxC2MockComponent::queue_nb(std::list<std::unique_ptr<android::C2Work>
     return C2_OK;
 }
 
-status_t MfxC2MockComponent::start()
+android::status_t MfxC2MockComponent::Init()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    return C2_OK;
+}
+
+status_t MfxC2MockComponent::DoStart()
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -131,18 +138,11 @@ status_t MfxC2MockComponent::start()
     return C2_OK;
 }
 
-status_t MfxC2MockComponent::stop()
+status_t MfxC2MockComponent::DoStop()
 {
     MFX_DEBUG_TRACE_FUNC;
 
     cmd_queue_.Stop();
-
-    return C2_OK;
-}
-
-android::status_t MfxC2MockComponent::Init()
-{
-    MFX_DEBUG_TRACE_FUNC;
 
     return C2_OK;
 }

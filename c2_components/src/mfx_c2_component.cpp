@@ -29,6 +29,15 @@ MfxC2Component::~MfxC2Component()
     MFX_DEBUG_TRACE_FUNC;
 }
 
+status_t MfxC2Component::DoStart()
+{
+    return C2_OK;
+}
+status_t MfxC2Component::DoStop()
+{
+    return C2_OK;
+}
+
 C2String MfxC2Component::getName() const
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -171,14 +180,46 @@ status_t MfxC2Component::start()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    return C2_NOT_IMPLEMENTED;
+    status_t res = C2_OK;
+
+    std::lock_guard<std::mutex> lock(state_mutex_);
+
+    if(State::STOPPED == state_) {
+
+        res = DoStart();
+
+        if(C2_OK == res) {
+            state_ = State::RUNNING;
+        }
+
+    } else {
+        res = C2_BAD_STATE;
+    }
+
+    return res;
 }
 
 status_t MfxC2Component::stop()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    return C2_NOT_IMPLEMENTED;
+    status_t res = C2_OK;
+
+    std::lock_guard<std::mutex> lock(state_mutex_);
+
+    if(State::RUNNING == state_) {
+
+        res = DoStop();
+
+        if(C2_OK == res) {
+            state_ = State::STOPPED;
+        }
+
+    } else {
+        res = C2_BAD_STATE;
+    }
+
+    return res;
 }
 
 void MfxC2Component::reset()
