@@ -35,6 +35,10 @@ public:
 private:
     virtual android::status_t Init() = 0;
 
+    virtual android::status_t DoStart();
+
+    virtual android::status_t DoStop();
+
 protected: // android::C2ComponentInterface overrides
     android::C2String getName() const override;
 
@@ -94,7 +98,41 @@ protected:
 
     void NotifyWorkDone(std::unique_ptr<android::C2Work>&& work, android::status_t sts);
 
+private:
+    /* State diagram:
+
+       +------- stop ------- ERROR
+       |                       ^
+       |                       |
+       |                     error
+       |                       |
+       |  +-----start ----> RUNNING
+       V  |                 | |  ^
+    STOPPED <--- stop ------+ |  |
+       ^                      |  |
+       |                 config  |
+       |                  error  |
+       |                      |  start
+       |                      V  |
+       +------- stop ------- TRIPPED
+
+    Operations permitted:
+        Tunings could be applied in all states.
+        Settings could be applied in STOPPED state only.
+*/
+    enum class State
+    {
+        STOPPED,
+        RUNNING,
+        TRIPPED,
+        ERROR
+    };
+
 protected: // variables
+    State state_ = State::STOPPED;
+
+    std::mutex state_mutex_;
+
     android::C2String name_;
 
     int flags_ = 0;

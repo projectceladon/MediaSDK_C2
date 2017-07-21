@@ -39,12 +39,12 @@ public:
 protected: // android::C2Component
     status_t queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items) override;
 
-    status_t start() override;
-
-    status_t stop() override;
-
 protected:
     android::status_t Init() override;
+
+    android::status_t DoStart() override;
+
+    android::status_t DoStop() override;
 
 private:
     void Reset();
@@ -72,6 +72,7 @@ private:
 
 private:
     EncoderType encoder_type_;
+
     std::unique_ptr<MfxDev> device_;
     MFXVideoSession session_;
 

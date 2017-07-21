@@ -377,3 +377,32 @@ TEST(MfxEncoderComponent, Encode)
         }
     }
 }
+
+TEST(MfxEncoderComponent, State)
+{
+    for(const auto& desc : g_components_desc) {
+
+        do {
+            std::shared_ptr<MfxC2Component> encoder = GetCachedComponent(desc.component_name);
+            EXPECT_EQ(encoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;
+            if (nullptr == encoder) break;
+
+            std::shared_ptr<C2Component> c2_component = encoder;
+
+            status_t sts = C2_OK;
+
+            sts = c2_component->start();
+            EXPECT_EQ(sts, C2_OK);
+
+            sts = c2_component->start();
+            EXPECT_EQ(sts, C2_BAD_STATE);
+
+            sts = c2_component->stop();
+            EXPECT_EQ(sts, C2_OK);
+
+            sts = c2_component->stop();
+            EXPECT_EQ(sts, C2_BAD_STATE);
+
+        } while(false);
+    }
+}
