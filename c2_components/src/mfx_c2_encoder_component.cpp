@@ -115,6 +115,7 @@ void MfxC2EncoderComponent::Reset()
     }
     mfx_set_defaults_mfxVideoParam_enc(&video_params_);
 
+    synced_points_count_ = 0;
     // default pattern
     video_params_.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY;
 }
@@ -349,6 +350,10 @@ void MfxC2EncoderComponent::Drain()
                 WaitWork(std::move(work), std::move(bs), sync_point);
             } );
 
+            {
+                std::unique_lock<std::mutex> lock(dev_busy_mutex_);
+                ++synced_points_count_;
+            }
         } else {
             // MFX_ERR_MORE_DATA is an error here too -
             // we are calling EncodeFrameAsync times exactly how many outputs should be fetched
