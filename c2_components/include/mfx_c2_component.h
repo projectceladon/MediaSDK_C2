@@ -98,7 +98,7 @@ protected:
 
     void NotifyWorkDone(std::unique_ptr<android::C2Work>&& work, android::status_t sts);
 
-private:
+protected:
     /* State diagram:
 
        +------- stop ------- ERROR
@@ -137,6 +137,7 @@ protected: // variables
 
     int flags_ = 0;
 
+private:
     std::list<std::shared_ptr<android::C2ComponentListener>> listeners_;
 
     std::mutex listeners_mutex_;
