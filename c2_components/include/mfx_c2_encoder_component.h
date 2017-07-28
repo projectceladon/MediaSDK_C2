@@ -13,7 +13,6 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_component.h"
 #include "mfx_c2_components_registry.h"
 #include "mfx_dev.h"
-#include "mfx_wrappers.h"
 #include "mfx_cmd_queue.h"
 #include "mfx_c2_frame_in.h"
 #include "mfx_c2_bitstream_out.h"
