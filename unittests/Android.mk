@@ -9,7 +9,7 @@ include $(MFX_HOME)/android/mfx_defs.mk
 
 LOCAL_SRC_FILES := \
     src/c2_store_test.cpp \
-    src/test_utils.cpp \
+    src/gtest_emulation.cpp \
     src/test_main.cpp
 
 MFX_C2_HOME := $(MFX_HOME)/samples/sample_c2_plugins/
@@ -50,7 +50,7 @@ include $(MFX_HOME)/android/mfx_defs.mk
 LOCAL_SRC_FILES := \
     src/c2_decoder_test.cpp \
     src/c2_encoder_test.cpp \
-    src/test_utils.cpp \
+    src/gtest_emulation.cpp \
     src/test_main.cpp
 
 LOCAL_C_INCLUDES := \
@@ -89,7 +89,7 @@ include $(MFX_HOME)/android/mfx_defs.mk
 LOCAL_SRC_FILES := \
     src/c2_mock_component_test.cpp \
     src/c2_utils_test.cpp \
-    src/test_utils.cpp \
+    src/gtest_emulation.cpp \
     src/test_main.cpp
 
 LOCAL_C_INCLUDES := \

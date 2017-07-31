@@ -8,7 +8,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
-#include "test_utils.h"
+#include "gtest_emulation.h"
 #include "mfx_cmd_queue.h"
 
 static const size_t CMD_COUNT = 10;
