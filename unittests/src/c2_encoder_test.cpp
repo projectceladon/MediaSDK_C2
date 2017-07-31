@@ -9,7 +9,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 *********************************************************************************/
 
 #include "mfx_c2_defs.h"
-#include "test_utils.h"
+#include "gtest_emulation.h"
 #include "mfx_c2_utils.h"
 #include "mfx_c2_component.h"
 #include "mfx_c2_components_registry.h"
