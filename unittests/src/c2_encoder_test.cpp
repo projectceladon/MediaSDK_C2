@@ -10,6 +10,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include "mfx_c2_defs.h"
 #include "gtest_emulation.h"
+#include "test_components.h"
 #include "mfx_c2_utils.h"
 #include "mfx_c2_component.h"
 #include "mfx_c2_components_registry.h"
@@ -350,7 +351,9 @@ static void Encode(
     EXPECT_EQ(sts, C2_OK);
 }
 
-TEST(MfxEncoderComponent, Encode)
+// Perform encoding with default parameters twice checking 2 runs give bit exact result.
+// Also at first run encoded bitstream is written to file.
+TEST(MfxEncoderComponent, EncodeBitExact)
 {
     for(const auto& desc : g_components_desc) {
 
@@ -364,16 +367,31 @@ TEST(MfxEncoderComponent, Encode)
 
             std::string out_file_name = std::string(desc.component_name) + ".out";
             std::ofstream out_stream(out_file_name, std::fstream::trunc | std::fstream::binary);
+            const int TESTS_COUNT = 5;
+            BinaryChunks binary[TESTS_COUNT];
 
-            EncoderConsumer::OnFrame on_frame =
-                [&out_stream] (const uint8_t* data, size_t length) {
-                out_stream.write((const char*)data, length);
-            };
+            for(int i = 0; i < TESTS_COUNT; ++i) {
 
-            std::shared_ptr<EncoderConsumer> validator =
-                std::make_shared<EncoderConsumer>(on_frame);
+                EncoderConsumer::OnFrame on_frame = [&] (const uint8_t* data, size_t length) {
 
-            Encode(component, validator);
+                    if(i == 0) {
+                        out_stream.write((const char*)data, length);
+                    }
+
+                    binary[i].PushBack(data, length);
+                };
+
+                std::shared_ptr<EncoderConsumer> validator =
+                    std::make_shared<EncoderConsumer>(on_frame);
+
+                Encode(component, validator);
+            }
+            // Every pair of results should be equal
+            for (int i = 0; i < TESTS_COUNT - 1; ++i) {
+                for (int j = i + 1; j < TESTS_COUNT; ++j) {
+                    EXPECT_EQ(binary[i], binary[j]) << "Pass " << i << " not equal to " << j;
+                }
+            }
         }
     }
 }
