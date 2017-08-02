@@ -582,11 +582,15 @@ struct C2ParamField {
     // TODO: fix what this is for T[] (for now size becomes T[1])
     template<typename S, typename T>
     inline C2ParamField(S* param, T* offset)
-        : _mIndex(param->index()),
+        : _mIndex(param->type()),
           _mFieldId(offset) {}
 
     template<typename R, typename T, typename U>
     inline C2ParamField(U *p, R T::* pm) : _mIndex(p->type()), _mFieldId(p, pm) { }
+
+    inline explicit C2ParamField(const C2Param* param)
+        : _mIndex(param->type()),
+          _mFieldId(0, param->size()) {}
 
     inline bool operator==(const C2ParamField &other) const {
         return _mIndex == other._mIndex && _mFieldId == other._mFieldId;

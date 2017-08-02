@@ -12,6 +12,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "gtest_emulation.h"
 #include "test_components.h"
 #include "mfx_c2_utils.h"
+#include "mfx_c2_params.h"
 #include "mfx_c2_component.h"
 #include "mfx_c2_components_registry.h"
 #include "C2BlockAllocator.h"
@@ -68,16 +69,22 @@ static void RenderStripedRow(uint32_t frame_index, uint32_t frame_width, bool lu
     }
 }
 
+static std::vector<C2ParamDescriptor> h264_params_desc =
+{
+    { false, "RateControl", C2RateControlSetting::typeIndex },
+};
+
 struct ComponentDesc
 {
     const char* component_name;
     int flags;
     status_t creation_status;
+    std::vector<C2ParamDescriptor> params_desc;
 };
 
 static ComponentDesc g_components_desc[] = {
-    { "C2.h264ve", 0, C2_OK },
-    { "C2.NonExistingEncoder", 0, C2_NOT_FOUND },
+    { "C2.h264ve", 0, C2_OK, h264_params_desc },
+    { "C2.NonExistingEncoder", 0, C2_NOT_FOUND, {} },
 };
 
 static const ComponentDesc* GetComponentDesc(const std::string& component_name)
@@ -133,7 +140,7 @@ TEST(MfxEncoderComponent, intf)
 {
     for(const auto& desc : g_components_desc) {
         std::shared_ptr<MfxC2Component> encoder = GetCachedComponent(desc.component_name);
-        EXPECT_EQ(encoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;;
+        EXPECT_EQ(encoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;
 
         if(encoder != nullptr) {
             std::shared_ptr<C2Component> c2_component = encoder;
@@ -172,7 +179,6 @@ static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work)
 
         EXPECT_EQ(sts, C2_OK);
         EXPECT_NE(allocator, nullptr);
-
 
         if(nullptr == allocator) break;
 
@@ -364,7 +370,8 @@ TEST(MfxEncoderComponent, EncodeBitExact)
 
         for(int i = 0; i < TESTS_COUNT; ++i) {
 
-            GTestBinaryWriter writer(std::ostringstream() << comp_intf->getName() << "-" << i << ".out");
+            GTestBinaryWriter writer(std::ostringstream()
+                << comp_intf->getName() << "-" << i << ".out");
 
             EncoderConsumer::OnFrame on_frame = [&] (const uint8_t* data, size_t length) {
                 writer.Write(data, length);
@@ -404,4 +411,78 @@ TEST(MfxEncoderComponent, State)
         sts = comp->stop();
         EXPECT_EQ(sts, C2_BAD_STATE);
     } );
+}
+
+TEST(MfxEncoderComponent, getSupportedParams)
+{
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
+
+        std::vector<std::shared_ptr<C2ParamDescriptor>> params_actual;
+        status_t sts = comp_intf->getSupportedParams(&params_actual);
+        EXPECT_EQ(sts, C2_OK);
+
+        EXPECT_EQ(desc.params_desc.size(), params_actual.size());
+
+        for(const C2ParamDescriptor& param_expected : desc.params_desc) {
+
+            const auto found_actual = std::find_if(params_actual.begin(), params_actual.end(),
+                [&] (auto p) { return p->type() == param_expected.type(); } );
+
+            EXPECT_NE(found_actual, params_actual.end())
+                << "missing parameter " << param_expected.name();
+            if (found_actual != params_actual.end()) {
+                EXPECT_EQ((*found_actual)->isRequired(), param_expected.isRequired());
+                EXPECT_EQ((*found_actual)->isPersistent(), param_expected.isPersistent());
+                EXPECT_EQ((*found_actual)->name(), param_expected.name());
+            }
+        }
+    } );
+}
+
+// Perform encoding with different rate control methods: CBR and CQP.
+// Outputs should differ.
+TEST(MfxEncoderComponent, StaticRateControlMethod)
+{
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+
+        C2RateControlSetting param_rate_control;
+
+        const C2RateControlMethod rate_control_values[] =
+            { C2RateControlCBR, C2RateControlCQP };
+        const int TESTS_COUNT = MFX_GET_ARRAY_SIZE(rate_control_values);
+        BinaryChunks binary[TESTS_COUNT];
+
+        for(int test_index = 0; test_index < TESTS_COUNT; ++test_index) {
+
+            param_rate_control.mValue = rate_control_values[test_index];
+
+            GTestBinaryWriter writer(std::ostringstream() <<
+                comp_intf->getName() << "-" << param_rate_control.mValue << ".out");
+
+            std::vector<C2Param* const> params = { &param_rate_control };
+            std::vector<std::unique_ptr<C2SettingResult>> failures;
+
+            status_t sts = comp_intf->config_nb(params, &failures);
+            EXPECT_EQ(sts, C2_OK);
+
+            EncoderConsumer::OnFrame on_frame = [&] (const uint8_t* data, size_t length) {
+                writer.Write(data, length);
+                binary[test_index].PushBack(data, length);
+            };
+
+            std::shared_ptr<EncoderConsumer> validator =
+                std::make_shared<EncoderConsumer>(on_frame);
+
+            Encode(comp, validator);
+        }
+
+        // Every pair of results should be equal
+        for (int i = 0; i < TESTS_COUNT - 1; ++i) {
+            for (int j = i + 1; j < TESTS_COUNT; ++j) {
+                EXPECT_NE(binary[i], binary[j]) << "Pass " << i << " equal to " << j;
+            }
+        }
+    }); // ForEveryComponent
 }

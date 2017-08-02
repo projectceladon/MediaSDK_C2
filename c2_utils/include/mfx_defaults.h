@@ -32,10 +32,15 @@ void mfx_set_defaults_mfxVideoParam_dec(mfxVideoParam* params);
  */
 void mfx_set_defaults_mfxVideoParam_vpp(mfxVideoParam* params);
 /**
+ * Fills mfxVideoParam rate control method with specified value and
+ * fills depended parameters to default values.
+ */
+mfxStatus mfx_set_RateControlMethod(mfxU16 rate_control_method, mfxVideoParam* params);
+/**
  * Fills mfxVideoParam with default values assuming that it will be used in
  * encoder initialization. Since parameters can be different for different
  * encoders caller should fill params->mfx.CodecId field prior calling this
  * function,
  * @param[in,out] params parameters to initialize
  */
-void mfx_set_defaults_mfxVideoParam_enc(mfxVideoParam* params);
+mfxStatus mfx_set_defaults_mfxVideoParam_enc(mfxVideoParam* params);

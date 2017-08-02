@@ -15,6 +15,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_debug.h"
 #include "mfx_c2_components_registry.h"
 #include "mfx_c2_utils.h"
+#include "mfx_c2_params.h"
 #include "mfx_defaults.h"
 
 #include <limits>
@@ -31,6 +32,14 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const android::C2String name, int f
     synced_points_count_(0)
 {
     MFX_DEBUG_TRACE_FUNC;
+
+    switch(encoder_type_) {
+        case ENCODER_H264:
+            params_descriptors_ = {
+                std::make_shared<C2ParamDescriptor>(false, "RateControl", C2RateControlSetting::typeIndex)
+            };
+        break;
+    }
 }
 
 MfxC2EncoderComponent::~MfxC2EncoderComponent()
@@ -100,9 +109,11 @@ status_t MfxC2EncoderComponent::DoStop()
     return C2_OK;
 }
 
-void MfxC2EncoderComponent::Reset()
+mfxStatus MfxC2EncoderComponent::Reset()
 {
     MFX_DEBUG_TRACE_FUNC;
+
+    mfxStatus res = MFX_ERR_NONE;
 
     switch (encoder_type_)
     {
@@ -113,11 +124,14 @@ void MfxC2EncoderComponent::Reset()
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
         break;
     }
-    mfx_set_defaults_mfxVideoParam_enc(&video_params_);
+
+    res = mfx_set_defaults_mfxVideoParam_enc(&video_params_);
 
     synced_points_count_ = 0;
     // default pattern
     video_params_.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY;
+
+    return res;
 }
 
 mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
@@ -190,7 +204,7 @@ mfxStatus MfxC2EncoderComponent::EncodeFrameAsync(
 
       if (MFX_WRN_DEVICE_BUSY == sts) {
 
-        if(trying_count >= MAX_TRYING_COUNT) {
+        if (trying_count >= MAX_TRYING_COUNT) {
             MFX_DEBUG_TRACE_MSG("Too many MFX_WRN_DEVICE_BUSY from EncodeFrameAsync");
             sts = MFX_ERR_DEVICE_FAILED;
             break;
@@ -417,6 +431,69 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
       --synced_points_count_;
     }
     dev_busy_cond_.notify_one();
+}
+
+status_t MfxC2EncoderComponent::config_nb(const std::vector<C2Param* const> &params,
+    std::vector<std::unique_ptr<C2SettingResult>>* const failures) {
+
+    MFX_DEBUG_TRACE_FUNC;
+
+    status_t res = C2_OK;
+
+    std::lock_guard<std::mutex> lock(state_mutex_);
+
+    for (const C2Param* param : params) {
+        // check whether plugin supports this parameter
+        std::unique_ptr<C2SettingResult> find_res = FindC2Param(params_descriptors_, param);
+        if(nullptr != find_res) {
+            failures->push_back(std::move(find_res));
+            continue;
+        }
+        // check whether plugin is in a correct state to apply this parameter
+        bool modifiable = (param->kind() == C2Param::TUNING) ||
+            (param->kind() == C2Param::SETTING && state_ == State::STOPPED);
+
+        if (!modifiable) {
+            failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::READ_ONLY));
+            continue;
+        }
+        // applying parameter
+        switch (C2Param::Type(param->type()).paramIndex()) {
+            case kParamIndexRateControl: {
+                mfxStatus sts = MFX_ERR_NONE;
+                switch (static_cast<const C2RateControlSetting*>(param)->mValue) {
+                    case C2RateControlCBR:
+                        sts = mfx_set_RateControlMethod(MFX_RATECONTROL_CBR, &video_params_);
+                        break;
+                    case C2RateControlCQP:
+                        sts = mfx_set_RateControlMethod(MFX_RATECONTROL_CQP, &video_params_);
+                        break;
+                    default:
+                        sts = MFX_ERR_INVALID_VIDEO_PARAM;
+                        break;
+                }
+                if(MFX_ERR_NONE != sts) {
+                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
+                }
+                break;
+            }
+            default:
+                failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE));
+                break;
+        }
+    }
+
+    return GetAggregateStatus(failures);
+}
+
+status_t MfxC2EncoderComponent::getSupportedParams(
+    std::vector<std::shared_ptr<C2ParamDescriptor>>* const params) const
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    (*params) = params_descriptors_;
+
+    return C2_OK;
 }
 
 status_t MfxC2EncoderComponent::queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items)
