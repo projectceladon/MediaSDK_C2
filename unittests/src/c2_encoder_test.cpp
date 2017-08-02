@@ -19,7 +19,6 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <set>
 #include <future>
 #include <iostream>
-#include <fstream>
 
 using namespace android;
 
@@ -351,8 +350,10 @@ static void Encode(
     EXPECT_EQ(sts, C2_OK);
 }
 
-// Perform encoding with default parameters twice checking 2 runs give bit exact result.
-// Also at first run encoded bitstream is written to file.
+// Perform encoding with default parameters multiple times checking the runs give bit exact result.
+// If --dump-output option is set, every encoded bitstream is saved into file
+// named as ./<test_case_name>/<test_name>/<component_name>-<run_index>.out,
+// for example: ./MfxEncoderComponent/EncodeBitExact/C2.h264ve-0.out
 TEST(MfxEncoderComponent, EncodeBitExact)
 {
     for(const auto& desc : g_components_desc) {
@@ -365,19 +366,15 @@ TEST(MfxEncoderComponent, EncodeBitExact)
 
             std::shared_ptr<C2Component> component(mfx_component);
 
-            std::string out_file_name = std::string(desc.component_name) + ".out";
-            std::ofstream out_stream(out_file_name, std::fstream::trunc | std::fstream::binary);
             const int TESTS_COUNT = 5;
             BinaryChunks binary[TESTS_COUNT];
 
             for(int i = 0; i < TESTS_COUNT; ++i) {
 
+                GTestBinaryWriter writer(std::ostringstream() << desc.component_name << "-" << i << ".out");
+
                 EncoderConsumer::OnFrame on_frame = [&] (const uint8_t* data, size_t length) {
-
-                    if(i == 0) {
-                        out_stream.write((const char*)data, length);
-                    }
-
+                    writer.Write(data, length);
                     binary[i].PushBack(data, length);
                 };
 

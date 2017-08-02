@@ -43,6 +43,47 @@ int RUN_ALL_TESTS();
 
 namespace testing {
 
+class TestInfo
+{
+public:
+    // Returns the test case name and the test name, respectively.
+    //
+    // Do NOT delete or free the return value - it's managed by the
+    // TestInfo class.
+    const char* test_case_name() const
+    {
+        return test_case_name_.c_str();
+    }
+
+    const char* name() const
+    {
+        return name_.c_str();
+    }
+
+public:
+    std::string test_case_name_;
+
+    std::string name_;
+};
+
+class UnitTest
+{
+public:
+    static UnitTest* GetInstance()
+    {
+        static UnitTest s_instance;
+        return &s_instance;
+    }
+
+    TestInfo* current_test_info()
+    {
+        return &current_test_info_;
+    }
+
+public:
+    TestInfo current_test_info_;
+};
+
 void InitGoogleTest(int* argc, char** argv);
 
 const char* CutPath(const char* path);

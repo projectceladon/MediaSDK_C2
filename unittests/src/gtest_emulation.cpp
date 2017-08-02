@@ -52,27 +52,53 @@ TestRegistration::TestRegistration(const std::string& test_case_name, const std:
     RegisterTest(*this);
 }
 
+// If text starts with prefix, cuts prefix out of text, returns true.
+static bool CutPrefix(const std::string& prefix, std::string& text)
+{
+    bool res = false;
+
+    if(!text.compare(0, prefix.size(), prefix)) {
+        text = text.substr(prefix.size());
+        res = true;
+    }
+    return res;
+}
+
 void InitGoogleTest(int* argc, char** argv)
 {
+    std::vector<char*> args_left;
+
+    if(*argc >= 1) { // ignore exec name
+        args_left.push_back(argv[0]);
+    }
+
     for(int i = 1; i < *argc; ++i) {
         std::string arg(argv[i]);
+        // process only gtest arguments, others - ignore
+        if(CutPrefix("--gtest_", arg)) {
 
-        bool ok = false;
+            bool ok = false;
 
-        std::string prefix("--gtest_filter=");
-        if (!arg.compare(0, prefix.size(), prefix)) {
-            try {
-                g_test_filter = std::make_unique<std::regex>(arg.substr(prefix.size()));
-                ok = true;
-            } catch(const std::exception& ex) {
-                std::cout << "Regex exception: " << ex.what() << std::endl;
+            if(CutPrefix("filter=", arg)) {
+                try {
+                    g_test_filter = std::make_unique<std::regex>(arg);
+                    ok = true;
+                } catch(const std::exception& ex) {
+                    std::cout << "Regex exception: " << ex.what() << std::endl;
+                }
             }
-        }
 
-        if(!ok) {
-            std::cout << "Invalid argument: " << arg << std::endl;
+            if(!ok) {
+                std::cout << "Invalid argument: " << arg << std::endl;
+            }
+
+        } else {
+            args_left.push_back(argv[i]);
         }
     }
+    // update argc/argv with left arguments
+    *argc = args_left.size();
+    std::copy(args_left.begin(), args_left.end(), argv);
 }
 
 } // namespace testing
@@ -93,6 +119,10 @@ int RUN_ALL_TESTS()
                 continue;
             }
         }
+
+        TestInfo* test_info = UnitTest::GetInstance()->current_test_info();
+        test_info->test_case_name_ = test.test_case_name_;
+        test_info->name_ = test.test_name_;
 
         std::cout << test_full_name;
         g_failures_stream = std::ostringstream();
