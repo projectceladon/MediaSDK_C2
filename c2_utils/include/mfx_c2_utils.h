@@ -13,6 +13,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_defs.h"
 #include "mfx_c2_defs.h"
 #include <C2Buffer.h>
+#include <C2Param.h>
 
 android::status_t MfxStatusToC2(mfxStatus mfx_status);
 
@@ -33,3 +34,19 @@ android::status_t MapConstLinearBlock(
 
 android::status_t MapLinearBlock(
     android::C2LinearBlock& block, nsecs_t timeout, uint8_t** data);
+
+template<typename ParamType>
+android::C2ParamField MakeC2ParamField()
+{
+    ParamType p; // have to instantiate param here as C2ParamField constructor demands this
+    return android::C2ParamField(&p, &p.mValue);
+}
+
+std::unique_ptr<android::C2SettingResult> MakeC2SettingResult(
+    const android::C2ParamField& param_field, android::C2SettingResult::Failure failure);
+
+status_t GetAggregateStatus(std::vector<std::unique_ptr<android::C2SettingResult>>* const failures);
+
+std::unique_ptr<android::C2SettingResult> FindC2Param(
+    const std::vector<std::shared_ptr<android::C2ParamDescriptor>>& params_descriptors_,
+    const android::C2Param* param);

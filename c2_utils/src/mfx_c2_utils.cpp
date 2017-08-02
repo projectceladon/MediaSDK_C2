@@ -10,6 +10,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include "mfx_c2_utils.h"
 #include "mfx_debug.h"
+#include "mfx_c2_debug.h"
 
 using namespace android;
 
@@ -217,6 +218,73 @@ status_t MapLinearBlock(
         *data = write_view.data();
 
     } while(false);
+
+    return res;
+}
+
+std::unique_ptr<C2SettingResult> MakeC2SettingResult(
+    const C2ParamField& param_field, C2SettingResult::Failure failure)
+{
+    C2SettingResult* set_res =
+        new C2SettingResult { param_field, failure, {}, {} };
+    return std::unique_ptr<C2SettingResult>(set_res);
+}
+
+status_t GetAggregateStatus(std::vector<std::unique_ptr<C2SettingResult>>* const failures)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    status_t res = C2_OK;
+
+    if (!failures->empty()) {
+
+        auto is_bad_value = [] (const std::unique_ptr<C2SettingResult>& set_res) {
+            return set_res->failure == C2SettingResult::BAD_VALUE;
+        };
+
+        if (std::all_of(failures->begin(), failures->end(), is_bad_value)) {
+            res = C2_BAD_VALUE;
+        } else { // if any other failures
+            res = C2_BAD_INDEX;
+        }
+    }
+
+    MFX_DEBUG_TRACE_android_status_t(res);
+    return res;
+}
+
+std::unique_ptr<C2SettingResult> FindC2Param(
+    const std::vector<std::shared_ptr<C2ParamDescriptor>>& params_desc, const C2Param* param)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    std::unique_ptr<C2SettingResult> res;
+
+    auto type_match = [param] (const auto& param_desc) {
+        // type includes: kind, dir, flexible and param_index, doesn't include stream id
+        // stream should be checked on individual parameters handling
+        return C2Param::Type(param->type()) == param_desc->type();
+    };
+
+    if (std::none_of(params_desc.begin(), params_desc.end(), type_match)) {
+        // there is not exact match among supported parameters
+        // if we find supported parameter with another port -> it is BAD_PORT error
+        // otherwise -> BAD_TYPE error
+        auto match_regardless_port = [param] (const auto& param_desc) {
+            C2Param::Type typeA(param->type());
+            C2Param::Type typeB(param_desc->type());
+
+            return typeA.kind() == typeB.kind() &&
+                typeA.forStream() == typeB.forStream() &&
+                typeA.baseIndex() == typeB.baseIndex();
+        };
+
+        if (std::any_of(params_desc.begin(), params_desc.end(), match_regardless_port)) {
+            res = MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_PORT);
+        } else {
+            res = MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE);
+        }
+    }
 
     return res;
 }
