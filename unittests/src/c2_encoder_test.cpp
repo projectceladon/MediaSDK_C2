@@ -440,6 +440,39 @@ TEST(MfxEncoderComponent, getSupportedParams)
     } );
 }
 
+TEST(MfxEncoderComponent, UnsupportedParam)
+{
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [] (const ComponentDesc&, C2CompPtr, C2CompIntfPtr comp_intf) {
+
+        const uint32_t kParamIndexUnsupported = C2Param::BaseIndex::kVendorStart + 1000;
+
+        typedef C2GlobalParam<C2Setting, C2Int32Value, kParamIndexUnsupported> C2UnsupportedSetting;
+
+        C2UnsupportedSetting setting;
+
+        std::vector<C2Param* const> params = { &setting };
+        std::vector<std::unique_ptr<C2SettingResult>> failures;
+
+        status_t sts = comp_intf->config_nb(params, &failures);
+        EXPECT_EQ(sts, C2_BAD_INDEX);
+
+        EXPECT_EQ(failures.size(), 1);
+
+        if(failures.size() >= 1) {
+            std::unique_ptr<C2SettingResult>& set_res = failures.front();
+
+            // if a setting totally unknown for the component
+            // it doesn't have info about its mValue of other fields
+            // so return C2ParamField about whole parameter
+            EXPECT_EQ(set_res->field, C2ParamField(&setting));
+            EXPECT_EQ(set_res->failure, C2SettingResult::BAD_TYPE);
+            EXPECT_EQ(set_res->supportedValues, nullptr);
+            EXPECT_TRUE(set_res->conflictingFields.empty());
+        }
+    } ); // ForEveryComponent
+}
+
 // Perform encoding with different rate control methods: CBR and CQP.
 // Outputs should differ.
 TEST(MfxEncoderComponent, StaticRateControlMethod)
