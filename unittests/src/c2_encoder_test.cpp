@@ -356,68 +356,52 @@ static void Encode(
 // for example: ./MfxEncoderComponent/EncodeBitExact/C2.h264ve-0.out
 TEST(MfxEncoderComponent, EncodeBitExact)
 {
-    for(const auto& desc : g_components_desc) {
+    ForEveryComponent(g_components_desc, GetCachedComponent,
+        [&] (C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
-        std::shared_ptr<MfxC2Component> mfx_component = GetCachedComponent(desc.component_name);
+        const int TESTS_COUNT = 5;
+        BinaryChunks binary[TESTS_COUNT];
 
-        EXPECT_EQ(mfx_component != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;
+        for(int i = 0; i < TESTS_COUNT; ++i) {
 
-        if(nullptr != mfx_component) {
+            GTestBinaryWriter writer(std::ostringstream() << comp_intf->getName() << "-" << i << ".out");
 
-            std::shared_ptr<C2Component> component(mfx_component);
+            EncoderConsumer::OnFrame on_frame = [&] (const uint8_t* data, size_t length) {
+                writer.Write(data, length);
+                binary[i].PushBack(data, length);
+            };
 
-            const int TESTS_COUNT = 5;
-            BinaryChunks binary[TESTS_COUNT];
+            std::shared_ptr<EncoderConsumer> validator =
+                std::make_shared<EncoderConsumer>(on_frame);
 
-            for(int i = 0; i < TESTS_COUNT; ++i) {
-
-                GTestBinaryWriter writer(std::ostringstream() << desc.component_name << "-" << i << ".out");
-
-                EncoderConsumer::OnFrame on_frame = [&] (const uint8_t* data, size_t length) {
-                    writer.Write(data, length);
-                    binary[i].PushBack(data, length);
-                };
-
-                std::shared_ptr<EncoderConsumer> validator =
-                    std::make_shared<EncoderConsumer>(on_frame);
-
-                Encode(component, validator);
-            }
-            // Every pair of results should be equal
-            for (int i = 0; i < TESTS_COUNT - 1; ++i) {
-                for (int j = i + 1; j < TESTS_COUNT; ++j) {
-                    EXPECT_EQ(binary[i], binary[j]) << "Pass " << i << " not equal to " << j;
-                }
+            Encode(comp, validator);
+        }
+        // Every pair of results should be equal
+        for (int i = 0; i < TESTS_COUNT - 1; ++i) {
+            for (int j = i + 1; j < TESTS_COUNT; ++j) {
+                EXPECT_EQ(binary[i], binary[j]) << "Pass " << i << " not equal to " << j;
             }
         }
-    }
+    } );
 }
 
 TEST(MfxEncoderComponent, State)
 {
-    for(const auto& desc : g_components_desc) {
+    ForEveryComponent(g_components_desc, GetCachedComponent,
+        [&] (C2CompPtr comp, C2CompIntfPtr) {
 
-        do {
-            std::shared_ptr<MfxC2Component> encoder = GetCachedComponent(desc.component_name);
-            EXPECT_EQ(encoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;
-            if (nullptr == encoder) break;
+        status_t sts = C2_OK;
 
-            std::shared_ptr<C2Component> c2_component = encoder;
+        sts = comp->start();
+        EXPECT_EQ(sts, C2_OK);
 
-            status_t sts = C2_OK;
+        sts = comp->start();
+        EXPECT_EQ(sts, C2_BAD_STATE);
 
-            sts = c2_component->start();
-            EXPECT_EQ(sts, C2_OK);
+        sts = comp->stop();
+        EXPECT_EQ(sts, C2_OK);
 
-            sts = c2_component->start();
-            EXPECT_EQ(sts, C2_BAD_STATE);
-
-            sts = c2_component->stop();
-            EXPECT_EQ(sts, C2_OK);
-
-            sts = c2_component->stop();
-            EXPECT_EQ(sts, C2_BAD_STATE);
-
-        } while(false);
-    }
+        sts = comp->stop();
+        EXPECT_EQ(sts, C2_BAD_STATE);
+    } );
 }

@@ -17,9 +17,14 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <stdio.h>
 #include <stdlib.h>
 #include <sstream>
+#include <functional>
+
+#include <C2Component.h>
+#include "mfx_c2_component.h"
+#include "gtest_emulation.h"
 
 // Collection of binary buffers hashes.
-// The purpose is to check if encoder outputs differ between runs or the same.
+// The purpose is to check if component outputs differ between runs or the same.
 class BinaryChunks
 {
 public:
@@ -78,3 +83,33 @@ public:
 private:
     static std::vector<std::string> GetTestFolders();
 };
+
+typedef std::shared_ptr<android::C2Component> C2CompPtr;
+typedef std::shared_ptr<android::C2ComponentInterface> C2CompIntfPtr;
+typedef std::function<void(C2CompPtr comp, C2CompIntfPtr comp_intf)> ComponentTest;
+
+// Calls specified test std::function for every successfully created component.
+// Used to avoid duplicating the same loop everywhere.
+template<typename ComponentDesc, int N, typename ComponentFactory>
+void ForEveryComponent(ComponentDesc (&components_desc)[N], ComponentFactory factory, ComponentTest comp_test)
+{
+    for(const auto& desc : components_desc) {
+
+        SCOPED_TRACE(desc.component_name);
+
+        std::shared_ptr<MfxC2Component> encoder = factory(desc.component_name);
+        bool creation_expected = (desc.creation_status == android::C2_OK);
+        bool creation_actual = (encoder != nullptr);
+
+        EXPECT_EQ(creation_actual, creation_expected) << " for " << desc.component_name;
+        if (nullptr == encoder) continue;
+
+        std::shared_ptr<android::C2Component> c2_component = encoder;
+        std::shared_ptr<android::C2ComponentInterface> c2_component_intf = c2_component->intf();
+
+        EXPECT_NE(c2_component_intf, nullptr);
+        if (nullptr == c2_component_intf) continue;
+
+        comp_test(c2_component, c2_component_intf);
+    }
+}

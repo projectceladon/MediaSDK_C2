@@ -33,6 +33,8 @@ const char* CutPath(const char* path)
 
 std::ostringstream g_failures_stream;
 
+std::string ScopedTrace::s_overall;
+
 static std::unique_ptr<std::regex> g_test_filter; // unique_ptr as optional
 
 std::vector<TestRegistration>& GetTestsRegistry()
