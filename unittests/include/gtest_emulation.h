@@ -19,29 +19,56 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
     static testing::TestRegistration g_##test_case_name##test_name (#test_case_name, #test_name, &test_case_name##test_name); \
     void test_case_name##test_name()
 
+#define GTEST_STD_DETAILS testing::ScopedTrace::GetOverall() << testing::CutPath(__FILE__) << ":" << __LINE__
+
 #define ASSERT_NE(p0, p1) \
     if(!((p0) != (p1))) \
-        throw std::ostringstream() << testing::CutPath(__FILE__) << ":" << __LINE__  << " Assertion failed: " #p0 " != " #p1 " "
+        throw std::ostringstream() << GTEST_STD_DETAILS  << " Assertion failed: " #p0 " != " #p1 " "
 
 #define ASSERT_EQ(p0, p1) \
     if(!((p0) == (p1))) \
-        throw std::ostringstream() << testing::CutPath(__FILE__) << ":" << __LINE__  << " Assertion failed: " #p0 " == " #p1 " "
+        throw std::ostringstream() << GTEST_STD_DETAILS  << " Assertion failed: " #p0 " == " #p1 " "
 
 #define ASSERT_GE(p0, p1) \
     if(!((p0) >= (p1))) \
-        throw std::ostringstream() << testing::CutPath(__FILE__) << ":" << __LINE__  << " Assertion failed: " #p0 " >= " #p1 " "
+        throw std::ostringstream() << GTEST_STD_DETAILS  << " Assertion failed: " #p0 " >= " #p1 " "
 
 #define EXPECT_EQ(p0, p1) \
     if(!((p0) == (p1))) \
-        testing::g_failures_stream << std::endl << testing::CutPath(__FILE__) << ":" << __LINE__  << " Condition failed: " #p0 " == " #p1 " "
+        testing::g_failures_stream << std::endl << GTEST_STD_DETAILS  << " Condition failed: " #p0 " == " #p1 " "
 
 #define EXPECT_NE(p0, p1) \
     if(!((p0) != (p1))) \
-        testing::g_failures_stream << std::endl << testing::CutPath(__FILE__) << ":" << __LINE__  << " Condition failed: " #p0 " != " #p1 " "
+        testing::g_failures_stream << std::endl << GTEST_STD_DETAILS  << " Condition failed: " #p0 " != " #p1 " "
+
+#define SCOPED_TRACE(message) testing::ScopedTrace st(std::ostringstream() \
+    << testing::CutPath(__FILE__) << ":" << __LINE__ << ": " << message << "\n")
 
 int RUN_ALL_TESTS();
 
 namespace testing {
+
+class ScopedTrace
+{
+public:
+    ScopedTrace(const std::ostringstream& ss)
+    {
+        prev_trace_len_ = s_overall.size();
+
+        s_overall += ss.str();
+    }
+
+    ~ScopedTrace()
+    {
+        s_overall.resize(prev_trace_len_);
+    }
+
+    static std::string GetOverall() { return s_overall; }
+private:
+    static std::string s_overall;
+
+    size_t prev_trace_len_;
+};
 
 class TestInfo
 {
