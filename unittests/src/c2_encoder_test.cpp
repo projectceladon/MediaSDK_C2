@@ -356,8 +356,8 @@ static void Encode(
 // for example: ./MfxEncoderComponent/EncodeBitExact/C2.h264ve-0.out
 TEST(MfxEncoderComponent, EncodeBitExact)
 {
-    ForEveryComponent(g_components_desc, GetCachedComponent,
-        [&] (C2CompPtr comp, C2CompIntfPtr comp_intf) {
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         const int TESTS_COUNT = 5;
         BinaryChunks binary[TESTS_COUNT];
@@ -387,8 +387,8 @@ TEST(MfxEncoderComponent, EncodeBitExact)
 
 TEST(MfxEncoderComponent, State)
 {
-    ForEveryComponent(g_components_desc, GetCachedComponent,
-        [&] (C2CompPtr comp, C2CompIntfPtr) {
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr) {
 
         status_t sts = C2_OK;
 

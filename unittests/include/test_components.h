@@ -86,12 +86,17 @@ private:
 
 typedef std::shared_ptr<android::C2Component> C2CompPtr;
 typedef std::shared_ptr<android::C2ComponentInterface> C2CompIntfPtr;
-typedef std::function<void(C2CompPtr comp, C2CompIntfPtr comp_intf)> ComponentTest;
+
+template <typename Desc>
+using ComponentTest =
+    std::function<void(const Desc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf)>;
 
 // Calls specified test std::function for every successfully created component.
 // Used to avoid duplicating the same loop everywhere.
 template<typename ComponentDesc, int N, typename ComponentFactory>
-void ForEveryComponent(ComponentDesc (&components_desc)[N], ComponentFactory factory, ComponentTest comp_test)
+void ForEveryComponent(
+    ComponentDesc (&components_desc)[N], ComponentFactory factory,
+    ComponentTest<ComponentDesc> comp_test)
 {
     for(const auto& desc : components_desc) {
 
@@ -110,6 +115,6 @@ void ForEveryComponent(ComponentDesc (&components_desc)[N], ComponentFactory fac
         EXPECT_NE(c2_component_intf, nullptr);
         if (nullptr == c2_component_intf) continue;
 
-        comp_test(c2_component, c2_component_intf);
+        comp_test(desc, c2_component, c2_component_intf);
     }
 }
