@@ -23,23 +23,31 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #define ASSERT_NE(p0, p1) \
     if(!((p0) != (p1))) \
-        throw std::ostringstream() << GTEST_STD_DETAILS  << " Assertion failed: " #p0 " != " #p1 " "
+        throw std::ostringstream() << GTEST_STD_DETAILS << " Assertion failed: " #p0 " != " #p1 " "
 
 #define ASSERT_EQ(p0, p1) \
     if(!((p0) == (p1))) \
-        throw std::ostringstream() << GTEST_STD_DETAILS  << " Assertion failed: " #p0 " == " #p1 " "
+        throw std::ostringstream() << GTEST_STD_DETAILS << " Assertion failed: " #p0 " == " #p1 " "
 
 #define ASSERT_GE(p0, p1) \
     if(!((p0) >= (p1))) \
-        throw std::ostringstream() << GTEST_STD_DETAILS  << " Assertion failed: " #p0 " >= " #p1 " "
+        throw std::ostringstream() << GTEST_STD_DETAILS << " Assertion failed: " #p0 " >= " #p1 " "
 
 #define EXPECT_EQ(p0, p1) \
     if(!((p0) == (p1))) \
-        testing::g_failures_stream << std::endl << GTEST_STD_DETAILS  << " Condition failed: " #p0 " == " #p1 " "
+        testing::g_failures_stream << std::endl << GTEST_STD_DETAILS << " Condition failed: " #p0 " == " #p1 " "
 
 #define EXPECT_NE(p0, p1) \
     if(!((p0) != (p1))) \
-        testing::g_failures_stream << std::endl << GTEST_STD_DETAILS  << " Condition failed: " #p0 " != " #p1 " "
+        testing::g_failures_stream << std::endl << GTEST_STD_DETAILS << " Condition failed: " #p0 " != " #p1 " "
+
+#define EXPECT_TRUE(p) \
+    if(!(p)) \
+        testing::g_failures_stream << std::endl << GTEST_STD_DETAILS << " Condition failed: " #p " expected true "
+
+#define EXPECT_FALSE(p) \
+    if(p) \
+        testing::g_failures_stream << std::endl << GTEST_STD_DETAILS << " Condition failed: " #p " expected false "
 
 #define SCOPED_TRACE(message) testing::ScopedTrace st(std::ostringstream() \
     << testing::CutPath(__FILE__) << ":" << __LINE__ << ": " << message << "\n")
