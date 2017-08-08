@@ -126,6 +126,8 @@ static std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name)
     return result;
 }
 
+// Assures that all encoding components might be successfully created.
+// NonExistingEncoder cannot be created and C2_NOT_FOUND error is returned.
 TEST(MfxEncoderComponent, Create)
 {
     for(const auto& desc : g_components_desc) {
@@ -136,6 +138,8 @@ TEST(MfxEncoderComponent, Create)
     }
 }
 
+// Checks that all successfully created encoding components expose C2ComponentInterface
+// and return correct information once queried (component name).
 TEST(MfxEncoderComponent, intf)
 {
     for(const auto& desc : g_components_desc) {
@@ -392,6 +396,9 @@ TEST(MfxEncoderComponent, EncodeBitExact)
     } );
 }
 
+// Checks the correctness of all encoding components state machine.
+// The component should be able to start from STOPPED (initial) state,
+// stop from RUNNING state. Otherwise, C2_BAD_STATE should be returned.
 TEST(MfxEncoderComponent, State)
 {
     ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
@@ -413,6 +420,9 @@ TEST(MfxEncoderComponent, State)
     } );
 }
 
+// Checks list of actually supported parameters by all encoding components.
+// Parameters order doesn't matter.
+// For every parameter index, name, required and persistent fields are checked.
 TEST(MfxEncoderComponent, getSupportedParams)
 {
     ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
@@ -440,6 +450,9 @@ TEST(MfxEncoderComponent, getSupportedParams)
     } );
 }
 
+// Tests if all encoding components handle config_nb with not existing parameter correctly.
+// It should return individual C2SettingResult failure structure with
+// initialized fields and aggregate status value.
 TEST(MfxEncoderComponent, UnsupportedParam)
 {
     ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
@@ -473,7 +486,8 @@ TEST(MfxEncoderComponent, UnsupportedParam)
     } ); // ForEveryComponent
 }
 
-// Perform encoding with different rate control methods: CBR and CQP.
+// Performs encoding of the same generated YUV input
+// with different rate control methods: CBR and CQP.
 // Outputs should differ.
 TEST(MfxEncoderComponent, StaticRateControlMethod)
 {

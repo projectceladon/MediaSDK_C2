@@ -66,6 +66,8 @@ static std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name)
     return result;
 }
 
+// Assures that all decoding components might be successfully created.
+// NonExistingDecoder cannot be created and C2_NOT_FOUND error is returned.
 TEST(MfxDecoderComponent, Create)
 {
     for(const auto& desc : g_components_desc) {
@@ -76,6 +78,8 @@ TEST(MfxDecoderComponent, Create)
     }
 }
 
+// Checks that all successfully created decoding components expose C2ComponentInterface
+// and return correct information once queried (component name).
 TEST(MfxDecoderComponent, intf)
 {
     for(const auto& desc : g_components_desc) {

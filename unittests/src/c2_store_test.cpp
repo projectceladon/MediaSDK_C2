@@ -77,6 +77,7 @@ static status_t GetCachedC2ComponentStore(std::shared_ptr<android::C2ComponentSt
     return g_creation_status;
 }
 
+// Tests if the component store can be created by itself.
 TEST(MfxComponentStore, Create)
 {
     std::shared_ptr<android::C2ComponentStore> componentStore;
@@ -85,6 +86,9 @@ TEST(MfxComponentStore, Create)
     EXPECT_EQ(status, C2_OK);
 }
 
+// Tests if store returns correct list of supported components.
+// A list should be equal to the list prepared by test in file /etc/mfx_c2_store.conf
+// For this test the running device should be rooted and remounted to able to write to /etc dir.
 TEST(MfxComponentStore, getComponents)
 {
     std::shared_ptr<android::C2ComponentStore> componentStore;
@@ -109,6 +113,10 @@ TEST(MfxComponentStore, getComponents)
     }
 }
 
+// Tests if all components from the list could be created.
+// Creation is made with C2ComponentStore::createComponent.
+// Then created component returned C2ComponentInterface to check component name.
+// A module loaded into memory is checked as well.
 TEST(MfxComponentStore, createComponent)
 {
     std::shared_ptr<android::C2ComponentStore> componentStore;
@@ -141,6 +149,9 @@ TEST(MfxComponentStore, createComponent)
     }
 }
 
+// Tests if all components from the list could be created via C2ComponentStore::createInterface.
+// Test verifies that correct DSO is loaded into memory.
+// Also test checks that component returns valid information via interface (b.e., returns name).
 TEST(MfxComponentStore, createInterface)
 {
     std::shared_ptr<android::C2ComponentStore> componentStore;
@@ -166,6 +177,7 @@ TEST(MfxComponentStore, createInterface)
     }
 }
 
+// Checks C2ComponentStore::copyBuffer returns C2_NOT_IMPLEMENTED for now.
 TEST(MfxComponentStore, copyBuffer)
 {
     std::shared_ptr<android::C2ComponentStore> componentStore;
@@ -178,6 +190,8 @@ TEST(MfxComponentStore, copyBuffer)
     EXPECT_EQ(status, C2_NOT_IMPLEMENTED);
 }
 
+// Checks C2ComponentStore::query_nb (query global store parameter)
+// returns C2_NOT_IMPLEMENTED for now.
 TEST(MfxComponentStore, query_nb)
 {
     std::shared_ptr<android::C2ComponentStore> componentStore;
@@ -191,6 +205,8 @@ TEST(MfxComponentStore, query_nb)
     EXPECT_EQ(status, C2_NOT_IMPLEMENTED);
 }
 
+// Checks C2ComponentStore::config_nb (set global store parameter)
+// returns C2_NOT_IMPLEMENTED for now.
 TEST(MfxComponentStore, config_nb)
 {
     std::shared_ptr<android::C2ComponentStore> componentStore;
