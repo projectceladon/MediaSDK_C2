@@ -39,7 +39,7 @@ const uint32_t FRAME_FORMAT = 0; // nv12
 const uint32_t FRAME_COUNT = 10;
 const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
-
+// Tests if the mock component is created OK.
 TEST(MfxMockComponent, Create)
 {
     int flags = 0;
@@ -50,6 +50,8 @@ TEST(MfxMockComponent, Create)
     EXPECT_NE(mfx_component, nullptr);
 }
 
+// Tests mock component expose C2ComponentInterface
+// and return correct information once queried (component name).
 TEST(MfxMockComponent, intf)
 {
     int flags = 0;
@@ -228,6 +230,12 @@ public:
     std::promise<void> done_; // fire when all expected frames came
 };
 
+// Tests how the mock component processes a sequence of C2Work items.
+// The component copies input buffer to output without any changes.
+// The test checks that order of inputs is not changed
+// and output is accurately the same as input.
+// Also the component processing should make output within 10 seconds (test on hang).
+// All supplementary entities (c2 buffers and command queues) are tested by this test.
 TEST(MfxMockComponent, Process)
 {
     status_t sts = C2_OK;
@@ -269,6 +277,9 @@ TEST(MfxMockComponent, Process)
     }
 }
 
+// Checks the correctness of mock component state machine.
+// The component should be able to start from STOPPED (initial) state,
+// stop from RUNNING state. Otherwise, C2_BAD_STATE should be returned.
 TEST(MfxMockComponent, State)
 {
     status_t sts = C2_OK;

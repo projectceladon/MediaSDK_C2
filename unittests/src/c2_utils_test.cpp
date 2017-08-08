@@ -13,6 +13,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 static const size_t CMD_COUNT = 10;
 
+// Tests abstract command queue processed all supplied tasks in correct order.
 TEST(MfxCmdQueue, ProcessAll)
 {
     MfxCmdQueue queue;
@@ -41,6 +42,7 @@ TEST(MfxCmdQueue, ProcessAll)
     }
 }
 
+// Tests that MfxCmdQueue::Stop is waiting for the end of all pushed tasks.
 TEST(MfxCmdQueue, Stop)
 {
     MfxCmdQueue queue;
@@ -70,6 +72,8 @@ TEST(MfxCmdQueue, Stop)
     }
 }
 
+// Tests that MfxCmdQueue::Abort is not waiting for the end of all pushed tasks.
+// At least some tasks should not be processed.
 TEST(MfxCmdQueue, Abort)
 {
     MfxCmdQueue queue;
