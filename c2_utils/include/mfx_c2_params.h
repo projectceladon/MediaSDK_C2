@@ -10,6 +10,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #pragma once
 
+#include <C2Config.h>
 #include <C2ParamDef.h>
 
 namespace android {
@@ -18,6 +19,7 @@ enum C2ParamIndexKindVendor : uint32_t {
 
     kParamIndexRateControl = C2Param::BaseIndex::kVendorStart,
     kParamIndexBitrate,
+    kParamIndexFrameQP,
 };
 
 C2ENUM(C2RateControlMethod, int32_t,
@@ -29,5 +31,18 @@ typedef C2PortParam<C2Setting, C2SimpleValueStruct<C2RateControlMethod>, kParamI
     C2RateControlSetting;
 
 typedef C2PortParam<C2Tuning, C2Int32Value, kParamIndexBitrate>::output C2BitrateTuning;
+
+struct C2FrameQPStruct {
+    uint32_t qp_i;
+    uint32_t qp_p;
+    uint32_t qp_b;
+
+    DEFINE_AND_DESCRIBE_C2STRUCT(FrameQP)
+    C2FIELD(qp_i, "QPI")
+    C2FIELD(qp_p, "QPP")
+    C2FIELD(qp_b, "QPB")
+};
+
+typedef C2PortParam<C2Tuning, C2FrameQPStruct, kParamIndexFrameQP>::output C2FrameQPSetting;
 
 } // namespace android

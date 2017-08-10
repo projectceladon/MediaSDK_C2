@@ -40,6 +40,7 @@ static std::vector<C2ParamDescriptor> h264_params_desc =
 {
     { false, "RateControl", C2RateControlSetting::typeIndex },
     { false, "Bitrate", C2BitrateTuning::typeIndex },
+    { false, "FrameQP", C2FrameQPSetting::typeIndex },
 };
 
 struct ComponentDesc
@@ -547,6 +548,124 @@ TEST(MfxEncoderComponent, StaticRateControlMethod)
         for (int i = 0; i < TESTS_COUNT - 1; ++i) {
             for (int j = i + 1; j < TESTS_COUNT; ++j) {
                 EXPECT_NE(binary[i], binary[j]) << "Pass " << i << " equal to " << j;
+            }
+        }
+    }); // ForEveryComponent
+}
+
+// Tests FrameQP setting (stopped state only).
+// FrameQP includes qp value for I, P, B frames separately.
+// The test sets them to the same value,
+// if qp value is set in valid range [1..51] it expects C2_OK status and
+// output bitstream smaller size when QP grows.
+// If qp value is invalid, then config_nb error is expected,
+// bitstream must be bit exact with previous run.
+TEST(MfxEncoderComponent, StaticFrameQP)
+{
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+
+        C2RateControlSetting param_rate_control;
+        param_rate_control.mValue = C2RateControlCQP;
+
+        C2FrameQPSetting param_qp;
+
+        // set rate control method to CQP separately
+        // if set together with QP value -> QP is reset to default value (30)
+        // and test runs where qp is set to invalid values don't work
+        std::vector<std::unique_ptr<C2SettingResult>> failures;
+        std::vector<C2Param* const> params = { &param_rate_control };
+        status_t sts = comp_intf->config_nb(params, &failures);
+        EXPECT_EQ(sts, C2_OK);
+        EXPECT_EQ(failures.size(), 0);
+
+        struct TestRun {
+            uint32_t qp;
+            status_t expected_result;
+        };
+
+        const TestRun test_runs[] = {
+            { 25, C2_OK },
+            { 0, C2_BAD_VALUE },
+            { 30, C2_OK },
+            { 35, C2_OK },
+            { 100, C2_BAD_VALUE },
+        };
+
+        const int TESTS_COUNT = MFX_GET_ARRAY_SIZE(test_runs);
+
+        // at least 2 successful runs to compare smaller/greater output bitstream
+        ASSERT_GE(std::count_if(test_runs, test_runs + TESTS_COUNT,
+            [] (const TestRun& run) { return run.expected_result == C2_OK; } ), 2);
+        ASSERT_EQ(test_runs[0].expected_result, C2_OK); // first encode must be ok to compare with
+
+        uint32_t prev_bitstream_len = 0, prev_valid_qp = 0;
+        BinaryChunks prev_bitstream;
+
+        for(const TestRun& test_run : test_runs) {
+
+            StripeGenerator stripe_generator;
+            NoiseGenerator noise_generator;
+            BinaryChunks bitstream;
+            uint32_t bitstream_len = 0;
+
+            param_qp.qp_i = test_run.qp;
+            param_qp.qp_p = test_run.qp;
+            param_qp.qp_b = test_run.qp;
+
+            std::vector<C2Param* const> params = { &param_qp };
+            status_t sts = comp_intf->config_nb(params, &failures);
+            EXPECT_EQ(sts, test_run.expected_result);
+            if(test_run.expected_result == C2_OK) {
+                EXPECT_EQ(failures.size(), 0);
+            } else {
+                EXPECT_EQ(failures.size(), 3);
+                EXPECT_TRUE(failures.size() > 0 && failures[0]->field == C2ParamField(&param_qp, &C2FrameQPSetting::qp_i));
+                EXPECT_TRUE(failures.size() > 1 && failures[1]->field == C2ParamField(&param_qp, &C2FrameQPSetting::qp_p));
+                EXPECT_TRUE(failures.size() > 2 && failures[2]->field == C2ParamField(&param_qp, &C2FrameQPSetting::qp_b));
+
+                for(const std::unique_ptr<C2SettingResult>& set_res : failures) {
+                    EXPECT_EQ(set_res->failure, C2SettingResult::BAD_VALUE);
+                    EXPECT_NE(set_res->supportedValues, nullptr);
+                    if(nullptr != set_res->supportedValues) {
+                        EXPECT_EQ(set_res->supportedValues->type, C2FieldSupportedValues::RANGE);
+                        EXPECT_EQ(set_res->supportedValues->range.min.u32, 1);
+                        EXPECT_EQ(set_res->supportedValues->range.max.u32, 51);
+                        EXPECT_EQ(set_res->supportedValues->range.step.u32, 1);
+                        EXPECT_EQ(set_res->supportedValues->range.nom.u32, 1);
+                        EXPECT_EQ(set_res->supportedValues->range.denom.u32, 1);
+                    }
+                    EXPECT_TRUE(set_res->conflictingFields.empty());
+                }
+            }
+
+            EncoderConsumer::OnFrame on_frame =
+                [&] (const uint8_t* data, size_t length) {
+                bitstream.PushBack(data, length);
+                bitstream_len += length;
+            };
+
+            std::shared_ptr<EncoderConsumer> validator =
+                std::make_shared<EncoderConsumer>(on_frame);
+
+            // validator checks that encoder correctly behaves on the changed config
+            Encode(FRAME_COUNT, comp, validator, { &stripe_generator, &noise_generator } );
+
+            if(&test_run != &test_runs[0]) { // nothing to compare on first run
+                if(test_run.expected_result == C2_OK) {
+                    EXPECT_TRUE(test_run.qp > prev_valid_qp);
+                    EXPECT_TRUE(bitstream_len < prev_bitstream_len)
+                        << "Outputs size " << prev_bitstream_len << " is not bigger "
+                        << "outputs size " << bitstream_len;
+                } else {
+                    EXPECT_EQ(bitstream, prev_bitstream) << "bitstream should not change when params config failed.";
+                }
+            }
+
+            if(test_run.expected_result == C2_OK) {
+                prev_bitstream_len = bitstream_len;
+                prev_bitstream = bitstream;
+                prev_valid_qp = test_run.qp;
             }
         }
     }); // ForEveryComponent

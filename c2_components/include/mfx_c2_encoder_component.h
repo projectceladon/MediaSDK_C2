@@ -40,9 +40,6 @@ protected: // android::C2ComponentInterface
             const std::vector<android::C2Param* const> &params,
             std::vector<std::unique_ptr<android::C2SettingResult>>* const failures) override;
 
-    status_t getSupportedParams(
-            std::vector<std::shared_ptr<android::C2ParamDescriptor>>* const params) const override;
-
 protected: // android::C2Component
     status_t queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items) override;
 
@@ -112,6 +109,4 @@ private:
     std::queue<std::unique_ptr<android::C2Work>> pending_works_;
 
     std::list<MfxC2FrameIn> locked_frames_;
-
-    std::vector<std::shared_ptr<android::C2ParamDescriptor>> params_descriptors_;
 };

@@ -14,6 +14,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <C2Component.h>
 
 #include "mfx_defs.h"
+#include "mfx_c2_param_reflector.h"
 #include <mutex>
 
 class MfxC2Component : public android::C2ComponentInterface,
@@ -64,7 +65,7 @@ protected: // android::C2ComponentInterface overrides
     std::shared_ptr<android::C2ParamReflector> getParamReflector() const override;
 
     status_t getSupportedParams(
-            std::vector<std::shared_ptr<android::C2ParamDescriptor>> * const params) const override;
+            std::vector<std::shared_ptr<android::C2ParamDescriptor>>* const params) const override;
 
     status_t getSupportedValues(
             const std::vector<const android::C2ParamField> fields,
@@ -136,6 +137,8 @@ protected: // variables
     android::C2String name_;
 
     int flags_ = 0;
+
+    MfxC2ParamReflector param_reflector_;
 
 private:
     std::list<std::shared_ptr<android::C2ComponentListener>> listeners_;
