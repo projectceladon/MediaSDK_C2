@@ -7,6 +7,8 @@ accordance with the terms of that agreement
 Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
+#define C2_IMPLEMENTATION
+#include "mfx_c2_params.h"
 
 #include "mfx_c2_component.h"
 #include "mfx_debug.h"
@@ -118,13 +120,11 @@ std::shared_ptr<C2ParamReflector> MfxC2Component::getParamReflector() const
 }
 
 status_t MfxC2Component::getSupportedParams(
-        std::vector<std::shared_ptr<C2ParamDescriptor>> * const params) const
+    std::vector<std::shared_ptr<C2ParamDescriptor>>* const params) const
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    (void)params;
-
-    return C2_NOT_IMPLEMENTED;
+    return param_reflector_.getSupportedParams(params);
 }
 
 status_t MfxC2Component::getSupportedValues(
