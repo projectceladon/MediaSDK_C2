@@ -26,6 +26,8 @@ extern mfxVersion g_required_mfx_version;
 
 #define MFX_MAX_PATH 260
 
+#define MFX_C2_INFINITE 0xEFFFFFFF
+
 #define MFX_GET_ARRAY_SIZE(_array) \
     (sizeof(_array) / sizeof(_array[0]))
 
