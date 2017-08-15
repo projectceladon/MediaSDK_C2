@@ -69,7 +69,7 @@ public:
         pos_(stream.data.begin())
         {}
     // reads next stream chunk specified in slicing
-    bool Read(const Slicing& slicing, StreamDescription::Region* region, bool* header);
+    bool Read(const Slicing& slicing, StreamDescription::Region* region, bool* header, size_t* start_code_len = nullptr);
 
     bool ContainsHeader(const StreamDescription::Region& region);
 
@@ -80,22 +80,40 @@ private:
     std::vector<char>::const_iterator pos_;
 };
 
-inline bool StreamReader::Read(const Slicing& slicing, StreamDescription::Region* region, bool* header)
+inline bool StreamReader::Read(const Slicing& slicing, StreamDescription::Region* region, bool* header, size_t* start_code_len)
 {
     bool res = true;
     if(pos_ < stream_.data.end()) {
         switch(slicing.GetType()) {
             case Slicing::Type::NalUnit: {
-                const std::vector<char> delim = { 0, 0, 0, 1 };
+                const std::vector<std::vector<char>> delims =
+                    { { 0, 0, 0, 1 }, { 0, 0, 1 } };
 
-                auto found = stream_.data.end();
-                if(size_t(stream_.data.end() - pos_) >= delim.size()) {
-                    std::search(pos_ + delim.size(), stream_.data.end(), delim.begin(), delim.end());
+                std::vector<char>::const_iterator find_from = pos_;
+                for (const auto& delim : delims) {
+                    std::vector<char>::const_iterator found =
+                        std::search(pos_, stream_.data.end(), delim.begin(), delim.end());
+                    if (found == pos_) { // this is current beginning of current nal unit, skip it
+                        find_from = pos_ + delim.size();
+                        break;
+                    }
+                }
+
+                std::vector<char>::const_iterator nearest_delim = stream_.data.end();
+                for (const auto& delim : delims) {
+                    std::vector<char>::const_iterator found =
+                        std::search(find_from, stream_.data.end(), delim.begin(), delim.end());
+                    if (found < nearest_delim) {
+                        nearest_delim = found;
+                    }
                 }
                 region->offset = pos_ - stream_.data.begin();
-                region->size = found - pos_;
+                region->size = nearest_delim - pos_;
                 *header = ContainsHeader(*region);
-                pos_ = found;
+                if (nullptr != start_code_len) {
+                    *start_code_len = find_from - pos_;
+                }
+                pos_ = nearest_delim;
                 break;
             }
             case Slicing::Type::Fixed: {

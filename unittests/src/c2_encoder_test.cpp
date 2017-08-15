@@ -11,6 +11,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_defs.h"
 #include "gtest_emulation.h"
 #include "test_components.h"
+#include "test_streams.h"
 #include "test_params.h"
 #include "mfx_c2_utils.h"
 #include "mfx_defaults.h"
@@ -25,6 +26,8 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <fstream>
 
 using namespace android;
+
+#define NAMED(value) #value << ": " << (value) << "; "
 
 const uint64_t FRAME_DURATION_US = 33333; // 30 fps
 // Low res is chosen to speed up the tests.
@@ -43,6 +46,7 @@ static std::vector<C2ParamDescriptor> h264_params_desc =
     { false, "RateControl", C2RateControlSetting::typeIndex },
     { false, "Bitrate", C2BitrateTuning::typeIndex },
     { false, "FrameQP", C2FrameQPSetting::typeIndex },
+    { false, "IntraRefresh", C2IntraRefreshTuning::typeIndex },
 };
 
 struct ComponentDesc
@@ -53,6 +57,7 @@ struct ComponentDesc
     std::vector<C2ParamDescriptor> params_desc;
     C2ParamValues default_values;
     status_t query_status;
+    mfxU32 codec_id;
 };
 
 C2RateControlMethod MfxRateControlToC2(mfxU16 rate_control)
@@ -85,8 +90,8 @@ static C2ParamValues GetH264DefaultValues()
 }
 
 static ComponentDesc g_components_desc[] = {
-    { "C2.h264ve", 0, C2_OK, h264_params_desc, GetH264DefaultValues(), C2_CORRUPTED },
-    { "C2.NonExistingEncoder", 0, C2_NOT_FOUND, {}, {}, {} },
+    { "C2.h264ve", 0, C2_OK, h264_params_desc, GetH264DefaultValues(), C2_CORRUPTED, MFX_CODEC_AVC },
+    { "C2.NonExistingEncoder", 0, C2_NOT_FOUND, {}, {}, {}, {} },
 };
 
 static const ComponentDesc* GetComponentDesc(const std::string& component_name)
@@ -314,18 +319,19 @@ private:
     std::promise<void> done_; // fire when all expected frames came
 };
 
+typedef std::function<void (uint32_t frame_index, C2Work* work)> BeforeQueueWork;
+
 static void Encode(
     uint32_t frame_count,
     std::shared_ptr<C2Component> component,
     std::shared_ptr<EncoderConsumer> validator,
-    const std::vector<FrameGenerator*>& generators)
+    const std::vector<FrameGenerator*>& generators,
+    BeforeQueueWork before_queue_work = {})
 {
     component->registerListener(validator);
 
     status_t sts = component->start();
     EXPECT_EQ(sts, C2_OK);
-
-    NoiseGenerator noise_generator;
 
     for(uint32_t frame_index = 0; frame_index < frame_count; ++frame_index) {
         // prepare worklet and push
@@ -333,6 +339,9 @@ static void Encode(
 
         // insert input data
         PrepareWork(frame_index, &work, generators);
+        if (before_queue_work) {
+            before_queue_work(frame_index, work.get());
+        }
         std::list<std::unique_ptr<C2Work>> works;
         works.push_back(std::move(work));
 
@@ -753,6 +762,96 @@ TEST(MfxEncoderComponent, query_nb)
         {
             SCOPED_TRACE("After encode");
             check_default_values();
+        }
+    }); // ForEveryComponent
+}
+
+uint32_t CountIdrSlices(std::vector<char>&& contents)
+{
+    StreamDescription stream {};
+    stream.data = std::move(contents); // do not init sps/pps regions, don't care of them
+
+    StreamReader reader(stream);
+
+    uint32_t count = 0;
+
+    StreamDescription::Region region {};
+    bool header {};
+    size_t start_code_len {};
+    while (reader.Read(StreamReader::Slicing::NalUnit(), &region, &header, &start_code_len)) {
+
+        if (region.size > start_code_len) {
+            char header_byte = stream.data[region.offset + start_code_len]; // first byte start code
+            uint8_t nal_unit_type = (uint8_t)header_byte & 0x1F;
+            const uint8_t IDR_SLICE = 5;
+            if (nal_unit_type == IDR_SLICE) {
+                ++count;
+            }
+        }
+    }
+    return count;
+}
+
+// Tests dynamic parameter enforcing IDR frame to be inserted into encoded bitstream.
+// Encodes the same frames multiple times, inserting IDR every N frames.
+// Checks that output bitstream contains idr frames exactly as expected.
+TEST(MfxEncoderComponent, IntraRefresh)
+{
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [&] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+        (void)comp_desc;
+        (void)comp;
+
+        // Get default GOP size
+        mfxVideoParam default_params {};
+        default_params.mfx.CodecId = comp_desc.codec_id;
+        mfxStatus mfx_sts = mfx_set_defaults_mfxVideoParam_enc(&default_params);
+        ASSERT_EQ(mfx_sts, MFX_ERR_NONE);
+
+        std::vector<int> idr_distances { 2, 3, 7, 10, 15 };
+
+        for (int idr_distance : idr_distances) {
+
+            StripeGenerator stripe_generator;
+            NoiseGenerator noise_generator;
+            std::vector<char> bitstream;
+
+            GTestBinaryWriter writer(std::ostringstream()
+                << comp_intf->getName() << "-" << idr_distance << ".out");
+
+            BeforeQueueWork before_queue_work = [&] (uint32_t frame_index, C2Work*) {
+
+                if ((frame_index % idr_distance) == 0) {
+                    C2IntraRefreshTuning intra_refresh;
+                    intra_refresh.mValue = true;
+                    std::vector<android::C2Param* const> params { &intra_refresh };
+                    std::vector<std::unique_ptr<android::C2SettingResult>> failures;
+                    status_t sts = comp_intf->config_nb(params, &failures);
+
+                    EXPECT_EQ(sts, C2_OK);
+                    EXPECT_EQ(failures.size(), 0);
+                }
+            };
+
+            EncoderConsumer::OnFrame on_frame = [&] (const uint8_t* data, size_t length) {
+
+                const char* ch_data = (const char*)data;
+                std::copy(ch_data, ch_data + length, std::back_inserter(bitstream));
+                writer.Write(data, length);
+            };
+
+            std::shared_ptr<EncoderConsumer> validator =
+                std::make_shared<EncoderConsumer>(on_frame);
+
+            Encode(FRAME_COUNT, comp, validator, { &stripe_generator, &noise_generator },
+                before_queue_work );
+
+            uint32_t idr_expected = (FRAME_COUNT - 1) / idr_distance + 1;
+
+            uint32_t idr_actual = CountIdrSlices(std::move(bitstream));
+
+            EXPECT_EQ(idr_expected, idr_actual) << NAMED(idr_expected) << NAMED(idr_actual)
+                << NAMED(idr_distance);
         }
     }); // ForEveryComponent
 }

@@ -17,6 +17,25 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_frame_in.h"
 #include "mfx_c2_bitstream_out.h"
 
+// Assumes all calls are done from one (working) thread, no sync is needed.
+// ctrl_once_ accumulates subsequent changes for one next frame.
+// When AcquireEncodeCtrl is called it passes ownership to mfxEncodeCtrl
+// and resets internal ctrl_once_,
+// so next call will return nullptr (default) mfxEncodeCtrl.
+class EncoderControl
+{
+private:
+    // Encoder control for next one frame only.
+    std::unique_ptr<mfxEncodeCtrl> ctrl_once_;
+
+public:
+    typedef std::function<void(mfxEncodeCtrl* ctrl)> ModifyFunction;
+
+    void Modify(ModifyFunction& function);
+
+    std::unique_ptr<mfxEncodeCtrl> AcquireEncodeCtrl();
+};
+
 class MfxC2EncoderComponent : public MfxC2Component
 {
 public:
@@ -82,6 +101,7 @@ private:
     void Drain();
     // waits for the sync_point and update work with encoder output then
     void WaitWork(std::unique_ptr<android::C2Work>&& work,
+        std::unique_ptr<mfxEncodeCtrl>&& encode_ctrl,
         MfxC2BitstreamOut&& bit_stream, mfxSyncPoint sync_point);
 
 private:
@@ -121,4 +141,6 @@ private:
     std::queue<std::unique_ptr<android::C2Work>> pending_works_;
 
     std::list<MfxC2FrameIn> locked_frames_;
+
+    EncoderControl encoder_control_;
 };
