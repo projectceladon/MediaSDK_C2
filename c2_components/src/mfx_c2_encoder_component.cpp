@@ -29,6 +29,29 @@ using namespace android;
 
 const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
+std::unique_ptr<mfxEncodeCtrl> EncoderControl::AcquireEncodeCtrl()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    std::unique_ptr<mfxEncodeCtrl> res;
+
+    if (nullptr != ctrl_once_) {
+        res = std::move(ctrl_once_);
+    } // otherwise return nullptr
+    return res;
+}
+
+void EncoderControl::Modify(ModifyFunction& function)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    // modify ctrl_once, create if null
+    if (nullptr == ctrl_once_) {
+        ctrl_once_ = std::make_unique<mfxEncodeCtrl>();
+    }
+    function(ctrl_once_.get());
+}
+
 MfxC2EncoderComponent::MfxC2EncoderComponent(const android::C2String name, int flags, EncoderType encoder_type) :
     MfxC2Component(name, flags),
     encoder_type_(encoder_type),
@@ -50,6 +73,10 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const android::C2String name, int f
             pr.RegisterSupportedRange<C2FrameQPSetting>(&C2FrameQPSetting::qp_i, MIN_QP, MAX_QP);
             pr.RegisterSupportedRange<C2FrameQPSetting>(&C2FrameQPSetting::qp_p, MIN_QP, MAX_QP);
             pr.RegisterSupportedRange<C2FrameQPSetting>(&C2FrameQPSetting::qp_b, MIN_QP, MAX_QP);
+
+            pr.RegisterParam<C2IntraRefreshTuning>("IntraRefresh");
+            pr.RegisterSupportedRange<C2IntraRefreshTuning>(&C2IntraRefreshTuning::mValue, (int)false, (int)true);
+
 
         break;
     }
@@ -317,7 +344,9 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
 
         mfxSyncPoint sync_point;
 
-        mfxStatus mfx_sts = EncodeFrameAsync(nullptr/*encodeCtrl*/,
+        std::unique_ptr<mfxEncodeCtrl> encode_ctrl = encoder_control_.AcquireEncodeCtrl();
+
+        mfxStatus mfx_sts = EncodeFrameAsync(encode_ctrl.get(),
             mfx_frame.GetMfxFrameSurface(), mfx_bitstream.GetMfxBitstream(), &sync_point);
 
         if (MFX_WRN_INCOMPATIBLE_VIDEO_PARAM == mfx_sts) mfx_sts = MFX_ERR_NONE;
@@ -341,8 +370,8 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
             pending_works_.pop();
 
             waiting_queue_.Push(
-                [ work = std::move(work), bs = std::move(mfx_bitstream), sync_point, this ] () mutable {
-                WaitWork(std::move(work), std::move(bs), sync_point);
+                [ work = std::move(work), ec = std::move(encode_ctrl), bs = std::move(mfx_bitstream), sync_point, this ] () mutable {
+                WaitWork(std::move(work), std::move(ec), std::move(bs), sync_point);
             } );
 
             {
@@ -374,7 +403,9 @@ void MfxC2EncoderComponent::Drain()
 
         mfxSyncPoint sync_point;
 
-        mfxStatus mfx_sts = EncodeFrameAsync(nullptr/*encodeCtrl*/,
+        std::unique_ptr<mfxEncodeCtrl> encode_ctrl = encoder_control_.AcquireEncodeCtrl();
+
+        mfxStatus mfx_sts = EncodeFrameAsync(encode_ctrl.get(),
             nullptr/*input surface*/, mfx_bitstream.GetMfxBitstream(), &sync_point);
 
         if (MFX_ERR_NONE == mfx_sts) {
@@ -384,8 +415,8 @@ void MfxC2EncoderComponent::Drain()
             pending_works_.pop();
 
             waiting_queue_.Push(
-                [ work = std::move(work), bs = std::move(mfx_bitstream), sync_point, this ] () mutable {
-                WaitWork(std::move(work), std::move(bs), sync_point);
+                [ work = std::move(work), ec = std::move(encode_ctrl), bs = std::move(mfx_bitstream), sync_point, this ] () mutable {
+                WaitWork(std::move(work), std::move(ec), std::move(bs), sync_point);
             } );
 
             {
@@ -409,6 +440,7 @@ void MfxC2EncoderComponent::Drain()
 }
 
 void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
+    std::unique_ptr<mfxEncodeCtrl>&& encode_ctrl,
     MfxC2BitstreamOut&& bit_stream, mfxSyncPoint sync_point)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -429,6 +461,9 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
             locked_frames_.end(),
             [] (const MfxC2FrameIn& mfx_frame)->bool { return !mfx_frame.GetMfxFrameSurface()->Data.Locked; } ),
         locked_frames_.end());
+
+    // release encode_ctrl
+    encode_ctrl = nullptr;
 
     if(MFX_ERR_NONE == mfx_res) {
 
@@ -683,8 +718,20 @@ status_t MfxC2EncoderComponent::config_nb(const std::vector<C2Param* const> &par
                             video_params_config_.mfx.QPP = qp_setting->qp_p;
                             video_params_config_.mfx.QPB = qp_setting->qp_b;
                         }
+                    break;
+                }
+                case kParamIndexIntraRefresh: {
+                    const C2IntraRefreshTuning* intra_refresh = static_cast<const C2IntraRefreshTuning*>(param);
+                    if (intra_refresh->mValue != 0) {
+                        working_queue_.Push([this] () {
+                            EncoderControl::ModifyFunction modify = [] (mfxEncodeCtrl* ctrl) {
+                                ctrl->FrameType = MFX_FRAMETYPE_IDR | MFX_FRAMETYPE_I;
+                            };
+                            encoder_control_.Modify(modify);
+                        });
                     }
                     break;
+                }
                 default:
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE));
                     break;
