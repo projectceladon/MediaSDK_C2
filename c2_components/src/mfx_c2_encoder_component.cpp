@@ -185,7 +185,7 @@ void MfxC2EncoderComponent::FreeEncoder()
     }
 }
 
-void MfxC2EncoderComponent::RetainLockedFrame(MfxFrameWrapper input)
+void MfxC2EncoderComponent::RetainLockedFrame(MfxC2FrameIn input)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -227,7 +227,7 @@ mfxStatus MfxC2EncoderComponent::EncodeFrameAsync(
 }
 
 status_t MfxC2EncoderComponent::AllocateBitstream(const std::unique_ptr<android::C2Work>& work,
-    MfxBitstreamWrapper* mfx_bitstream)
+    MfxC2BitstreamOut* mfx_bitstream)
 {
     // TODO: allocation pool is required here
     MFX_DEBUG_TRACE_FUNC;
@@ -262,7 +262,7 @@ status_t MfxC2EncoderComponent::AllocateBitstream(const std::unique_ptr<android:
         res = allocator->allocateLinearBlock(required_size, mem_usage, &out_block);
         if(C2_OK != res) break;
 
-        res = MfxBitstreamWrapper::Create(out_block, TIMEOUT_NS, mfx_bitstream);
+        res = MfxC2BitstreamOut::Create(out_block, TIMEOUT_NS, mfx_bitstream);
 
     } while(false);
 
@@ -280,8 +280,8 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
     do {
         C2BufferPack& input = work->input;
 
-        MfxFrameWrapper mfx_frame;
-        res = MfxFrameWrapper::Create(input, TIMEOUT_NS, &mfx_frame);
+        MfxC2FrameIn mfx_frame;
+        res = MfxC2FrameIn::Create(input, TIMEOUT_NS, &mfx_frame);
         if(C2_OK != res) break;
 
         if(nullptr == encoder_) {
@@ -295,7 +295,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
             }
         }
 
-        MfxBitstreamWrapper mfx_bitstream;
+        MfxC2BitstreamOut mfx_bitstream;
         res = AllocateBitstream(work, &mfx_bitstream);
         if(C2_OK != res) break;
 
@@ -352,7 +352,7 @@ void MfxC2EncoderComponent::Drain()
 
     while (!pending_works_.empty()) {
 
-        MfxBitstreamWrapper mfx_bitstream;
+        MfxC2BitstreamOut mfx_bitstream;
         res = AllocateBitstream(pending_works_.front(), &mfx_bitstream);
         if(C2_OK != res) break;
 
@@ -393,7 +393,7 @@ void MfxC2EncoderComponent::Drain()
 }
 
 void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
-    MfxBitstreamWrapper&& bit_stream, mfxSyncPoint sync_point)
+    MfxC2BitstreamOut&& bit_stream, mfxSyncPoint sync_point)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -411,7 +411,7 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
         std::remove_if(
             locked_frames_.begin(),
             locked_frames_.end(),
-            [] (const MfxFrameWrapper& mfx_frame)->bool { return !mfx_frame.GetMfxFrameSurface()->Data.Locked; } ),
+            [] (const MfxC2FrameIn& mfx_frame)->bool { return !mfx_frame.GetMfxFrameSurface()->Data.Locked; } ),
         locked_frames_.end());
 
     if(MFX_ERR_NONE == mfx_res) {

@@ -15,14 +15,14 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include "mfx_defs.h"
 
-class MfxBitstreamWrapper
+class MfxC2BitstreamOut
 {
 public:
-    MfxBitstreamWrapper() = default;
+    MfxC2BitstreamOut() = default;
 
     static android::status_t Create(
         std::shared_ptr<android::C2LinearBlock> block, nsecs_t timeout,
-        MfxBitstreamWrapper* wrapper);
+        MfxC2BitstreamOut* wrapper);
 
     std::shared_ptr<android::C2LinearBlock> GetC2LinearBlock() const
     {

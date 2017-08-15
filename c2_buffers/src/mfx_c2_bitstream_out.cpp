@@ -26,9 +26,9 @@ static void InitMfxBitstream(
     mfx_bitstream->MaxLength = capacity;
 }
 
-status_t MfxBitstreamWrapper::Create(
+status_t MfxC2BitstreamOut::Create(
     std::shared_ptr<C2LinearBlock> block, nsecs_t timeout,
-    MfxBitstreamWrapper* wrapper)
+    MfxC2BitstreamOut* wrapper)
 {
     MFX_DEBUG_TRACE_FUNC;
 

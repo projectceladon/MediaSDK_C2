@@ -60,14 +60,14 @@ private:
 
     void FreeEncoder();
 
-    void RetainLockedFrame(MfxFrameWrapper input);
+    void RetainLockedFrame(MfxC2FrameIn input);
 
     mfxStatus EncodeFrameAsync(
         mfxEncodeCtrl *ctrl, mfxFrameSurface1 *surface, mfxBitstream *bs,
         mfxSyncPoint *syncp);
 
     android::status_t AllocateBitstream(const std::unique_ptr<android::C2Work>& work,
-        MfxBitstreamWrapper* mfx_bitstream);
+        MfxC2BitstreamOut* mfx_bitstream);
 
     // Work routines
     void DoWork(std::unique_ptr<android::C2Work>&& work);
@@ -75,7 +75,7 @@ private:
     void Drain();
     // waits for the sync_point and update work with encoder output then
     void WaitWork(std::unique_ptr<android::C2Work>&& work,
-        MfxBitstreamWrapper&& bit_stream, mfxSyncPoint sync_point);
+        MfxC2BitstreamOut&& bit_stream, mfxSyncPoint sync_point);
 
 private:
     EncoderType encoder_type_;
@@ -106,7 +106,7 @@ private:
     // This queue is accessed from working thread only.
     std::queue<std::unique_ptr<android::C2Work>> pending_works_;
 
-    std::list<MfxFrameWrapper> locked_frames_;
+    std::list<MfxC2FrameIn> locked_frames_;
 
     std::vector<std::shared_ptr<android::C2ParamDescriptor>> params_descriptors_;
 };

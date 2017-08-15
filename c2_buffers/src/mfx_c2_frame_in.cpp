@@ -52,8 +52,8 @@ static void InitMfxNV12Frame(
     mfx_frame->Data.V = mfx_frame->Data.UV;
 }
 
-status_t MfxFrameWrapper::Create(
-    C2BufferPack& buf_pack, nsecs_t timeout, MfxFrameWrapper* wrapper)
+status_t MfxC2FrameIn::Create(
+    C2BufferPack& buf_pack, nsecs_t timeout, MfxC2FrameIn* wrapper)
 {
     MFX_DEBUG_TRACE_FUNC;
 
