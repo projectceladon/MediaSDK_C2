@@ -15,13 +15,13 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include "mfx_defs.h"
 
-class MfxFrameWrapper
+class MfxC2FrameIn
 {
 public:
-    MfxFrameWrapper() = default;
+    MfxC2FrameIn() = default;
 
     static android::status_t Create(
-        android::C2BufferPack& buf_pack, nsecs_t timeout, MfxFrameWrapper* wrapper);
+        android::C2BufferPack& buf_pack, nsecs_t timeout, MfxC2FrameIn* wrapper);
 
     mfxFrameSurface1* GetMfxFrameSurface() const
     {
