@@ -89,7 +89,12 @@ private:
     MfxCmdQueue working_queue_;
     MfxCmdQueue waiting_queue_;
 
-    mfxVideoParam video_params_;
+    // Video params configured through config_nb, retained between Start/Stop
+    // sessions, used for init encoder,
+    // can have zero (default) fields.
+    mfxVideoParam video_params_config_;
+    // Internal encoder state, queried from encoder.
+    mfxVideoParam video_params_state_;
 
     // Members handling MFX_WRN_DEVICE_BUSY.
     // Active sync points got from EncodeFrameAsync for waiting on.
