@@ -92,6 +92,8 @@ status_t MfxC2EncoderComponent::DoStart()
 {
     MFX_DEBUG_TRACE_FUNC;
 
+    synced_points_count_ = 0;
+
     working_queue_.Start();
     waiting_queue_.Start();
 
@@ -105,7 +107,6 @@ status_t MfxC2EncoderComponent::DoStop()
     waiting_queue_.Stop();
     working_queue_.Stop();
     FreeEncoder();
-    Reset();
 
     return C2_OK;
 }
@@ -119,18 +120,17 @@ mfxStatus MfxC2EncoderComponent::Reset()
     switch (encoder_type_)
     {
     case ENCODER_H264:
-        video_params_.mfx.CodecId = MFX_CODEC_AVC;
+        video_params_config_.mfx.CodecId = MFX_CODEC_AVC;
         break;
     default:
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
         break;
     }
 
-    res = mfx_set_defaults_mfxVideoParam_enc(&video_params_);
+    res = mfx_set_defaults_mfxVideoParam_enc(&video_params_config_);
 
-    synced_points_count_ = 0;
     // default pattern
-    video_params_.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY;
+    video_params_config_.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY;
 
     return res;
 }
@@ -140,7 +140,7 @@ mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
 
-    video_params_.mfx.FrameInfo = frame_info;
+    video_params_config_.mfx.FrameInfo = frame_info;
     {
         encoder_.reset(MFX_NEW_NO_THROW(MFXVideoENCODE(session_)));
         if (nullptr == encoder_) {
@@ -150,9 +150,9 @@ mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
         if (MFX_ERR_NONE == mfx_res) {
 
             MFX_DEBUG_TRACE_MSG("Encoder initializing...");
-            MFX_DEBUG_TRACE_mfxVideoParam_enc(video_params_);
+            MFX_DEBUG_TRACE_mfxVideoParam_enc(video_params_config_);
 
-            mfx_res = encoder_->Init(&video_params_);
+            mfx_res = encoder_->Init(&video_params_config_);
             MFX_DEBUG_TRACE_MSG("Encoder initialized");
             MFX_DEBUG_TRACE_mfxStatus(mfx_res);
 
@@ -163,8 +163,8 @@ mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
         }
 
         if (MFX_ERR_NONE == mfx_res) {
-            mfx_res = encoder_->GetVideoParam(&video_params_);
-            MFX_DEBUG_TRACE_mfxVideoParam_enc(video_params_);
+            mfx_res = encoder_->GetVideoParam(&video_params_state_);
+            MFX_DEBUG_TRACE_mfxVideoParam_enc(video_params_state_);
         }
 
         if (MFX_ERR_NONE != mfx_res) {
@@ -219,7 +219,7 @@ mfxStatus MfxC2EncoderComponent::EncodeFrameAsync(
         }
 
         std::unique_lock<std::mutex> lock(dev_busy_mutex_);
-        dev_busy_cond_.wait_for(lock, timeout, [this] { return synced_points_count_ < video_params_.AsyncDepth; } );
+        dev_busy_cond_.wait_for(lock, timeout, [this] { return synced_points_count_ < video_params_state_.AsyncDepth; } );
       }
     } while (MFX_WRN_DEVICE_BUSY == sts);
 
@@ -235,9 +235,9 @@ status_t MfxC2EncoderComponent::AllocateBitstream(const std::unique_ptr<android:
     status_t res = C2_OK;
 
     do {
-        MFX_DEBUG_TRACE_I32(video_params_.mfx.BufferSizeInKB);
-        MFX_DEBUG_TRACE_I32(video_params_.mfx.BRCParamMultiplier);
-        mfxU32 required_size = video_params_.mfx.BufferSizeInKB * 1000 * video_params_.mfx.BRCParamMultiplier;
+        MFX_DEBUG_TRACE_I32(video_params_state_.mfx.BufferSizeInKB);
+        MFX_DEBUG_TRACE_I32(video_params_state_.mfx.BRCParamMultiplier);
+        mfxU32 required_size = video_params_state_.mfx.BufferSizeInKB * 1000 * video_params_state_.mfx.BRCParamMultiplier;
         MFX_DEBUG_TRACE_I32(required_size);
 
         if(work->worklets.size() != 1) {
@@ -476,10 +476,10 @@ status_t MfxC2EncoderComponent::config_nb(const std::vector<C2Param* const> &par
                 mfxStatus sts = MFX_ERR_NONE;
                 switch (static_cast<const C2RateControlSetting*>(param)->mValue) {
                     case C2RateControlCBR:
-                        sts = mfx_set_RateControlMethod(MFX_RATECONTROL_CBR, &video_params_);
+                        sts = mfx_set_RateControlMethod(MFX_RATECONTROL_CBR, &video_params_config_);
                         break;
                     case C2RateControlCQP:
-                        sts = mfx_set_RateControlMethod(MFX_RATECONTROL_CQP, &video_params_);
+                        sts = mfx_set_RateControlMethod(MFX_RATECONTROL_CQP, &video_params_config_);
                         break;
                     default:
                         sts = MFX_ERR_INVALID_VIDEO_PARAM;
@@ -491,8 +491,8 @@ status_t MfxC2EncoderComponent::config_nb(const std::vector<C2Param* const> &par
                 break;
             }
             case kParamIndexBitrate:
-                if(video_params_.mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
-                    video_params_.mfx.TargetKbps =
+                if(video_params_config_.mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
+                    video_params_config_.mfx.TargetKbps =
                         static_cast<const C2BitrateTuning*>(param)->mValue;
                 } else {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param),
