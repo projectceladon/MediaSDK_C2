@@ -16,8 +16,13 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 class MfxC2MockComponent : public MfxC2Component
 {
+public:
+    enum Type {
+        Encoder,
+        Decoder
+    };
 protected:
-    MfxC2MockComponent(const android::C2String name, int flags);
+    MfxC2MockComponent(const android::C2String name, int flags, Type type);
 
     MFX_CLASS_NO_COPY(MfxC2MockComponent)
 
@@ -35,8 +40,19 @@ protected:
     android::status_t DoStop() override;
 
 private:
+    // Allocates linear block of the length as input and copies input there.
+    status_t CopyGraphicToLinear(const android::C2BufferPack& input,
+        const std::shared_ptr<android::C2BlockAllocator>& allocator,
+        std::shared_ptr<android::C2Buffer>* out_buffer);
+    // Allocates graphic block of the length as input and copies input there.
+    status_t CopyLinearToGraphic(const android::C2BufferPack& input,
+        const std::shared_ptr<android::C2BlockAllocator>& allocator,
+        std::shared_ptr<android::C2Buffer>* out_buffer);
+
     void DoWork(std::unique_ptr<android::C2Work>&& work);
 
 private:
+    Type type_;
+
     MfxCmdQueue cmd_queue_;
 };
