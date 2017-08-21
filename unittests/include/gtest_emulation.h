@@ -33,6 +33,14 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
     if(!((p0) >= (p1))) \
         throw std::ostringstream() << GTEST_STD_DETAILS << " Assertion failed: " #p0 " >= " #p1 " "
 
+#define ASSERT_TRUE(p) \
+    if(!(p)) \
+        throw std::ostringstream() << GTEST_STD_DETAILS << " Assertion failed: " #p " expected true "
+
+#define ASSERT_FALSE(p) \
+    if(p) \
+        throw std::ostringstream() << GTEST_STD_DETAILS << " Assertion failed: " #p " expected false "
+
 #define EXPECT_EQ(p0, p1) \
     if(!((p0) == (p1))) \
         testing::g_failures_stream << std::endl << GTEST_STD_DETAILS << " Condition failed: " #p0 " == " #p1 " "

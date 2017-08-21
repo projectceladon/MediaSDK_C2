@@ -28,7 +28,9 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 using namespace android;
 
-#define MOCK_COMPONENT "C2.MockComponent"
+#define MOCK_COMPONENT_ENC "C2.MockComponent.Enc"
+#define MOCK_COMPONENT_DEC "C2.MockComponent.Dec"
+#define MOCK_COMPONENT MOCK_COMPONENT_ENC // use encoder for common tests
 
 const uint64_t FRAME_DURATION_US = 33333; // 30 fps
 const uint32_t FRAME_WIDTH = 640;
@@ -71,12 +73,83 @@ TEST(MfxMockComponent, intf)
     }
 }
 
+// Allocates c2 graphic block of FRAME_WIDTH x FRAME_HEIGHT size and fills it with
+// specified byte value.
+static std::unique_ptr<C2ConstGraphicBlock> CreateFilledGraphicBlock(
+    std::shared_ptr<android::C2BlockAllocator> allocator, uint8_t fill)
+{
+    std::unique_ptr<C2ConstGraphicBlock> res;
+
+    do {
+        C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
+        std::shared_ptr<C2GraphicBlock> block;
+        status_t sts = allocator->allocateGraphicBlock(FRAME_WIDTH, FRAME_HEIGHT, FRAME_FORMAT,
+            mem_usage, &block);
+
+        EXPECT_EQ(sts, C2_OK);
+        EXPECT_NE(block, nullptr);
+
+        if(nullptr == block) break;
+
+        uint8_t* data = nullptr;
+        sts = MapGraphicBlock(*block, TIMEOUT_NS, &data);
+        EXPECT_EQ(sts, C2_OK);
+        EXPECT_NE(data, nullptr);
+
+        if(nullptr == data) break;
+
+        memset(data, fill, FRAME_BUF_SIZE);
+
+        C2Event event;
+        event.fire(); // pre-fire as buffer is already ready to use
+        res = std::make_unique<C2ConstGraphicBlock>(block->share(block->crop(), event.fence()));
+
+    } while(false);
+
+    return res;
+}
+
+// Allocates c2 linear block of FRAME_BUF_SIZE length and fills it with
+// specified byte value.
+static std::unique_ptr<C2ConstLinearBlock> CreateFilledLinearBlock(
+    std::shared_ptr<android::C2BlockAllocator> allocator, uint8_t fill)
+{
+    std::unique_ptr<C2ConstLinearBlock> res;
+
+    do {
+        C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
+        std::shared_ptr<C2LinearBlock> block;
+        status_t sts = allocator->allocateLinearBlock(FRAME_BUF_SIZE, mem_usage, &block);
+
+        EXPECT_EQ(sts, C2_OK);
+        EXPECT_NE(block, nullptr);
+
+        if(nullptr == block) break;
+
+        uint8_t* data = nullptr;
+        sts = MapLinearBlock(*block, TIMEOUT_NS, &data);
+        EXPECT_EQ(sts, C2_OK);
+        EXPECT_NE(data, nullptr);
+
+        if(nullptr == data) break;
+
+        memset(data, fill, FRAME_BUF_SIZE);
+
+        C2Event event;
+        event.fire(); // pre-fire as buffer is already ready to use
+        res = std::make_unique<C2ConstLinearBlock>(block->share(0, block->capacity(), event.fence()));
+
+    } while(false);
+
+    return res;
+}
+
 // Prepares C2Work filling it with NV12 frame.
 // Frame size is (FRAME_WIDTH x FRAME_HEIGHT).
 // Frame buffer size is (FRAME_WIDTH * FRAME_HEIGHT * 3 / 2).
 // Each byte in NV12 frame is set to frame_index.
 // Frame header index and timestamp are set based on passed frame_index value.
-static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work)
+static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work, C2BufferData::Type buffer_type)
 {
     *work = std::make_unique<C2Work>();
     C2BufferPack* buffer_pack = &((*work)->input);
@@ -94,42 +167,29 @@ static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work)
     buffer_pack->ordinal.custom_ordinal = 0;
 
     do {
-
         std::shared_ptr<android::C2BlockAllocator> allocator;
         android::status_t sts = GetC2BlockAllocator(&allocator);
 
         EXPECT_EQ(sts, C2_OK);
         EXPECT_NE(allocator, nullptr);
 
-
         if(nullptr == allocator) break;
 
-        C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
-        std::shared_ptr<C2GraphicBlock> block;
-        sts = allocator->allocateGraphicBlock(FRAME_WIDTH, FRAME_HEIGHT, FRAME_FORMAT,
-            mem_usage, &block);
-
-        EXPECT_EQ(sts, C2_OK);
-        EXPECT_NE(block, nullptr);
-
-        if(nullptr == block) break;
-
-        uint8_t* data = nullptr;
-        sts = MapGraphicBlock(*block, TIMEOUT_NS, &data);
-        EXPECT_EQ(sts, C2_OK);
-        EXPECT_NE(data, nullptr);
-
-        if(nullptr == data) break;
-
+        std::shared_ptr<C2Buffer> buffer;
         // fill the frame with pixels == frame_index
-        memset(data, frame_index, FRAME_BUF_SIZE);
-
-        C2Event event;
-        event.fire(); // pre-fire as buffer is already ready to use
-        C2ConstGraphicBlock const_block = block->share(block->crop(), event.fence());
-        // make buffer of graphic block
-        C2BufferData buffer_data = const_block;
-        std::shared_ptr<C2Buffer> buffer = std::make_shared<C2Buffer>(buffer_data);
+        if(buffer_type == C2BufferData::GRAPHIC) {
+            std::unique_ptr<C2ConstGraphicBlock> const_block = CreateFilledGraphicBlock(allocator, (uint8_t)frame_index);
+            if(nullptr == const_block) break;
+            // make buffer of graphic block
+            C2BufferData buffer_data = *const_block;
+            buffer = std::make_shared<C2Buffer>(buffer_data);
+        } else {
+            std::unique_ptr<C2ConstLinearBlock> const_block = CreateFilledLinearBlock(allocator, (uint8_t)frame_index);
+            if(nullptr == const_block) break;
+            // make buffer of linear block
+            C2BufferData buffer_data = *const_block;
+            buffer = std::make_shared<C2Buffer>(buffer_data);
+        }
 
         buffer_pack->buffers.push_back(buffer);
 
@@ -147,7 +207,12 @@ static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work)
 class MockOutputValidator : public C2ComponentListener
 {
 public:
-    MockOutputValidator() = default;
+    MockOutputValidator(C2BufferData::Type output_type)
+        : output_type_(output_type)
+    {
+        ASSERT_TRUE(output_type_ == C2BufferData::LINEAR ||
+            output_type_ == C2BufferData::GRAPHIC);
+    }
     // future ready when validator got all expected frames
     std::future<void> GetFuture()
     {
@@ -178,17 +243,33 @@ protected:
                 << " frame " << frame_index << " is out of order";
 
             ++frame_expected_;
-
-            std::unique_ptr<C2ConstLinearBlock> linear_block;
-            C2Error sts = GetC2ConstLinearBlock(buffer_pack, &linear_block);
-            EXPECT_EQ(sts, C2_OK);
-            EXPECT_EQ(linear_block->capacity(), FRAME_BUF_SIZE);
-
             const uint8_t* raw {};
 
-            sts = MapConstLinearBlock(*linear_block, TIMEOUT_NS, &raw);
-            EXPECT_EQ(sts, C2_OK);
-            EXPECT_NE(raw, nullptr);
+            std::unique_ptr<C2ConstLinearBlock> linear_block;
+            std::unique_ptr<C2ConstGraphicBlock> graphic_block;
+
+            if(output_type_ == C2BufferData::LINEAR) {
+                C2Error sts = GetC2ConstLinearBlock(buffer_pack, &linear_block);
+                EXPECT_EQ(sts, C2_OK);
+                if(nullptr != linear_block) {
+                    EXPECT_EQ(linear_block->capacity(), FRAME_BUF_SIZE);
+
+                    sts = MapConstLinearBlock(*linear_block, TIMEOUT_NS, &raw);
+                    EXPECT_EQ(sts, C2_OK);
+                    EXPECT_NE(raw, nullptr);
+                }
+            } else {
+                C2Error sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
+                EXPECT_EQ(sts, C2_OK);
+                if(nullptr != graphic_block) {
+                    EXPECT_EQ(graphic_block->width(), FRAME_WIDTH);
+                    EXPECT_EQ(graphic_block->height(), FRAME_HEIGHT);
+
+                    sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &raw);
+                    EXPECT_EQ(sts, C2_OK);
+                    EXPECT_NE(raw, nullptr);
+                }
+            }
 
             if(nullptr != raw) {
 
@@ -226,17 +307,19 @@ protected:
     }
 
 public:
-    uint64_t frame_expected_; // frame index is next to come
+    uint64_t frame_expected_ = 0; // frame index is next to come
+    C2BufferData::Type output_type_;
     std::promise<void> done_; // fire when all expected frames came
 };
 
-// Tests how the mock component processes a sequence of C2Work items.
+// Tests how the mock component processes a sequence of C2Work items, in encoder way.
+// It accepts c2 frame buffers and allocates output of c2 linear buffer the same size.
 // The component copies input buffer to output without any changes.
 // The test checks that order of inputs is not changed
 // and output is accurately the same as input.
 // Also the component processing should make output within 10 seconds (test on hang).
 // All supplementary entities (c2 buffers and command queues) are tested by this test.
-TEST(MfxMockComponent, Process)
+TEST(MfxMockComponent, Encode)
 {
     status_t sts = C2_OK;
     MfxC2Component* c_mfx_component;
@@ -245,7 +328,8 @@ TEST(MfxMockComponent, Process)
     EXPECT_NE(component, nullptr);
     if(nullptr != component) {
 
-        std::shared_ptr<MockOutputValidator> validator = std::make_unique<MockOutputValidator>();
+        std::shared_ptr<MockOutputValidator> validator =
+            std::make_unique<MockOutputValidator>(C2BufferData::LINEAR);
         component->registerListener(validator);
 
         if(component != nullptr) {
@@ -257,7 +341,57 @@ TEST(MfxMockComponent, Process)
                 std::unique_ptr<C2Work> work;
 
                 // insert input data
-                PrepareWork(frame_index, &work);
+                PrepareWork(frame_index, &work, C2BufferData::GRAPHIC);
+                std::list<std::unique_ptr<C2Work>> works;
+                works.push_back(std::move(work));
+
+                sts = component->queue_nb(&works);
+                EXPECT_EQ(sts, C2_OK);
+            }
+        }
+
+        std::future<void> future = validator->GetFuture();
+        std::future_status future_sts = future.wait_for(std::chrono::seconds(10));
+        EXPECT_EQ(future_sts, std::future_status::ready);
+
+        component->unregisterListener(validator);
+        sts = component->stop();
+        EXPECT_EQ(sts, C2_OK);
+        validator = nullptr;
+    }
+}
+
+// Tests how the mock component processes a sequence of C2Work items, in decoder way.
+// It accepts c2 linear buffer and allocates c2 frame buffer length >= of input.
+// The component copies input buffer to output without any changes.
+// Leftover of output, if any, is filled with zeroes.
+// The test checks that order of inputs is not changed
+// and output is accurately the same as input.
+// Also the component processing should make output within 10 seconds (test on hang).
+// All supplementary entities (c2 buffers and command queues) are tested by this test.
+TEST(MfxMockComponent, Decode)
+{
+    status_t sts = C2_OK;
+    MfxC2Component* c_mfx_component;
+    status_t result = MfxCreateC2Component(MOCK_COMPONENT_DEC, 0/*flags*/, &c_mfx_component);
+    std::shared_ptr<C2Component> component(c_mfx_component);
+    EXPECT_NE(component, nullptr);
+    if(nullptr != component) {
+
+        std::shared_ptr<MockOutputValidator> validator =
+            std::make_unique<MockOutputValidator>(C2BufferData::GRAPHIC);
+        component->registerListener(validator);
+
+        if(component != nullptr) {
+            sts = component->start();
+            EXPECT_EQ(sts, C2_OK);
+
+            for(uint32_t frame_index = 0; frame_index < FRAME_COUNT; ++frame_index) {
+                // prepare worklet and push
+                std::unique_ptr<C2Work> work;
+
+                // insert input data
+                PrepareWork(frame_index, &work, C2BufferData::LINEAR);
                 std::list<std::unique_ptr<C2Work>> works;
                 works.push_back(std::move(work));
 
