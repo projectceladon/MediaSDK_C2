@@ -8,8 +8,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
-#ifndef __MFX_C2_DEFS_H__
-#define __MFX_C2_DEFS_H__
+#pragma once
 
 #include <C2Component.h>
 
@@ -24,5 +23,3 @@ typedef android::status_t (CreateMfxC2ComponentFunc)(const char* name, int flags
 #define MFX_C2_CONFIG_FILE_PATH "/etc"
 
 const nsecs_t MFX_SECOND_NS = 1000000000; // 1e9
-
-#endif // #ifndef __MFX_C2_DEFS_H__

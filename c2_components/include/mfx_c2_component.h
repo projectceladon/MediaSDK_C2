@@ -8,8 +8,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
-#ifndef __MFX_C2_COMPONENT_H__
-#define __MFX_C2_COMPONENT_H__
+#pragma once
 
 #include <C2Component.h>
 
@@ -179,5 +178,3 @@ struct MfxC2Component::Factory
         return result;
     }
 };
-
-#endif // #ifndef __MFX_C2_COMPONENT_H__

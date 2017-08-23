@@ -8,8 +8,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
-#ifndef __MFX_DEFS_H__
-#define __MFX_DEFS_H__
+#pragma once
 
 #include <mfxvideo++.h>
 #include <mfxvp8.h>
@@ -61,5 +60,3 @@ DstType ClampCast(const SrcType& v)
 
     return static_cast<DstType>( (v < lo) ? lo : ((v > hi) ? hi : v) );
 }
-
-#endif // #ifndef __MFX_DEFS_H__
