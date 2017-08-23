@@ -65,11 +65,6 @@ status_t MfxC2FrameIn::Create(
             break;
         }
 
-        if(buf_pack.buffers.size() != 1) {
-            res = C2_BAD_VALUE;
-            break;
-        }
-
         std::unique_ptr<android::C2ConstGraphicBlock> c_graph_block;
         res = GetC2ConstGraphicBlock(buf_pack, &c_graph_block);
         if(C2_OK != res) break;
