@@ -90,6 +90,6 @@ status_t MfxC2FrameIn::Create(
 
     } while(false);
 
-    MFX_DEBUG_TRACE_android_status_t(res);
+    MFX_DEBUG_TRACE__android_status_t(res);
     return res;
 }

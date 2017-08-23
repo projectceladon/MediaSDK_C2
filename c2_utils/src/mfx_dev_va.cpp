@@ -82,7 +82,7 @@ mfxStatus MfxDevVa::InitMfxSession(MFXVideoSession* session)
         mfx_res = session->SetHandle(
             static_cast<mfxHandleType>(MFX_HANDLE_VA_DISPLAY), (mfxHDL)va_display_);
         MFX_DEBUG_TRACE_MSG("SetHandle result:");
-        MFX_DEBUG_TRACE_mfxStatus(mfx_res);
+        MFX_DEBUG_TRACE__mfxStatus(mfx_res);
 
         if(mfx_res == MFX_ERR_UNDEFINED_BEHAVIOR) {
             MFX_DEBUG_TRACE_MSG("Check if the same handle is already set");
@@ -98,7 +98,7 @@ mfxStatus MfxDevVa::InitMfxSession(MFXVideoSession* session)
                 }
             } else {
                 MFX_DEBUG_TRACE_MSG("GetHandle failed:");
-                MFX_DEBUG_TRACE_mfxStatus(sts);
+                MFX_DEBUG_TRACE__mfxStatus(sts);
             }
         }
     } else {
