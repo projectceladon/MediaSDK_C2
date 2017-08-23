@@ -84,13 +84,13 @@ android::status_t MfxC2EncoderComponent::Init()
         if(mfx_res == MFX_ERR_NONE) {
             mfxIMPL mfx_impl {};
             mfxStatus sts = session_.QueryIMPL(&mfx_impl);
-            MFX_DEBUG_TRACE_mfxStatus(sts);
+            MFX_DEBUG_TRACE__mfxStatus(sts);
             MFX_DEBUG_TRACE_I32(mfx_impl);
 
             mfx_res = device_->InitMfxSession(&session_);
         } else {
             MFX_DEBUG_TRACE_MSG("MFXVideoSession::Init failed");
-            MFX_DEBUG_TRACE_mfxStatus(mfx_res);
+            MFX_DEBUG_TRACE__mfxStatus(mfx_res);
         }
     }
 
@@ -159,11 +159,11 @@ mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
         if (MFX_ERR_NONE == mfx_res) {
 
             MFX_DEBUG_TRACE_MSG("Encoder initializing...");
-            MFX_DEBUG_TRACE_mfxVideoParam_enc(video_params_config_);
+            MFX_DEBUG_TRACE__mfxVideoParam_enc(video_params_config_);
 
             mfx_res = encoder_->Init(&video_params_config_);
             MFX_DEBUG_TRACE_MSG("Encoder initialized");
-            MFX_DEBUG_TRACE_mfxStatus(mfx_res);
+            MFX_DEBUG_TRACE__mfxStatus(mfx_res);
 
             if (MFX_WRN_PARTIAL_ACCELERATION == mfx_res) {
                 MFX_DEBUG_TRACE_MSG("InitEncoder returns MFX_WRN_PARTIAL_ACCELERATION");
@@ -173,14 +173,14 @@ mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
 
         if (MFX_ERR_NONE == mfx_res) {
             mfx_res = encoder_->GetVideoParam(&video_params_state_);
-            MFX_DEBUG_TRACE_mfxVideoParam_enc(video_params_state_);
+            MFX_DEBUG_TRACE__mfxVideoParam_enc(video_params_state_);
         }
 
         if (MFX_ERR_NONE != mfx_res) {
             FreeEncoder();
         }
     }
-    MFX_DEBUG_TRACE_mfxStatus(mfx_res);
+    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }
 
@@ -298,7 +298,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
             // should be got from slot descriptor
             mfxStatus mfx_sts = InitEncoder(mfx_frame.GetMfxFrameSurface()->Info);
             if(MFX_ERR_NONE != mfx_sts) {
-                MFX_DEBUG_TRACE_mfxStatus(mfx_sts);
+                MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
                 res = MfxStatusToC2(mfx_sts);
                 break;
             }
@@ -316,7 +316,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
         if (MFX_WRN_INCOMPATIBLE_VIDEO_PARAM == mfx_sts) mfx_sts = MFX_ERR_NONE;
 
         if( (MFX_ERR_NONE != mfx_sts) && (MFX_ERR_MORE_DATA != mfx_sts) ) {
-            MFX_DEBUG_TRACE_mfxStatus(mfx_sts);
+            MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
             res = MfxStatusToC2(mfx_sts);
             break;
         }
@@ -412,7 +412,7 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
 
     if (MFX_ERR_NONE != mfx_res) {
         MFX_DEBUG_TRACE_MSG("SyncOperation failed");
-        MFX_DEBUG_TRACE_mfxStatus(mfx_res);
+        MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     }
 
     // checking for unlocked surfaces and releasing them

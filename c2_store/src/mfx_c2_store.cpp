@@ -40,7 +40,7 @@ EXPORT status_t GetC2ComponentStore(std::shared_ptr<C2ComponentStore>* const com
     *componentStore = g_componentStore;
 
     MFX_DEBUG_TRACE_P(g_componentStore.get());
-    MFX_DEBUG_TRACE_android_C2Error(creationStatus);
+    MFX_DEBUG_TRACE__android_C2Error(creationStatus);
     return creationStatus;
 }
 
@@ -59,7 +59,7 @@ MfxC2ComponentStore* MfxC2ComponentStore::Create(status_t* status) {
         *status = C2_NO_MEMORY;
     }
 
-    MFX_DEBUG_TRACE_android_C2Error(*status);
+    MFX_DEBUG_TRACE__android_C2Error(*status);
     MFX_DEBUG_TRACE_P(store);
     return store;
 }
@@ -110,7 +110,7 @@ status_t MfxC2ComponentStore::createComponent(C2String name, std::shared_ptr<C2C
         result = C2_BAD_VALUE;
     }
 
-    MFX_DEBUG_TRACE_android_C2Error(result);
+    MFX_DEBUG_TRACE__android_C2Error(result);
     return result;
 }
 
@@ -288,7 +288,7 @@ status_t MfxC2ComponentStore::readConfigFile()
         fclose(config_file);
     }
     MFX_DEBUG_TRACE_I32(components_registry_.size());
-    MFX_DEBUG_TRACE_android_C2Error(c2_res);
+    MFX_DEBUG_TRACE__android_C2Error(c2_res);
     return c2_res;
 }
 

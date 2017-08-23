@@ -44,7 +44,7 @@ mfxStatus MfxDev::Create(std::unique_ptr<MfxDev>* device)
     }
 
     MFX_DEBUG_TRACE_P(device->get());
-    MFX_DEBUG_TRACE_mfxStatus(sts);
+    MFX_DEBUG_TRACE__mfxStatus(sts);
 
     return sts;
 }

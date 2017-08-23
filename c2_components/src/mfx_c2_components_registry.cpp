@@ -78,7 +78,7 @@ status_t MfxC2ComponentsRegistry::CreateMfxC2Component(const char* name, int fla
         result = C2_NOT_FOUND;
     }
 
-    MFX_DEBUG_TRACE_android_C2Error(result);
+    MFX_DEBUG_TRACE__android_C2Error(result);
     return result;
 }
 

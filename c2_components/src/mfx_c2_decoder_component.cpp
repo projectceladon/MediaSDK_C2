@@ -51,7 +51,7 @@ android::status_t MfxC2DecoderComponent::Init()
         if(mfx_res == MFX_ERR_NONE) {
             mfxIMPL mfx_impl {};
             mfxStatus sts = session_.QueryIMPL(&mfx_impl);
-            MFX_DEBUG_TRACE_mfxStatus(sts);
+            MFX_DEBUG_TRACE__mfxStatus(sts);
             MFX_DEBUG_TRACE_I32(mfx_impl);
 
             decoder_.reset(MFX_NEW_NO_THROW(MFXVideoDECODE(session_)));
@@ -63,7 +63,7 @@ android::status_t MfxC2DecoderComponent::Init()
             }
         } else {
             MFX_DEBUG_TRACE_MSG("MFXVideoSession::Init failed");
-            MFX_DEBUG_TRACE_mfxStatus(mfx_res);
+            MFX_DEBUG_TRACE__mfxStatus(mfx_res);
         }
     }
 

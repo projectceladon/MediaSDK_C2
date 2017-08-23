@@ -39,7 +39,7 @@ void mfx_set_defaults_mfxVideoParam_dec(mfxVideoParam* params)
     params->mfx.CodecId = CodecId;
     params->mfx.NumThread = 0;
 
-    MFX_DEBUG_TRACE_mfxVideoParam_dec((*params))
+    MFX_DEBUG_TRACE__mfxVideoParam_dec((*params))
 }
 
 void mfx_set_defaults_mfxVideoParam_vpp(mfxVideoParam* params)
@@ -172,7 +172,7 @@ mfxStatus mfx_set_defaults_mfxVideoParam_enc(mfxVideoParam* params)
             break;
         };
 
-        MFX_DEBUG_TRACE_mfxVideoParam_enc((*params))
+        MFX_DEBUG_TRACE__mfxVideoParam_enc((*params))
 
     } while(false);
 

@@ -22,12 +22,12 @@ MFX_DEBUG_DECLARE_VALUE_DESC_PRINTF(android_status_t)
 
 #if MFX_DEBUG == MFX_DEBUG_YES
 
-#define MFX_DEBUG_TRACE_android_C2Error(_e) printf_android_C2Error(MFX_DEBUG_TRACE_VAR, #_e, _e)
-#define MFX_DEBUG_TRACE_android_status_t(_e) printf_android_status_t(MFX_DEBUG_TRACE_VAR, #_e, _e)
+#define MFX_DEBUG_TRACE__android_C2Error(_e) printf_android_C2Error(MFX_DEBUG_TRACE_VAR, #_e, _e)
+#define MFX_DEBUG_TRACE__android_status_t(_e) printf_android_status_t(MFX_DEBUG_TRACE_VAR, #_e, _e)
 
 #else // #if MFX_DEBUG == MFX_DEBUG_YES
 
-#define MFX_DEBUG_TRACE_android_C2Error(_e)
-#define MFX_DEBUG_TRACE_android_status_t(_e)
+#define MFX_DEBUG_TRACE__android_C2Error(_e)
+#define MFX_DEBUG_TRACE__android_status_t(_e)
 
 #endif // #if MFX_DEBUG == MFX_DEBUG_YES

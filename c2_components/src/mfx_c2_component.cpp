@@ -277,7 +277,7 @@ void MfxC2Component::NotifyWorkDone(std::unique_ptr<android::C2Work>&& work, and
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    MFX_DEBUG_TRACE_android_status_t(sts);
+    MFX_DEBUG_TRACE__android_status_t(sts);
 
     if(C2_OK == sts) {
         work->worklets_processed = 1;

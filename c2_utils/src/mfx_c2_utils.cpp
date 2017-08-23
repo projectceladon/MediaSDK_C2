@@ -258,7 +258,7 @@ status_t GetAggregateStatus(std::vector<std::unique_ptr<C2SettingResult>>* const
         }
     }
 
-    MFX_DEBUG_TRACE_android_status_t(res);
+    MFX_DEBUG_TRACE__android_status_t(res);
     return res;
 }
 
