@@ -17,6 +17,9 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 using namespace android;
 
+#undef MFX_DEBUG_MODULE_NAME
+#define MFX_DEBUG_MODULE_NAME "mfx_c2_decoder_component"
+
 MfxC2DecoderComponent::MfxC2DecoderComponent(const android::C2String name, int flags, DecoderType decoder_type) :
     MfxC2Component(name, flags), decoder_type_(decoder_type)
 {
