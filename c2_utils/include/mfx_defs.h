@@ -38,13 +38,17 @@ extern mfxVersion g_required_mfx_version;
     (new (std::nothrow)_class)
 
 #define MFX_DELETE(_ptr) \
-    do { delete (_ptr); (_ptr) = NULL; } while(false)
+    do { delete (_ptr); (_ptr) = nullptr; } while(false)
 
 #define MFX_FREE(_ptr) \
-    do { free(_ptr); (_ptr) = NULL; } while(false)
+    do { free(_ptr); (_ptr) = nullptr; } while(false)
 
 #define MFX_ZERO_MEMORY(_obj) \
     { memset(&(_obj), 0, sizeof(_obj)); }
+
+#define MFX_MAX(A, B) (((A) > (B)) ? (A) : (B))
+
+#define MFX_MIN(A, B) (((A) < (B)) ? (A) : (B))
 
 #define EXPORT __attribute__((visibility("default")))
 
