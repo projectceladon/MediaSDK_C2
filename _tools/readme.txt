@@ -1,3 +1,9 @@
+bin_to_cpp.py
+-------------
+Converts all files from source folder to their c array representations.
+Output .h files and .cpp files are written to <dst_dir>.
+Usage: python _tools/bin_to_c.py -i ../streams -o unittests/streams
+
 build-remote.sh
 ---------------
 Sends updated source file to remote server and fires build remotely.
