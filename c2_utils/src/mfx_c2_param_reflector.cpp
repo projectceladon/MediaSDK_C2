@@ -87,7 +87,12 @@ bool MfxC2ParamReflector::ValidateParam(const C2Param* param,
     return res;
 }
 
-std::unique_ptr<C2SettingResult> MfxC2ParamReflector::FindParam(const C2Param* param)
+bool MfxC2ParamReflector::FindParam(C2Param::Type param_type) const
+{
+    return FindC2Param(params_descriptors_, param_type);
+}
+
+std::unique_ptr<C2SettingResult> MfxC2ParamReflector::FindParam(const C2Param* param) const
 {
     return FindC2Param(params_descriptors_, param);
 }

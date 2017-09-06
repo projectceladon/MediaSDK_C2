@@ -34,7 +34,9 @@ public:
         std::vector<std::unique_ptr<android::C2SettingResult>>* const failures);
 
     std::unique_ptr<android::C2SettingResult> FindParam(
-        const android::C2Param* param);
+        const android::C2Param* param) const;
+
+    bool FindParam(android::C2Param::Type param_type) const;
 
     status_t getSupportedParams(
         std::vector<std::shared_ptr<android::C2ParamDescriptor>>* const params) const;

@@ -11,7 +11,9 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_defs.h"
 #include "gtest_emulation.h"
 #include "test_components.h"
+#include "test_params.h"
 #include "mfx_c2_utils.h"
+#include "mfx_defaults.h"
 #include "mfx_c2_params.h"
 #include "mfx_c2_component.h"
 #include "mfx_c2_components_registry.h"
@@ -49,11 +51,42 @@ struct ComponentDesc
     int flags;
     status_t creation_status;
     std::vector<C2ParamDescriptor> params_desc;
+    C2ParamValues default_values;
+    status_t query_status;
 };
 
+C2RateControlMethod MfxRateControlToC2(mfxU16 rate_control)
+{
+    C2RateControlMethod res {};
+
+    switch(rate_control) {
+        case MFX_RATECONTROL_CBR:
+            res = C2RateControlCBR;
+            break;
+        default:
+            res = C2RateControlMethod(-1);
+            break;
+    }
+    return res;
+}
+
+static C2ParamValues GetH264DefaultValues()
+{
+    C2ParamValues default_values;
+    // get default c2 params from mfx default structure
+    mfxVideoParam video_params {};
+    video_params.mfx.CodecId = MFX_CODEC_AVC;
+    mfx_set_defaults_mfxVideoParam_enc(&video_params);
+
+    default_values.Append(new C2RateControlSetting(MfxRateControlToC2(video_params.mfx.RateControlMethod)));
+    default_values.Append(new C2BitrateTuning(video_params.mfx.TargetKbps));
+    default_values.Append(Invalidate(new C2FrameQPSetting()));
+    return default_values;
+}
+
 static ComponentDesc g_components_desc[] = {
-    { "C2.h264ve", 0, C2_OK, h264_params_desc },
-    { "C2.NonExistingEncoder", 0, C2_NOT_FOUND, {} },
+    { "C2.h264ve", 0, C2_OK, h264_params_desc, GetH264DefaultValues(), C2_CORRUPTED },
+    { "C2.NonExistingEncoder", 0, C2_NOT_FOUND, {}, {}, {} },
 };
 
 static const ComponentDesc* GetComponentDesc(const std::string& component_name)
@@ -68,14 +101,19 @@ static const ComponentDesc* GetComponentDesc(const std::string& component_name)
     return result;
 }
 
-static std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name)
+static std::map<std::string, std::shared_ptr<MfxC2Component>>& GetComponentsCache()
 {
     static std::map<std::string, std::shared_ptr<MfxC2Component>> g_components;
+    return g_components;
+}
 
+static std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name)
+{
     std::shared_ptr<MfxC2Component> result;
+    auto components_cache = GetComponentsCache();
 
-    auto it = g_components.find(name);
-    if(it != g_components.end()) {
+    auto it = components_cache.find(name);
+    if(it != components_cache.end()) {
         result = it->second;
     }
     else {
@@ -89,7 +127,7 @@ static std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name)
             EXPECT_NE(mfx_component, nullptr);
             result = std::shared_ptr<MfxC2Component>(mfx_component);
 
-            g_components.emplace(name, result);
+            components_cache.emplace(name, result);
         }
     }
     return result;
@@ -667,6 +705,54 @@ TEST(MfxEncoderComponent, StaticFrameQP)
                 prev_bitstream = bitstream;
                 prev_valid_qp = test_run.qp;
             }
+        }
+    }); // ForEveryComponent
+}
+
+// Queries param values and verify correct defaults.
+// Does check before encoding (STOPPED state), during encoding on every frame,
+// and after encoding.
+TEST(MfxEncoderComponent, query_nb)
+{
+    GetComponentsCache().clear(); // reset cache to re-create components and have default params there
+
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [&] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+
+        (void)comp;
+
+        auto check_default_values = [&] () {
+            // check query through stack placeholders and the same with heap allocated
+            std::vector<std::unique_ptr<C2Param>> heap_params;
+            const C2ParamValues& default_values = comp_desc.default_values;
+            status_t res = comp_intf->query_nb(default_values.GetStackPointers(),
+                default_values.GetIndices(), &heap_params);
+            EXPECT_EQ(res, comp_desc.query_status);
+
+            default_values.CheckStackValues();
+            default_values.Check(heap_params, true);
+        };
+
+        {
+            SCOPED_TRACE("Before encode");
+            check_default_values();
+        }
+
+        StripeGenerator stripe_generator;
+
+        EncoderConsumer::OnFrame on_frame = [&] (const uint8_t*, size_t) {
+            SCOPED_TRACE("During encode");
+            check_default_values();
+        };
+
+        std::shared_ptr<EncoderConsumer> validator =
+            std::make_shared<EncoderConsumer>(on_frame);
+
+        Encode(FRAME_COUNT, comp, validator, { &stripe_generator } );
+
+        {
+            SCOPED_TRACE("After encode");
+            check_default_values();
         }
     }); // ForEveryComponent
 }

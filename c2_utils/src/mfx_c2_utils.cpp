@@ -262,10 +262,26 @@ status_t GetAggregateStatus(std::vector<std::unique_ptr<C2SettingResult>>* const
     return res;
 }
 
+bool FindC2Param(
+    const std::vector<std::shared_ptr<android::C2ParamDescriptor>>& params_desc,
+    android::C2Param::Type param_type)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    auto type_match = [param_type] (const auto& param_desc) {
+        // type includes: kind, dir, flexible and param_index, doesn't include stream id
+        // stream should be checked on individual parameters handling
+        return param_type == param_desc->type();
+    };
+
+    return std::any_of(params_desc.begin(), params_desc.end(), type_match);
+}
+
 std::unique_ptr<C2SettingResult> FindC2Param(
     const std::vector<std::shared_ptr<C2ParamDescriptor>>& params_desc, const C2Param* param)
 {
     MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_U32(param->type());
 
     std::unique_ptr<C2SettingResult> res;
 
@@ -294,6 +310,6 @@ std::unique_ptr<C2SettingResult> FindC2Param(
             res = MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE);
         }
     }
-
+    MFX_DEBUG_TRACE_P(res.get());
     return res;
 }

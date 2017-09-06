@@ -154,6 +154,8 @@ mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
 
+    std::lock_guard<std::mutex> lock(init_encoder_mutex_);
+
     video_params_config_.mfx.FrameInfo = frame_info;
     {
         encoder_.reset(MFX_NEW_NO_THROW(MFXVideoENCODE(session_)));
@@ -460,6 +462,149 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
     dev_busy_cond_.notify_one();
 }
 
+std::unique_ptr<mfxVideoParam> MfxC2EncoderComponent::GetParamsView() const
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    std::unique_ptr<mfxVideoParam> res = std::make_unique<mfxVideoParam>();
+    mfxStatus sts = MFX_ERR_NONE;
+
+    if(nullptr == encoder_) {
+        mfxVideoParam* in_params = const_cast<mfxVideoParam*>(&video_params_config_);
+
+        res->mfx.CodecId = in_params->mfx.CodecId;
+
+        sts = MFXVideoENCODE_Query(
+            (mfxSession)*const_cast<MFXVideoSession*>(&session_),
+            in_params, res.get());
+    } else {
+        sts = encoder_->GetVideoParam(res.get());
+    }
+
+    MFX_DEBUG_TRACE__mfxStatus(sts);
+    if (MFX_ERR_NONE != sts) {
+        res = nullptr;
+    } else {
+        MFX_DEBUG_TRACE__mfxVideoParam_enc((*res));
+    }
+    return res;
+}
+
+status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Type type, C2Param** dst) const
+{
+    status_t res = C2_OK;
+
+    switch (type.paramIndex()) {
+        case kParamIndexRateControl: {
+            if (nullptr == *dst) {
+                *dst = new C2RateControlSetting();
+            }
+            C2RateControlSetting* rate_control = (C2RateControlSetting*)*dst;
+            switch(src->mfx.RateControlMethod) {
+                case MFX_RATECONTROL_CBR: rate_control->mValue = C2RateControlCBR; break;
+                case MFX_RATECONTROL_CQP: rate_control->mValue = C2RateControlCQP; break;
+                default:
+                    res = C2_CORRUPTED;
+                    break;
+            }
+            break;
+        }
+        case kParamIndexBitrate: {
+            if (nullptr == *dst) {
+                *dst = new C2BitrateTuning();
+            }
+            C2BitrateTuning* bitrate = (C2BitrateTuning*)*dst;
+            if (src->mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
+                bitrate->mValue = src->mfx.TargetKbps;
+            } else {
+                res = C2_CORRUPTED;
+            }
+            break;
+        }
+        case kParamIndexFrameQP: {
+            if (nullptr == *dst) {
+                *dst = new C2FrameQPSetting();
+            }
+            C2FrameQPSetting* frame_qp = (C2FrameQPSetting*)*dst;
+            if (src->mfx.RateControlMethod == MFX_RATECONTROL_CQP) {
+                frame_qp->qp_i = src->mfx.QPI;
+                frame_qp->qp_p = src->mfx.QPP;
+                frame_qp->qp_b = src->mfx.QPB;
+            } else {
+                res = C2_CORRUPTED;
+            }
+            break;
+        }
+
+        default:
+        res = C2_BAD_INDEX;
+        break;
+    }
+    return res;
+}
+
+status_t MfxC2EncoderComponent::query_nb(
+    const std::vector<C2Param* const> &stackParams,
+    const std::vector<C2Param::Index> &heapParamIndices,
+    std::vector<std::unique_ptr<C2Param>>* const heapParams) const
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    std::lock_guard<std::mutex> lock(init_encoder_mutex_);
+
+    status_t res = C2_OK;
+
+    // determine source, update it if needed
+    std::unique_ptr<mfxVideoParam> params_view = GetParamsView();
+    if (nullptr != params_view) {
+        // 1st cycle on stack params
+        for (C2Param* param : stackParams) {
+            status_t param_res = C2_OK;
+            if (param_reflector_.FindParam(param->type())) {
+                param_res = QueryParam(params_view.get(), param->type(), &param);
+            } else {
+                param_res =  C2_BAD_INDEX;
+            }
+            if (param_res != C2_OK) {
+                param->invalidate();
+                res = param_res;
+            }
+        }
+        // 2nd cycle on heap params
+        for (C2Param::Index param_index : heapParamIndices) {
+            // allocate in QueryParam
+            C2Param* param = nullptr;
+            // check on presence
+            status_t param_res = C2_OK;
+            if (param_reflector_.FindParam(param_index.type())) {
+                param_res = QueryParam(params_view.get(), param_index.type(), &param);
+            } else {
+                param_res = C2_BAD_INDEX;
+            }
+            if (param_res == C2_OK) {
+                if(nullptr != heapParams) {
+                    heapParams->push_back(std::unique_ptr<C2Param>(param));
+                } else {
+                    MFX_DEBUG_TRACE_MSG("heapParams is null");
+                    res = C2_BAD_VALUE;
+                }
+            } else {
+                delete param;
+                res = param_res;
+            }
+        }
+    } else {
+        // no params_view was acquired
+        for (C2Param* param : stackParams) {
+            param->invalidate();
+        }
+        res = C2_CORRUPTED;
+    }
+
+    MFX_DEBUG_TRACE__android_status_t(res);
+    return res;
+}
+
 status_t MfxC2EncoderComponent::config_nb(const std::vector<C2Param* const> &params,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures) {
 
@@ -474,7 +619,9 @@ status_t MfxC2EncoderComponent::config_nb(const std::vector<C2Param* const> &par
 
         failures->clear();
 
-        std::lock_guard<std::mutex> lock(state_mutex_);
+        std::lock(init_encoder_mutex_, state_mutex_);
+        std::lock_guard<std::mutex> lock1(init_encoder_mutex_, std::adopt_lock);
+        std::lock_guard<std::mutex> lock2(state_mutex_, std::adopt_lock);
 
         for (const C2Param* param : params) {
             // check whether plugin supports this parameter

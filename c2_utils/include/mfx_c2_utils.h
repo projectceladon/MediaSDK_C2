@@ -50,6 +50,10 @@ std::unique_ptr<android::C2SettingResult> MakeC2SettingResult(
 
 status_t GetAggregateStatus(std::vector<std::unique_ptr<android::C2SettingResult>>* const failures);
 
+bool FindC2Param(
+    const std::vector<std::shared_ptr<android::C2ParamDescriptor>>& params_desc,
+    android::C2Param::Type param_type);
+
 std::unique_ptr<android::C2SettingResult> FindC2Param(
-    const std::vector<std::shared_ptr<android::C2ParamDescriptor>>& params_descriptors_,
+    const std::vector<std::shared_ptr<android::C2ParamDescriptor>>& params_desc,
     const android::C2Param* param);
