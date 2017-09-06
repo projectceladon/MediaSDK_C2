@@ -36,6 +36,11 @@ public:
     static void RegisterClass(MfxC2ComponentsRegistry& registry);
 
 protected: // android::C2ComponentInterface
+    status_t query_nb(
+        const std::vector<android::C2Param* const> &stackParams,
+        const std::vector<android::C2Param::Index> &heapParamIndices,
+        std::vector<std::unique_ptr<android::C2Param>>* const heapParams) const override;
+
     status_t config_nb(
             const std::vector<android::C2Param* const> &params,
             std::vector<std::unique_ptr<android::C2SettingResult>>* const failures) override;
@@ -51,6 +56,11 @@ protected:
     android::status_t DoStop() override;
 
 private:
+    status_t QueryParam(const mfxVideoParam* src,
+        android::C2Param::Type type, android::C2Param** dst) const;
+
+    std::unique_ptr<mfxVideoParam> GetParamsView() const;
+
     mfxStatus Reset();
 
     mfxStatus InitEncoder(const mfxFrameInfo& frame_info);
@@ -92,6 +102,8 @@ private:
     mfxVideoParam video_params_config_;
     // Internal encoder state, queried from encoder.
     mfxVideoParam video_params_state_;
+    // Protects encoder initializatin and video_params_config_/video_params_state_
+    mutable std::mutex init_encoder_mutex_;
 
     // Members handling MFX_WRN_DEVICE_BUSY.
     // Active sync points got from EncodeFrameAsync for waiting on.
