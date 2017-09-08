@@ -11,6 +11,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_param_reflector.h"
 #include "mfx_debug.h"
 #include "mfx_c2_utils.h"
+#include <sstream>
 
 using namespace android;
 
@@ -100,3 +101,89 @@ status_t MfxC2ParamReflector::getSupportedParams(
 
     return C2_OK;
 }
+
+#if MFX_DEBUG == MFX_DEBUG_YES
+
+static std::ostream& operator<<(std::ostream& os, C2FieldDescriptor::Type type)
+{
+    const char* type_names[] = { "NO_INIT", "INT32", "UINT32", "INT64", "UINT64", "FLOAT", };
+
+    uint32_t index = (uint32_t)type;
+
+    if(index < MFX_GET_ARRAY_SIZE(type_names)) {
+        os << type_names[index];
+    } else {
+        os << "UNKNOWN";
+    }
+    return os;
+}
+
+static std::ostream& operator<<(std::ostream& os, C2FieldSupportedValues::Type type)
+{
+    const char* type_names[] = { "RANGE", "VALUES", "FLAGS", };
+
+    uint32_t index = (uint32_t)type;
+
+    if(index < MFX_GET_ARRAY_SIZE(type_names)) {
+        os << type_names[index];
+    } else {
+        os << "UNKNOWN";
+    }
+    return os;
+}
+
+void MfxC2ParamReflector::DumpParams()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    const std::string indent(4, ' ');
+
+    for(auto desc : params_descriptors_) {
+        std::ostringstream oss;
+        uint32_t type = desc->type().type();
+        oss << std::hex << type << " " << desc->name();
+        MFX_DEBUG_TRACE_MSG(oss.str().c_str());
+    }
+
+    MFX_DEBUG_TRACE_MSG("params_struct_descriptors_");
+    for(const auto& pair : params_struct_descriptors_) {
+        std::ostringstream oss;
+        oss << std::hex << *(uint32_t*)&pair.first;
+        MFX_DEBUG_TRACE_MSG(oss.str().c_str());
+
+        for(const auto& field_desc : pair.second) {
+            std::ostringstream oss;
+            oss << indent << field_desc.name() << " " << field_desc.type()
+                << " " << field_desc.offset() << " " << field_desc.size();
+            MFX_DEBUG_TRACE_MSG(oss.str().c_str());
+        }
+    }
+
+    MFX_DEBUG_TRACE_MSG("params_supported_values_");
+    for(const auto& pair : params_supported_values_) {
+        std::ostringstream oss;
+
+        const C2ParamField& param_field = pair.first;
+
+        struct C2ParamFieldCover {
+            uint32_t index;
+            _C2FieldId field_id;
+        };
+        const C2ParamFieldCover* cover = (const C2ParamFieldCover*)&param_field;
+
+        oss << "ParamID:" << std::hex << cover->index;
+        oss << " offset:" << std::dec << cover->field_id.offset();
+        oss << " size:" << cover->field_id.size();
+
+        const C2FieldSupportedValues& values = pair.second;
+
+        oss << " " << values.type;
+        if(values.type == C2FieldSupportedValues::RANGE) {
+
+            oss << std::dec << " [" << values.range.min.u32 << "-" << values.range.max.u32 << "]";
+        }
+        MFX_DEBUG_TRACE_MSG(oss.str().c_str());
+    }
+}
+
+#endif // MFX_DEBUG == MFX_DEBUG_YES

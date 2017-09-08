@@ -53,6 +53,8 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const android::C2String name, int f
 
         break;
     }
+
+    param_reflector_.DumpParams();
 }
 
 MfxC2EncoderComponent::~MfxC2EncoderComponent()

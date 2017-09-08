@@ -38,6 +38,12 @@ public:
 
     status_t getSupportedParams(
         std::vector<std::shared_ptr<android::C2ParamDescriptor>>* const params) const;
+
+#if MFX_DEBUG == MFX_DEBUG_YES
+    void DumpParams();
+#else
+    void DumpParams() { }
+#endif
 };
 
 template<typename ParamType>
