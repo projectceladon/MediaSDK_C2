@@ -110,7 +110,7 @@ static std::map<std::string, std::shared_ptr<MfxC2Component>>& GetComponentsCach
 static std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name)
 {
     std::shared_ptr<MfxC2Component> result;
-    auto components_cache = GetComponentsCache();
+    auto& components_cache = GetComponentsCache(); // auto& is needed to have ref not a copy of cache
 
     auto it = components_cache.find(name);
     if(it != components_cache.end()) {
