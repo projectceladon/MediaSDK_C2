@@ -312,6 +312,41 @@ status_t MfxC2EncoderComponent::AllocateBitstream(const std::unique_ptr<android:
     return res;
 }
 
+status_t MfxC2EncoderComponent::ApplyWorkTunings(C2Work& work)
+{
+    status_t res = C2_OK;
+
+    do {
+
+        if (work.worklets.size() != 1) {
+            res = C2_BAD_VALUE;
+            break;
+        }
+
+        std::unique_ptr<C2Worklet>& worklet = work.worklets.front();
+        if (nullptr == worklet) {
+            res = C2_BAD_VALUE;
+            break;
+        }
+
+        // need this temp vector as cannot init vector<smth const> in one step
+        std::vector<C2Param*> temp;
+        std::transform(worklet->tunings.begin(), worklet->tunings.end(), std::back_inserter(temp),
+            [] (const std::unique_ptr<C2Param>& p) { return p.get(); } );
+
+        std::vector<C2Param* const> params(temp.begin(), temp.end());
+
+        std::vector<std::unique_ptr<C2SettingResult>> failures;
+        DoConfig(params, &failures, false);
+        for(auto& failure : failures) {
+            worklet->failures.push_back(std::move(failure));
+        }
+
+    } while(false);
+
+    return res;
+}
+
 void MfxC2EncoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -343,6 +378,9 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
         if(C2_OK != res) break;
 
         mfxSyncPoint sync_point;
+
+        res = ApplyWorkTunings(*work);
+        if(C2_OK != res) break;
 
         std::unique_ptr<mfxEncodeCtrl> encode_ctrl = encoder_control_.AcquireEncodeCtrl();
 
@@ -640,6 +678,100 @@ status_t MfxC2EncoderComponent::query_nb(
     return res;
 }
 
+void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param* const> &params,
+    std::vector<std::unique_ptr<C2SettingResult>>* const failures,
+    bool queue_update)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    for (const C2Param* param : params) {
+        // check whether plugin supports this parameter
+        std::unique_ptr<C2SettingResult> find_res = param_reflector_.FindParam(param);
+        if(nullptr != find_res) {
+            failures->push_back(std::move(find_res));
+            continue;
+        }
+        // check whether plugin is in a correct state to apply this parameter
+        bool modifiable = (param->kind() == C2Param::TUNING) ||
+            (param->kind() == C2Param::SETTING && state_ == State::STOPPED);
+
+        if (!modifiable) {
+            failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::READ_ONLY));
+            continue;
+        }
+
+        // check ranges
+        if(!param_reflector_.ValidateParam(param, failures)) {
+            continue;
+        }
+
+        // applying parameter
+        switch (C2Param::Type(param->type()).paramIndex()) {
+            case kParamIndexRateControl: {
+                mfxStatus sts = MFX_ERR_NONE;
+                switch (static_cast<const C2RateControlSetting*>(param)->mValue) {
+                    case C2RateControlCBR:
+                        sts = mfx_set_RateControlMethod(MFX_RATECONTROL_CBR, &video_params_config_);
+                        break;
+                    case C2RateControlCQP:
+                        sts = mfx_set_RateControlMethod(MFX_RATECONTROL_CQP, &video_params_config_);
+                        break;
+                    default:
+                        sts = MFX_ERR_INVALID_VIDEO_PARAM;
+                        break;
+                }
+                if(MFX_ERR_NONE != sts) {
+                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
+                }
+                break;
+            }
+            case kParamIndexBitrate:
+                if(video_params_config_.mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
+                    video_params_config_.mfx.TargetKbps =
+                        static_cast<const C2BitrateTuning*>(param)->mValue;
+                } else {
+                    failures->push_back(MakeC2SettingResult(C2ParamField(param),
+                        C2SettingResult::CONFLICT, { MakeC2ParamField<C2RateControlSetting>() } ));
+                }
+                break;
+            case kParamIndexFrameQP: {
+                const C2FrameQPSetting* qp_setting = static_cast<const C2FrameQPSetting*>(param);
+                    if(video_params_config_.mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
+                        failures->push_back(MakeC2SettingResult(C2ParamField(param),
+                            C2SettingResult::CONFLICT, { MakeC2ParamField<C2RateControlSetting>() } ));
+                    } else {
+                        video_params_config_.mfx.QPI = qp_setting->qp_i;
+                        video_params_config_.mfx.QPP = qp_setting->qp_p;
+                        video_params_config_.mfx.QPB = qp_setting->qp_b;
+                    }
+                break;
+            }
+            case kParamIndexIntraRefresh: {
+                const C2IntraRefreshTuning* intra_refresh = static_cast<const C2IntraRefreshTuning*>(param);
+                if (intra_refresh->mValue != 0) {
+
+                    auto update = [this] () {
+                        EncoderControl::ModifyFunction modify = [] (mfxEncodeCtrl* ctrl) {
+                            ctrl->FrameType = MFX_FRAMETYPE_IDR | MFX_FRAMETYPE_I;
+                        };
+                        encoder_control_.Modify(modify);
+                    };
+
+                    if (queue_update) {
+                        working_queue_.Push(std::move(update));
+                    } else {
+                        update();
+                    }
+                }
+                break;
+            }
+            default:
+                failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE));
+                break;
+        }
+    }
+}
+
 status_t MfxC2EncoderComponent::config_nb(const std::vector<C2Param* const> &params,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures) {
 
@@ -658,86 +790,10 @@ status_t MfxC2EncoderComponent::config_nb(const std::vector<C2Param* const> &par
         std::lock_guard<std::mutex> lock1(init_encoder_mutex_, std::adopt_lock);
         std::lock_guard<std::mutex> lock2(state_mutex_, std::adopt_lock);
 
-        for (const C2Param* param : params) {
-            // check whether plugin supports this parameter
-            std::unique_ptr<C2SettingResult> find_res = param_reflector_.FindParam(param);
-            if(nullptr != find_res) {
-                failures->push_back(std::move(find_res));
-                continue;
-            }
-            // check whether plugin is in a correct state to apply this parameter
-            bool modifiable = (param->kind() == C2Param::TUNING) ||
-                (param->kind() == C2Param::SETTING && state_ == State::STOPPED);
+        DoConfig(params, failures, true);
 
-            if (!modifiable) {
-                failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::READ_ONLY));
-                continue;
-            }
-
-            // check ranges
-            if(!param_reflector_.ValidateParam(param, failures)) {
-                continue;
-            }
-
-            // applying parameter
-            switch (C2Param::Type(param->type()).paramIndex()) {
-                case kParamIndexRateControl: {
-                    mfxStatus sts = MFX_ERR_NONE;
-                    switch (static_cast<const C2RateControlSetting*>(param)->mValue) {
-                        case C2RateControlCBR:
-                            sts = mfx_set_RateControlMethod(MFX_RATECONTROL_CBR, &video_params_config_);
-                            break;
-                        case C2RateControlCQP:
-                            sts = mfx_set_RateControlMethod(MFX_RATECONTROL_CQP, &video_params_config_);
-                            break;
-                        default:
-                            sts = MFX_ERR_INVALID_VIDEO_PARAM;
-                            break;
-                    }
-                    if(MFX_ERR_NONE != sts) {
-                        failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
-                    }
-                    break;
-                }
-                case kParamIndexBitrate:
-                    if(video_params_config_.mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
-                        video_params_config_.mfx.TargetKbps =
-                            static_cast<const C2BitrateTuning*>(param)->mValue;
-                    } else {
-                        failures->push_back(MakeC2SettingResult(C2ParamField(param),
-                            C2SettingResult::CONFLICT, { MakeC2ParamField<C2RateControlSetting>() } ));
-                    }
-                    break;
-                case kParamIndexFrameQP: {
-                    const C2FrameQPSetting* qp_setting = static_cast<const C2FrameQPSetting*>(param);
-                        if(video_params_config_.mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
-                            failures->push_back(MakeC2SettingResult(C2ParamField(param),
-                                C2SettingResult::CONFLICT, { MakeC2ParamField<C2RateControlSetting>() } ));
-                        } else {
-                            video_params_config_.mfx.QPI = qp_setting->qp_i;
-                            video_params_config_.mfx.QPP = qp_setting->qp_p;
-                            video_params_config_.mfx.QPB = qp_setting->qp_b;
-                        }
-                    break;
-                }
-                case kParamIndexIntraRefresh: {
-                    const C2IntraRefreshTuning* intra_refresh = static_cast<const C2IntraRefreshTuning*>(param);
-                    if (intra_refresh->mValue != 0) {
-                        working_queue_.Push([this] () {
-                            EncoderControl::ModifyFunction modify = [] (mfxEncodeCtrl* ctrl) {
-                                ctrl->FrameType = MFX_FRAMETYPE_IDR | MFX_FRAMETYPE_I;
-                            };
-                            encoder_control_.Modify(modify);
-                        });
-                    }
-                    break;
-                }
-                default:
-                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE));
-                    break;
-            }
-        }
         res = GetAggregateStatus(failures);
+
     } while(false);
 
     return res;

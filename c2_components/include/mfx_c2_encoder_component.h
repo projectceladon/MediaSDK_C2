@@ -95,6 +95,11 @@ private:
     android::status_t AllocateBitstream(const std::unique_ptr<android::C2Work>& work,
         MfxC2BitstreamOut* mfx_bitstream);
 
+    void DoConfig(const std::vector<android::C2Param* const> &params,
+        std::vector<std::unique_ptr<android::C2SettingResult>>* const failures,
+        bool queue_update);
+
+    android::status_t ApplyWorkTunings(android::C2Work& work);
     // Work routines
     void DoWork(std::unique_ptr<android::C2Work>&& work);
 
