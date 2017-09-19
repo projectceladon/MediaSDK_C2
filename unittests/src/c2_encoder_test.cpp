@@ -795,6 +795,7 @@ uint32_t CountIdrSlices(std::vector<char>&& contents)
 // Tests dynamic parameter enforcing IDR frame to be inserted into encoded bitstream.
 // Encodes the same frames multiple times, inserting IDR every N frames.
 // Checks that output bitstream contains idr frames exactly as expected.
+// It tries to request IDR frame with config_nb and with C2Work structure.
 TEST(MfxEncoderComponent, IntraRefresh)
 {
     ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
@@ -808,50 +809,64 @@ TEST(MfxEncoderComponent, IntraRefresh)
         mfxStatus mfx_sts = mfx_set_defaults_mfxVideoParam_enc(&default_params);
         ASSERT_EQ(mfx_sts, MFX_ERR_NONE);
 
-        std::vector<int> idr_distances { 2, 3, 7, 10, 15 };
+        for(bool use_config_nb : { true, false }) {
 
-        for (int idr_distance : idr_distances) {
+            SCOPED_TRACE((use_config_nb ? "config_nb" : "C2Work"));
 
-            StripeGenerator stripe_generator;
-            NoiseGenerator noise_generator;
-            std::vector<char> bitstream;
+            std::vector<int> idr_distances { 2, 3, 7, 10, 15 };
 
-            GTestBinaryWriter writer(std::ostringstream()
-                << comp_intf->getName() << "-" << idr_distance << ".out");
+            for (int idr_distance : idr_distances) {
 
-            BeforeQueueWork before_queue_work = [&] (uint32_t frame_index, C2Work*) {
+                StripeGenerator stripe_generator;
+                NoiseGenerator noise_generator;
+                std::vector<char> bitstream;
 
-                if ((frame_index % idr_distance) == 0) {
-                    C2IntraRefreshTuning intra_refresh;
-                    intra_refresh.mValue = true;
-                    std::vector<android::C2Param* const> params { &intra_refresh };
-                    std::vector<std::unique_ptr<android::C2SettingResult>> failures;
-                    status_t sts = comp_intf->config_nb(params, &failures);
+                GTestBinaryWriter writer(std::ostringstream()
+                    << comp_intf->getName() << "-" << idr_distance << ".out");
 
-                    EXPECT_EQ(sts, C2_OK);
-                    EXPECT_EQ(failures.size(), 0);
-                }
-            };
+                BeforeQueueWork before_queue_work = [&] (uint32_t frame_index, C2Work* work) {
 
-            EncoderConsumer::OnFrame on_frame = [&] (const uint8_t* data, size_t length) {
+                    if ((frame_index % idr_distance) == 0) {
 
-                const char* ch_data = (const char*)data;
-                std::copy(ch_data, ch_data + length, std::back_inserter(bitstream));
-                writer.Write(data, length);
-            };
+                        std::unique_ptr<C2IntraRefreshTuning> intra_refresh =
+                            std::make_unique<C2IntraRefreshTuning>();
+                        intra_refresh->mValue = true;
+                        if (use_config_nb) {
+                            std::vector<android::C2Param* const> params { intra_refresh.get() };
+                            std::vector<std::unique_ptr<android::C2SettingResult>> failures;
+                            status_t sts = comp_intf->config_nb(params, &failures);
 
-            std::shared_ptr<EncoderConsumer> validator =
-                std::make_shared<EncoderConsumer>(on_frame);
+                            EXPECT_EQ(sts, C2_OK);
+                            EXPECT_EQ(failures.size(), 0);
+                        } else {
+                            ASSERT_EQ(work->worklets.size(), 1);
+                            C2Worklet* worklet = work->worklets.front().get();
+                            ASSERT_NE(worklet, nullptr);
+                            worklet->tunings.push_back(std::move(intra_refresh));
+                        }
+                    }
+                };
 
-            Encode(FRAME_COUNT, comp, validator, { &stripe_generator, &noise_generator },
-                before_queue_work );
+                EncoderConsumer::OnFrame on_frame = [&] (const uint8_t* data, size_t length) {
 
-            uint32_t idr_expected = (FRAME_COUNT - 1) / idr_distance + 1;
+                    const char* ch_data = (const char*)data;
+                    std::copy(ch_data, ch_data + length, std::back_inserter(bitstream));
+                    writer.Write(data, length);
+                };
 
-            uint32_t idr_actual = CountIdrSlices(std::move(bitstream));
+                std::shared_ptr<EncoderConsumer> validator =
+                    std::make_shared<EncoderConsumer>(on_frame);
 
-            EXPECT_EQ(idr_expected, idr_actual) << NAMED(idr_expected) << NAMED(idr_actual)
-                << NAMED(idr_distance);
+                Encode(FRAME_COUNT, comp, validator, { &stripe_generator, &noise_generator },
+                    before_queue_work );
+
+                uint32_t idr_expected = (FRAME_COUNT - 1) / idr_distance + 1;
+
+                uint32_t idr_actual = CountIdrSlices(std::move(bitstream));
+
+                EXPECT_EQ(idr_expected, idr_actual) << NAMED(idr_expected) << NAMED(idr_actual)
+                    << NAMED(idr_distance);
+            }
         }
     }); // ForEveryComponent
 }
