@@ -11,6 +11,9 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_cmd_queue.h"
 #include "mfx_debug.h"
 
+#undef MFX_DEBUG_MODULE_NAME
+#define MFX_DEBUG_MODULE_NAME "mfx_cmd_queue"
+
 void MfxCmdQueue::Start()
 {
     MFX_DEBUG_TRACE_FUNC;

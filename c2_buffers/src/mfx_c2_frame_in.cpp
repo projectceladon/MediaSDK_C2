@@ -16,6 +16,9 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 using namespace android;
 
+#undef MFX_DEBUG_MODULE_NAME
+#define MFX_DEBUG_MODULE_NAME "mfx_c2_frame_in"
+
 static void InitMfxNV12Frame(
     uint64_t timestamp, uint64_t frame_index,
     const uint8_t* data, uint32_t width, uint32_t height, mfxFrameSurface1* mfx_frame)
