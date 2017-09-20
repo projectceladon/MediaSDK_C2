@@ -580,6 +580,7 @@ status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Ty
             C2RateControlSetting* rate_control = (C2RateControlSetting*)*dst;
             switch(src->mfx.RateControlMethod) {
                 case MFX_RATECONTROL_CBR: rate_control->mValue = C2RateControlCBR; break;
+                case MFX_RATECONTROL_VBR: rate_control->mValue = C2RateControlVBR; break;
                 case MFX_RATECONTROL_CQP: rate_control->mValue = C2RateControlCQP; break;
                 default:
                     res = C2_CORRUPTED;
@@ -718,6 +719,9 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param* const> &params,
                     case C2RateControlCBR:
                         sts = mfx_set_RateControlMethod(MFX_RATECONTROL_CBR, &video_params_config_);
                         break;
+                    case C2RateControlVBR:
+                        sts = mfx_set_RateControlMethod(MFX_RATECONTROL_VBR, &video_params_config_);
+                        break;
                     case C2RateControlCQP:
                         sts = mfx_set_RateControlMethod(MFX_RATECONTROL_CQP, &video_params_config_);
                         break;
@@ -731,9 +735,43 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param* const> &params,
                 break;
             }
             case kParamIndexBitrate:
-                if(video_params_config_.mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
-                    video_params_config_.mfx.TargetKbps =
-                        static_cast<const C2BitrateTuning*>(param)->mValue;
+                if (video_params_config_.mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
+                    uint32_t bitrate_value = static_cast<const C2BitrateTuning*>(param)->mValue;
+                    if (state_ == State::STOPPED) {
+                        video_params_config_.mfx.TargetKbps = bitrate_value;
+                    } else if (video_params_config_.mfx.RateControlMethod == MFX_RATECONTROL_VBR) {
+                        auto update_bitrate_value = [this, bitrate_value] () {
+                            MFX_DEBUG_TRACE("update_bitrate_value");
+                            MFX_DEBUG_TRACE_I32(bitrate_value);
+                            video_params_config_.mfx.TargetKbps = bitrate_value;
+                            if (nullptr != encoder_) {
+                                {   // waiting for encoding completion of all enqueued frames
+                                    std::unique_lock<std::mutex> lock(dev_busy_mutex_);
+                                    // set big enough value to not hang if something unexpected happens
+                                    const auto timeout = std::chrono::seconds(1);
+                                    bool wait_res = dev_busy_cond_.wait_for(lock, timeout, [this] { return synced_points_count_ == 0; } );
+                                    if (!wait_res) {
+                                        MFX_DEBUG_TRACE_MSG("WRN: Some encoded frames might skip during tunings change.");
+                                    }
+                                }
+                                mfxStatus reset_sts = encoder_->Reset(&video_params_config_);
+                                MFX_DEBUG_TRACE__mfxStatus(reset_sts);
+                            }
+                        };
+
+                        Drain();
+
+                        if (queue_update) {
+                            working_queue_.Push(std::move(update_bitrate_value));
+                        } else {
+                            update_bitrate_value();
+                        }
+                    } else {
+                        // If state is executing and rate control is not VBR, Reset will not update bitrate,
+                        // so report an error.
+                        failures->push_back(MakeC2SettingResult(C2ParamField(param),
+                            C2SettingResult::CONFLICT, { MakeC2ParamField<C2RateControlSetting>() } ));
+                    }
                 } else {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param),
                         C2SettingResult::CONFLICT, { MakeC2ParamField<C2RateControlSetting>() } ));

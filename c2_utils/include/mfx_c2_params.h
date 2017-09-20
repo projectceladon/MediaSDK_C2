@@ -26,12 +26,13 @@ enum C2ParamIndexKindVendor : uint32_t {
 C2ENUM(C2RateControlMethod, int32_t,
     C2RateControlCQP,
     C2RateControlCBR,
+    C2RateControlVBR,
 );
 
 typedef C2PortParam<C2Setting, C2SimpleValueStruct<C2RateControlMethod>, kParamIndexRateControl>::output
     C2RateControlSetting;
 
-typedef C2PortParam<C2Tuning, C2Int32Value, kParamIndexBitrate>::output C2BitrateTuning;
+typedef C2PortParam<C2Tuning, C2Uint32Value, kParamIndexBitrate>::output C2BitrateTuning;
 
 struct C2FrameQPStruct {
     uint32_t qp_i;
