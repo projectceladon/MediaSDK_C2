@@ -19,6 +19,9 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
     #include "mfx_dev_va.h"
 #endif // #ifdef LIBVA_SUPPORT
 
+#undef MFX_DEBUG_MODULE_NAME
+#define MFX_DEBUG_MODULE_NAME "mfx_dev"
+
 mfxStatus MfxDev::Create(std::unique_ptr<MfxDev>* device)
 {
     MFX_DEBUG_TRACE_FUNC;

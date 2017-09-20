@@ -15,6 +15,9 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 using namespace android;
 
+#undef MFX_DEBUG_MODULE_NAME
+#define MFX_DEBUG_MODULE_NAME "mfx_c2_bitstream_out"
+
 static void InitMfxBitstream(
     uint8_t* raw, uint32_t capacity, mfxBitstream* mfx_bitstream)
 {

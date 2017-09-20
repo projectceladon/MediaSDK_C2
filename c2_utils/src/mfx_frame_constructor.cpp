@@ -12,6 +12,9 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_debug.h"
 #include "mfx_msdk_debug.h"
 
+#undef MFX_DEBUG_MODULE_NAME
+#define MFX_DEBUG_MODULE_NAME "mfx_frame_constructor"
+
 MfxC2FrameConstructor::MfxC2FrameConstructor():
     bs_state_(MfxC2BS_HeaderAwaiting),
     profile_(MFX_PROFILE_UNKNOWN),
