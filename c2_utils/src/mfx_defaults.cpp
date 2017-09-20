@@ -61,6 +61,7 @@ mfxStatus mfx_set_RateControlMethod(mfxU16 rate_control_method, mfxVideoParam* p
 
     switch(rate_control_method) {
         case MFX_RATECONTROL_CBR:
+        case MFX_RATECONTROL_VBR:
 
             switch (params->mfx.CodecId)
             {

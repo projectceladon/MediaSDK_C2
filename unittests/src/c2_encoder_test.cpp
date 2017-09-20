@@ -163,14 +163,14 @@ TEST(MfxEncoderComponent, intf)
     } );
 }
 
-static void PrepareWork(uint32_t frame_index,
+static void PrepareWork(uint32_t frame_index, bool last_frame,
     std::unique_ptr<C2Work>* work,
     const std::vector<FrameGenerator*>& generators)
 {
     *work = std::make_unique<C2Work>();
     C2BufferPack* buffer_pack = &((*work)->input);
 
-    if(frame_index < FRAME_COUNT - 1) {
+    if (!last_frame) {
         buffer_pack->flags = flags_t(0);
     } else {
         buffer_pack->flags = BUFFERFLAG_END_OF_STREAM;
@@ -235,11 +235,12 @@ static void PrepareWork(uint32_t frame_index,
 class EncoderConsumer : public C2ComponentListener
 {
 public:
-    typedef std::function<void(const uint8_t* data, size_t length)> OnFrame;
+    typedef std::function<void(const C2Worklet& worklet, const uint8_t* data, size_t length)> OnFrame;
 
 public:
-    EncoderConsumer(OnFrame on_frame)
+    EncoderConsumer(OnFrame on_frame, uint64_t frame_count = FRAME_COUNT)
         :on_frame_(on_frame)
+        ,frame_count_(frame_count)
         ,frame_expected_(0)
     {
     }
@@ -258,17 +259,20 @@ protected:
         (void)component;
 
         for(std::unique_ptr<C2Work>& work : workItems) {
-            EXPECT_EQ(work->worklets_processed, 1);
+            EXPECT_EQ(work->worklets_processed, 1) << NAMED(frame_expected_);
             EXPECT_EQ(work->result, C2_OK);
 
             std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
+            EXPECT_NE(nullptr, worklet);
+            if(nullptr == worklet) continue;
+
             C2BufferPack& buffer_pack = worklet->output;
 
             uint64_t frame_index = buffer_pack.ordinal.frame_index;
 
             EXPECT_EQ(buffer_pack.ordinal.timestamp, frame_index * FRAME_DURATION_US); // 30 fps
 
-            EXPECT_EQ(frame_index < FRAME_COUNT, true)
+            EXPECT_EQ(frame_index < frame_count_, true)
                 << "unexpected frame_index value" << frame_index;
             EXPECT_EQ(frame_index, frame_expected_)
                 << " frame " << frame_index << " is out of order";
@@ -289,12 +293,12 @@ protected:
                 EXPECT_NE(linear_block->size(), 0);
 
                 if(nullptr != raw) {
-                    on_frame_(raw + linear_block->offset(), linear_block->size());
+                    on_frame_(*worklet, raw + linear_block->offset(), linear_block->size());
                 }
             }
         }
         // if collected all expected frames
-        if(frame_expected_ >= FRAME_COUNT) {
+        if(frame_expected_ >= frame_count_) {
             done_.set_value();
         }
     }
@@ -317,6 +321,7 @@ protected:
 
 private:
     OnFrame on_frame_;
+    uint64_t frame_count_; // total frame count expected
     uint64_t frame_expected_; // frame index is next to come
     std::promise<void> done_; // fire when all expected frames came
 };
@@ -340,7 +345,7 @@ static void Encode(
         std::unique_ptr<C2Work> work;
 
         // insert input data
-        PrepareWork(frame_index, &work, generators);
+        PrepareWork(frame_index, frame_index == frame_count - 1, &work, generators);
         if (before_queue_work) {
             before_queue_work(frame_index, work.get());
         }
@@ -368,7 +373,6 @@ static void Encode(
 // ./mfx_transcoder64 h264 -i ./C2.h264ve.input.yuv -o ./C2-2222.h264 -nv12 -h 480 -w 640 -f 30
 // -cbr -b 2222000 -CodecProfile 578 -CodecLevel 51 -TargetUsage 7 -hw
 // -GopPicSize 15 -GopRefDist 1 -PicStruct 0 -NumSlice 1 -crc
-
 TEST(MfxEncoderComponent, EncodeBitExact)
 {
     ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
@@ -384,7 +388,9 @@ TEST(MfxEncoderComponent, EncodeBitExact)
 
             StripeGenerator stripe_generator;
 
-            EncoderConsumer::OnFrame on_frame = [&] (const uint8_t* data, size_t length) {
+            EncoderConsumer::OnFrame on_frame =
+                [&] (const C2Worklet&, const uint8_t* data, size_t length) {
+
                 writer.Write(data, length);
                 binary[i].PushBack(data, length);
             };
@@ -531,7 +537,7 @@ TEST(MfxEncoderComponent, StaticBitrate)
             int64_t bitstream_len = 0;
 
             EncoderConsumer::OnFrame on_frame =
-                [&] (const uint8_t* data, size_t length) {
+                [&] (const C2Worklet&, const uint8_t* data, size_t length) {
 
                 writer.Write(data, length);
                 bitstream_len += length;
@@ -582,7 +588,9 @@ TEST(MfxEncoderComponent, StaticRateControlMethod)
             status_t sts = comp_intf->config_nb(params, &failures);
             EXPECT_EQ(sts, C2_OK);
 
-            EncoderConsumer::OnFrame on_frame = [&] (const uint8_t* data, size_t length) {
+            EncoderConsumer::OnFrame on_frame =
+            [&] (const C2Worklet&, const uint8_t* data, size_t length) {
+
                 writer.Write(data, length);
                 binary[test_index].PushBack(data, length);
             };
@@ -689,7 +697,8 @@ TEST(MfxEncoderComponent, StaticFrameQP)
             }
 
             EncoderConsumer::OnFrame on_frame =
-                [&] (const uint8_t* data, size_t length) {
+                [&] (const C2Worklet&, const uint8_t* data, size_t length) {
+
                 bitstream.PushBack(data, length);
                 bitstream_len += length;
             };
@@ -751,7 +760,9 @@ TEST(MfxEncoderComponent, query_nb)
 
         StripeGenerator stripe_generator;
 
-        EncoderConsumer::OnFrame on_frame = [&] (const uint8_t*, size_t) {
+        EncoderConsumer::OnFrame on_frame =
+            [&] (const C2Worklet&, const uint8_t*, size_t) {
+
             SCOPED_TRACE("During encode");
             check_default_values();
         };
@@ -849,7 +860,8 @@ TEST(MfxEncoderComponent, IntraRefresh)
                     }
                 };
 
-                EncoderConsumer::OnFrame on_frame = [&] (const uint8_t* data, size_t length) {
+                EncoderConsumer::OnFrame on_frame =
+                    [&] (const C2Worklet&, const uint8_t* data, size_t length) {
 
                     const char* ch_data = (const char*)data;
                     std::copy(ch_data, ch_data + length, std::back_inserter(bitstream));
@@ -869,6 +881,101 @@ TEST(MfxEncoderComponent, IntraRefresh)
                 EXPECT_EQ(idr_expected, idr_actual) << NAMED(idr_expected) << NAMED(idr_actual)
                     << NAMED(idr_distance);
             }
+        }
+    }); // ForEveryComponent
+}
+
+// First half of video is encoded with one bitrate, second with another.
+// Checks that output bitrate is changed accordingly.
+// Bitrate is changed with config_nb and with C2Work structure on separate passes.
+// The bitrate tuning is done in VBR mode, as it is the only mode media SDK supports
+// dynamic bitrate change.
+TEST(MfxEncoderComponent, DynamicBitrate)
+{
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [&] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+        (void)comp_desc;
+        (void)comp;
+
+        C2RateControlSetting param_rate_control;
+        param_rate_control.mValue = C2RateControlVBR;
+        std::vector<android::C2Param* const> static_params { &param_rate_control };
+        std::vector<std::unique_ptr<C2SettingResult>> failures;
+        status_t sts = comp_intf->config_nb(static_params, &failures);
+        EXPECT_EQ(sts, C2_OK);
+        EXPECT_EQ(failures.size(), 0);
+
+        const uint32_t TEST_FRAME_COUNT = FRAME_COUNT * 2;
+
+        for(bool use_config_nb : { true, false }) {
+
+            SCOPED_TRACE((use_config_nb ? "config_nb" : "C2Work"));
+
+            std::unique_ptr<C2BitrateTuning> param_bitrate = std::make_unique<C2BitrateTuning>();
+
+            const uint32_t BITRATE_1 = 100;
+            const uint32_t MULTIPLIER = 2;
+            const uint32_t BITRATE_2 = BITRATE_1 * MULTIPLIER;
+
+            size_t stream_len_1 = 0;
+            size_t stream_len_2 = 0;
+
+            StripeGenerator stripe_generator;
+            NoiseGenerator noise_generator;
+
+            GTestBinaryWriter writer(std::ostringstream()
+                << comp_intf->getName() << "-" << (int)use_config_nb << ".out");
+
+            param_bitrate->mValue = BITRATE_1;
+
+            std::vector<C2Param* const> dynamic_params = { param_bitrate.get() };
+
+            status_t sts = comp_intf->config_nb(dynamic_params, &failures);
+            EXPECT_EQ(sts, C2_OK);
+            EXPECT_EQ(failures.size(), 0);
+
+            BeforeQueueWork before_queue_work = [&] (uint32_t frame_index, C2Work* work) {
+
+                if (frame_index == TEST_FRAME_COUNT / 2) {
+
+                    param_bitrate->mValue = BITRATE_2;
+
+                    if (use_config_nb) {
+                        status_t sts = comp_intf->config_nb(dynamic_params, &failures);
+
+                        EXPECT_EQ(sts, C2_OK);
+                        EXPECT_EQ(failures.size(), 0);
+                    } else {
+                        ASSERT_EQ(work->worklets.size(), 1);
+                        C2Worklet* worklet = work->worklets.front().get();
+                        ASSERT_NE(worklet, nullptr);
+                        worklet->tunings.push_back(std::move(param_bitrate));
+                    }
+                }
+            };
+
+            EncoderConsumer::OnFrame on_frame =
+                [&] (const C2Worklet& worklet, const uint8_t* data, size_t length) {
+
+                uint64_t frame_index = worklet.output.ordinal.frame_index;
+                if (frame_index < TEST_FRAME_COUNT / 2) {
+                    stream_len_1 += length;
+                } else {
+                    stream_len_2 += length;
+                }
+
+                writer.Write(data, length);
+            };
+
+            std::shared_ptr<EncoderConsumer> validator =
+                std::make_shared<EncoderConsumer>(on_frame, TEST_FRAME_COUNT);
+
+            Encode(TEST_FRAME_COUNT, comp, validator, { &stripe_generator, &noise_generator },
+                before_queue_work );
+
+            int64_t stream_len_2_expected = stream_len_1 * MULTIPLIER;
+            EXPECT_TRUE(abs((int64_t)stream_len_2 - stream_len_2_expected) < stream_len_2_expected * 0.1)
+                << NAMED(stream_len_2) << NAMED(stream_len_1);
         }
     }); // ForEveryComponent
 }
