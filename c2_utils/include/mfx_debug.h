@@ -193,6 +193,14 @@ void printf_value_from_desc(
 #define MFX_DEBUG_TRACE_E(_arg, _val) \
   MFX_DEBUG_TRACE_VAR.printf_e(#_arg, _val)
 
+#define MFX_DEBUG_TRACE_PRINTF(...) \
+{ \
+    const unsigned int MFX_DEBUG_MAX_LOG_SIZE = 1024; \
+    char MFX_DEBUG_LOG[MFX_DEBUG_MAX_LOG_SIZE]; \
+    snprintf(MFX_DEBUG_LOG, MFX_DEBUG_MAX_LOG_SIZE, __VA_ARGS__); \
+    MFX_DEBUG_TRACE_MSG(MFX_DEBUG_LOG); \
+}
+
 #define mfx_enumval_eq(_e, _v) ((_e) == _v) MFX_DEBUG_TRACE_E(_e, #_v)
 
 #else // #if MFX_DEBUG == MFX_DEBUG_YES
@@ -213,6 +221,7 @@ void printf_value_from_desc(
 #define MFX_DEBUG_TRACE_P(_arg)
 #define MFX_DEBUG_TRACE_S(_arg)
 #define MFX_DEBUG_TRACE_E(_arg, _val)
+#define MFX_DEBUG_TRACE_PRINTF(...)
 
 #endif // #if MFX_DEBUG == MFX_DEBUG_YES
 
