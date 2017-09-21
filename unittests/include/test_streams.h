@@ -26,6 +26,8 @@ struct StreamDescription
     Region sps;
     Region pps;
 
+    uint32_t crc32; //checksum of the video decoded to nv12 format
+
     std::vector<char> data;
 };
 
@@ -40,6 +42,7 @@ public:
     public:
         enum class Type {
             NalUnit, // by NAL units
+            Frame,
             Fixed
         };
 
@@ -50,6 +53,13 @@ public:
         {
             Slicing res(0);
             res.type_ = Type::NalUnit;
+            return res;
+        };
+
+        static Slicing Frame()
+        {
+            Slicing res(0);
+            res.type_ = Type::Frame;
             return res;
         };
 
@@ -72,6 +82,8 @@ public:
     bool Read(const Slicing& slicing, StreamDescription::Region* region, bool* header, size_t* start_code_len = nullptr);
 
     bool ContainsHeader(const StreamDescription::Region& region);
+
+    bool ContainsSlice(const StreamDescription::Region& region, size_t start_code_len);
 
     bool Seek(size_t pos);
 
@@ -116,6 +128,55 @@ inline bool StreamReader::Read(const Slicing& slicing, StreamDescription::Region
                 pos_ = nearest_delim;
                 break;
             }
+            case Slicing::Type::Frame: {
+                StreamDescription::Region tmp_region;
+                bool tmp_header;
+                size_t tmp_start_code_len = 0;
+
+                res = Read(Slicing::NalUnit(), &tmp_region, &tmp_header, &tmp_start_code_len);
+                if (nullptr != start_code_len) {
+                    *start_code_len = tmp_start_code_len;
+                }
+                if (res) {
+                    region->offset = tmp_region.offset;
+                    region->size = tmp_region.size;
+                    *header = tmp_header;
+
+                    bool tmp_res = true;
+                    while (!ContainsSlice(tmp_region, tmp_start_code_len)) {
+                        tmp_res = Read(Slicing::NalUnit(), &tmp_region, &tmp_header, &tmp_start_code_len);
+                        if (tmp_res) {
+                            region->size += tmp_region.size;
+                            *header = (*header || tmp_header);
+                        } else {
+                            break;
+                        }
+                    }
+                    // Check if it is the last slice and there are NAL units onwards
+                    if (tmp_res) {
+                        std::vector<char>::const_iterator tmp_pos = pos_;
+                        size_t tail = 0;
+                        while (true) {
+                            tmp_res = Read(Slicing::NalUnit(), &tmp_region, &tmp_header, &tmp_start_code_len);
+                            if (tmp_res) {
+                                tail += tmp_region.size;
+                            } else {
+                                // Current slice was the last slice, so we need to add rest NAL units
+                                break;
+                            }
+                            if (ContainsSlice(tmp_region, tmp_start_code_len)) {
+                                // The slice was not the last one - we found next slice
+                                // The data between the slices will be copied in the next call
+                                tail = 0;
+                                pos_ = tmp_pos;
+                                break;
+                            }
+                        }
+                        region->size += tail;
+                    }
+                }
+                break;
+            }
             case Slicing::Type::Fixed: {
                 region->offset = pos_ - stream_.data.begin();
                 region->size = std::min<size_t>(stream_.data.end() - pos_, slicing.GetSize());
@@ -136,6 +197,19 @@ inline bool StreamReader::Read(const Slicing& slicing, StreamDescription::Region
 inline bool StreamReader::ContainsHeader(const StreamDescription::Region& region)
 {
     return stream_.sps.Intersects(region) || stream_.pps.Intersects(region);
+}
+
+inline bool StreamReader::ContainsSlice(const StreamDescription::Region& region, size_t start_code_len)
+{
+    bool is_slice = false;
+    if (region.size >= start_code_len + 1) {
+        char header_byte = stream_.data[region.offset + start_code_len]; // first byte after start code
+        uint8_t nal_unit_type = (uint8_t)header_byte & 0x1F;
+        if(nal_unit_type == 1 || nal_unit_type == 5) { // slice types
+            is_slice = true;
+        }
+    }
+    return is_slice;
 }
 
 inline bool StreamReader::Seek(size_t pos)
