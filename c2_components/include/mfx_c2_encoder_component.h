@@ -119,7 +119,9 @@ private:
     std::unique_ptr<MFXVideoENCODE> encoder_;
 
     MfxCmdQueue working_queue_;
+    MFX_TRACEABLE(working_queue_);
     MfxCmdQueue waiting_queue_;
+    MFX_TRACEABLE(waiting_queue_);
 
     // Video params configured through config_nb, retained between Start/Stop
     // sessions, used for init encoder,

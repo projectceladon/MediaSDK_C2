@@ -57,7 +57,7 @@ private:
 template<class Task>
 void MfxCmdQueue::Push(Task&& task)
 {
-    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
 
     // incoming task could be a lambda move assignable, but not copy assignable
     // such lambdas aren't convertible to std::function stored in our queue

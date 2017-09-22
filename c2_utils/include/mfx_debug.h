@@ -47,6 +47,9 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #endif
 
 #include <stdio.h>
+#include <string>
+#include <unordered_map>
+#include <thread>
 #include "mfxdefs.h"
 
 #if MFX_DEBUG_FILE == MFX_DEBUG_YES
@@ -203,6 +206,26 @@ void printf_value_from_desc(
 
 #define mfx_enumval_eq(_e, _v) ((_e) == _v) MFX_DEBUG_TRACE_E(_e, #_v)
 
+class MfxTraceable
+{
+public:
+    MfxTraceable(void* instance, const char* name);
+
+    ~MfxTraceable();
+
+    static const char* GetName(void* instance);
+private:
+    static void Register(void* instance, const char* name);
+    static void Unregister(void* instance);
+    void* instance_;
+    static std::mutex mutex_;
+    static std::unordered_map<void*, const char*> names_;
+};
+
+#define MFX_TRACEABLE(var) MfxTraceable traceable_##var##_ { &var, #var }
+
+#define MFX_PTR_NAME(ptr) MfxTraceable::GetName(ptr)
+
 #else // #if MFX_DEBUG == MFX_DEBUG_YES
 
 #define MFX_DEBUG_TRACE_VAR
@@ -222,6 +245,9 @@ void printf_value_from_desc(
 #define MFX_DEBUG_TRACE_S(_arg)
 #define MFX_DEBUG_TRACE_E(_arg, _val)
 #define MFX_DEBUG_TRACE_PRINTF(...)
+
+#define MFX_TRACEABLE(var)
+#define MFX_PTR_NAME(ptr)
 
 #endif // #if MFX_DEBUG == MFX_DEBUG_YES
 
