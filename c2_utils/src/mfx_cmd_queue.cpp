@@ -16,27 +16,27 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 void MfxCmdQueue::Start()
 {
-    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
     working_thread_ = std::thread(std::bind(&MfxCmdQueue::Process, this));
 }
 
 void MfxCmdQueue::Stop()
 {
-    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
     bool abort = false;
     Shutdown(abort);
 }
 
 void MfxCmdQueue::Abort()
 {
-    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
     bool abort = true;
     Shutdown(abort);
 }
 
 void MfxCmdQueue::WaitingPop(MfxCmd* command)
 {
-    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
     std::unique_lock<std::mutex> lock(mutex_);
     condition_.wait(lock, [this] { return !data_.empty(); });
     *command = data_.front();
@@ -45,7 +45,7 @@ void MfxCmdQueue::WaitingPop(MfxCmd* command)
 
 void MfxCmdQueue::Shutdown(bool abort)
 {
-    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if(abort) {
@@ -66,7 +66,7 @@ void MfxCmdQueue::Shutdown(bool abort)
 
 void MfxCmdQueue::Process()
 {
-    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
     for(;;) {
         MfxCmd mfx_cmd;
         WaitingPop(&mfx_cmd);

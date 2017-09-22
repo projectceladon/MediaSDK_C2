@@ -74,14 +74,14 @@ mfxDebugTrace::mfxDebugTrace(const char* _modulename, const char* _function, con
     if (g_dbg_file)
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: +\n", modulename, function, taskname);
+            fprintf(g_dbg_file, "%s: %s: %s: +\n", modulename, taskname, function);
         else
             fprintf(g_dbg_file, "%s: %s: +\n", modulename, function);
         fflush(g_dbg_file);
     }
 #else
     if (taskname)
-        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: +", modulename, function, taskname);
+        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: +", modulename, taskname, function);
     else
         __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: +", modulename, function);
 #endif
@@ -97,14 +97,14 @@ mfxDebugTrace::~mfxDebugTrace(void)
     if (g_dbg_file)
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: -\n", modulename, function, taskname);
+            fprintf(g_dbg_file, "%s: %s: %s: -\n", modulename, taskname, function);
         else
             fprintf(g_dbg_file, "%s: %s: -\n", modulename, function);
         fflush(g_dbg_file);
     }
 #else
     if (taskname)
-        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: -", modulename, function, taskname);
+        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: -", modulename, taskname, function);
     else
         __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: -", modulename, function);
 #endif
@@ -120,14 +120,14 @@ void mfxDebugTrace::printf_msg(const char* msg)
     if (g_dbg_file)
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s\n", modulename, function, taskname, msg);
+            fprintf(g_dbg_file, "%s: %s: %s: %s\n", modulename, taskname, function, msg);
         else
             fprintf(g_dbg_file, "%s: %s: %s\n", modulename, function, msg);
         fflush(g_dbg_file);
     }
 #else
     if (taskname)
-        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s", modulename, function, taskname, msg);
+        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s", modulename, taskname, function, msg);
     else
         __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s", modulename, function, msg);
 #endif
@@ -143,14 +143,14 @@ void mfxDebugTrace::printf_i32(const char* name, mfxI32 value)
     if (g_dbg_file)
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s = %d\n", modulename, function, taskname, name, value);
+            fprintf(g_dbg_file, "%s: %s: %s: %s = %d\n", modulename, taskname, function, name, value);
         else
             fprintf(g_dbg_file, "%s: %s: %s = %d\n", modulename, function, name, value);
         fflush(g_dbg_file);
     }
 #else
     if (taskname)
-        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s = %d", modulename, function, taskname, name, value);
+        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s = %d", modulename, taskname, function, name, value);
     else
         __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s = %d", modulename, function, name, value);
 #endif
@@ -166,14 +166,14 @@ void mfxDebugTrace::printf_u32(const char* name, mfxU32 value)
     if (g_dbg_file)
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s = 0x%x\n", modulename, function, taskname, name, value);
+            fprintf(g_dbg_file, "%s: %s: %s: %s = 0x%x\n", modulename, taskname, function, name, value);
         else
             fprintf(g_dbg_file, "%s: %s: %s = 0x%x\n", modulename, function, name, value);
         fflush(g_dbg_file);
     }
 #else
     if (taskname)
-        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s = 0x%x", modulename, function, taskname, name, value);
+        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s = 0x%x", modulename, taskname, function, name, value);
     else
         __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s = 0x%x", modulename, function, name, value);
 #endif
@@ -189,14 +189,14 @@ void mfxDebugTrace::printf_i64(const char* name, mfxI64 value)
     if (g_dbg_file)
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s = %lld\n", modulename, function, taskname, name, value);
+            fprintf(g_dbg_file, "%s: %s: %s: %s = %lld\n", modulename, taskname, function, name, value);
         else
             fprintf(g_dbg_file, "%s: %s: %s = %lld\n", modulename, function, name, value);
         fflush(g_dbg_file);
     }
 #else
     if (taskname)
-        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s = %lld", modulename, function, taskname, name, value);
+        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s = %lld", modulename, taskname, function, name, value);
     else
         __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s = %lld", modulename, function, name, value);
 #endif
@@ -212,14 +212,14 @@ void mfxDebugTrace::printf_f64(const char* name, mfxF64 value)
     if (g_dbg_file)
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s = %f\n", modulename, function, taskname, name, value);
+            fprintf(g_dbg_file, "%s: %s: %s: %s = %f\n", modulename, taskname, function, name, value);
         else
             fprintf(g_dbg_file, "%s: %s: %s = %f\n", modulename, function, name, value);
         fflush(g_dbg_file);
     }
 #else
     if (taskname)
-        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s = %f", modulename, function, taskname, name, value);
+        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s = %f", modulename, taskname, function, name, value);
     else
         __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s = %f", modulename, function, name, value);
 #endif
@@ -235,14 +235,14 @@ void mfxDebugTrace::printf_p(const char* name, void* value)
     if (g_dbg_file)
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s = %p\n", modulename, function, taskname, name, value);
+            fprintf(g_dbg_file, "%s: %s: %s: %s = %p\n", modulename, taskname, function, name, value);
         else
             fprintf(g_dbg_file, "%s: %s: %s = %p\n", modulename, function, name, value);
         fflush(g_dbg_file);
     }
 #else
     if (taskname)
-        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s = %p", modulename, function, taskname, name, value);
+        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s = %p", modulename, taskname, function, name, value);
     else
         __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s = %p", modulename, function, name, value);
 #endif
@@ -258,14 +258,14 @@ void mfxDebugTrace::printf_s(const char* name, const char* value)
     if (g_dbg_file)
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s = '%s'\n", modulename, function, taskname, name, value);
+            fprintf(g_dbg_file, "%s: %s: %s: %s = '%s'\n", modulename, taskname, function, name, value);
         else
             fprintf(g_dbg_file, "%s: %s: %s = '%s'\n", modulename, function, name, value);
         fflush(g_dbg_file);
     }
 #else
     if (taskname)
-        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s = %s", modulename, function, taskname, name, value);
+        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s = %s", modulename, taskname, function, name, value);
     else
         __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s = %s", modulename, function, name, value);
 #endif
@@ -281,20 +281,60 @@ void mfxDebugTrace::printf_e(const char* name, const char* value)
     if (g_dbg_file)
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s = '%s'\n", modulename, function, taskname, name, value);
+            fprintf(g_dbg_file, "%s: %s: %s: %s = '%s'\n", modulename, taskname, function, name, value);
         else
             fprintf(g_dbg_file, "%s: %s: %s = '%s'\n", modulename, function, name, value);
         fflush(g_dbg_file);
     }
 #else
     if (taskname)
-        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s = %s", modulename, function, taskname, name, value);
+        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: %s = %s", modulename, taskname, function, name, value);
     else
         __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s = %s", modulename, function, name, value);
 #endif
 }
 
 /*------------------------------------------------------------------------------*/
+
+MfxTraceable::MfxTraceable(void* instance, const char* name)
+{
+    Register(instance, name);
+}
+
+MfxTraceable::~MfxTraceable()
+{
+    Unregister(instance_);
+}
+
+const char* MfxTraceable::GetName(void* instance)
+{
+    const char* res = nullptr;
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = names_.find(instance);
+    if (it != names_.end()) {
+        res = it->second;
+    }
+    return res;
+}
+
+void MfxTraceable::Register(void* instance, const char* name)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    names_.emplace(instance, name);
+}
+
+void MfxTraceable::Unregister(void* instance)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    names_.erase(instance);
+}
+
+std::mutex MfxTraceable::mutex_;
+
+std::unordered_map<void*, const char*> MfxTraceable::names_;
 
 #endif // #if MFX_DEBUG == MFX_DEBUG_YES
 
@@ -322,18 +362,19 @@ mfxPerf::~mfxPerf(void)
     if (g_dbg_file)
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: time = %f ms", modulename, function, taskname, task_time);
+            fprintf(g_dbg_file, "%s: %s: %s: time = %f ms", modulename, taskname, function, task_time);
         else
             fprintf(g_dbg_file, "%s: %s: time = %f ms", modulename, function, task_time);
         fflush(g_dbg_file);
     }
 #else
     if (taskname)
-        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: time = %f ms", modulename, function, taskname, task_time);
+        __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: %s: time = %f ms", modulename, taskname, function, task_time);
     else
         __android_log_print(MFX_DEBUG_LOG_LEVEL, MFX_DEBUG_LOG_TAG, "%s: %s: time = %f ms", modulename, function, task_time);
 #endif
 }
 
 /*------------------------------------------------------------------------------*/
+
 #endif // #if MFX_PERF == MFX_DEBUG_YES
