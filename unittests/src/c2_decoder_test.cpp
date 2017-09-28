@@ -10,17 +10,20 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include "mfx_c2_defs.h"
 #include "gtest_emulation.h"
+#include "test_components.h"
 #include "mfx_c2_component.h"
 #include "mfx_c2_components_registry.h"
 
 using namespace android;
 
-struct ComponentDesc
-{
-    const char* component_name;
-    int flags;
-    status_t creation_status;
-};
+namespace {
+    struct ComponentDesc
+    {
+        const char* component_name;
+        int flags;
+        status_t creation_status;
+    };
+}
 
 static ComponentDesc g_components_desc[] = {
     { "C2.h264vd", 0, C2_OK },
@@ -39,14 +42,19 @@ static const ComponentDesc* GetComponentDesc(const std::string& component_name)
     return result;
 }
 
-static std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name)
+static std::map<std::string, std::shared_ptr<MfxC2Component>>& GetComponentsCache()
 {
     static std::map<std::string, std::shared_ptr<MfxC2Component>> g_components;
+    return g_components;
+}
 
+static std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name)
+{
     std::shared_ptr<MfxC2Component> result;
+    auto& components_cache = GetComponentsCache(); // auto& is needed to have ref not a copy of cache
 
-    auto it = g_components.find(name);
-    if(it != g_components.end()) {
+    auto it = components_cache.find(name);
+    if(it != components_cache.end()) {
         result = it->second;
     }
     else {
@@ -60,7 +68,7 @@ static std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name)
             EXPECT_NE(mfx_component, nullptr);
             result = std::shared_ptr<MfxC2Component>(mfx_component);
 
-            g_components.emplace(name, result);
+            components_cache.emplace(name, result);
         }
     }
     return result;
@@ -82,19 +90,33 @@ TEST(MfxDecoderComponent, Create)
 // and return correct information once queried (component name).
 TEST(MfxDecoderComponent, intf)
 {
-    for(const auto& desc : g_components_desc) {
-        std::shared_ptr<MfxC2Component> decoder = GetCachedComponent(desc.component_name);
-        EXPECT_EQ(decoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;;
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
-        if(decoder != nullptr) {
-            std::shared_ptr<C2Component> c2_component = decoder;
-            std::shared_ptr<C2ComponentInterface> c2_component_intf = c2_component->intf();
+        EXPECT_EQ(comp_intf->getName(), desc.component_name);
+    } );
+}
 
-            EXPECT_NE(c2_component_intf, nullptr);
+// Checks the correctness of all decoding components state machine.
+// The component should be able to start from STOPPED (initial) state,
+// stop from RUNNING state. Otherwise, C2_BAD_STATE should be returned.
+TEST(MfxDecoderComponent, State)
+{
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr) {
 
-            if(c2_component_intf != nullptr) {
-                EXPECT_EQ(c2_component_intf->getName(), desc.component_name);
-            }
-        }
-    }
+        status_t sts = C2_OK;
+
+        sts = comp->start();
+        EXPECT_EQ(sts, C2_OK);
+
+        sts = comp->start();
+        EXPECT_EQ(sts, C2_BAD_STATE);
+
+        sts = comp->stop();
+        EXPECT_EQ(sts, C2_OK);
+
+        sts = comp->stop();
+        EXPECT_EQ(sts, C2_BAD_STATE);
+    } );
 }
