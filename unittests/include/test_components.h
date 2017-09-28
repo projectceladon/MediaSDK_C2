@@ -47,6 +47,23 @@ private:
     std::vector<size_t> data_; // std::hash results
 };
 
+// Calculates CRC32 checksum
+class CRC32Generator
+{
+public:
+    CRC32Generator() : crc32_(0) {}
+
+    void AddData(const uint8_t* data, size_t length);
+
+    uint32_t GetCrc32()
+    {
+        return crc32_;
+    }
+
+private:
+    uint32_t  crc32_;
+};
+
 // Writes binary buffers to file.
 class BinaryWriter
 {

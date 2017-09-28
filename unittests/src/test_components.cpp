@@ -10,7 +10,16 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include "test_components.h"
 #include "gtest_emulation.h"
+#include "ipp.h"
 #include <sstream>
+
+void CRC32Generator::AddData(const uint8_t* data, size_t length)
+{
+    if (nullptr != data)
+    {
+        ippsCRC32_8u(data, length, &crc32_);
+    }
+}
 
 BinaryWriter::BinaryWriter(const std::vector<std::string>& folders, const std::string& name)
 {
