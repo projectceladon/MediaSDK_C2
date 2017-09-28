@@ -109,15 +109,14 @@ android::status_t MfxC2EncoderComponent::Init()
 
     mfxStatus mfx_res = MfxDev::Create(&device_);
     if(mfx_res == MFX_ERR_NONE) {
-        mfx_res = session_.Init(MFX_IMPLEMENTATION, &g_required_mfx_version);
+        mfx_res = session_.Init(mfx_implementation_, &g_required_mfx_version);
         MFX_DEBUG_TRACE_I32(g_required_mfx_version.Major);
         MFX_DEBUG_TRACE_I32(g_required_mfx_version.Minor);
 
         if(mfx_res == MFX_ERR_NONE) {
-            mfxIMPL mfx_impl {};
-            mfxStatus sts = session_.QueryIMPL(&mfx_impl);
+            mfxStatus sts = session_.QueryIMPL(&mfx_implementation_);
             MFX_DEBUG_TRACE__mfxStatus(sts);
-            MFX_DEBUG_TRACE_I32(mfx_impl);
+            MFX_DEBUG_TRACE_I32(mfx_implementation_);
 
             mfx_res = device_->InitMfxSession(&session_);
         } else {
@@ -309,6 +308,7 @@ status_t MfxC2EncoderComponent::AllocateBitstream(const std::unique_ptr<android:
 
     } while(false);
 
+    MFX_DEBUG_TRACE__android_status_t(res);
     return res;
 }
 
@@ -507,23 +507,28 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
 
         C2Event event;
         event.fire(); // pre-fire event as output buffer is ready to use
+
         mfxBitstream* mfx_bitstream = bit_stream.GetMfxBitstream();
+        MFX_DEBUG_TRACE_P(mfx_bitstream);
 
-        MFX_DEBUG_TRACE_U32(mfx_bitstream->DataOffset);
-        MFX_DEBUG_TRACE_U32(mfx_bitstream->DataLength);
+        if(!mfx_bitstream) mfx_res = MFX_ERR_NULL_PTR;
+        else {
+            MFX_DEBUG_TRACE_U32(mfx_bitstream->DataOffset);
+            MFX_DEBUG_TRACE_U32(mfx_bitstream->DataLength);
 
-        C2ConstLinearBlock const_linear = bit_stream.GetC2LinearBlock()->share(
-            mfx_bitstream->DataOffset,
-            mfx_bitstream->DataLength, event.fence());
-        C2BufferData out_buffer_data = const_linear;
+            C2ConstLinearBlock const_linear = bit_stream.GetC2LinearBlock()->share(
+                mfx_bitstream->DataOffset,
+                mfx_bitstream->DataLength, event.fence());
+            C2BufferData out_buffer_data = const_linear;
 
-        std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
+            std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
 
-        worklet->output.ordinal.timestamp = work->input.ordinal.timestamp;
-        worklet->output.ordinal.frame_index = work->input.ordinal.frame_index;
-        worklet->output.ordinal.custom_ordinal = work->input.ordinal.custom_ordinal;
+            worklet->output.ordinal.timestamp = work->input.ordinal.timestamp;
+            worklet->output.ordinal.frame_index = work->input.ordinal.frame_index;
+            worklet->output.ordinal.custom_ordinal = work->input.ordinal.custom_ordinal;
 
-        worklet->output.buffers.front() = std::make_shared<C2Buffer>(out_buffer_data);
+            worklet->output.buffers.front() = std::make_shared<C2Buffer>(out_buffer_data);
+        }
     }
 
     NotifyWorkDone(std::move(work), MfxStatusToC2(mfx_res));
