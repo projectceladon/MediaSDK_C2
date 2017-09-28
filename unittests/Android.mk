@@ -25,6 +25,9 @@ LOCAL_C_INCLUDES += \
     $(MFX_C2_HOME)/unittests/include \
     $(MFX_C2_HOME)/c2_utils/include
 
+LOCAL_C_INCLUDES_32 := $(IPP_ROOT_32)/include
+LOCAL_C_INCLUDES_64 := $(IPP_ROOT_64)/include
+
 LOCAL_CFLAGS += \
     $(MFX_CFLAGS) \
     -std=c++14 \
@@ -32,6 +35,8 @@ LOCAL_CFLAGS += \
 
 LOCAL_LDFLAGS += \
     $(MFX_LDFLAGS)
+
+LOCAL_STATIC_LIBRARIES := libippdc_l libippcore_l
 
 LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_store
 
@@ -66,6 +71,9 @@ LOCAL_C_INCLUDES := \
     $(MFX_C2_HOME)/mock/codec2/include \
     $(MFX_C2_HOME)/c2_utils/include
 
+LOCAL_C_INCLUDES_32 := $(IPP_ROOT_32)/include
+LOCAL_C_INCLUDES_64 := $(IPP_ROOT_64)/include
+
 LOCAL_CFLAGS += \
     $(MFX_CFLAGS) \
     -std=c++14 \
@@ -74,7 +82,7 @@ LOCAL_CFLAGS += \
 LOCAL_LDFLAGS += \
     $(MFX_LDFLAGS)
 
-LOCAL_STATIC_LIBRARIES := libmfx_c2_utils libmfx_mock_codec2
+LOCAL_STATIC_LIBRARIES := libmfx_c2_utils libmfx_mock_codec2 libippdc_l libippcore_l
 
 LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_components_hw
 
@@ -111,6 +119,9 @@ LOCAL_C_INCLUDES := \
     $(MFX_C2_HOME)/mock/codec2/include \
     $(MFX_C2_HOME)/c2_utils/include
 
+LOCAL_C_INCLUDES_32 := $(IPP_ROOT_32)/include
+LOCAL_C_INCLUDES_64 := $(IPP_ROOT_64)/include
+
 LOCAL_CFLAGS += \
     $(MFX_CFLAGS) \
     -std=c++14 \
@@ -119,7 +130,7 @@ LOCAL_CFLAGS += \
 LOCAL_LDFLAGS += \
     $(MFX_LDFLAGS)
 
-LOCAL_STATIC_LIBRARIES := libmfx_c2_utils libmfx_mock_codec2
+LOCAL_STATIC_LIBRARIES := libmfx_c2_utils libmfx_mock_codec2 libippdc_l libippcore_l
 
 LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_mock_c2_components
 
