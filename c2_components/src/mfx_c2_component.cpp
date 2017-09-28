@@ -21,7 +21,9 @@ using namespace android;
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_component"
 
 MfxC2Component::MfxC2Component(const android::C2String& name, int flags) :
-    name_(name), flags_(flags)
+    name_(name),
+    flags_(flags),
+    mfx_implementation_(MFX_IMPLEMENTATION)
 {
     MFX_DEBUG_TRACE_FUNC;
 }

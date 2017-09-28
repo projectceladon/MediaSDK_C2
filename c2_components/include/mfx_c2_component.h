@@ -139,6 +139,8 @@ protected: // variables
 
     MfxC2ParamReflector param_reflector_;
 
+    mfxIMPL mfx_implementation_;
+
 private:
     std::list<std::shared_ptr<android::C2ComponentListener>> listeners_;
 

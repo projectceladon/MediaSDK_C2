@@ -47,15 +47,14 @@ android::status_t MfxC2DecoderComponent::Init()
 
     mfxStatus mfx_res = MfxDev::Create(&device_);
     if(mfx_res == MFX_ERR_NONE) {
-        mfx_res = session_.Init(MFX_IMPLEMENTATION, &g_required_mfx_version);
+        mfx_res = session_.Init(mfx_implementation_, &g_required_mfx_version);
         MFX_DEBUG_TRACE_I32(g_required_mfx_version.Major);
         MFX_DEBUG_TRACE_I32(g_required_mfx_version.Minor);
 
         if(mfx_res == MFX_ERR_NONE) {
-            mfxIMPL mfx_impl {};
-            mfxStatus sts = session_.QueryIMPL(&mfx_impl);
+            mfxStatus sts = session_.QueryIMPL(&mfx_implementation_);
             MFX_DEBUG_TRACE__mfxStatus(sts);
-            MFX_DEBUG_TRACE_I32(mfx_impl);
+            MFX_DEBUG_TRACE_I32(mfx_implementation_);
 
             decoder_.reset(MFX_NEW_NO_THROW(MFXVideoDECODE(session_)));
             if(decoder_ != nullptr) {
