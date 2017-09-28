@@ -121,14 +121,14 @@ void ForEveryComponent(
 
         SCOPED_TRACE(desc.component_name);
 
-        std::shared_ptr<MfxC2Component> encoder = factory(desc.component_name);
+        std::shared_ptr<MfxC2Component> component = factory(desc.component_name);
         bool creation_expected = (desc.creation_status == android::C2_OK);
-        bool creation_actual = (encoder != nullptr);
+        bool creation_actual = (component != nullptr);
 
         EXPECT_EQ(creation_actual, creation_expected) << " for " << desc.component_name;
-        if (nullptr == encoder) continue;
+        if (nullptr == component) continue;
 
-        std::shared_ptr<android::C2Component> c2_component = encoder;
+        std::shared_ptr<android::C2Component> c2_component = component;
         std::shared_ptr<android::C2ComponentInterface> c2_component_intf = c2_component->intf();
 
         EXPECT_NE(c2_component_intf, nullptr);

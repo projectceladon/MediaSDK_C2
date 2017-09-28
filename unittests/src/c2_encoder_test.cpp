@@ -49,16 +49,18 @@ static std::vector<C2ParamDescriptor> h264_params_desc =
     { false, "IntraRefresh", C2IntraRefreshTuning::typeIndex },
 };
 
-struct ComponentDesc
-{
-    const char* component_name;
-    int flags;
-    status_t creation_status;
-    std::vector<C2ParamDescriptor> params_desc;
-    C2ParamValues default_values;
-    status_t query_status;
-    mfxU32 codec_id;
-};
+namespace {
+    struct ComponentDesc
+    {
+        const char* component_name;
+        int flags;
+        status_t creation_status;
+        std::vector<C2ParamDescriptor> params_desc;
+        C2ParamValues default_values;
+        status_t query_status;
+        mfxU32 codec_id;
+    };
+}
 
 C2RateControlMethod MfxRateControlToC2(mfxU16 rate_control)
 {
