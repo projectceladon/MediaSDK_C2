@@ -214,9 +214,13 @@ public:
     ~MfxTraceable();
 
     static const char* GetName(void* instance);
+
 private:
     static void Register(void* instance, const char* name);
+
     static void Unregister(void* instance);
+
+private:
     void* instance_;
     static std::mutex mutex_;
     static std::unordered_map<void*, const char*> names_;
