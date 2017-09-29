@@ -30,6 +30,11 @@ Produces html report file with description tables of all gtest tests
 found in specified folder.
 Usage: python _tools/gather_tests.py -i unittests/src -o tests.html
 
+gerrit_stat.py
+--------------
+Returns usage statistics for the given Gerrit repository
+Usage: python gerrit_stat.py -s server -p port -r repository
+
 run-tests.sh
 ------------
 Downloads binaries from remote server, pulls them to android device
