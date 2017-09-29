@@ -58,7 +58,6 @@ namespace {
         std::vector<C2ParamDescriptor> params_desc;
         C2ParamValues default_values;
         status_t query_status;
-        mfxU32 codec_id;
     };
 }
 
@@ -92,8 +91,8 @@ static C2ParamValues GetH264DefaultValues()
 }
 
 static ComponentDesc g_components_desc[] = {
-    { "C2.h264ve", 0, C2_OK, h264_params_desc, GetH264DefaultValues(), C2_CORRUPTED, MFX_CODEC_AVC },
-    { "C2.NonExistingEncoder", 0, C2_NOT_FOUND, {}, {}, {}, {} },
+    { "C2.h264ve", 0, C2_OK, h264_params_desc, GetH264DefaultValues(), C2_CORRUPTED },
+    { "C2.NonExistingEncoder", 0, C2_NOT_FOUND, {}, {}, {} },
 };
 
 static const ComponentDesc* GetComponentDesc(const std::string& component_name)
@@ -815,12 +814,6 @@ TEST(MfxEncoderComponent, IntraRefresh)
         [&] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
         (void)comp_desc;
         (void)comp;
-
-        // Get default GOP size
-        mfxVideoParam default_params {};
-        default_params.mfx.CodecId = comp_desc.codec_id;
-        mfxStatus mfx_sts = mfx_set_defaults_mfxVideoParam_enc(&default_params);
-        ASSERT_EQ(mfx_sts, MFX_ERR_NONE);
 
         for(bool use_config_nb : { true, false }) {
 
