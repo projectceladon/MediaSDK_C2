@@ -47,10 +47,13 @@ static std::vector<C2ParamDescriptor> h264_params_desc =
     { false, "Bitrate", C2BitrateTuning::typeIndex },
     { false, "FrameQP", C2FrameQPSetting::typeIndex },
     { false, "IntraRefresh", C2IntraRefreshTuning::typeIndex },
+    { false, "Profile", C2ProfileSetting::typeIndex },
+    { false, "Level", C2LevelSetting::typeIndex },
     { false, "SupportedProfilesLevels", C2ProfileLevelInfo::output::typeIndex },
 };
 
 namespace {
+
     struct ComponentDesc
     {
         const char* component_name;
@@ -60,6 +63,10 @@ namespace {
         C2ParamValues default_values;
         status_t query_status;
         std::vector<C2ProfileLevelStruct> profile_levels;
+
+        typedef bool TestStreamProfileLevel(
+            const C2ProfileLevelStruct& profile_level, std::vector<char>&& stream, std::string* message);
+        TestStreamProfileLevel* test_stream_profile_level;
     };
 }
 
@@ -92,10 +99,19 @@ static C2ParamValues GetH264DefaultValues()
     return default_values;
 }
 
+static ComponentDesc NonExistingEncoderDesc()
+{
+    ComponentDesc desc {};
+    desc.component_name = "C2.NonExistingEncoder";
+    desc.creation_status = C2_NOT_FOUND;
+    return desc;
+}
+
 static ComponentDesc g_components_desc[] = {
     { "C2.h264ve", 0, C2_OK, h264_params_desc, GetH264DefaultValues(), C2_CORRUPTED,
-        { g_h264_profile_levels, g_h264_profile_levels + g_h264_profile_levels_count } },
-    { "C2.NonExistingEncoder", 0, C2_NOT_FOUND, {}, {}, {}, {} },
+        { g_h264_profile_levels, g_h264_profile_levels + g_h264_profile_levels_count },
+        &TestAvcStreamProfileLevel },
+    NonExistingEncoderDesc(),
 };
 
 static const ComponentDesc* GetComponentDesc(const std::string& component_name)
@@ -1006,6 +1022,65 @@ TEST(MfxEncoderComponent, ProfileLevelInfo)
                     EXPECT_EQ(info->m.mValues[i].level, comp_desc.profile_levels[i].level);
                 }
             }
+        }
+    }); // ForEveryComponent
+}
+
+// Specifies various values for profile and level,
+// checks they are queried back fine.
+// Encodes stream and checks sps of encoded bitstreams fit passed profile and level.
+TEST(MfxEncoderComponent, CodecProfileAndLevel)
+{
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+
+        for(const C2ProfileLevelStruct& test_run : comp_desc.profile_levels) {
+
+            StripeGenerator stripe_generator;
+            NoiseGenerator noise_generator;
+            std::vector<char> bitstream;
+
+            #define TEST_RUN_NAME std::hex << "0x" << test_run.profile << "-0x" << test_run.level
+
+            SCOPED_TRACE(TEST_RUN_NAME);
+
+            GTestBinaryWriter writer(std::ostringstream()
+                << comp_intf->getName() << "-" << TEST_RUN_NAME << ".out");
+
+            C2ProfileSetting param_profile(test_run.profile);
+            C2LevelSetting param_level(test_run.level);
+            std::vector<C2Param* const> params = { &param_profile, &param_level };
+            std::vector<std::unique_ptr<C2SettingResult>> failures;
+
+            status_t sts = comp_intf->config_nb(params, &failures);
+            EXPECT_EQ(sts, C2_OK);
+            EXPECT_EQ(failures.size(), 0);
+
+            C2ParamValues query_expected;
+            query_expected.Append(new C2ProfileSetting(test_run.profile));
+            query_expected.Append(new C2LevelSetting(test_run.level));
+            sts = comp_intf->query_nb(query_expected.GetStackPointers(),
+                {}, nullptr);
+            EXPECT_EQ(sts, C2_OK);
+            query_expected.CheckStackValues();
+
+            EncoderConsumer::OnFrame on_frame =
+                [&] (const C2Worklet&, const uint8_t* data, size_t length) {
+
+                const char* ch_data = (const char*)data;
+                std::copy(ch_data, ch_data + length, std::back_inserter(bitstream));
+                writer.Write(data, length);
+            };
+
+            const int TEST_FRAME_COUNT = 1;
+            std::shared_ptr<EncoderConsumer> validator =
+                std::make_shared<EncoderConsumer>(on_frame, TEST_FRAME_COUNT);
+
+            Encode(TEST_FRAME_COUNT, comp, validator, { &stripe_generator, &noise_generator } );
+
+            std::string error_message;
+            bool stream_ok = comp_desc.test_stream_profile_level(test_run, std::move(bitstream), &error_message);
+            EXPECT_TRUE(stream_ok) << error_message;
         }
     }); // ForEveryComponent
 }

@@ -61,12 +61,14 @@ LOCAL_SRC_FILES := \
     src/c2_encoder_test.cpp \
     src/gtest_emulation.cpp \
     src/test_components.cpp \
+    src/test_streams.cpp \
     src/test_main.cpp
 
 LOCAL_C_INCLUDES := \
     $(MFX_C_INCLUDES) \
     $(MFX_C_INCLUDES_C2) \
     $(MFX_C2_HOME)/c2_components/include \
+    $(MFX_C2_HOME)/c2_streams/include \
     $(MFX_C2_HOME)/unittests/include \
     $(MFX_C2_HOME)/mock/codec2/include \
     $(MFX_C2_HOME)/c2_utils/include

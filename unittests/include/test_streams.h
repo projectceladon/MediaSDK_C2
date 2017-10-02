@@ -11,6 +11,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #pragma once
 
 #include <vector>
+#include "mfx_c2_params.h"
 
 struct StreamDescription
 {
@@ -222,3 +223,21 @@ inline bool StreamReader::Seek(size_t pos)
     }
     return res;
 }
+
+struct AvcSequenceParameterSet
+{
+    uint16_t profile;
+    enum Constraint : uint16_t {
+        SET_0 = 0x80,
+        SET_1 = 0x40,
+        SET_2 = 0x20,
+        SET_3 = 0x10,
+        SET_4 = 0x08,
+    };
+    uint16_t constraints;
+    uint16_t level;
+};
+
+bool ExtractAvcSequenceParameterSet(std::vector<char>&& bitstream, AvcSequenceParameterSet* sps);
+
+bool TestAvcStreamProfileLevel(const android::C2ProfileLevelStruct& profile_level, std::vector<char>&& bitstream, std::string* message);
