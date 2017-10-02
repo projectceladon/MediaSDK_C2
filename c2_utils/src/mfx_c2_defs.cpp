@@ -19,7 +19,7 @@ const C2ProfileLevelStruct g_h264_profile_levels[] =
 {
     { LEGACY_VIDEO_AVCProfileBaseline, LEGACY_VIDEO_AVCLevel51 },
     { LEGACY_VIDEO_AVCProfileMain, LEGACY_VIDEO_AVCLevel51 },
-    { LEGACY_VIDEO_AVCProfileExtended, LEGACY_VIDEO_AVCLevel51 },
+    // { LEGACY_VIDEO_AVCProfileExtended, LEGACY_VIDEO_AVCLevel51 }, not supported by Media SDK
     { LEGACY_VIDEO_AVCProfileHigh, LEGACY_VIDEO_AVCLevel51 }
 };
 

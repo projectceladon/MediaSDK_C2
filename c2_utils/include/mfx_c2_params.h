@@ -19,9 +19,11 @@ enum C2ParamIndexKindVendor : uint32_t {
 
     kParamIndexRateControl = C2Param::BaseIndex::kVendorStart,
     kParamIndexBitrate,
+    kParamIndexProfile,
+    kParamIndexLevel,
+    kParamIndexProfileLevel,
     kParamIndexFrameQP,
     kParamIndexIntraRefresh,
-    kParamIndexProfileLevel,
 };
 
 C2ENUM(C2RateControlMethod, int32_t,
@@ -49,6 +51,10 @@ struct C2FrameQPStruct {
 typedef C2PortParam<C2Tuning, C2FrameQPStruct, kParamIndexFrameQP>::output C2FrameQPSetting;
 
 typedef C2PortParam<C2Tuning, C2Int32Value, kParamIndexIntraRefresh>::output C2IntraRefreshTuning;
+
+typedef C2PortParam<C2Setting, C2Uint32Value, kParamIndexProfile>::output C2ProfileSetting;
+
+typedef C2PortParam<C2Setting, C2Uint32Value, kParamIndexLevel>::output C2LevelSetting;
 
 struct C2ProfileLevelStruct {
     uint32_t profile;

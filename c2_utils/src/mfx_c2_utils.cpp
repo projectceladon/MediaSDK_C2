@@ -11,6 +11,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_utils.h"
 #include "mfx_debug.h"
 #include "mfx_c2_debug.h"
+#include "mfx_legacy_defs.h"
 
 using namespace android;
 
@@ -314,4 +315,56 @@ std::unique_ptr<C2SettingResult> FindC2Param(
     }
     MFX_DEBUG_TRACE_P(res.get());
     return res;
+}
+
+static const std::pair<LEGACY_VIDEO_AVCPROFILETYPE, mfxU16> g_h264_profiles[] =
+{
+    { LEGACY_VIDEO_AVCProfileBaseline, MFX_PROFILE_AVC_CONSTRAINED_BASELINE },
+    { LEGACY_VIDEO_AVCProfileMain, MFX_PROFILE_AVC_MAIN },
+    { LEGACY_VIDEO_AVCProfileExtended, MFX_PROFILE_AVC_EXTENDED },
+    { LEGACY_VIDEO_AVCProfileHigh, MFX_PROFILE_AVC_HIGH }
+    /* LEGACY_VIDEO_AVCProfileHigh10, LEGACY_VIDEO_AVCProfileHigh422, LEGACY_VIDEO_AVCProfileHigh444
+    are not supported */
+};
+
+static const std::pair<LEGACY_VIDEO_AVCLEVELTYPE, mfxU16> g_h264_levels[] =
+{
+    { LEGACY_VIDEO_AVCLevel1,  MFX_LEVEL_AVC_1 },
+    { LEGACY_VIDEO_AVCLevel1b, MFX_LEVEL_AVC_1b },
+    { LEGACY_VIDEO_AVCLevel11, MFX_LEVEL_AVC_11 },
+    { LEGACY_VIDEO_AVCLevel12, MFX_LEVEL_AVC_12 },
+    { LEGACY_VIDEO_AVCLevel13, MFX_LEVEL_AVC_13 },
+    { LEGACY_VIDEO_AVCLevel2,  MFX_LEVEL_AVC_2 },
+    { LEGACY_VIDEO_AVCLevel21, MFX_LEVEL_AVC_21 },
+    { LEGACY_VIDEO_AVCLevel22, MFX_LEVEL_AVC_22 },
+    { LEGACY_VIDEO_AVCLevel3,  MFX_LEVEL_AVC_3 },
+    { LEGACY_VIDEO_AVCLevel31, MFX_LEVEL_AVC_31 },
+    { LEGACY_VIDEO_AVCLevel32, MFX_LEVEL_AVC_32 },
+    { LEGACY_VIDEO_AVCLevel4,  MFX_LEVEL_AVC_4 },
+    { LEGACY_VIDEO_AVCLevel41, MFX_LEVEL_AVC_41 },
+    { LEGACY_VIDEO_AVCLevel42, MFX_LEVEL_AVC_42 },
+    { LEGACY_VIDEO_AVCLevel5,  MFX_LEVEL_AVC_5 },
+    { LEGACY_VIDEO_AVCLevel51, MFX_LEVEL_AVC_51 }
+};
+
+bool AvcProfileAndroidToMfx(uint32_t android_value, mfxU16* mfx_value)
+{
+    return FirstToSecond(g_h264_profiles,
+        static_cast<LEGACY_VIDEO_AVCPROFILETYPE>(android_value), mfx_value);
+}
+
+bool AvcProfileMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value)
+{
+    return SecondToFirst(g_h264_profiles, mfx_value, android_value);
+}
+
+bool AvcLevelAndroidToMfx(uint32_t android_value, mfxU16* mfx_value)
+{
+    return FirstToSecond(g_h264_levels,
+        static_cast<LEGACY_VIDEO_AVCLEVELTYPE>(android_value), mfx_value);
+}
+
+bool AvcLevelMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value)
+{
+    return SecondToFirst(g_h264_levels, mfx_value, android_value);
 }

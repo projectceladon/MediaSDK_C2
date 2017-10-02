@@ -13,6 +13,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <mfxvideo++.h>
 #include <mfxvp8.h>
 #include <limits>
+#include <algorithm>
 
 #define MFX_IMPLEMENTATION (MFX_IMPL_AUTO_ANY | MFX_IMPL_VIA_ANY)
 
@@ -63,4 +64,36 @@ DstType ClampCast(const SrcType& v)
     const DstType hi = std::numeric_limits<DstType>::max();
 
     return static_cast<DstType>( (v < lo) ? lo : ((v > hi) ? hi : v) );
+}
+
+// Searches array of std::pairs on pair::first field, returns pair::second.
+template<typename First, typename Second, int N, typename Result>
+bool FirstToSecond(const std::pair<First, Second>(& array)[N], First key, Result* value)
+{
+    bool res = false;
+
+    auto it = std::find_if(std::begin(array), std::end(array),
+        [key] (const auto& pair) -> bool { return pair.first == key; } );
+
+    if(it != std::end(array)) {
+        res = true;
+        *value = static_cast<Result>(it->second);
+    }
+    return res;
+}
+
+// Searches array of std::pairs on pair::second field, returns pair::first.
+template<typename First, typename Second, int N, typename Result>
+bool SecondToFirst(const std::pair<First, Second>(& array)[N], Second key, Result* value)
+{
+    bool res = false;
+
+    auto it = std::find_if(std::begin(array), std::end(array),
+        [key] (const auto& pair) -> bool { return pair.second == key; } );
+
+    if(it != std::end(array)) {
+        res = true;
+        *value = static_cast<Result>(it->first);
+    }
+    return res;
 }

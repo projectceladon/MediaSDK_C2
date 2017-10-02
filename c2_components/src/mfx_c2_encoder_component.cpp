@@ -78,6 +78,8 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const android::C2String name, int f
             pr.RegisterParam<C2IntraRefreshTuning>("IntraRefresh");
             pr.RegisterSupportedRange<C2IntraRefreshTuning>(&C2IntraRefreshTuning::mValue, (int)false, (int)true);
 
+            pr.RegisterParam<C2ProfileSetting>("Profile");
+            pr.RegisterParam<C2LevelSetting>("Level");
             pr.RegisterParam<C2ProfileLevelInfo::output>("SupportedProfilesLevels");
         break;
     }
@@ -553,9 +555,13 @@ std::unique_ptr<mfxVideoParam> MfxC2EncoderComponent::GetParamsView() const
 
         res->mfx.CodecId = in_params->mfx.CodecId;
 
+        MFX_DEBUG_TRACE__mfxVideoParam_enc((*in_params));
+
         sts = MFXVideoENCODE_Query(
             (mfxSession)*const_cast<MFXVideoSession*>(&session_),
             in_params, res.get());
+
+        MFX_DEBUG_TRACE__mfxVideoParam_enc((*res));
     } else {
         sts = encoder_->GetVideoParam(res.get());
     }
@@ -615,6 +621,42 @@ status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Ty
             }
             break;
         }
+        case kParamIndexProfile: {
+            if (nullptr == *dst) {
+                *dst = new C2ProfileSetting();
+            }
+            C2ProfileSetting* setting = static_cast<C2ProfileSetting*>(*dst);
+            bool set_res = false;
+            switch (encoder_type_) {
+                case ENCODER_H264:
+                    set_res = AvcProfileMfxToAndroid(video_params_config_.mfx.CodecProfile, &setting->mValue);
+                    break;
+                default:
+                    break;
+            }
+            if (!set_res) {
+                res = C2_CORRUPTED;
+            }
+            break;
+        }
+        case kParamIndexLevel: {
+            if (nullptr == *dst) {
+                *dst = new C2LevelSetting();
+            }
+            C2LevelSetting* setting = static_cast<C2LevelSetting*>(*dst);
+            bool set_res = false;
+            switch (encoder_type_) {
+                case ENCODER_H264:
+                    set_res = AvcLevelMfxToAndroid(video_params_config_.mfx.CodecLevel, &setting->mValue);
+                    break;
+                default:
+                    break;
+            }
+            if (!set_res) {
+                res = C2_CORRUPTED;
+            }
+            break;
+        }
         case kParamIndexProfileLevel:
             if (nullptr == *dst) {
                 if (encoder_type_ == ENCODER_H264) {
@@ -633,8 +675,8 @@ status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Ty
             }
             break;
         default:
-        res = C2_BAD_INDEX;
-        break;
+            res = C2_BAD_INDEX;
+            break;
     }
     return res;
 }
@@ -822,6 +864,38 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param* const> &params,
                     } else {
                         update();
                     }
+                }
+                break;
+            }
+            case kParamIndexProfile: {
+                const C2ProfileSetting* profile_setting = static_cast<const C2ProfileSetting*>(param);
+                bool set_res = false;
+                switch (encoder_type_) {
+                    case ENCODER_H264:
+                        set_res = AvcProfileAndroidToMfx(profile_setting->mValue, &video_params_config_.mfx.CodecProfile);
+                        break;
+                    default:
+                        break;
+                }
+
+                if (!set_res) {
+                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
+                }
+                break;
+            }
+            case kParamIndexLevel: {
+                const C2LevelSetting* setting = static_cast<const C2LevelSetting*>(param);
+                bool set_res = false;
+                switch (encoder_type_) {
+                    case ENCODER_H264:
+                        set_res = AvcLevelAndroidToMfx(setting->mValue, &video_params_config_.mfx.CodecLevel);
+                        break;
+                    default:
+                        break;
+                }
+
+                if (!set_res) {
+                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
                 }
                 break;
             }

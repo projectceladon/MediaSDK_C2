@@ -57,3 +57,11 @@ bool FindC2Param(
 std::unique_ptr<android::C2SettingResult> FindC2Param(
     const std::vector<std::shared_ptr<android::C2ParamDescriptor>>& params_desc,
     const android::C2Param* param);
+
+bool AvcProfileAndroidToMfx(uint32_t android_value, mfxU16* mfx_value);
+
+bool AvcProfileMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value);
+
+bool AvcLevelAndroidToMfx(uint32_t android_value, mfxU16* mfx_value);
+
+bool AvcLevelMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value);
