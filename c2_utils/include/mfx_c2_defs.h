@@ -11,6 +11,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #pragma once
 
 #include <C2Component.h>
+#include "mfx_c2_params.h"
 
 class MfxC2Component;
 
@@ -23,3 +24,6 @@ typedef android::status_t (CreateMfxC2ComponentFunc)(const char* name, int flags
 #define MFX_C2_CONFIG_FILE_PATH "/etc"
 
 const nsecs_t MFX_SECOND_NS = 1000000000; // 1e9
+
+extern const size_t g_h264_profile_levels_count;
+extern const android::C2ProfileLevelStruct g_h264_profile_levels[];

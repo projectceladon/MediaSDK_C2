@@ -15,6 +15,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_debug.h"
 #include "mfx_c2_components_registry.h"
 #include "mfx_c2_utils.h"
+#include "mfx_legacy_defs.h"
 #include "mfx_c2_params.h"
 #include "mfx_defaults.h"
 
@@ -77,7 +78,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const android::C2String name, int f
             pr.RegisterParam<C2IntraRefreshTuning>("IntraRefresh");
             pr.RegisterSupportedRange<C2IntraRefreshTuning>(&C2IntraRefreshTuning::mValue, (int)false, (int)true);
 
-
+            pr.RegisterParam<C2ProfileLevelInfo::output>("SupportedProfilesLevels");
         break;
     }
 
@@ -614,7 +615,23 @@ status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Ty
             }
             break;
         }
+        case kParamIndexProfileLevel:
+            if (nullptr == *dst) {
+                if (encoder_type_ == ENCODER_H264) {
+                    std::unique_ptr<C2ProfileLevelInfo::output> info =
+                        C2ProfileLevelInfo::output::alloc_unique(g_h264_profile_levels_count);
 
+                    for (size_t i = 0; i < g_h264_profile_levels_count; ++i) {
+                        info->m.mValues[i] = g_h264_profile_levels[i];
+                    }
+                    *dst = info.release();
+                } else {
+                    res = C2_CORRUPTED;
+                }
+            } else { // not possible to return flexible params through stack
+                res = C2_NO_MEMORY;
+            }
+            break;
         default:
         res = C2_BAD_INDEX;
         break;
