@@ -274,7 +274,9 @@ bool FindC2Param(
         return param_type == param_desc->type();
     };
 
-    return std::any_of(params_desc.begin(), params_desc.end(), type_match);
+    bool res = std::any_of(params_desc.begin(), params_desc.end(), type_match);
+    MFX_DEBUG_TRACE_I32(res);
+    return res;
 }
 
 std::unique_ptr<C2SettingResult> FindC2Param(

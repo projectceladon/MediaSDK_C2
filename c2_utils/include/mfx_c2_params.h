@@ -21,6 +21,7 @@ enum C2ParamIndexKindVendor : uint32_t {
     kParamIndexBitrate,
     kParamIndexFrameQP,
     kParamIndexIntraRefresh,
+    kParamIndexProfileLevel,
 };
 
 C2ENUM(C2RateControlMethod, int32_t,
@@ -48,5 +49,16 @@ struct C2FrameQPStruct {
 typedef C2PortParam<C2Tuning, C2FrameQPStruct, kParamIndexFrameQP>::output C2FrameQPSetting;
 
 typedef C2PortParam<C2Tuning, C2Int32Value, kParamIndexIntraRefresh>::output C2IntraRefreshTuning;
+
+struct C2ProfileLevelStruct {
+    uint32_t profile;
+    uint32_t level;
+
+    DEFINE_AND_DESCRIBE_C2STRUCT(ProfileLevel)
+    C2FIELD(profile, "Profile")
+    C2FIELD(level, "Level")
+};
+
+typedef C2PortParam<C2Info, C2SimpleArrayStruct<C2ProfileLevelStruct>, kParamIndexProfileLevel> C2ProfileLevelInfo;
 
 } // namespace android

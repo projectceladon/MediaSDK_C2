@@ -47,6 +47,7 @@ static std::vector<C2ParamDescriptor> h264_params_desc =
     { false, "Bitrate", C2BitrateTuning::typeIndex },
     { false, "FrameQP", C2FrameQPSetting::typeIndex },
     { false, "IntraRefresh", C2IntraRefreshTuning::typeIndex },
+    { false, "SupportedProfilesLevels", C2ProfileLevelInfo::output::typeIndex },
 };
 
 namespace {
@@ -58,6 +59,7 @@ namespace {
         std::vector<C2ParamDescriptor> params_desc;
         C2ParamValues default_values;
         status_t query_status;
+        std::vector<C2ProfileLevelStruct> profile_levels;
     };
 }
 
@@ -91,8 +93,9 @@ static C2ParamValues GetH264DefaultValues()
 }
 
 static ComponentDesc g_components_desc[] = {
-    { "C2.h264ve", 0, C2_OK, h264_params_desc, GetH264DefaultValues(), C2_CORRUPTED },
-    { "C2.NonExistingEncoder", 0, C2_NOT_FOUND, {}, {}, {} },
+    { "C2.h264ve", 0, C2_OK, h264_params_desc, GetH264DefaultValues(), C2_CORRUPTED,
+        { g_h264_profile_levels, g_h264_profile_levels + g_h264_profile_levels_count } },
+    { "C2.NonExistingEncoder", 0, C2_NOT_FOUND, {}, {}, {}, {} },
 };
 
 static const ComponentDesc* GetComponentDesc(const std::string& component_name)
@@ -969,6 +972,40 @@ TEST(MfxEncoderComponent, DynamicBitrate)
             int64_t stream_len_2_expected = stream_len_1 * MULTIPLIER;
             EXPECT_TRUE(abs((int64_t)stream_len_2 - stream_len_2_expected) < stream_len_2_expected * 0.1)
                 << NAMED(stream_len_2) << NAMED(stream_len_1);
+        }
+    }); // ForEveryComponent
+}
+
+// Queries array of supported pairs (profile, level) and compares to expected array.
+TEST(MfxEncoderComponent, ProfileLevelInfo)
+{
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [&] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+        (void)comp;
+
+        std::vector<std::unique_ptr<C2Param>> heap_params;
+        status_t res = comp_intf->query_nb({} , { C2ProfileLevelInfo::output::typeIndex }, &heap_params);
+        EXPECT_EQ(res, C2_OK);
+        EXPECT_EQ(heap_params.size(), 1);
+
+        if (heap_params.size() > 0) {
+            C2Param* param = heap_params[0].get();
+
+            // Should be TRUE, but Google params impl determines kFlexibleFlag wrong for
+            // C2PortParam<..., C2SimpleArrayStruct, ...>::output
+            EXPECT_FALSE(param->isFlexible());
+            EXPECT_EQ(param->type(), C2ProfileLevelInfo::output::typeIndex);
+
+            if (param->type() == C2ProfileLevelInfo::output::typeIndex) {
+                C2ProfileLevelInfo* info = (C2ProfileLevelInfo*)param;
+                EXPECT_EQ(info->flexCount(), comp_desc.profile_levels.size());
+
+                size_t to_compare = std::min(info->flexCount(), comp_desc.profile_levels.size());
+                for (size_t i = 0; i < to_compare; ++i) {
+                    EXPECT_EQ(info->m.mValues[i].profile, comp_desc.profile_levels[i].profile);
+                    EXPECT_EQ(info->m.mValues[i].level, comp_desc.profile_levels[i].level);
+                }
+            }
         }
     }); // ForEveryComponent
 }
