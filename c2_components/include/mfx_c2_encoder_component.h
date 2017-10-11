@@ -80,13 +80,15 @@ private:
 
     std::unique_ptr<mfxVideoParam> GetParamsView() const;
 
+    mfxStatus InitSession();
+
     mfxStatus Reset();
 
     mfxStatus InitEncoder(const mfxFrameInfo& frame_info);
 
     void FreeEncoder();
 
-    void RetainLockedFrame(MfxC2FrameIn input);
+    void RetainLockedFrame(MfxC2FrameIn&& input);
 
     mfxStatus EncodeFrameAsync(
         mfxEncodeCtrl *ctrl, mfxFrameSurface1 *surface, mfxBitstream *bs,
@@ -114,7 +116,8 @@ private:
 
     std::unique_ptr<MfxDev> device_;
     MFXVideoSession session_;
-
+    // if custom allocator was set to session_ with SetFrameAllocator
+    bool allocator_set_ { false };
     // Accessed from working thread or stop method when working thread is stopped.
     std::unique_ptr<MFXVideoENCODE> encoder_;
 

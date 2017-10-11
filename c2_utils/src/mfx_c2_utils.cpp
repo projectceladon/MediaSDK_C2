@@ -403,3 +403,19 @@ void InitNV12PlaneLayout(int32_t pitch, int32_t alloc_height, C2PlaneLayout* lay
         plane.mAllocatedDepth = 8;
     }
 }
+
+static const std::pair<C2MemoryType, mfxU16> g_memory_types[] =
+{
+    { C2MemoryTypeSystem, MFX_IOPATTERN_IN_SYSTEM_MEMORY },
+    { C2MemoryTypeGraphics, MFX_IOPATTERN_IN_VIDEO_MEMORY }
+};
+
+bool C2MemoryTypeToMfxIOPattern(C2MemoryType memory_type, mfxU16* io_pattern)
+{
+    return FirstToSecond(g_memory_types, memory_type, io_pattern);
+}
+
+bool MfxIOPatternToC2MemoryType(mfxU16 io_pattern, C2MemoryType* memory_type)
+{
+    return SecondToFirst(g_memory_types, io_pattern, memory_type);
+}

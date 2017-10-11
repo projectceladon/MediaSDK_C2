@@ -81,6 +81,8 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const android::C2String name, int f
             pr.RegisterParam<C2ProfileSetting>("Profile");
             pr.RegisterParam<C2LevelSetting>("Level");
             pr.RegisterParam<C2ProfileLevelInfo::output>("SupportedProfilesLevels");
+
+            pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
         break;
     }
 
@@ -111,22 +113,8 @@ android::status_t MfxC2EncoderComponent::Init()
     Reset();
 
     mfxStatus mfx_res = MfxDev::Create(&device_);
-    if(mfx_res == MFX_ERR_NONE) {
-        mfx_res = session_.Init(mfx_implementation_, &g_required_mfx_version);
-        MFX_DEBUG_TRACE_I32(g_required_mfx_version.Major);
-        MFX_DEBUG_TRACE_I32(g_required_mfx_version.Minor);
 
-        if(mfx_res == MFX_ERR_NONE) {
-            mfxStatus sts = session_.QueryIMPL(&mfx_implementation_);
-            MFX_DEBUG_TRACE__mfxStatus(sts);
-            MFX_DEBUG_TRACE_I32(mfx_implementation_);
-
-            mfx_res = device_->InitMfxSession(&session_);
-        } else {
-            MFX_DEBUG_TRACE_MSG("MFXVideoSession::Init failed");
-            MFX_DEBUG_TRACE__mfxStatus(mfx_res);
-        }
-    }
+    if(mfx_res == MFX_ERR_NONE) mfx_res = InitSession();
 
     return MfxStatusToC2(mfx_res);
 }
@@ -136,9 +124,41 @@ status_t MfxC2EncoderComponent::DoStart()
     MFX_DEBUG_TRACE_FUNC;
 
     synced_points_count_ = 0;
+    mfxStatus mfx_res = MFX_ERR_NONE;
 
-    working_queue_.Start();
-    waiting_queue_.Start();
+    do {
+        bool allocator_required = (video_params_config_.IOPattern == MFX_IOPATTERN_IN_VIDEO_MEMORY);
+
+        if (allocator_required != allocator_set_) {
+
+            mfx_res = session_.Close();
+            if (MFX_ERR_NONE != mfx_res) break;
+
+            mfx_res = InitSession();
+            if (MFX_ERR_NONE != mfx_res) break;
+
+            // set frame allocator
+            if (allocator_required) {
+
+                MfxFrameAllocator* allocator = device_->GetFrameAllocator();
+                if (!allocator) {
+                    mfx_res = MFX_ERR_NOT_INITIALIZED;
+                    break;
+                }
+
+                mfx_res = session_.SetFrameAllocator(&allocator->GetMfxAllocator());
+                if (MFX_ERR_NONE != mfx_res) break;
+
+            } else {
+                mfx_res = session_.SetFrameAllocator(nullptr);
+                if (MFX_ERR_NONE != mfx_res) break;
+            }
+            allocator_set_ = allocator_required;
+        }
+        working_queue_.Start();
+        waiting_queue_.Start();
+
+    } while(false);
 
     return C2_OK;
 }
@@ -152,6 +172,27 @@ status_t MfxC2EncoderComponent::DoStop()
     FreeEncoder();
 
     return C2_OK;
+}
+
+mfxStatus MfxC2EncoderComponent::InitSession()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    mfxStatus mfx_res = session_.Init(mfx_implementation_, &g_required_mfx_version);
+    MFX_DEBUG_TRACE_I32(g_required_mfx_version.Major);
+    MFX_DEBUG_TRACE_I32(g_required_mfx_version.Minor);
+
+    if(mfx_res == MFX_ERR_NONE) {
+        mfxStatus sts = session_.QueryIMPL(&mfx_implementation_);
+        MFX_DEBUG_TRACE__mfxStatus(sts);
+        MFX_DEBUG_TRACE_I32(mfx_implementation_);
+
+        mfx_res = device_->InitMfxSession(&session_);
+    } else {
+        MFX_DEBUG_TRACE_MSG("MFXVideoSession::Init failed");
+        MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+    }
+    return mfx_res;
 }
 
 mfxStatus MfxC2EncoderComponent::Reset()
@@ -186,7 +227,7 @@ mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
     std::lock_guard<std::mutex> lock(init_encoder_mutex_);
 
     video_params_config_.mfx.FrameInfo = frame_info;
-    {
+    if (MFX_ERR_NONE == mfx_res) {
         encoder_.reset(MFX_NEW_NO_THROW(MFXVideoENCODE(session_)));
         if (nullptr == encoder_) {
             mfx_res = MFX_ERR_MEMORY_ALLOC;
@@ -230,7 +271,7 @@ void MfxC2EncoderComponent::FreeEncoder()
     }
 }
 
-void MfxC2EncoderComponent::RetainLockedFrame(MfxC2FrameIn input)
+void MfxC2EncoderComponent::RetainLockedFrame(MfxC2FrameIn&& input)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -361,8 +402,13 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
     do {
         C2BufferPack& input = work->input;
 
+        MfxFrameConverter* frame_converter = nullptr;
+        if (video_params_config_.IOPattern == MFX_IOPATTERN_IN_VIDEO_MEMORY) {
+            frame_converter = device_->GetFrameConverter();
+        }
+
         MfxC2FrameIn mfx_frame;
-        res = MfxC2FrameIn::Create(input, TIMEOUT_NS, &mfx_frame);
+        res = MfxC2FrameIn::Create(frame_converter, input, TIMEOUT_NS, &mfx_frame);
         if(C2_OK != res) break;
 
         if(nullptr == encoder_) {
@@ -398,8 +444,8 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
             break;
         }
 
-        waiting_queue_.Push( [ input = std::move(mfx_frame), this ] () mutable {
-            RetainLockedFrame(std::move(input));
+        waiting_queue_.Push( [ mfx_frame = std::move(mfx_frame), this ] () mutable {
+            RetainLockedFrame(std::move(mfx_frame));
         } );
 
         pending_works_.push(std::move(work));
@@ -496,12 +542,8 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
     }
 
     // checking for unlocked surfaces and releasing them
-    locked_frames_.erase(
-        std::remove_if(
-            locked_frames_.begin(),
-            locked_frames_.end(),
-            [] (const MfxC2FrameIn& mfx_frame)->bool { return !mfx_frame.GetMfxFrameSurface()->Data.Locked; } ),
-        locked_frames_.end());
+    locked_frames_.remove_if(
+        [] (const MfxC2FrameIn& mfx_frame)->bool { return !mfx_frame.GetMfxFrameSurface()->Data.Locked; } );
 
     // release encode_ctrl
     encode_ctrl = nullptr;
@@ -674,6 +716,15 @@ status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Ty
                 res = C2_NO_MEMORY;
             }
             break;
+        case kParamIndexMemoryType: {
+            if (nullptr == *dst) {
+                *dst = new C2MemoryTypeSetting();
+            }
+
+            C2MemoryTypeSetting* setting = static_cast<C2MemoryTypeSetting*>(*dst);
+            if (!MfxIOPatternToC2MemoryType(video_params_config_.IOPattern, &setting->mValue)) res = C2_CORRUPTED;
+            break;
+        }
         default:
             res = C2_BAD_INDEX;
             break;
@@ -894,6 +945,14 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param* const> &params,
                         break;
                 }
 
+                if (!set_res) {
+                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
+                }
+                break;
+            }
+            case kParamIndexMemoryType: {
+                const C2MemoryTypeSetting* setting = static_cast<const C2MemoryTypeSetting*>(param);
+                bool set_res = C2MemoryTypeToMfxIOPattern(setting->mValue, &video_params_config_.IOPattern);
                 if (!set_res) {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
                 }
