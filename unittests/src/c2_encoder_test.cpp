@@ -48,6 +48,7 @@ static std::vector<C2ParamDescriptor> h264_params_desc =
     { false, "Profile", C2ProfileSetting::typeIndex },
     { false, "Level", C2LevelSetting::typeIndex },
     { false, "SupportedProfilesLevels", C2ProfileLevelInfo::output::typeIndex },
+    { false, "MemoryType", C2MemoryTypeSetting::typeIndex },
 };
 
 namespace {
@@ -179,7 +180,7 @@ TEST(MfxEncoderComponent, intf)
     } );
 }
 
-static void PrepareWork(uint32_t frame_index, bool last_frame,
+static void PrepareWork(uint32_t frame_index, bool last_frame, bool graphics_memory,
     std::unique_ptr<C2Work>* work,
     const std::vector<FrameGenerator*>& generators)
 {
@@ -208,7 +209,10 @@ static void PrepareWork(uint32_t frame_index, bool last_frame,
 
         if(nullptr == allocator) break;
 
-        C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
+        C2MemoryUsage mem_usage = {
+            graphics_memory ? C2MemoryUsage::kHardwareEncoder : C2MemoryUsage::kSoftwareRead,
+            C2MemoryUsage::kSoftwareWrite
+        };
         std::shared_ptr<C2GraphicBlock> block;
         sts = allocator->allocateGraphicBlock(FRAME_WIDTH, FRAME_HEIGHT, FRAME_FORMAT,
             mem_usage, &block);
@@ -354,7 +358,7 @@ private:
 typedef std::function<void (uint32_t frame_index, C2Work* work)> BeforeQueueWork;
 
 static void Encode(
-    uint32_t frame_count,
+    uint32_t frame_count, bool graphics_memory,
     std::shared_ptr<C2Component> component,
     std::shared_ptr<EncoderConsumer> validator,
     const std::vector<FrameGenerator*>& generators,
@@ -362,7 +366,17 @@ static void Encode(
 {
     component->registerListener(validator);
 
-    status_t sts = component->start();
+    C2MemoryTypeSetting setting;
+    setting.mValue = graphics_memory ? C2MemoryTypeGraphics : C2MemoryTypeSystem;
+
+    std::vector<C2Param* const> params = { &setting };
+    std::vector<std::unique_ptr<C2SettingResult>> failures;
+    std::shared_ptr<C2ComponentInterface> comp_intf = component->intf();
+
+    status_t sts = comp_intf->config_nb(params, &failures);
+    EXPECT_EQ(sts, C2_OK);
+
+    sts = component->start();
     EXPECT_EQ(sts, C2_OK);
 
     for(uint32_t frame_index = 0; frame_index < frame_count; ++frame_index) {
@@ -370,7 +384,7 @@ static void Encode(
         std::unique_ptr<C2Work> work;
 
         // insert input data
-        PrepareWork(frame_index, frame_index == frame_count - 1, &work, generators);
+        PrepareWork(frame_index, frame_index == frame_count - 1, graphics_memory, &work, generators);
         if (before_queue_work) {
             before_queue_work(frame_index, work.get());
         }
@@ -391,6 +405,7 @@ static void Encode(
 }
 
 // Perform encoding with default parameters multiple times checking the runs give bit exact result.
+// Encoding is performed on system memory in odd runs, on video memory - in even.
 // If --dump-output option is set, every encoded bitstream is saved into file
 // named as ./<test_case_name>/<test_name>/<component_name>-<run_index>.out,
 // for example: ./MfxEncoderComponent/EncodeBitExact/C2.h264ve-0.out
@@ -405,6 +420,13 @@ TEST(MfxEncoderComponent, EncodeBitExact)
 
         const int TESTS_COUNT = 5;
         BinaryChunks binary[TESTS_COUNT];
+
+        // odd runs are on graphics memory
+        auto use_graphics_memory = [] (int i) -> bool { return (i % 2) != 0; };
+        std::map<bool, std::string> memory_names = {
+            { false, "(system memory)" },
+            { true, "(video memory)" },
+        };
 
         for(int i = 0; i < TESTS_COUNT; ++i) {
 
@@ -423,12 +445,13 @@ TEST(MfxEncoderComponent, EncodeBitExact)
             std::shared_ptr<EncoderConsumer> validator =
                 std::make_shared<EncoderConsumer>(on_frame);
 
-            Encode(FRAME_COUNT, comp, validator, { &stripe_generator } );
+            Encode(FRAME_COUNT, use_graphics_memory(i), comp, validator, { &stripe_generator } );
         }
         // Every pair of results should be equal
         for (int i = 0; i < TESTS_COUNT - 1; ++i) {
             for (int j = i + 1; j < TESTS_COUNT; ++j) {
-                EXPECT_EQ(binary[i], binary[j]) << "Pass " << i << " not equal to " << j;
+                EXPECT_EQ(binary[i], binary[j]) << "Pass " << i << memory_names[use_graphics_memory(i)]
+                    << " not equal to " << j << memory_names[use_graphics_memory(j)];
             }
         }
     } );
@@ -571,7 +594,8 @@ TEST(MfxEncoderComponent, StaticBitrate)
             std::shared_ptr<EncoderConsumer> validator =
                 std::make_shared<EncoderConsumer>(on_frame);
 
-            Encode(FRAME_COUNT, comp, validator, { &stripe_generator, &noise_generator } );
+            Encode(FRAME_COUNT, false/*system memory*/, comp, validator,
+                { &stripe_generator, &noise_generator } );
 
             int64_t expected_len = FRAME_DURATION_US * FRAME_COUNT * 1000 * bitrates[test_index] /
                 (8 * 1000000);
@@ -623,7 +647,7 @@ TEST(MfxEncoderComponent, StaticRateControlMethod)
             std::shared_ptr<EncoderConsumer> validator =
                 std::make_shared<EncoderConsumer>(on_frame);
 
-            Encode(FRAME_COUNT, comp, validator, { &stripe_generator } );
+            Encode(FRAME_COUNT, false/*system memory*/, comp, validator, { &stripe_generator } );
         }
 
         // Every pair of results should be equal
@@ -732,7 +756,7 @@ TEST(MfxEncoderComponent, StaticFrameQP)
                 std::make_shared<EncoderConsumer>(on_frame);
 
             // validator checks that encoder correctly behaves on the changed config
-            Encode(FRAME_COUNT, comp, validator, { &stripe_generator, &noise_generator } );
+            Encode(FRAME_COUNT, false/*system memory*/, comp, validator, { &stripe_generator, &noise_generator } );
 
             if(&test_run != &test_runs[0]) { // nothing to compare on first run
                 if(test_run.expected_result == C2_OK) {
@@ -795,7 +819,7 @@ TEST(MfxEncoderComponent, query_nb)
         std::shared_ptr<EncoderConsumer> validator =
             std::make_shared<EncoderConsumer>(on_frame);
 
-        Encode(FRAME_COUNT, comp, validator, { &stripe_generator } );
+        Encode(FRAME_COUNT, false/*system memory*/, comp, validator, { &stripe_generator } );
 
         {
             SCOPED_TRACE("After encode");
@@ -890,7 +914,7 @@ TEST(MfxEncoderComponent, IntraRefresh)
                 std::shared_ptr<EncoderConsumer> validator =
                     std::make_shared<EncoderConsumer>(on_frame);
 
-                Encode(FRAME_COUNT, comp, validator, { &stripe_generator, &noise_generator },
+                Encode(FRAME_COUNT, false/*system memory*/, comp, validator, { &stripe_generator, &noise_generator },
                     before_queue_work );
 
                 uint32_t idr_expected = (FRAME_COUNT - 1) / idr_distance + 1;
@@ -989,7 +1013,7 @@ TEST(MfxEncoderComponent, DynamicBitrate)
             std::shared_ptr<EncoderConsumer> validator =
                 std::make_shared<EncoderConsumer>(on_frame, TEST_FRAME_COUNT);
 
-            Encode(TEST_FRAME_COUNT, comp, validator, { &stripe_generator, &noise_generator },
+            Encode(TEST_FRAME_COUNT, false/*system memory*/, comp, validator, { &stripe_generator, &noise_generator },
                 before_queue_work );
 
             int64_t stream_len_2_expected = stream_len_1 * MULTIPLIER;
@@ -1083,7 +1107,8 @@ TEST(MfxEncoderComponent, CodecProfileAndLevel)
             std::shared_ptr<EncoderConsumer> validator =
                 std::make_shared<EncoderConsumer>(on_frame, TEST_FRAME_COUNT);
 
-            Encode(TEST_FRAME_COUNT, comp, validator, { &stripe_generator, &noise_generator } );
+            Encode(TEST_FRAME_COUNT, false/*system memory*/, comp, validator,
+                { &stripe_generator, &noise_generator } );
 
             std::string error_message;
             bool stream_ok = comp_desc.test_stream_profile_level(test_run, std::move(bitstream), &error_message);

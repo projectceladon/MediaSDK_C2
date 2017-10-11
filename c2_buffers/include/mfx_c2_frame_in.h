@@ -10,17 +10,20 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #pragma once
 
+#include "mfx_frame_converter.h"
+#include "mfx_defs.h"
+
 #include <C2Buffer.h>
 #include <C2Work.h>
-
-#include "mfx_defs.h"
 
 class MfxC2FrameIn
 {
 public:
     MfxC2FrameIn() = default;
+    MfxC2FrameIn(MfxC2FrameIn&& other) = default;
+    ~MfxC2FrameIn();
 
-    static android::status_t Create(
+    static android::status_t Create(MfxFrameConverter* frame_converter,
         android::C2BufferPack& buf_pack, nsecs_t timeout, MfxC2FrameIn* wrapper);
 
     mfxFrameSurface1* GetMfxFrameSurface() const
@@ -30,4 +33,5 @@ public:
 private:
     std::shared_ptr<android::C2Buffer> c2_buffer_;
     std::unique_ptr<mfxFrameSurface1> mfx_frame_;
+    MfxFrameConverter* frame_converter_ {};
 };

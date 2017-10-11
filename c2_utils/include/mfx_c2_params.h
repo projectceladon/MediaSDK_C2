@@ -24,6 +24,7 @@ enum C2ParamIndexKindVendor : uint32_t {
     kParamIndexProfileLevel,
     kParamIndexFrameQP,
     kParamIndexIntraRefresh,
+    kParamIndexMemoryType,
 };
 
 C2ENUM(C2RateControlMethod, int32_t,
@@ -66,5 +67,12 @@ struct C2ProfileLevelStruct {
 };
 
 typedef C2PortParam<C2Info, C2SimpleArrayStruct<C2ProfileLevelStruct>, kParamIndexProfileLevel> C2ProfileLevelInfo;
+
+C2ENUM(C2MemoryType, int32_t,
+    C2MemoryTypeSystem,
+    C2MemoryTypeGraphics,
+);
+
+typedef C2GlobalParam<C2Setting, C2SimpleValueStruct<C2MemoryType>, kParamIndexMemoryType> C2MemoryTypeSetting;
 
 } // namespace android
