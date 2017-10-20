@@ -1,6 +1,8 @@
 #include "C2Buffer.h"
 #include "C2BlockAllocator.h"
 
+#include "mfx_c2_utils.h"
+
 #include <future>
 
 namespace android {
@@ -151,11 +153,17 @@ class C2GraphicView::Impl
 {
 public:
     DataBuffer data_;
+    C2PlaneLayout plane_layout_ {};
 };
 
 uint8_t *C2GraphicView::data()
 {
     return &(mImpl->data_->front());
+}
+
+const C2PlaneLayout* C2GraphicView::planeLayout() const
+{
+    return &(mImpl->plane_layout_);
 }
 
 C2Acquirable<const C2GraphicView> C2ConstGraphicBlock::map() const
@@ -180,6 +188,8 @@ C2Acquirable<C2GraphicView> C2GraphicBlock::map()
     C2GraphicView graphic_view(this);
     graphic_view.mImpl = std::make_shared<C2GraphicView::Impl>();
     graphic_view.mImpl->data_ = mImpl->data_;
+
+    InitNV12PlaneLayout(width(), height(), &graphic_view.mImpl->plane_layout_);
 
     return C2Acquirable<C2GraphicView>(error, event.fence(), graphic_view);
 }

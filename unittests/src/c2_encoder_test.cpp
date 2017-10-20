@@ -230,10 +230,12 @@ static void PrepareWork(uint32_t frame_index, bool last_frame,
                 uint8_t* data = graph_view->data();
                 EXPECT_NE(data, nullptr);
 
-                const uint32_t stride = FRAME_WIDTH;
+                const C2PlaneLayout* layout = graph_view->planeLayout();
+                const uint32_t stride = layout->mPlanes[C2PlaneLayout::Y].mRowInc;
+                const uint32_t alloc_height = layout->mPlanes[C2PlaneLayout::U].mOffset / stride;
 
                 for(FrameGenerator* generator : generators) {
-                    generator->Apply(frame_index, data, FRAME_WIDTH, stride, FRAME_HEIGHT);
+                    generator->Apply(frame_index, data, FRAME_WIDTH, stride, alloc_height);
                 }
             }
         }

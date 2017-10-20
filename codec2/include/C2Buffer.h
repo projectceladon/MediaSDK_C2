@@ -866,6 +866,8 @@ struct C2PlaneInfo {
     uint32_t mBitDepth;
     uint32_t mAllocatedDepth;
 
+    uint32_t mOffset;
+
     inline ssize_t minOffset(uint32_t width, uint32_t height) {
         ssize_t offs = 0;
         if (width > 0 && mColInc < 0) {
@@ -988,6 +990,8 @@ public:
      * \return pointer to the start of the block or nullptr on error.
      */
     uint8_t *data();
+
+    const C2PlaneLayout* planeLayout() const;
 
     /**
      * Returns a section of this view.
