@@ -67,11 +67,11 @@ status_t MfxC2FrameOut::Create(std::shared_ptr<android::C2GraphicBlock> block,
         wrapper->mfx_surface_ = std::make_unique<mfxFrameSurface1>();
         wrapper->c2_graphic_block_ = block;
 
-        uint8_t* raw = nullptr;
-        res = MapGraphicBlock(*block, timeout, &raw);
+        std::unique_ptr<C2GraphicView> graph_view;
+        res = MapGraphicBlock(*block, timeout, &graph_view);
         if(C2_OK != res) break;
 
-        InitMfxNV12Frame(raw, block->width(), block->height(), wrapper->mfx_surface_.get());
+        InitMfxNV12Frame(graph_view->data(), block->width(), block->height(), wrapper->mfx_surface_.get());
 
     } while(false);
 

@@ -220,15 +220,22 @@ static void PrepareWork(uint32_t frame_index, bool last_frame,
 
         if(nullptr == block) break;
 
-        uint8_t* data = nullptr;
-        sts = MapGraphicBlock(*block, TIMEOUT_NS, &data);
-        EXPECT_EQ(sts, C2_OK);
-        EXPECT_NE(data, nullptr);
+        {
+            std::unique_ptr<C2GraphicView> graph_view;
+            sts = MapGraphicBlock(*block, TIMEOUT_NS, &graph_view);
+            EXPECT_EQ(sts, C2_OK);
+            EXPECT_TRUE(graph_view);
 
-        const uint32_t stride = FRAME_WIDTH;
+            if (graph_view) {
+                uint8_t* data = graph_view->data();
+                EXPECT_NE(data, nullptr);
 
-        for(FrameGenerator* generator : generators) {
-            generator->Apply(frame_index, data, FRAME_WIDTH, stride, FRAME_HEIGHT);
+                const uint32_t stride = FRAME_WIDTH;
+
+                for(FrameGenerator* generator : generators) {
+                    generator->Apply(frame_index, data, FRAME_WIDTH, stride, FRAME_HEIGHT);
+                }
+            }
         }
 
         C2Event event;
