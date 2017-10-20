@@ -65,3 +65,5 @@ bool AvcProfileMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value);
 bool AvcLevelAndroidToMfx(uint32_t android_value, mfxU16* mfx_value);
 
 bool AvcLevelMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value);
+
+void InitNV12PlaneLayout(int32_t pitch, int32_t alloc_height, android::C2PlaneLayout* layout);

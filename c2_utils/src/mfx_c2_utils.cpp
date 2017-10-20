@@ -369,3 +369,37 @@ bool AvcLevelMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value)
 {
     return SecondToFirst(g_h264_levels, mfx_value, android_value);
 }
+
+void InitNV12PlaneLayout(int32_t pitch, int32_t alloc_height, C2PlaneLayout* layout)
+{
+    layout->mType = android::C2PlaneLayout::MEDIA_IMAGE_TYPE_YUV;
+    layout->mNumPlanes = 3;
+
+    C2PlaneInfo& y_plane = layout->mPlanes[C2PlaneLayout::Y];
+    y_plane.mChannel = C2PlaneInfo::Y;
+    y_plane.mColInc = 1;
+    y_plane.mRowInc = pitch;
+    y_plane.mHorizSubsampling = 1;
+    y_plane.mVertSubsampling = 1;
+    y_plane.mBitDepth = 8;
+    y_plane.mAllocatedDepth = 8;
+    y_plane.mOffset = 0;
+
+    C2PlaneInfo& u_plane = layout->mPlanes[C2PlaneLayout::U];
+    u_plane.mChannel = C2PlaneInfo::Cb;
+    u_plane.mOffset = alloc_height * pitch;
+
+    C2PlaneInfo& v_plane = layout->mPlanes[C2PlaneLayout::V];
+    v_plane.mChannel = C2PlaneInfo::Cr;
+    v_plane.mOffset = alloc_height * pitch + 1;
+
+    for (C2PlaneLayout::PlaneIndex plane_index : { C2PlaneLayout::U, C2PlaneLayout::V }) {
+        C2PlaneInfo& plane = layout->mPlanes[plane_index];
+        plane.mColInc = 2;
+        plane.mRowInc = pitch;
+        plane.mHorizSubsampling = 2;
+        plane.mVertSubsampling = 2;
+        plane.mBitDepth = 8;
+        plane.mAllocatedDepth = 8;
+    }
+}
