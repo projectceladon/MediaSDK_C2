@@ -26,8 +26,8 @@ android::status_t GetC2ConstLinearBlock(
 android::status_t MapConstGraphicBlock(
     const android::C2ConstGraphicBlock& c_graph_block, nsecs_t timeout, const uint8_t** data);
 
-android::status_t MapGraphicBlock(
-    android::C2GraphicBlock& graph_block, nsecs_t timeout, uint8_t** data);
+android::status_t MapGraphicBlock(android::C2GraphicBlock& graph_block, nsecs_t timeout,
+    std::unique_ptr<android::C2GraphicView>* graph_view);
 
 android::status_t MapConstLinearBlock(
     const android::C2ConstLinearBlock& block, nsecs_t timeout, const uint8_t** data);

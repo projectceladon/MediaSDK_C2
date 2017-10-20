@@ -142,26 +142,27 @@ status_t MapConstGraphicBlock(
     return res;
 }
 
-status_t MapGraphicBlock(
-    C2GraphicBlock& graph_block, nsecs_t timeout, uint8_t** data)
+status_t MapGraphicBlock(C2GraphicBlock& graph_block, nsecs_t timeout,
+    std::unique_ptr<C2GraphicView>* graph_view)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     C2Error res = C2_OK;
 
     do {
-        if(nullptr == data) {
+        if(nullptr == graph_view) {
             res = C2_BAD_VALUE;
             break;
         }
 
         C2Acquirable<C2GraphicView> acq_graph_view = graph_block.map();
+        res = acq_graph_view.GetError();
+        if(C2_OK != res) break;
 
         res = acq_graph_view.wait(timeout);
         if(C2_OK != res) break;
 
-        C2GraphicView gr_view = acq_graph_view.get();
-        *data = gr_view.data();
+        *graph_view = std::make_unique<C2GraphicView>(acq_graph_view.get());
 
     } while(false);
 

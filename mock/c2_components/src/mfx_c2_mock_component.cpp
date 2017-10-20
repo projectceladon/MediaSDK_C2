@@ -137,15 +137,14 @@ status_t MfxC2MockComponent::CopyLinearToGraphic(const C2BufferPack& input,
 
         res = allocator->allocateGraphicBlock(width, height, 0/*format*/, mem_usage, &out_block);
         if(C2_OK != res) break;
+        {
+            std::unique_ptr<C2GraphicView> out_view;
+            res = MapGraphicBlock(*out_block, TIMEOUT_NS, &out_view);
+            if(C2_OK != res) break;
 
-        uint8_t* out_raw = nullptr;
-
-        res = MapGraphicBlock(*out_block, TIMEOUT_NS, &out_raw);
-        if(C2_OK != res) break;
-
-        //  copy input buffer to output as is to identify data in test
-        memcpy(out_raw, in_raw, MEM_SIZE);
-
+            //  copy input buffer to output as is to identify data in test
+            memcpy(out_view->data(), in_raw, MEM_SIZE);
+        }
         C2Event event;
         event.fire(); // pre-fire event as output buffer is ready to use
         C2ConstGraphicBlock const_graphic = out_block->share(out_block->crop(), event.fence());

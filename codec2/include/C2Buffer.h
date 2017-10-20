@@ -227,6 +227,7 @@ public:
      */
     T get() { return mT; }
 
+    C2Error GetError() const { return mInitialError; }
 public:
     C2Acquirable(C2Error error, C2Fence fence, T t) : C2Fence(fence), mInitialError(error), mT(t) { }
 
