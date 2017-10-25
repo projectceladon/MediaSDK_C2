@@ -134,7 +134,8 @@ LOCAL_LDFLAGS += \
 
 LOCAL_STATIC_LIBRARIES := libmfx_c2_utils libmfx_mock_codec2 libippdc_l libippcore_l
 
-LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_mock_c2_components
+LOCAL_SHARED_LIBRARIES := libmfx_mock_c2_components \
+    libdl liblog libhardware
 
 LOCAL_MULTILIB := both
 LOCAL_MODULE_TAGS := optional

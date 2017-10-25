@@ -53,6 +53,8 @@ extern mfxVersion g_required_mfx_version;
 
 #define EXPORT __attribute__((visibility("default")))
 
+#define NAMED(value) #value << ": " << (value) << "; "
+
 // The purpose of this template function is cast from wide range integer
 // to narrow range integer. Like int32_t -> uint8_t.
 // There is no overflow effects, when the value doesn't fit DstType range,

@@ -27,8 +27,6 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 using namespace android;
 
-#define NAMED(value) #value << ": " << (value) << "; "
-
 const uint64_t FRAME_DURATION_US = 33333; // 30 fps
 // Low res is chosen to speed up the tests.
 const uint32_t FRAME_WIDTH = 320;
