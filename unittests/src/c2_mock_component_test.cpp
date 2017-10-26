@@ -76,12 +76,12 @@ TEST(MfxMockComponent, intf)
 // Allocates c2 graphic block of FRAME_WIDTH x FRAME_HEIGHT size and fills it with
 // specified byte value.
 static std::unique_ptr<C2ConstGraphicBlock> CreateFilledGraphicBlock(
-    std::shared_ptr<android::C2BlockAllocator> allocator, uint8_t fill)
+    std::shared_ptr<android::C2BlockAllocator> allocator, uint8_t fill, C2MemoryUsage::Consumer memory_type)
 {
     std::unique_ptr<C2ConstGraphicBlock> res;
 
     do {
-        C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
+        C2MemoryUsage mem_usage = { memory_type, C2MemoryUsage::kSoftwareWrite };
         std::shared_ptr<C2GraphicBlock> block;
         status_t sts = allocator->allocateGraphicBlock(FRAME_WIDTH, FRAME_HEIGHT, FRAME_FORMAT,
             mem_usage, &block);
@@ -149,7 +149,8 @@ static std::unique_ptr<C2ConstLinearBlock> CreateFilledLinearBlock(
 // Frame buffer size is (FRAME_WIDTH * FRAME_HEIGHT * 3 / 2).
 // Each byte in NV12 frame is set to frame_index.
 // Frame header index and timestamp are set based on passed frame_index value.
-static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work, C2BufferData::Type buffer_type)
+static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work,
+    C2BufferData::Type buffer_type, C2MemoryUsage::Consumer memory_type)
 {
     *work = std::make_unique<C2Work>();
     C2BufferPack* buffer_pack = &((*work)->input);
@@ -178,7 +179,8 @@ static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work, C2B
         std::shared_ptr<C2Buffer> buffer;
         // fill the frame with pixels == frame_index
         if(buffer_type == C2BufferData::GRAPHIC) {
-            std::unique_ptr<C2ConstGraphicBlock> const_block = CreateFilledGraphicBlock(allocator, (uint8_t)frame_index);
+            std::unique_ptr<C2ConstGraphicBlock> const_block =
+                CreateFilledGraphicBlock(allocator, (uint8_t)frame_index, memory_type);
             if(nullptr == const_block) break;
             // make buffer of graphic block
             C2BufferData buffer_data = *const_block;
@@ -328,11 +330,13 @@ TEST(MfxMockComponent, Encode)
     EXPECT_NE(component, nullptr);
     if(nullptr != component) {
 
-        std::shared_ptr<MockOutputValidator> validator =
-            std::make_unique<MockOutputValidator>(C2BufferData::LINEAR);
-        component->registerListener(validator);
+        for (C2MemoryUsage::Consumer memory_type :
+            { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kHardwareEncoder } ) {
 
-        if(component != nullptr) {
+            std::shared_ptr<MockOutputValidator> validator =
+                std::make_unique<MockOutputValidator>(C2BufferData::LINEAR);
+            component->registerListener(validator);
+
             sts = component->start();
             EXPECT_EQ(sts, C2_OK);
 
@@ -341,23 +345,23 @@ TEST(MfxMockComponent, Encode)
                 std::unique_ptr<C2Work> work;
 
                 // insert input data
-                PrepareWork(frame_index, &work, C2BufferData::GRAPHIC);
+                PrepareWork(frame_index, &work, C2BufferData::GRAPHIC, memory_type);
                 std::list<std::unique_ptr<C2Work>> works;
                 works.push_back(std::move(work));
 
                 sts = component->queue_nb(&works);
                 EXPECT_EQ(sts, C2_OK);
             }
+
+            std::future<void> future = validator->GetFuture();
+            std::future_status future_sts = future.wait_for(std::chrono::seconds(10));
+            EXPECT_EQ(future_sts, std::future_status::ready);
+
+            component->unregisterListener(validator);
+            sts = component->stop();
+            EXPECT_EQ(sts, C2_OK);
+            validator = nullptr;
         }
-
-        std::future<void> future = validator->GetFuture();
-        std::future_status future_sts = future.wait_for(std::chrono::seconds(10));
-        EXPECT_EQ(future_sts, std::future_status::ready);
-
-        component->unregisterListener(validator);
-        sts = component->stop();
-        EXPECT_EQ(sts, C2_OK);
-        validator = nullptr;
     }
 }
 
@@ -378,36 +382,50 @@ TEST(MfxMockComponent, Decode)
     EXPECT_NE(component, nullptr);
     if(nullptr != component) {
 
-        std::shared_ptr<MockOutputValidator> validator =
-            std::make_unique<MockOutputValidator>(C2BufferData::GRAPHIC);
-        component->registerListener(validator);
+        for (C2MemoryUsage::Producer memory_type :
+            { C2MemoryUsage::kSoftwareWrite, C2MemoryUsage::kHardwareDecoder } ) {
 
-        if(component != nullptr) {
-            sts = component->start();
-            EXPECT_EQ(sts, C2_OK);
+            std::shared_ptr<MockOutputValidator> validator =
+                std::make_unique<MockOutputValidator>(C2BufferData::GRAPHIC);
+            component->registerListener(validator);
 
-            for(uint32_t frame_index = 0; frame_index < FRAME_COUNT; ++frame_index) {
-                // prepare worklet and push
-                std::unique_ptr<C2Work> work;
+            if(component != nullptr) {
 
-                // insert input data
-                PrepareWork(frame_index, &work, C2BufferData::LINEAR);
-                std::list<std::unique_ptr<C2Work>> works;
-                works.push_back(std::move(work));
+                std::shared_ptr<C2ComponentInterface> component_intf = component->intf();
+                EXPECT_NE(component_intf, nullptr);
 
-                sts = component->queue_nb(&works);
+                if (!component_intf) continue;
+
+                C2ProducerMemoryType memory_type_setting(memory_type);
+                sts = component_intf->config_nb( { &memory_type_setting }, nullptr );
                 EXPECT_EQ(sts, C2_OK);
+
+                sts = component->start();
+                EXPECT_EQ(sts, C2_OK);
+
+                for(uint32_t frame_index = 0; frame_index < FRAME_COUNT; ++frame_index) {
+                    // prepare worklet and push
+                    std::unique_ptr<C2Work> work;
+
+                    // insert input data
+                    PrepareWork(frame_index, &work, C2BufferData::LINEAR, C2MemoryUsage::kSoftwareRead);
+                    std::list<std::unique_ptr<C2Work>> works;
+                    works.push_back(std::move(work));
+
+                    sts = component->queue_nb(&works);
+                    EXPECT_EQ(sts, C2_OK);
+                }
             }
+
+            std::future<void> future = validator->GetFuture();
+            std::future_status future_sts = future.wait_for(std::chrono::seconds(10));
+            EXPECT_EQ(future_sts, std::future_status::ready);
+
+            component->unregisterListener(validator);
+            sts = component->stop();
+            EXPECT_EQ(sts, C2_OK);
+            validator = nullptr;
         }
-
-        std::future<void> future = validator->GetFuture();
-        std::future_status future_sts = future.wait_for(std::chrono::seconds(10));
-        EXPECT_EQ(future_sts, std::future_status::ready);
-
-        component->unregisterListener(validator);
-        sts = component->stop();
-        EXPECT_EQ(sts, C2_OK);
-        validator = nullptr;
     }
 }
 

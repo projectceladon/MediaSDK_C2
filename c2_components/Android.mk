@@ -26,6 +26,7 @@ define build_components
       $$(MFX_LDFLAGS)
 
   LOCAL_SHARED_LIBRARIES := \
+    libhardware \
     libdl liblog
 
   LOCAL_STATIC_LIBRARIES := libmfx_mock_codec2 libmfx_c2_buffers

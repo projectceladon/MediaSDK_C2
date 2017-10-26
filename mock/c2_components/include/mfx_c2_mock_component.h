@@ -14,6 +14,16 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_components_registry.h"
 #include "mfx_cmd_queue.h"
 
+namespace android {
+
+enum C2ParamIndexKindMock : uint32_t {
+    kParamIndexProducerMemoryType = C2Param::BaseIndex::kVendorStart,
+};
+
+typedef C2PortParam<C2Setting, C2Uint64Value, kParamIndexProducerMemoryType>::output C2ProducerMemoryType;
+
+} // namespace android
+
 class MfxC2MockComponent : public MfxC2Component
 {
 public:
@@ -28,6 +38,11 @@ protected:
 
 public:
     static void RegisterClass(MfxC2ComponentsRegistry& registry);
+
+protected: // android::C2ComponentInterface
+    status_t config_nb(
+            const std::vector<android::C2Param* const> &params,
+            std::vector<std::unique_ptr<android::C2SettingResult>>* const failures) override;
 
 protected: // android::C2Component
     status_t queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items) override;
@@ -55,4 +70,6 @@ private:
     Type type_;
 
     MfxCmdQueue cmd_queue_;
+
+    android::C2MemoryUsage::Producer producer_memory_type_ { android::C2MemoryUsage::kSoftwareWrite };
 };

@@ -960,8 +960,10 @@ public:
         _C2PlanarSection(width, height) {}
     const C2Handle *handle() const;
 
-private:
+public:
     class Impl;
+
+private:
     std::shared_ptr<Impl> mImpl;
     friend class C2GraphicBlock;
     friend class C2ConstGraphicBlock;
@@ -1013,6 +1015,7 @@ private:
     std::shared_ptr<Impl> mImpl;
     friend class C2GraphicBlock;
     friend class C2ConstGraphicBlock;
+    friend class C2Block2D::Impl;
 };
 
 /**
