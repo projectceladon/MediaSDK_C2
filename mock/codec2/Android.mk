@@ -21,6 +21,10 @@ LOCAL_CFLAGS += \
     -std=c++14 \
     -fexceptions
 
+LOCAL_SHARED_LIBRARIES := \
+    libhardware \
+    libui
+
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libmfx_mock_codec2
 

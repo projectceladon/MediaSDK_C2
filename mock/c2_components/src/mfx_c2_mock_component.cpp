@@ -132,7 +132,7 @@ status_t MfxC2MockComponent::CopyLinearToGraphic(const C2BufferPack& input,
         if(C2_OK != res) break;
 
         const size_t MEM_SIZE = width * height * 3 / 2;
-        C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
+        C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, producer_memory_type_ };
         std::shared_ptr<C2GraphicBlock> out_block;
 
         res = allocator->allocateGraphicBlock(width, height, 0/*format*/, mem_usage, &out_block);
@@ -199,6 +199,23 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
     } while(false); // fake loop to have a cleanup point there
 
     NotifyWorkDone(std::move(work), res);
+}
+
+status_t MfxC2MockComponent::config_nb(
+        const std::vector<android::C2Param* const> &params,
+        std::vector<std::unique_ptr<android::C2SettingResult>>* const)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    status_t res = C2_OK;
+    if (params.size() == 1 && params[0]->type() == C2ProducerMemoryType::typeIndex) {
+        const C2ProducerMemoryType* param = (const C2ProducerMemoryType*)params[0];
+        producer_memory_type_ = static_cast<C2MemoryUsage::Producer>(param->mValue);
+        MFX_DEBUG_TRACE_I32(producer_memory_type_);
+    } else {
+        res = C2_BAD_VALUE;
+    }
+    return res;
 }
 
 status_t MfxC2MockComponent::queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items)
