@@ -20,6 +20,11 @@ then
     echo 'specify $remote_dir to android tree'
     exit 1
 fi
+if [ -z "$target_platform" ]
+then
+    echo 'specify $target_platform to run tests'
+    exit 1
+fi
 if [ "$1" == '-32' ]
 then
     bitness=32
@@ -29,7 +34,7 @@ else
     remote_lib=lib64
 fi
 
-remote_output=$remote_server:$remote_dir/out/target/product/bxt_rvp/system/
+remote_output=$remote_server:$remote_dir/out/target/product/$target_platform/system/
 
 tests_folder=c2-msdk-tests
 
