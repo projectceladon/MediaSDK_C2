@@ -6,9 +6,7 @@
 #include "mfx_c2_utils.h"
 #include "mfx_gralloc_allocator.h"
 
-#include <ufo/graphics.h>
 #include <ui/Rect.h>
-#include <ui/GraphicBufferMapper.h>
 #include <future>
 
 namespace android {
