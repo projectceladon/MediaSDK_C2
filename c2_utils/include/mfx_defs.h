@@ -15,6 +15,14 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <limits>
 #include <algorithm>
 
+// includes below are to get Intel color formats
+#ifdef MFX_C2_USE_GRALLOC_1
+    #define DRV_I915
+    #include <i915_private_android_types.h>
+#else
+    #include <ufo/graphics.h>
+#endif
+
 #define MFX_IMPLEMENTATION (MFX_IMPL_AUTO_ANY | MFX_IMPL_VIA_ANY)
 
 extern mfxVersion g_required_mfx_version;

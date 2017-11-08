@@ -14,14 +14,18 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <utils/Errors.h>
 #include <C2Buffer.h>
 
-#include <hardware/gralloc.h>
+#ifdef MFX_C2_USE_GRALLOC_1
+    #include <hardware/gralloc1.h>
+#else
+    #include <hardware/gralloc.h>
+#endif
 
 class MfxGrallocModule
 {
 public:
     static android::status_t Create(std::unique_ptr<MfxGrallocModule>* module);
 
-    virtual ~MfxGrallocModule() = default;
+    virtual ~MfxGrallocModule();
 
 public:
     struct BufferDetails
@@ -43,9 +47,31 @@ protected:
     android::status_t Init();
 
 protected:
-    hw_module_t const* m_module {};
+    hw_module_t const* hw_module_ {};
+#ifdef MFX_C2_USE_GRALLOC_1
 
-    gralloc_module_t* m_grallocModule {};
+    template<typename FuncType, gralloc1_function_descriptor_t FuncId>
+    class Gralloc1Func
+    {
+    private:
+        FuncType func_ {};
+    public:
+        FuncType operator*() { return func_; }
+        bool Acquire(gralloc1_device_t* gr_device)
+        {
+            func_ = (FuncType)gr_device->getFunction(gr_device, FuncId);
+            return func_ != nullptr;
+        }
+    };
+
+    gralloc1_device_t* gralloc1_dev_ {};
+
+    Gralloc1Func<GRALLOC1_PFN_GET_FORMAT, GRALLOC1_FUNCTION_GET_FORMAT> gr_get_format_;
+    Gralloc1Func<GRALLOC1_PFN_GET_DIMENSIONS, GRALLOC1_FUNCTION_GET_DIMENSIONS> gr_get_dimensions_;
+    Gralloc1Func<GRALLOC1_PFN_GET_STRIDE, GRALLOC1_FUNCTION_GET_STRIDE> gr_get_stride_;
+#else
+    gralloc_module_t* gralloc_module_ {};
+#endif
 };
 
 class MfxGrallocAllocator : public MfxGrallocModule
@@ -67,7 +93,22 @@ private:
 
 protected:
 
-    alloc_device_t*   m_allocDev {};
+#ifdef MFX_C2_USE_GRALLOC_1
+
+    Gralloc1Func<GRALLOC1_PFN_ALLOCATE, GRALLOC1_FUNCTION_ALLOCATE> gr_allocate_;
+    Gralloc1Func<GRALLOC1_PFN_RELEASE, GRALLOC1_FUNCTION_RELEASE> gr_release_;
+    Gralloc1Func<GRALLOC1_PFN_LOCK, GRALLOC1_FUNCTION_LOCK> gr_lock_;
+    Gralloc1Func<GRALLOC1_PFN_UNLOCK, GRALLOC1_FUNCTION_UNLOCK> gr_unlock_;
+    Gralloc1Func<GRALLOC1_PFN_CREATE_DESCRIPTOR, GRALLOC1_FUNCTION_CREATE_DESCRIPTOR> gr_create_descriptor_;
+    Gralloc1Func<GRALLOC1_PFN_SET_CONSUMER_USAGE, GRALLOC1_FUNCTION_SET_CONSUMER_USAGE> gr_set_consumer_usage_;
+    Gralloc1Func<GRALLOC1_PFN_SET_PRODUCER_USAGE, GRALLOC1_FUNCTION_SET_PRODUCER_USAGE> gr_set_producer_usage_;
+    Gralloc1Func<GRALLOC1_PFN_SET_DIMENSIONS, GRALLOC1_FUNCTION_SET_DIMENSIONS> gr_set_dimensions_;
+    Gralloc1Func<GRALLOC1_PFN_SET_FORMAT, GRALLOC1_FUNCTION_SET_FORMAT> gr_set_format_;
+    Gralloc1Func<GRALLOC1_PFN_DESTROY_DESCRIPTOR, GRALLOC1_FUNCTION_DESTROY_DESCRIPTOR> gr_destroy_descriptor_;
+
+#else
+    alloc_device_t* alloc_dev_ {};
+#endif
 
     MFX_CLASS_NO_COPY(MfxGrallocAllocator)
 };

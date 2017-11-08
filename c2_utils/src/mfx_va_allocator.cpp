@@ -17,8 +17,6 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_msdk_debug.h"
 #include "va/va_android.h"
 
-#include <ufo/graphics.h>
-
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_va_allocator"
 
