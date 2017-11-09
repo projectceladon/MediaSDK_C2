@@ -11,6 +11,8 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #pragma once
 
 #include "mfx_defs.h"
+#include "mfx_allocator.h"
+
 #include <memory>
 
 class MfxDev
@@ -22,6 +24,8 @@ public:
     virtual mfxStatus Init() = 0;
 
     virtual mfxStatus Close() = 0;
+
+    virtual MfxFrameAllocator* GetFrameAllocator() = 0;
 
     virtual mfxStatus InitMfxSession(MFXVideoSession* session) = 0;
 
