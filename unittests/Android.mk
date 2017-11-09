@@ -98,49 +98,75 @@ include $(BUILD_EXECUTABLE)
 
 # =============================================================================
 
-include $(CLEAR_VARS)
-include $(MFX_HOME)/android/mfx_defs.mk
+# Usage: $(call build_mock_unittests, va|pure)
+define build_mock_unittests
 
-STREAM_CPP_FILES := $(wildcard $(LOCAL_PATH)/streams/*/*.cpp)
+  include $(CLEAR_VARS)
+  include $(MFX_HOME)/android/mfx_defs.mk
 
-LOCAL_SRC_FILES := \
-    $(STREAM_CPP_FILES:$(LOCAL_PATH)/%=%) \
-    src/c2_mock_component_test.cpp \
-    src/c2_utils_test.cpp \
-    src/gtest_emulation.cpp \
-    src/test_components.cpp \
-    src/test_frame_constructor.cpp \
-    src/test_main.cpp
+  STREAM_CPP_FILES := $$(wildcard $(LOCAL_PATH)/streams/*/*.cpp)
 
-LOCAL_C_INCLUDES := \
-    $(MFX_C_INCLUDES) \
-    $(MFX_C_INCLUDES_C2) \
-    $(MFX_C2_HOME)/mock/c2_components/include \
-    $(MFX_C2_HOME)/c2_components/include \
-    $(MFX_C2_HOME)/unittests/include \
-    $(MFX_C2_HOME)/mock/codec2/include \
-    $(MFX_C2_HOME)/c2_utils/include
+  LOCAL_SRC_FILES := \
+      $$(STREAM_CPP_FILES:$(LOCAL_PATH)/%=%) \
+      src/c2_mock_component_test.cpp \
+      src/c2_utils_test.cpp \
+      src/gtest_emulation.cpp \
+      src/test_components.cpp \
+      src/test_frame_constructor.cpp \
+      src/test_main.cpp
 
-LOCAL_C_INCLUDES_32 := $(IPP_ROOT_32)/include
-LOCAL_C_INCLUDES_64 := $(IPP_ROOT_64)/include
+  LOCAL_C_INCLUDES := \
+      $$(MFX_C_INCLUDES) \
+      $$(MFX_C_INCLUDES_C2) \
+      $$(MFX_C2_HOME)/mock/c2_components/include \
+      $$(MFX_C2_HOME)/c2_components/include \
+      $$(MFX_C2_HOME)/unittests/include \
+      $$(MFX_C2_HOME)/mock/codec2/include \
+      $$(MFX_C2_HOME)/c2_utils/include
 
-LOCAL_CFLAGS += \
-    $(MFX_CFLAGS) \
-    -std=c++14 \
-    -fexceptions
+  LOCAL_C_INCLUDES_32 := $$(IPP_ROOT_32)/include
+  LOCAL_C_INCLUDES_64 := $$(IPP_ROOT_64)/include
 
-LOCAL_LDFLAGS += \
-    $(MFX_LDFLAGS)
+  LOCAL_CFLAGS += \
+      $$(MFX_CFLAGS) \
+      -std=c++14 \
+      -fexceptions
 
-LOCAL_STATIC_LIBRARIES := libmfx_c2_utils libmfx_mock_codec2 libippdc_l libippcore_l
+  LOCAL_LDFLAGS += \
+      $$(MFX_LDFLAGS)
 
-LOCAL_SHARED_LIBRARIES := libmfx_mock_c2_components \
-    libdl liblog libhardware
+  LOCAL_STATIC_LIBRARIES := libmfx_mock_codec2 libippdc_l libippcore_l
 
-LOCAL_MULTILIB := both
-LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE := mfx_c2_mock_unittests
-LOCAL_MODULE_STEM_32 := mfx_c2_mock_unittests32
-LOCAL_MODULE_STEM_64 := mfx_c2_mock_unittests64
+  LOCAL_SHARED_LIBRARIES := libmfx_mock_c2_components \
+      libdl liblog libhardware
 
-include $(BUILD_EXECUTABLE)
+  ifneq ($(1),pure)
+    MODULE_SUFFIX :=
+
+    LOCAL_C_INCLUDES += \
+        $$(MFX_C_INCLUDES_LIBVA)
+    LOCAL_CFLAGS += \
+        $$(MFX_CFLAGS_LIBVA)
+    LOCAL_SHARED_LIBRARIES += \
+      libva libva-android
+
+    LOCAL_STATIC_LIBRARIES += libmfx_c2_utils_va
+  else
+    MODULE_SUFFIX := _pure
+
+    LOCAL_STATIC_LIBRARIES += libmfx_c2_utils
+  endif
+
+  LOCAL_MULTILIB := both
+  LOCAL_MODULE_TAGS := optional
+  LOCAL_MODULE := mfx_c2_mock_unittests$$(MODULE_SUFFIX)
+  LOCAL_MODULE_STEM_32 := mfx_c2_mock_unittests$$(MODULE_SUFFIX)32
+  LOCAL_MODULE_STEM_64 := mfx_c2_mock_unittests$$(MODULE_SUFFIX)64
+
+  include $(BUILD_EXECUTABLE)
+
+endef
+
+$(eval $(call build_mock_unittests,va)) # utils test with va
+
+$(eval $(call build_mock_unittests,pure)) # utils test without va
