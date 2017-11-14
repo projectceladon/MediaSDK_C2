@@ -29,6 +29,10 @@ private:
     MfxFrameAllocator* GetFrameAllocator() override { return va_allocator_.get(); }
     virtual mfxStatus InitMfxSession(MFXVideoSession* session) override;
 
+    MfxFrameConverter* GetFrameConverter() override {
+        return va_allocator_.get();
+    }
+
 protected:
     typedef unsigned int MfxVaAndroidDisplayId;
 

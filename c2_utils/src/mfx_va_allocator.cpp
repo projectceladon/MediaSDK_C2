@@ -17,6 +17,8 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_msdk_debug.h"
 #include "va/va_android.h"
 
+#include <ufo/graphics.h>
+
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_va_allocator"
 
@@ -26,6 +28,28 @@ static unsigned int ConvertMfxFourccToVAFormat(mfxU32 fourcc)
 {
     switch (fourcc) {
         case MFX_FOURCC_NV12:
+            return VA_FOURCC_NV12;
+        default:
+            return 0;
+    }
+}
+
+static mfxU32 ConvertVAFourccToMfxFormat(unsigned int fourcc)
+{
+    switch (fourcc)
+    {
+        case VA_FOURCC_NV12:
+            return MFX_FOURCC_NV12;
+        default:
+            return 0;
+    }
+}
+
+static unsigned int ConvertGrallocFourccToVAFormat(int fourcc)
+{
+    switch (fourcc)
+    {
+        case HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL:
             return VA_FOURCC_NV12;
         default:
             return 0;
@@ -110,6 +134,8 @@ mfxStatus MfxVaFrameAllocator::AllocImpl(mfxFrameAllocRequest *request, mfxFrame
 mfxStatus MfxVaFrameAllocator::FreeImpl(mfxFrameAllocResponse *response)
 {
     MFX_DEBUG_TRACE_FUNC;
+
+    std::lock_guard<std::mutex> lock(mutex_);
 
     mfxStatus mfx_res = MFX_ERR_NONE;
 
@@ -245,6 +271,191 @@ mfxStatus MfxVaFrameAllocator::GetFrameHDL(mfxMemId mid, mfxHDL *handle)
 
     *handle = va_mid->surface_; //VASurfaceID* <-> mfxHDL
     return MFX_ERR_NONE;
+}
+
+mfxStatus MfxVaFrameAllocator::ConvertGrallocToVa(buffer_handle_t gralloc_buffer, bool decode_target, mfxMemId* mem_id)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    mfxStatus mfx_res = MFX_ERR_NONE;
+
+    VASurfaceID surface { VA_INVALID_ID };
+
+    do {
+
+        if (!gralloc_buffer) {
+            mfx_res = MFX_ERR_INVALID_HANDLE;
+            break;
+        }
+
+        auto found = mapped_va_surfaces_.find(gralloc_buffer);
+        if (found != mapped_va_surfaces_.end()) {
+            *mem_id = found->second.get();
+        } else {
+            mfxU32 fourcc {};
+            mfx_res = MapGrallocBufferToSurface(gralloc_buffer, decode_target, &fourcc, &surface);
+            if (MFX_ERR_NONE != mfx_res) break;
+
+            VaMemIdAllocated* mem_id_alloc_raw = new (std::nothrow)VaMemIdAllocated();
+            if (!mem_id_alloc_raw) {
+                mfx_res = MFX_ERR_MEMORY_ALLOC;
+                break;
+            }
+
+            VaMemIdDeleter deleter = [this] (VaMemIdAllocated* va_mid) {
+                if (VA_INVALID_ID != va_mid->surface_) {
+                    vaDestroySurfaces(dpy_, &va_mid->surface_, 1);
+                }
+            };
+
+            std::unique_ptr<VaMemIdAllocated, VaMemIdDeleter> mem_id_alloc(mem_id_alloc_raw, deleter);
+
+            mem_id_alloc->surface_ = surface; // Save VASurfaceID there
+
+            // Save pointer to allocated VASurfaceID, needed for compatibility with VA surfaces
+            // allocated through mfxFrameAllocator interface, they are allocated in straight array,
+            // accessed with VaMemId.surface_ pointer.
+            mem_id_alloc->mem_id.surface_ = &mem_id_alloc->surface_;
+            mem_id_alloc->mem_id.fourcc_ = fourcc;
+            mem_id_alloc->mem_id.gralloc_buffer_ = gralloc_buffer;
+
+            *mem_id = mem_id_alloc.get();
+
+            mapped_va_surfaces_.emplace(gralloc_buffer, std::move(mem_id_alloc));
+        }
+    } while(false);
+
+    MFX_DEBUG_TRACE_I32(mfx_res);
+    return mfx_res;
+}
+
+void MfxVaFrameAllocator::FreeGrallocToVaMapping(buffer_handle_t gralloc_buffer)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    mapped_va_surfaces_.erase(gralloc_buffer);
+}
+
+void MfxVaFrameAllocator::FreeGrallocToVaMapping(mfxMemId mem_id)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    auto match = [mem_id] (const auto& item) -> bool {
+        return item.second.get() == (VaMemIdAllocated*)mem_id;
+    };
+
+    auto found = std::find_if(mapped_va_surfaces_.begin(), mapped_va_surfaces_.end(), match);
+    if (found != mapped_va_surfaces_.end()) {
+        mapped_va_surfaces_.erase(found);
+    }
+}
+
+void MfxVaFrameAllocator::FreeAllMappings()
+{
+    MFX_DEBUG_TRACE_FUNC;
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    mapped_va_surfaces_.clear();
+}
+
+mfxStatus MfxVaFrameAllocator::CreateNV12SurfaceFromGralloc(buffer_handle_t gralloc_buffer, bool decode_target,
+    const MfxGrallocModule::BufferDetails& buffer_details, VASurfaceID* surface)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    mfxStatus mfx_res = MFX_ERR_NONE;
+
+    MFX_DEBUG_TRACE_P(gralloc_buffer);
+
+    const MfxGrallocModule::BufferDetails & info = buffer_details;
+    MFX_DEBUG_TRACE_I32(info.width);
+    MFX_DEBUG_TRACE_I32(info.height);
+    MFX_DEBUG_TRACE_I32(info.allocWidth);
+    MFX_DEBUG_TRACE_I32(info.allocHeight);
+    MFX_DEBUG_TRACE_I32(info.pitch);
+
+    mfxU32 width = decode_target ? info.allocWidth : info.width;
+    mfxU32 height = decode_target ? info.allocHeight : info.height;
+
+    VASurfaceAttrib attribs[2];
+    MFX_ZERO_MEMORY(attribs);
+
+    VASurfaceAttribExternalBuffers surfExtBuf;
+    MFX_ZERO_MEMORY(surfExtBuf);
+
+    surfExtBuf.pixel_format = ConvertGrallocFourccToVAFormat(info.format);
+    surfExtBuf.width = width;
+    surfExtBuf.height = height;
+    surfExtBuf.pitches[0] = info.pitch;
+    surfExtBuf.num_planes = 2;
+    surfExtBuf.num_buffers = 1;
+    surfExtBuf.buffers = (long unsigned int*)&gralloc_buffer;
+    surfExtBuf.flags = VA_SURFACE_ATTRIB_MEM_TYPE_ANDROID_GRALLOC;
+
+    attribs[0].type = (VASurfaceAttribType)VASurfaceAttribMemoryType;
+    attribs[0].flags = VA_SURFACE_ATTRIB_SETTABLE;
+    attribs[0].value.type = VAGenericValueTypeInteger;
+    attribs[0].value.value.i = VA_SURFACE_ATTRIB_MEM_TYPE_ANDROID_GRALLOC;
+
+    attribs[1].type = (VASurfaceAttribType)VASurfaceAttribExternalBufferDescriptor;
+    attribs[1].flags = VA_SURFACE_ATTRIB_SETTABLE;
+    attribs[1].value.type = VAGenericValueTypePointer;
+    attribs[1].value.value.p = (void *)&surfExtBuf;
+
+    VAStatus va_res = vaCreateSurfaces(dpy_, VA_RT_FORMAT_YUV420,
+        width, height,
+        surface, 1,
+        attribs, MFX_GET_ARRAY_SIZE(attribs));
+    mfx_res = va_to_mfx_status(va_res);
+
+    MFX_DEBUG_TRACE_I32(*surface);
+    MFX_DEBUG_TRACE_I32(mfx_res);
+    return mfx_res;
+}
+
+mfxStatus MfxVaFrameAllocator::MapGrallocBufferToSurface(buffer_handle_t gralloc_buffer, bool decode_target,
+    mfxU32* fourcc, VASurfaceID* surface)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    mfxStatus mfx_res = MFX_ERR_NONE;
+
+    MFX_DEBUG_TRACE_P(gralloc_buffer);
+
+    do {
+
+        if (!gralloc_module_) {
+            status_t sts = MfxGrallocModule::Create(&gralloc_module_);
+            if(OK != sts) {
+                mfx_res = MFX_ERR_MEMORY_ALLOC;
+                break;
+            }
+        }
+
+        MfxGrallocModule::BufferDetails buffer_details {};
+        status_t sts = gralloc_module_->GetBufferDetails(gralloc_buffer, &buffer_details);
+        if(OK != sts) {
+            mfx_res = MFX_ERR_INVALID_HANDLE;
+            break;
+        }
+
+        if (buffer_details.format == HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL) {
+            mfx_res = CreateNV12SurfaceFromGralloc(gralloc_buffer, decode_target, buffer_details, surface);
+            *fourcc = ConvertVAFourccToMfxFormat(ConvertGrallocFourccToVAFormat(buffer_details.format));
+        } else {
+            // Other formats are unsupported for now,
+            // including HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL which might
+            // demand creation of separate VASurface and copy contents there. (It depends on driver).
+            mfx_res = MFX_ERR_UNSUPPORTED;
+        }
+    } while(false);
+
+    MFX_DEBUG_TRACE_I32(mfx_res);
+    return mfx_res;
 }
 
 #endif // #if defined(LIBVA_SUPPORT)

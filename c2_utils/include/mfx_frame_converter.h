@@ -11,26 +11,22 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #pragma once
 
 #include "mfx_defs.h"
-#include "mfx_allocator.h"
-#include "mfx_frame_converter.h"
 
-#include <memory>
+#include <hardware/gralloc.h>
 
-class MfxDev
+class MfxFrameConverter
 {
 public:
-    virtual ~MfxDev() = default;
+    virtual mfxStatus ConvertGrallocToVa(buffer_handle_t gralloc_buffer,
+        bool decode_target, mfxMemId* mem_id) = 0;
 
-public:
-    virtual mfxStatus Init() = 0;
+    virtual void FreeGrallocToVaMapping(buffer_handle_t gralloc_buffer) = 0;
 
-    virtual mfxStatus Close() = 0;
+    virtual void FreeGrallocToVaMapping(mfxMemId mem_id) = 0;
 
-    virtual MfxFrameAllocator* GetFrameAllocator() = 0;
+    virtual void FreeAllMappings() = 0;
 
-    virtual MfxFrameConverter* GetFrameConverter() = 0;
-
-    virtual mfxStatus InitMfxSession(MFXVideoSession* session) = 0;
-
-    static mfxStatus Create(std::unique_ptr<MfxDev>* device);
+protected: // virtual deletion prohibited
+    virtual ~MfxFrameConverter() = default;
 };
+
