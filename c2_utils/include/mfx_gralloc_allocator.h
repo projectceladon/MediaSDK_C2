@@ -16,7 +16,39 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include <hardware/gralloc.h>
 
-class MfxGrallocAllocator
+class MfxGrallocModule
+{
+public:
+    static android::status_t Create(std::unique_ptr<MfxGrallocModule>* module);
+
+    virtual ~MfxGrallocModule() = default;
+
+public:
+    struct BufferDetails
+    {
+        int width;
+        int height;
+        int format;
+        uint32_t pitch;
+        uint32_t allocWidth;
+        uint32_t allocHeight;
+    };
+
+public:
+    android::status_t GetBufferDetails(const buffer_handle_t handle, BufferDetails* details);
+
+protected:
+    MfxGrallocModule() = default;
+
+    android::status_t Init();
+
+protected:
+    hw_module_t const* m_module {};
+
+    gralloc_module_t* m_grallocModule {};
+};
+
+class MfxGrallocAllocator : public MfxGrallocModule
 {
 public:
     static android::status_t Create(std::unique_ptr<MfxGrallocAllocator>* allocator);
@@ -34,10 +66,8 @@ private:
     android::status_t Init();
 
 protected:
-    hw_module_t const* m_module {};
 
     alloc_device_t*   m_allocDev {};
-    gralloc_module_t* m_grallocModule {}; // for lock()/unlock()
 
     MFX_CLASS_NO_COPY(MfxGrallocAllocator)
 };

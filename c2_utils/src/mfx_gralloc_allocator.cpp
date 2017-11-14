@@ -18,6 +18,75 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 using namespace android;
 
+status_t MfxGrallocModule::Create(std::unique_ptr<MfxGrallocModule>* allocator)
+{
+    status_t res = OK;
+    if (allocator) {
+        std::unique_ptr<MfxGrallocModule> alloc(new (std::nothrow)MfxGrallocModule());
+        if (alloc) {
+            res = alloc->Init();
+            if (res == OK) *allocator = std::move(alloc);
+        } else {
+            res = NO_MEMORY;
+        }
+    } else {
+        res = UNEXPECTED_NULL;
+    }
+    return res;
+}
+
+status_t MfxGrallocModule::Init()
+{
+    status_t res = hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &m_module);
+    if (OK == res) m_grallocModule = (gralloc_module_t*)m_module;
+    return res;
+}
+
+android::status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handle,
+    MfxGrallocModule::BufferDetails* details)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    status_t res = OK;
+
+    struct intel_ufo_buffer_details_t
+    {
+        // this structure mimics the same from ufo android o mr0
+        uint32_t magic;         // [in] size of this struct
+
+        int width;              // \see alloc_device_t::alloc
+        int height;             // \see alloc_device_t::alloc
+        int format;             // \see alloc_device_t::alloc \note resolved format (not flexible)
+
+        uint32_t placeholder1[7];
+
+        uint32_t pitch;         // buffer pitch (in bytes)
+        uint32_t allocWidth;    // allocated buffer width in pixels.
+        uint32_t allocHeight;   // allocated buffer height in lines.
+
+        uint32_t placeholder2[10];
+    };
+
+    const int INTEL_UFO_GRALLOC_MODULE_PERFORM_GET_BO_INFO = 6;
+
+    intel_ufo_buffer_details_t info {};
+    info.magic = sizeof(info);
+    int err = m_grallocModule->perform(m_grallocModule, INTEL_UFO_GRALLOC_MODULE_PERFORM_GET_BO_INFO, handle, &info);
+    if (0 != err) {
+        MFX_DEBUG_TRACE_MSG("Failed to get BO_INFO");
+        res = UNKNOWN_ERROR;
+    } else {
+        details->width = info.width;
+        details->height = info.height;
+        details->format = info.format;
+        details->pitch = info.pitch;
+        details->allocWidth = info.allocWidth;
+        details->allocHeight = info.allocHeight;
+    }
+
+    return res;
+}
+
 status_t MfxGrallocAllocator::Create(std::unique_ptr<MfxGrallocAllocator>* allocator)
 {
     status_t res = OK;
@@ -37,10 +106,9 @@ status_t MfxGrallocAllocator::Create(std::unique_ptr<MfxGrallocAllocator>* alloc
 
 status_t MfxGrallocAllocator::Init()
 {
-    status_t res = hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &m_module);
+    status_t res = MfxGrallocModule::Init();
 
     if (OK == res) {
-        m_grallocModule = (gralloc_module_t *)m_module;
         res = gralloc_open(m_module, &m_allocDev);
     }
     return res;
@@ -93,49 +161,23 @@ status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** data, 
 
     status_t res = OK;
 
-    struct intel_ufo_buffer_details_t
-    {
-        // this structure mimics the same from ufo android o mr0
-        uint32_t magic;         // [in] size of this struct
-
-        int width;              // \see alloc_device_t::alloc
-        int height;             // \see alloc_device_t::alloc
-        int format;             // \see alloc_device_t::alloc \note resolved format (not flexible)
-
-        uint32_t placeholder1[7];
-
-        uint32_t pitch;         // buffer pitch (in bytes)
-        uint32_t allocWidth;    // allocated buffer width in pixels.
-        uint32_t allocHeight;   // allocated buffer height in lines.
-
-        uint32_t placeholder2[10];
-    };
-
-    const int INTEL_UFO_GRALLOC_MODULE_PERFORM_GET_BO_INFO = 6;
-
-    intel_ufo_buffer_details_t info;
-    MFX_ZERO_MEMORY(info);
 
     if (!layout) res = UNEXPECTED_NULL;
 
-    if (OK == res) {
-        *reinterpret_cast<uint32_t*>(&info) = sizeof(info);
+    BufferDetails details {};
 
-        int err = m_grallocModule->perform(m_grallocModule, INTEL_UFO_GRALLOC_MODULE_PERFORM_GET_BO_INFO, handle, &info);
-        if (0 != err) {
-            MFX_DEBUG_TRACE_MSG("Failed to get BO_INFO");
-            res = UNKNOWN_ERROR;
-        }
+    if (OK == res) {
+        res = GetBufferDetails(handle, &details);
     }
 
     mfxU8 *img = NULL;
     if (OK == res) {
         res = m_grallocModule->lock(m_grallocModule, handle, GRALLOC_USAGE_SW_READ_MASK | GRALLOC_USAGE_SW_WRITE_MASK,
-                                                        0, 0, info.width, info.height, (void**)&img);
+                                                        0, 0, details.width, details.height, (void**)&img);
     }
 
     if (OK == res) {
-        InitNV12PlaneLayout(info.pitch, info.allocHeight, layout);
+        InitNV12PlaneLayout(details.pitch, details.allocHeight, layout);
         *data = img;
     }
 
