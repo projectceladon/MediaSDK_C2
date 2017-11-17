@@ -23,6 +23,9 @@ public:
     MfxDevVa();
     virtual ~MfxDevVa();
 
+public:
+    VADisplay GetVaDisplay() { return va_display_; }
+
 private:
     virtual mfxStatus Init() override;
     virtual mfxStatus Close() override;

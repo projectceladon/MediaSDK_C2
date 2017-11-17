@@ -29,6 +29,8 @@ static unsigned int ConvertMfxFourccToVAFormat(mfxU32 fourcc)
     switch (fourcc) {
         case MFX_FOURCC_NV12:
             return VA_FOURCC_NV12;
+        case MFX_FOURCC_P8:
+            return VA_FOURCC_P208;
         default:
             return 0;
     }
@@ -71,6 +73,8 @@ mfxStatus MfxVaFrameAllocator::AllocImpl(mfxFrameAllocRequest *request, mfxFrame
 {
     MFX_DEBUG_TRACE_FUNC;
 
+    MFX_DEBUG_TRACE_U32(request->Info.FourCC);
+
     std::lock_guard<std::mutex> lock(mutex_);
 
     mfxStatus mfx_res = MFX_ERR_NONE;
@@ -99,18 +103,45 @@ mfxStatus MfxVaFrameAllocator::AllocImpl(mfxFrameAllocRequest *request, mfxFrame
             break;
         }
 
-        VASurfaceAttrib attrib;
-        attrib.type = VASurfaceAttribPixelFormat;
-        attrib.value.type = VAGenericValueTypeInteger;
-        attrib.value.value.i = va_fourcc;
-        attrib.flags = VA_SURFACE_ATTRIB_SETTABLE;
+        if (VA_FOURCC_P208 != va_fourcc) {
 
-        VAStatus va_res = vaCreateSurfaces(dpy_, VA_RT_FORMAT_YUV420,
-            request->Info.Width, request->Info.Height,
-            surfaces.get(), surfaces_count, &attrib, 1);
-        if (VA_STATUS_SUCCESS != va_res) {
-            mfx_res = va_to_mfx_status(va_res);
-            break;
+            VASurfaceAttrib attrib;
+            attrib.type = VASurfaceAttribPixelFormat;
+            attrib.value.type = VAGenericValueTypeInteger;
+            attrib.value.value.i = va_fourcc;
+            attrib.flags = VA_SURFACE_ATTRIB_SETTABLE;
+
+            VAStatus va_res = vaCreateSurfaces(dpy_, VA_RT_FORMAT_YUV420,
+                request->Info.Width, request->Info.Height,
+                surfaces.get(), surfaces_count, &attrib, 1);
+            if (VA_STATUS_SUCCESS != va_res) {
+                mfx_res = va_to_mfx_status(va_res);
+                break;
+            }
+        } else {
+            VAContextID context_id = request->AllocId;
+            MFX_DEBUG_TRACE_U32(context_id);
+            mfxU32 codedbuf_size = EstimatedEncodedFrameLen(request->Info.Width, request->Info.Height);
+
+            VAStatus va_res = VA_STATUS_SUCCESS;
+            for (int alloc_count = 0; alloc_count < surfaces_count; ++alloc_count) {
+
+                va_res = vaCreateBuffer(dpy_, context_id, VAEncCodedBufferType,
+                    codedbuf_size, 1, nullptr, &(surfaces[alloc_count]));
+
+                if (VA_STATUS_SUCCESS != va_res) {
+                    MFX_DEBUG_TRACE_U32(va_res);
+                    for (int i = alloc_count - 1; i >= 0; --i) { // free allocated already
+                        vaDestroyBuffer(dpy_, surfaces[i]);
+                    }
+                    break;
+                }
+            }
+
+            if (VA_STATUS_SUCCESS != va_res) {
+                mfx_res = va_to_mfx_status(va_res);
+                break;
+            }
         }
 
         for (int i = 0; i < surfaces_count; ++i)
@@ -138,7 +169,6 @@ mfxStatus MfxVaFrameAllocator::FreeImpl(mfxFrameAllocResponse *response)
     std::lock_guard<std::mutex> lock(mutex_);
 
     mfxStatus mfx_res = MFX_ERR_NONE;
-
     if (response) {
 
         if (response->mids)
@@ -150,7 +180,13 @@ mfxStatus MfxVaFrameAllocator::FreeImpl(mfxFrameAllocResponse *response)
             delete[] response->mids;
             response->mids = NULL;
 
-            vaDestroySurfaces(dpy_, surfaces, response->NumFrameActual);
+            if (MFX_FOURCC_P8 != va_mids->fourcc_) {
+                vaDestroySurfaces(dpy_, surfaces, response->NumFrameActual);
+            } else {
+                for (int i = 0; i < response->NumFrameActual; ++i) {
+                    vaDestroyBuffer(dpy_, surfaces[i]);
+                }
+            }
             delete[] surfaces;
         }
 
@@ -169,6 +205,7 @@ static mfxStatus InitMfxFrameData(VaMemId& va_mid, mfxU8* pBuffer, mfxFrameData 
 
     mfxStatus mfx_res = MFX_ERR_NONE;
 
+    *frame_data = mfxFrameData {};
     frame_data->MemId = &va_mid;
 
     switch (va_mid.image_.format.fourcc) {
@@ -205,26 +242,40 @@ mfxStatus MfxVaFrameAllocator::LockFrame(mfxMemId mid, mfxFrameData *frame_data)
             break;
         }
 
-        VAStatus va_res = vaDeriveImage(dpy_, *(va_mid->surface_), &(va_mid->image_));
-        if (VA_STATUS_SUCCESS != va_res) {
-            mfx_res = va_to_mfx_status(va_res);
-            break;
+        if (MFX_FOURCC_P8 == va_mid->fourcc_)   // bitstream processing
+        {
+            VACodedBufferSegment *coded_buffer_segment;
+            VAStatus va_res = vaMapBuffer(dpy_, *(va_mid->surface_),
+                (void **)(&coded_buffer_segment));
+            if (VA_STATUS_SUCCESS != va_res) {
+                mfx_res = va_to_mfx_status(va_res);
+                break;
+            }
+            *frame_data = mfxFrameData {};
+            frame_data->MemId = va_mid;
+            frame_data->Y = (mfxU8*)coded_buffer_segment->buf;
+        } else {
+            VAStatus va_res = vaDeriveImage(dpy_, *(va_mid->surface_), &(va_mid->image_));
+            if (VA_STATUS_SUCCESS != va_res) {
+                mfx_res = va_to_mfx_status(va_res);
+                break;
+            }
+
+            va_res = vaSyncSurface(dpy_, *(va_mid->surface_));
+            if (VA_STATUS_SUCCESS != va_res) {
+                mfx_res = va_to_mfx_status(va_res);
+                break;
+            }
+
+            mfxU8* pBuffer = nullptr;
+            va_res = vaMapBuffer(dpy_, va_mid->image_.buf, (void**)&pBuffer);
+            if (VA_STATUS_SUCCESS != va_res) {
+                mfx_res = va_to_mfx_status(va_res);
+                break;
+            }
+            mfx_res = InitMfxFrameData(*va_mid, pBuffer, frame_data);
         }
 
-        va_res = vaSyncSurface(dpy_, *(va_mid->surface_));
-        if (VA_STATUS_SUCCESS != va_res) {
-            mfx_res = va_to_mfx_status(va_res);
-            break;
-        }
-
-        mfxU8* pBuffer = 0;
-        va_res = vaMapBuffer(dpy_, va_mid->image_.buf, (void**)&pBuffer);
-        if (VA_STATUS_SUCCESS != va_res) {
-            mfx_res = va_to_mfx_status(va_res);
-            break;
-        }
-
-        mfx_res = InitMfxFrameData(*va_mid, pBuffer, frame_data);
 
     } while(false);
 
@@ -242,15 +293,21 @@ mfxStatus MfxVaFrameAllocator::UnlockFrame(mfxMemId mid, mfxFrameData *frame_dat
 
     VaMemId* va_mid = (VaMemId*)mid;
     if (va_mid && va_mid->surface_) {
-        vaUnmapBuffer(dpy_, va_mid->image_.buf);
-        vaDestroyImage(dpy_, va_mid->image_.image_id);
 
-        if (nullptr != frame_data) {
-            frame_data->Pitch = 0;
-            frame_data->Y = nullptr;
-            frame_data->U = nullptr;
-            frame_data->V = nullptr;
-            frame_data->A = nullptr;
+        if (MFX_FOURCC_P8 == va_mid->fourcc_) { // bitstream processing
+            vaUnmapBuffer(dpy_, *(va_mid->surface_));
+        }
+        else { // Image processing
+            vaUnmapBuffer(dpy_, va_mid->image_.buf);
+            vaDestroyImage(dpy_, va_mid->image_.image_id);
+
+            if (nullptr != frame_data) {
+                frame_data->Pitch = 0;
+                frame_data->Y = nullptr;
+                frame_data->U = nullptr;
+                frame_data->V = nullptr;
+                frame_data->A = nullptr;
+            }
         }
     } else {
         mfx_res = MFX_ERR_INVALID_HANDLE;

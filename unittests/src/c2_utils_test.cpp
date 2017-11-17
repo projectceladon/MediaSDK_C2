@@ -16,6 +16,10 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <map>
 #include <set>
 
+#ifdef LIBVA_SUPPORT
+#include <va/va_android.h>
+#endif
+
 using namespace android;
 
 static const size_t CMD_COUNT = 10;
@@ -138,23 +142,25 @@ static void CheckNV12PlaneLayout(uint16_t width, uint16_t height, const C2PlaneL
     EXPECT_EQ(layout.mPlanes[Layout::U].mOffset + 1, layout.mPlanes[Layout::V].mOffset);
 }
 
-static void CheckNV12MfxFrameData(uint16_t width, uint16_t height,
+static void CheckMfxFrameData(mfxU32 fourcc, uint16_t width, uint16_t height,
     bool hw_memory, bool locked, const mfxFrameData& frame_data)
 {
     EXPECT_EQ(frame_data.PitchHigh, 0);
     uint32_t pitch = MakeUint32(frame_data.PitchHigh, frame_data.PitchLow);
 
-    EXPECT_TRUE(pitch >= width);
-
+    if (fourcc != MFX_FOURCC_P8) {
+        EXPECT_TRUE(pitch >= width);
+    }
     EXPECT_EQ(frame_data.MemId != nullptr, hw_memory);
 
     bool pointers_expected = locked || !hw_memory;
+    bool color = (fourcc != MFX_FOURCC_P8);
 
     EXPECT_EQ(pointers_expected, frame_data.Y != nullptr);
-    EXPECT_EQ(pointers_expected, frame_data.UV != nullptr);
-    EXPECT_EQ(pointers_expected, frame_data.V != nullptr);
+    EXPECT_EQ(pointers_expected && color, frame_data.UV != nullptr);
+    EXPECT_EQ(pointers_expected && color, frame_data.V != nullptr);
 
-    if(pointers_expected) {
+    if(pointers_expected && color) {
         EXPECT_TRUE(frame_data.Y + pitch * height <= frame_data.UV);
         EXPECT_EQ(frame_data.UV + 1, frame_data.V);
     }
@@ -189,16 +195,31 @@ static void ForEveryPlanePixel(uint16_t width, uint16_t height, const C2PlaneLay
 static void ForEveryPlanePixel(uint16_t width, uint16_t height, const mfxFrameInfo& frame_info,
     const ProcessPlanePixel& process_function, const mfxFrameData& frame_data)
 {
-    EXPECT_EQ(frame_info.FourCC, MFX_FOURCC_NV12) << "only nv12 supported";
-    EXPECT_EQ(frame_info.ChromaFormat, MFX_CHROMAFORMAT_YUV420) << "only chroma 420 supported";
+    const int planes_count_max = 3;
+    uint8_t* planes_data[planes_count_max] = { frame_data.Y, frame_data.UV, frame_data.UV + 1 };
+    const uint16_t planes_vert_subsampling[planes_count_max] = { 1, 2, 2 };
+    const uint16_t planes_horz_subsampling[planes_count_max] = { 1, 2, 2 };
+    const uint16_t planes_col_inc[planes_count_max] = { 1, 2, 2 };
 
-    const int planes_count = 3;
-    uint8_t* planes_data[planes_count] = { frame_data.Y, frame_data.UV, frame_data.UV + 1 };
-    const uint16_t planes_vert_subsampling[planes_count] = { 1, 2, 2 };
-    const uint16_t planes_horz_subsampling[planes_count] = { 1, 2, 2 };
+    int planes_count = -1;
+
+    switch (frame_info.FourCC) {
+        case MFX_FOURCC_NV12:
+            EXPECT_EQ(frame_info.ChromaFormat, MFX_CHROMAFORMAT_YUV420);
+            planes_count = 3;
+            break;
+        case MFX_FOURCC_P8:
+            EXPECT_EQ(frame_info.ChromaFormat, MFX_CHROMAFORMAT_MONOCHROME);
+            planes_count = 1;
+            // buffer is linear, set up width and height to one line
+            width = EstimatedEncodedFrameLen(width, height);
+            height = 1;
+            break;
+        default:
+            EXPECT_TRUE(false) << "unsupported color format";
+    }
 
     uint32_t pitch = MakeUint32(frame_data.PitchHigh, frame_data.PitchLow);
-    const uint16_t planes_col_inc[planes_count] = { 1, 2, 2 };
 
     for (int i = 0; i < planes_count; ++i) {
 
@@ -234,9 +255,12 @@ static void CheckFrameContents(uint16_t width, uint16_t height, int frame_index,
 
     ProcessPlanePixel process = [frame_index, &fails_count] (uint16_t x, uint16_t y, uint32_t plane_index, uint8_t* plane_pixel) {
         if (fails_count < 10) { // to not overflood output
-            bool match = (*plane_pixel == PlanePixelValue(x, y, plane_index, frame_index));
+            uint8_t actual = *plane_pixel;
+            uint8_t expected = PlanePixelValue(x, y, plane_index, frame_index);
+            bool match = (actual == expected);
             if (!match) ++fails_count;
-            EXPECT_TRUE(match) << NAMED(x) << NAMED(y) << NAMED(plane_index);
+            EXPECT_TRUE(match) << NAMED(x) << NAMED(y) << NAMED(plane_index)
+                << NAMED((int)actual) << NAMED((int)expected);
         }
     };
     ForEveryPlanePixel(width, height, frame_info, process, frame_data);
@@ -307,13 +331,24 @@ TEST(MfxGrallocAllocator, BufferKeepsContents)
 
 #ifdef LIBVA_SUPPORT
 
-static void InitNV12(uint16_t width, uint16_t height, mfxFrameInfo* frame_info)
+static void InitFrameInfo(mfxU32 fourcc, uint16_t width, uint16_t height, mfxFrameInfo* frame_info)
 {
     *frame_info = mfxFrameInfo {};
     frame_info->BitDepthLuma = 8;
     frame_info->BitDepthChroma = 8;
-    frame_info->FourCC = MFX_FOURCC_NV12;
-    frame_info->ChromaFormat = MFX_CHROMAFORMAT_YUV420;
+    frame_info->FourCC = fourcc;
+
+    switch (fourcc) {
+        case MFX_FOURCC_NV12:
+            frame_info->ChromaFormat = MFX_CHROMAFORMAT_YUV420;
+            break;
+        case MFX_FOURCC_P8:
+            frame_info->ChromaFormat = MFX_CHROMAFORMAT_MONOCHROME;
+            break;
+        default:
+            ASSERT_TRUE(false) << std::hex << fourcc << " format is not supported";
+    }
+
     frame_info->Width = width;
     frame_info->Height = height;
     frame_info->CropX = 0;
@@ -325,10 +360,55 @@ static void InitNV12(uint16_t width, uint16_t height, mfxFrameInfo* frame_info)
     frame_info->PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
 }
 
+class UtilsVaContext
+{
+private:
+    VAConfigID va_config_ { VA_INVALID_ID };
+
+    VAContextID va_context_ { VA_INVALID_ID };
+
+    VADisplay va_display_ { nullptr };
+
+public:
+    UtilsVaContext(VADisplay va_display, int width, int height)
+        : va_display_(va_display)
+    {
+        VAConfigAttrib attrib[2];
+        mfxI32 numAttrib = MFX_GET_ARRAY_SIZE(attrib);
+        attrib[0].type = VAConfigAttribRTFormat;
+        attrib[0].value = VA_RT_FORMAT_YUV420;
+        attrib[1].type = VAConfigAttribRateControl;
+        attrib[1].value = VA_RC_CQP;
+
+        mfxU32 flag = VA_PROGRESSIVE;
+
+        VAProfile va_profile = VAProfileH264ConstrainedBaseline;
+        VAEntrypoint entrypoint = VAEntrypointEncSlice;
+        VAStatus sts = vaCreateConfig(va_display_, va_profile, entrypoint, attrib, numAttrib, &va_config_);
+        EXPECT_EQ(sts, VA_STATUS_SUCCESS);
+        EXPECT_NE(va_config_, VA_INVALID_ID);
+
+        if (VA_INVALID_ID != va_config_) {
+            sts = vaCreateContext(va_display_, va_config_, width, height, flag, nullptr, 0, &va_context_);
+            EXPECT_EQ(sts, VA_STATUS_SUCCESS);
+            EXPECT_NE(va_context_, VA_INVALID_ID);
+        }
+    }
+
+    ~UtilsVaContext()
+    {
+        if (va_config_ != VA_INVALID_ID) vaDestroyConfig(va_display_, va_config_);
+        if (va_context_ != VA_INVALID_ID) vaDestroyContext(va_display_, va_context_);
+    }
+
+    VAContextID GetVaContext() { return va_context_; }
+};
+
 struct MfxAllocTestRun {
     int width;
     int height;
     int frame_count;
+    mfxU32 fourcc;
 };
 
 typedef std::function<void (const MfxAllocTestRun& run, MfxFrameAllocator* allocator,
@@ -336,7 +416,8 @@ typedef std::function<void (const MfxAllocTestRun& run, MfxFrameAllocator* alloc
 
 static void MfxVaAllocatorTest(const std::vector<MfxVaAllocatorTestStep>& steps)
 {
-    std::unique_ptr<MfxDev> dev { new MfxDevVa() };
+    MfxDevVa* dev_va = new MfxDevVa();
+    std::unique_ptr<MfxDev> dev { dev_va };
 
     mfxStatus sts = dev->Init();
     EXPECT_EQ(MFX_ERR_NONE, sts);
@@ -347,18 +428,30 @@ static void MfxVaAllocatorTest(const std::vector<MfxVaAllocatorTestStep>& steps)
     if (allocator) {
 
         MfxAllocTestRun test_allocations[] {
-            { 600, 400, 3 },
-            { 320, 240, 2 },
-            { 1920, 1080, 3 },
+            { 600, 400, 3, MFX_FOURCC_NV12 },
+            { 320, 240, 2, MFX_FOURCC_NV12 },
+            { 1920, 1080, 3, MFX_FOURCC_NV12 },
+            { 1280, 720, 3, MFX_FOURCC_P8 },
         };
 
         mfxFrameAllocResponse responses[MFX_GET_ARRAY_SIZE(test_allocations)] {};
         mfxFrameAllocRequest requests[MFX_GET_ARRAY_SIZE(test_allocations)] {};
+        std::unique_ptr<UtilsVaContext> va_contexts[MFX_GET_ARRAY_SIZE(test_allocations)];
+
+        for (MfxAllocTestRun& run : test_allocations) {
+            if (run.fourcc == MFX_FOURCC_P8) {
+                va_contexts[&run - test_allocations] =
+                    std::make_unique<UtilsVaContext>(dev_va->GetVaDisplay(), run.width, run.height);
+            }
+        }
 
         for (auto& step : steps) {
             for (const MfxAllocTestRun& run : test_allocations) {
-                mfxFrameAllocResponse& response = responses[&run - test_allocations];
-                mfxFrameAllocRequest& request = requests[&run - test_allocations];
+                const int index = &run - test_allocations;
+                mfxFrameAllocResponse& response = responses[index];
+                mfxFrameAllocRequest& request = requests[index];
+
+                if (va_contexts[index]) request.AllocId = va_contexts[index]->GetVaContext();
 
                 step(run, allocator, request, response);
             }
@@ -373,8 +466,7 @@ static void MfxFrameAlloc(const MfxAllocTestRun& run, MfxFrameAllocator* allocat
     request.Type = MFX_MEMTYPE_FROM_ENCODE;
     request.NumFrameMin = run.frame_count;
     request.NumFrameSuggested = run.frame_count;
-    InitNV12(run.width, run.height, &request.Info);
-
+    InitFrameInfo(run.fourcc, run.width, run.height, &request.Info);
 
     mfxStatus sts = allocator->AllocFrames(&request, &response);
     EXPECT_EQ(sts, MFX_ERR_NONE);
@@ -444,7 +536,7 @@ TEST(MfxVaAllocator, BufferKeepsContents)
             mfxStatus sts = allocator->LockFrame(response.mids[i], &frame_data);
             EXPECT_EQ(MFX_ERR_NONE, sts);
 
-            CheckNV12MfxFrameData(run.width, run.height, hw_memory, locked, frame_data);
+            CheckMfxFrameData(run.fourcc, run.width, run.height, hw_memory, locked, frame_data);
 
             FillFrameContents(run.width, run.height, i, request.Info, frame_data);
 
@@ -461,7 +553,7 @@ TEST(MfxVaAllocator, BufferKeepsContents)
             mfxStatus sts = allocator->LockFrame(response.mids[i], &frame_data);
             EXPECT_EQ(MFX_ERR_NONE, sts);
 
-            CheckNV12MfxFrameData(run.width, run.height, hw_memory, locked, frame_data);
+            CheckMfxFrameData(run.fourcc, run.width, run.height, hw_memory, locked, frame_data);
 
             CheckFrameContents(run.width, run.height, i, request.Info, frame_data);
 
@@ -587,14 +679,14 @@ TEST(MfxFrameConverter, GrallocContentsMappedToVa)
             const bool locked = true;
 
             mfxFrameInfo frame_info {};
-            InitNV12(WIDTH, HEIGHT, &frame_info);
+            InitFrameInfo(MFX_FOURCC_NV12, WIDTH, HEIGHT, &frame_info);
 
             for (int i = 0; i < FRAME_COUNT; ++i) {
                 mfxFrameData frame_data {};
                 sts = allocator->LockFrame(mfx_mem_ids[i], &frame_data);
                 EXPECT_EQ(MFX_ERR_NONE, sts);
 
-                CheckNV12MfxFrameData(WIDTH, HEIGHT, hw_memory, locked, frame_data);
+                CheckMfxFrameData(MFX_FOURCC_NV12, WIDTH, HEIGHT, hw_memory, locked, frame_data);
 
                 va_mem_operation(i, frame_info, frame_data);
 
