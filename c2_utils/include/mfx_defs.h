@@ -60,6 +60,11 @@ inline uint32_t MakeUint32(uint16_t high, uint16_t low)
     return (uint32_t)high << 16 | low;
 }
 
+uint32_t inline EstimatedEncodedFrameLen(uint32_t width, uint32_t height)
+{
+    return ((uint32_t)width * height * 400) / (16 * 16);
+}
+
 // The purpose of this template function is cast from wide range integer
 // to narrow range integer. Like int32_t -> uint8_t.
 // There is no overflow effects, when the value doesn't fit DstType range,

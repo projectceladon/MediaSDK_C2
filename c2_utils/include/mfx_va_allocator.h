@@ -23,6 +23,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 // This struct contains pointer to VASurface allocated somewhere else.
 struct VaMemId
 {
+    // Can also store VABufferID* for P8 format
     VASurfaceID* surface_;
     VAImage image_;
     mfxU32 fourcc_;
