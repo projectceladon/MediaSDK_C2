@@ -92,6 +92,27 @@ status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** data, 
     MFX_DEBUG_TRACE_P(handle);
 
     status_t res = OK;
+
+    struct intel_ufo_buffer_details_t
+    {
+        // this structure mimics the same from ufo android o mr0
+        uint32_t magic;         // [in] size of this struct
+
+        int width;              // \see alloc_device_t::alloc
+        int height;             // \see alloc_device_t::alloc
+        int format;             // \see alloc_device_t::alloc \note resolved format (not flexible)
+
+        uint32_t placeholder1[7];
+
+        uint32_t pitch;         // buffer pitch (in bytes)
+        uint32_t allocWidth;    // allocated buffer width in pixels.
+        uint32_t allocHeight;   // allocated buffer height in lines.
+
+        uint32_t placeholder2[10];
+    };
+
+    const int INTEL_UFO_GRALLOC_MODULE_PERFORM_GET_BO_INFO = 6;
+
     intel_ufo_buffer_details_t info;
     MFX_ZERO_MEMORY(info);
 

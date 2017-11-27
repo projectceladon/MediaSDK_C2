@@ -14,7 +14,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <utils/Errors.h>
 #include <C2Buffer.h>
 
-#include <ufo/gralloc.h>
+#include <hardware/gralloc.h>
 
 class MfxGrallocAllocator
 {
