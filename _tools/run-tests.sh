@@ -34,7 +34,7 @@ else
     remote_lib=lib64
 fi
 
-remote_output=$remote_server:$remote_dir/out/target/product/$target_platform/system/
+remote_output=$remote_server:$remote_dir/out/target/product/$target_platform/vendor/
 
 tests_folder=c2-msdk-tests
 
