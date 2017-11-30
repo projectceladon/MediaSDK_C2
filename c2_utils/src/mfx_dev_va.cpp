@@ -73,7 +73,10 @@ mfxStatus MfxDevVa::Close()
 
     if (nullptr != va_allocator_) va_allocator_ = nullptr;
 
-    if (!va_initialized_) vaTerminate(va_display_);
+    if (va_initialized_) {
+        vaTerminate(va_display_);
+        va_initialized_ = false;
+    }
 
     return MFX_ERR_NONE;
 }
