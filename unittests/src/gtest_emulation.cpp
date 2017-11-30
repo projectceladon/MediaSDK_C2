@@ -127,6 +127,7 @@ int RUN_ALL_TESTS()
         test_info->name_ = test.test_name_;
 
         std::cout << test_full_name;
+        std::cout.flush();
         g_failures_stream = std::ostringstream();
 
         try {
