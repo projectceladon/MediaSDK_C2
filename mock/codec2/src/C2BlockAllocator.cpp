@@ -255,6 +255,11 @@ uint8_t *C2GraphicView::data()
     return mImpl->data_;
 }
 
+const uint8_t *C2GraphicView::data() const
+{
+    return mImpl->data_;
+}
+
 const C2PlaneLayout* C2GraphicView::planeLayout() const
 {
     return &(mImpl->plane_layout_);

@@ -206,6 +206,22 @@ static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work,
     while(false);
 }
 
+static void CheckFilledBuffer(const uint8_t* raw, int expected_item)
+{
+    if(nullptr != raw) {
+
+        bool match = true;
+        for(uint32_t i = 0; i < FRAME_BUF_SIZE; ++i) {
+             // all bytes in buffer should be equal to frame index
+            if(raw[i] != expected_item) {
+                match = false;
+                break;
+            }
+        }
+        EXPECT_EQ(match, true);
+    }
+}
+
 class MockOutputValidator : public C2ComponentListener
 {
 public:
@@ -245,7 +261,6 @@ protected:
                 << " frame " << frame_index << " is out of order";
 
             ++frame_expected_;
-            const uint8_t* raw {};
 
             std::unique_ptr<C2ConstLinearBlock> linear_block;
             std::unique_ptr<C2ConstGraphicBlock> graphic_block;
@@ -256,9 +271,12 @@ protected:
                 if(nullptr != linear_block) {
                     EXPECT_EQ(linear_block->capacity(), FRAME_BUF_SIZE);
 
+                    const uint8_t* raw {};
                     sts = MapConstLinearBlock(*linear_block, TIMEOUT_NS, &raw);
                     EXPECT_EQ(sts, C2_OK);
                     EXPECT_NE(raw, nullptr);
+
+                    CheckFilledBuffer(raw, frame_index);
                 }
             } else {
                 C2Error sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
@@ -267,23 +285,13 @@ protected:
                     EXPECT_EQ(graphic_block->width(), FRAME_WIDTH);
                     EXPECT_EQ(graphic_block->height(), FRAME_HEIGHT);
 
-                    sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &raw);
+                    std::unique_ptr<const C2GraphicView> c_graph_view;
+                    sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &c_graph_view);
                     EXPECT_EQ(sts, C2_OK);
+                    const uint8_t* raw = c_graph_view->data();
                     EXPECT_NE(raw, nullptr);
+                    CheckFilledBuffer(raw, frame_index);
                 }
-            }
-
-            if(nullptr != raw) {
-
-                bool match = true;
-                for(uint32_t i = 0; i < FRAME_BUF_SIZE; ++i) {
-                     // all bytes in buffer should be equal to frame index
-                    if(raw[i] != frame_index) {
-                        match = false;
-                        break;
-                    }
-                }
-                EXPECT_EQ(match, true);
             }
         }
         // if collected all expected frames
