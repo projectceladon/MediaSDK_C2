@@ -56,9 +56,19 @@ execs=mfx_c2_store_unittests,mfx_c2_components_unittests,mfx_c2_mock_unittests
 
 scp ${remote_output}\{$remote_lib/\{$libs\},bin/\{$execs\}$bitness\} ${local_dir}
 
+if adb shell "[ ! -w /system ]"
+then
+    echo "/system is inaccessible, remounting..."
+    adb root
+    adb wait-for-device
+    adb remount
+    adb wait-for-device
+fi
+
 adb shell "rm -rf ${device_dir}/*"
 
 adb push ${local_dir} //data//local//tmp
+adb wait-for-device
 
 if [ -z "$gtest_filter" ]
 then
