@@ -126,12 +126,14 @@ status_t MfxC2FrameIn::Create(MfxFrameConverter* frame_converter,
                 mem_id, c_graph_block->width(), c_graph_block->height(),
                 unique_mfx_frame.get());
         } else {
-            const uint8_t* raw = nullptr;
-            res = MapConstGraphicBlock(*c_graph_block, timeout, &raw);
+            std::unique_ptr<C2GraphicView> graph_view;
+
+            std::unique_ptr<const C2GraphicView> c_graph_view;
+            res = MapConstGraphicBlock(*c_graph_block, timeout, &c_graph_view);
             if(C2_OK != res) break;
 
             InitMfxNV12FrameSW(buf_pack.ordinal.timestamp, buf_pack.ordinal.frame_index,
-                raw, c_graph_block->width(), c_graph_block->height(),
+                c_graph_view->data(), c_graph_block->width(), c_graph_block->height(),
                 unique_mfx_frame.get());
         }
 

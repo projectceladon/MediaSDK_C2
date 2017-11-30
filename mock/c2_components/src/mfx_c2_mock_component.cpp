@@ -50,11 +50,12 @@ status_t MfxC2MockComponent::CopyGraphicToLinear(const C2BufferPack& input,
         uint32_t height = const_graphic_block->height();
         MFX_DEBUG_TRACE_U32(height);
 
-        const uint8_t* in_raw = nullptr;
         const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
-        res = MapConstGraphicBlock(*const_graphic_block, TIMEOUT_NS, &in_raw);
+        std::unique_ptr<const C2GraphicView> c_graph_view;
+        res = MapConstGraphicBlock(*const_graphic_block, TIMEOUT_NS, &c_graph_view);
         if(C2_OK != res) break;
+        const uint8_t* in_raw = c_graph_view->data();
 
         const size_t MEM_SIZE = width * height * 3 / 2;
         C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };

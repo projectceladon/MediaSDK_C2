@@ -234,9 +234,12 @@ protected:
                 EXPECT_NE(crop.mWidth, 0);
                 EXPECT_NE(crop.mHeight, 0);
 
-                const uint8_t* raw  = nullptr;
 
-                sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &raw);
+                std::unique_ptr<const C2GraphicView> c_graph_view;
+                sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &c_graph_view);
+
+                const uint8_t* raw  = c_graph_view->data();
+
                 EXPECT_EQ(sts, C2_OK);
                 EXPECT_NE(raw, nullptr);
 
