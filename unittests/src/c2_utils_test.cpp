@@ -113,6 +113,25 @@ TEST(MfxCmdQueue, Abort)
     }
 }
 
+// Tests MfxDev could be created and released significant amount of times.
+// For pure build this tests MfxDevAndroid, for VA - MfxDevVa.
+TEST(MfxDev, InitCloseNoLeaks)
+{
+    const int COUNT = 1500;
+
+    for (int i = 0; i < COUNT; ++i)
+    {
+        std::unique_ptr<MfxDev> device;
+        mfxStatus sts = MfxDev::Create(&device);
+
+        EXPECT_EQ(MFX_ERR_NONE, sts);
+        EXPECT_NE(device, nullptr);
+
+        sts = device->Close();
+        EXPECT_EQ(MFX_ERR_NONE, sts);
+    }
+}
+
 static void CheckNV12PlaneLayout(uint16_t width, uint16_t height, const C2PlaneLayout& layout)
 {
     using Layout = C2PlaneLayout;
@@ -414,7 +433,7 @@ struct MfxAllocTestRun {
 typedef std::function<void (const MfxAllocTestRun& run, MfxFrameAllocator* allocator,
     mfxFrameAllocRequest& request, mfxFrameAllocResponse& response)> MfxVaAllocatorTestStep;
 
-static void MfxVaAllocatorTest(const std::vector<MfxVaAllocatorTestStep>& steps)
+static void MfxVaAllocatorTest(const std::vector<MfxVaAllocatorTestStep>& steps, int repeat_count = 1)
 {
     MfxDevVa* dev_va = new MfxDevVa();
     std::unique_ptr<MfxDev> dev { dev_va };
@@ -445,15 +464,22 @@ static void MfxVaAllocatorTest(const std::vector<MfxVaAllocatorTestStep>& steps)
             }
         }
 
-        for (auto& step : steps) {
-            for (const MfxAllocTestRun& run : test_allocations) {
-                const int index = &run - test_allocations;
-                mfxFrameAllocResponse& response = responses[index];
-                mfxFrameAllocRequest& request = requests[index];
+        for (int i = 0; i < repeat_count; ++i) {
+            for (auto& step : steps) {
+                for (const MfxAllocTestRun& run : test_allocations) {
+                    const int index = &run - test_allocations;
+                    mfxFrameAllocResponse& response = responses[index];
+                    mfxFrameAllocRequest& request = requests[index];
 
-                if (va_contexts[index]) request.AllocId = va_contexts[index]->GetVaContext();
+                    if (va_contexts[index]) {
 
-                step(run, allocator, request, response);
+                        if (va_contexts[index]->GetVaContext() == VA_INVALID_ID) continue;
+
+                        request.AllocId = va_contexts[index]->GetVaContext();
+                    }
+
+                    step(run, allocator, request, response);
+                }
             }
         }
     }
@@ -488,9 +514,7 @@ static void MfxFrameFree(const MfxAllocTestRun&, MfxFrameAllocator* allocator,
 TEST(MfxVaAllocator, AllocFreeNoLeaks)
 {
     const int COUNT = 1000;
-    for (int i = 0; i < COUNT; ++i) {
-        MfxVaAllocatorTest( { MfxFrameAlloc, MfxFrameFree } );
-    }
+    MfxVaAllocatorTest( { MfxFrameAlloc, MfxFrameFree }, COUNT );
 }
 
 // Tests mfxFrameAllocator implementation on VA.
