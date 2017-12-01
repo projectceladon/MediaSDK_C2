@@ -30,6 +30,10 @@ define build_utils
     MODULE_SUFFIX :=
   endif
 
+  LOCAL_HEADER_LIBRARIES := \
+      $$(MFX_HEADER_LIBRARIES) \
+      libhardware_headers
+
   LOCAL_MODULE := libmfx_c2_utils$$(MODULE_SUFFIX)
 
   include $(BUILD_STATIC_LIBRARY)

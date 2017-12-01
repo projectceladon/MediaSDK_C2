@@ -22,6 +22,9 @@ LOCAL_SHARED_LIBRARIES := \
     libhardware \
     libui
 
+LOCAL_HEADER_LIBRARIES := \
+    $(MFX_HEADER_LIBRARIES)
+
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libmfx_mock_codec2
 

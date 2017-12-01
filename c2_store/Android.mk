@@ -25,6 +25,10 @@ LOCAL_SHARED_LIBRARIES := libdl liblog
 
 LOCAL_STATIC_LIBRARIES += libmfx_mock_codec2 libmfx_c2_utils
 
+LOCAL_HEADER_LIBRARIES := \
+    $(MFX_HEADER_LIBRARIES) \
+    libhardware_headers       # It's here due to <hardware/gralloc.h> include. Need to remove when the header will be removed
+
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libmfx_c2_store
 

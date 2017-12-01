@@ -17,6 +17,10 @@ LOCAL_CFLAGS += \
     $(MFX_CFLAGS) \
     $(MFX_CFLAGS_C2)
 
+LOCAL_HEADER_LIBRARIES := \
+    $(MFX_HEADER_LIBRARIES) \
+    libhardware_headers       # It's here due to <hardware/gralloc.h> include. Need to remove when the header will be removed
+
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libmfx_c2_buffers
 

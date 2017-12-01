@@ -53,6 +53,9 @@ define build_components
   LOCAL_SHARED_LIBRARIES_32 := libmfx$$(MSDK_IMPL)32
   LOCAL_SHARED_LIBRARIES_64 := libmfx$$(MSDK_IMPL)64
 
+  LOCAL_HEADER_LIBRARIES := \
+      $$(MFX_HEADER_LIBRARIES)
+
   LOCAL_MODULE_TAGS := optional
 
   LOCAL_MODULE := libmfx_c2_components$$(MODULE_SUFFIX)

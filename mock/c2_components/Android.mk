@@ -31,6 +31,9 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_STATIC_LIBRARIES += libmfx_mock_codec2 libmfx_c2_utils
 
+LOCAL_HEADER_LIBRARIES := \
+    $(MFX_HEADER_LIBRARIES)
+
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libmfx_mock_c2_components
 
