@@ -296,7 +296,8 @@ void mfxDebugTrace::printf_e(const char* name, const char* value)
 
 /*------------------------------------------------------------------------------*/
 
-MfxTraceable::MfxTraceable(void* instance, const char* name)
+MfxTraceable::MfxTraceable(void* instance, const char* name):
+    instance_(instance)
 {
     Register(instance, name);
 }
