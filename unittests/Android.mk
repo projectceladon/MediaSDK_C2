@@ -36,6 +36,10 @@ LOCAL_STATIC_LIBRARIES := libippdc_l libippcore_l
 
 LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_store
 
+LOCAL_HEADER_LIBRARIES := \
+    $(MFX_HEADER_LIBRARIES) \
+    libhardware_headers       # It's here due to <hardware/gralloc.h> include. Need to remove when the header will be removed
+
 LOCAL_MULTILIB := both
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := mfx_c2_store_unittests
@@ -83,6 +87,10 @@ LOCAL_LDFLAGS += \
 LOCAL_STATIC_LIBRARIES := libmfx_c2_utils libmfx_mock_codec2 libippdc_l libippcore_l
 
 LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_components_hw
+
+LOCAL_HEADER_LIBRARIES := \
+    $(MFX_HEADER_LIBRARIES) \
+    libhardware_headers       # It's here due to <hardware/gralloc.h> include. Need to remove when the header will be removed
 
 LOCAL_MULTILIB := both
 LOCAL_MODULE_TAGS := optional
@@ -152,6 +160,9 @@ define build_mock_unittests
 
     LOCAL_STATIC_LIBRARIES += libmfx_c2_utils
   endif
+
+  LOCAL_HEADER_LIBRARIES := \
+      $$(MFX_HEADER_LIBRARIES)
 
   LOCAL_MULTILIB := both
   LOCAL_MODULE_TAGS := optional
