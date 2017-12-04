@@ -4,15 +4,12 @@ include $(MFX_HOME)/android/mfx_env.mk
 
 include $(CLEAR_VARS)
 include $(MFX_HOME)/android/mfx_defs.mk
-
+include $(MFX_C2_HOME)/mfx_c2_defs.mk
 
 LOCAL_SRC_FILES := \
     src/mfx_c2_mock_component.cpp \
     ../../c2_components/src/mfx_c2_component.cpp \
     ../../c2_components/src/mfx_c2_components_registry.cpp
-
-MFX_C2_HOME := $(MFX_HOME)/samples/sample_c2_plugins/
-MFX_C_INCLUDES_C2 := $(MFX_C2_HOME)/codec2/include/
 
 LOCAL_C_INCLUDES += \
     $(MFX_C2_HOME)/c2_components/include/ \
@@ -22,7 +19,7 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_CFLAGS += \
     $(MFX_CFLAGS) \
-    -std=c++14 \
+    $(MFX_CFLAGS_C2) \
     -DMOCK_COMPONENTS
 
 LOCAL_LDFLAGS += \

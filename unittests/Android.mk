@@ -6,16 +6,13 @@ include $(MFX_HOME)/android/mfx_env.mk
 
 include $(CLEAR_VARS)
 include $(MFX_HOME)/android/mfx_defs.mk
+include $(MFX_C2_HOME)/mfx_c2_defs.mk
 
 LOCAL_SRC_FILES := \
     src/c2_store_test.cpp \
     src/gtest_emulation.cpp \
     src/test_components.cpp \
     src/test_main.cpp
-
-MFX_C2_HOME := $(MFX_HOME)/samples/sample_c2_plugins/
-
-MFX_C_INCLUDES_C2 := $(LOCAL_PATH)/../codec2/include/
 
 LOCAL_C_INCLUDES += \
     $(MFX_C_INCLUDES) \
@@ -30,8 +27,7 @@ LOCAL_C_INCLUDES_64 := $(IPP_ROOT_64)/include
 
 LOCAL_CFLAGS += \
     $(MFX_CFLAGS) \
-    -std=c++14 \
-    -fexceptions
+    $(MFX_CFLAGS_C2)
 
 LOCAL_LDFLAGS += \
     $(MFX_LDFLAGS)
@@ -52,6 +48,7 @@ include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
 include $(MFX_HOME)/android/mfx_defs.mk
+include $(MFX_C2_HOME)/mfx_c2_defs.mk
 
 STREAM_CPP_FILES := $(wildcard $(LOCAL_PATH)/streams/*/*.cpp)
 
@@ -78,8 +75,7 @@ LOCAL_C_INCLUDES_64 := $(IPP_ROOT_64)/include
 
 LOCAL_CFLAGS += \
     $(MFX_CFLAGS) \
-    -std=c++14 \
-    -fexceptions
+    $(MFX_CFLAGS_C2)
 
 LOCAL_LDFLAGS += \
     $(MFX_LDFLAGS)
@@ -103,6 +99,7 @@ define build_mock_unittests
 
   include $(CLEAR_VARS)
   include $(MFX_HOME)/android/mfx_defs.mk
+  include $(MFX_C2_HOME)/mfx_c2_defs.mk
 
   STREAM_CPP_FILES := $$(wildcard $(LOCAL_PATH)/streams/*/*.cpp)
 
@@ -129,8 +126,7 @@ define build_mock_unittests
 
   LOCAL_CFLAGS += \
       $$(MFX_CFLAGS) \
-      -std=c++14 \
-      -fexceptions
+      $$(MFX_CFLAGS_C2)
 
   LOCAL_LDFLAGS += \
       $$(MFX_LDFLAGS)

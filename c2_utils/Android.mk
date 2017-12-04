@@ -6,16 +6,17 @@ include $(MFX_HOME)/android/mfx_env.mk
 define build_utils
   include $$(CLEAR_VARS)
   include $$(MFX_HOME)/android/mfx_defs.mk
+  include $(MFX_C2_HOME)/mfx_c2_defs.mk
+
   LOCAL_SRC_FILES := \
       $$(addprefix src/, $$(notdir $$(wildcard $$(LOCAL_PATH)/src/*.cpp)))
-  MFX_C_INCLUDES_C2 := $$(LOCAL_PATH)/../codec2/include/
   LOCAL_C_INCLUDES += \
       $$(MFX_C_INCLUDES) \
       $$(MFX_C_INCLUDES_C2)
   LOCAL_CFLAGS += \
       $$(MFX_CFLAGS) \
-      -std=c++14 \
-      -fexceptions
+      $$(MFX_CFLAGS_C2)
+
   LOCAL_MODULE_TAGS := optional
 
   ifeq ($(1),va)

@@ -4,12 +4,9 @@ include $(MFX_HOME)/android/mfx_env.mk
 
 include $(CLEAR_VARS)
 include $(MFX_HOME)/android/mfx_defs.mk
+include $(MFX_C2_HOME)/mfx_c2_defs.mk
 
 LOCAL_SRC_FILES := $(addprefix src/, $(notdir $(wildcard $(LOCAL_PATH)/src/*.cpp)))
-
-MFX_C2_HOME := $(MFX_HOME)/samples/sample_c2_plugins/
-
-MFX_C_INCLUDES_C2 := $(LOCAL_PATH)/../codec2/include/
 
 LOCAL_C_INCLUDES += \
     $(MFX_C_INCLUDES) \
@@ -18,8 +15,7 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_CFLAGS += \
     $(MFX_CFLAGS) \
-    -std=c++14 \
-    -fexceptions
+    $(MFX_CFLAGS_C2)
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libmfx_c2_buffers
