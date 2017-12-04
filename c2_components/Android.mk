@@ -6,11 +6,9 @@ include $(MFX_HOME)/android/mfx_env.mk
 define build_components
   include $$(CLEAR_VARS)
   include $$(MFX_HOME)/android/mfx_defs.mk
+  include $$(MFX_C2_HOME)/mfx_c2_defs.mk
 
   LOCAL_SRC_FILES := $$(addprefix src/, $(notdir $(wildcard $(LOCAL_PATH)/src/*.cpp)))
-
-  MFX_C2_HOME := $$(MFX_HOME)/samples/sample_c2_plugins/
-  MFX_C_INCLUDES_C2 := $$(LOCAL_PATH)/../codec2/include/
 
   LOCAL_C_INCLUDES := \
       $$(MFX_C_INCLUDES) \
@@ -20,7 +18,7 @@ define build_components
 
   LOCAL_CFLAGS := \
       $$(MFX_CFLAGS) \
-      -std=c++14
+      $$(MFX_CFLAGS_C2)
 
   LOCAL_LDFLAGS += \
       $$(MFX_LDFLAGS)
