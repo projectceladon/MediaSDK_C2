@@ -12,12 +12,14 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_cmd_queue.h"
 #include "mfx_gralloc_allocator.h"
 #include "mfx_va_allocator.h"
-#include "mfx_dev_va.h"
 #include <map>
 #include <set>
 
 #ifdef LIBVA_SUPPORT
+#include "mfx_dev_va.h"
 #include <va/va_android.h>
+#else
+#include "mfx_dev_android.h"
 #endif
 
 using namespace android;
