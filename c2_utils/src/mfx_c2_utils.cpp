@@ -417,3 +417,14 @@ bool MfxIOPatternToC2MemoryType(mfxU16 io_pattern, C2MemoryType* memory_type)
 {
     return SecondToFirst(g_memory_types, io_pattern, memory_type);
 }
+
+int MfxFourCCToGralloc(mfxU32 fourcc)
+{
+    switch (fourcc)
+    {
+        case MFX_FOURCC_NV12:
+            return HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL;
+        default:
+            return 0;
+    }
+}

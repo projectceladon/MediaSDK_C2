@@ -65,7 +65,10 @@ mfxStatus MfxDevVa::Init()
                 }
                 break;
             case Usage::Decoder:
-                mfx_res = MFX_ERR_NONE;
+                if (!va_pool_allocator_) {
+                    va_pool_allocator_.reset(new (std::nothrow)MfxVaFramePoolAllocator(va_display_));
+                    if (nullptr == va_pool_allocator_) mfx_res = MFX_ERR_MEMORY_ALLOC;
+                }
                 break;
             default:
                 mfx_res = MFX_ERR_UNKNOWN;
@@ -85,6 +88,7 @@ mfxStatus MfxDevVa::Close()
     MFX_DEBUG_TRACE_FUNC;
 
     if (nullptr != va_allocator_) va_allocator_ = nullptr;
+    if (nullptr != va_pool_allocator_) va_pool_allocator_ = nullptr;
 
     if (va_initialized_) {
         vaTerminate(va_display_);
@@ -129,6 +133,24 @@ mfxStatus MfxDevVa::InitMfxSession(MFXVideoSession* session)
     }
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
+}
+
+MfxFrameAllocator* MfxDevVa::GetFrameAllocator()
+{
+    MFX_DEBUG_TRACE_FUNC;
+    return usage_ == Usage::Decoder ? va_pool_allocator_.get() : va_allocator_.get();
+}
+
+MfxFrameConverter* MfxDevVa::GetFrameConverter()
+{
+    MFX_DEBUG_TRACE_FUNC;
+    return usage_ == Usage::Decoder ? va_pool_allocator_.get() : va_allocator_.get();
+}
+
+MfxFramePoolAllocator* MfxDevVa::GetFramePoolAllocator()
+{
+    MFX_DEBUG_TRACE_FUNC;
+    return usage_ == Usage::Decoder ? va_pool_allocator_.get() : nullptr;
 }
 
 #endif // #ifdef LIBVA_SUPPORT
