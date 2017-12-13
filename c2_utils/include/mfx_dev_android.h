@@ -22,10 +22,10 @@ public:
 public:
     virtual mfxStatus Init() override;
     virtual mfxStatus Close() override;
-    virtual MfxFrameAllocator* GetFrameAllocator() override { return nullptr; }
-    virtual mfxStatus InitMfxSession(MFXVideoSession* session) override;
 
-    MfxFrameConverter* GetFrameConverter() override {
-        return nullptr;
-    }
+    virtual MfxFrameAllocator* GetFrameAllocator() override { return nullptr; }
+    virtual MfxFrameConverter* GetFrameConverter() override { return nullptr; }
+    virtual MfxFramePoolAllocator* GetFramePoolAllocator() override { return nullptr; }
+
+    virtual mfxStatus InitMfxSession(MFXVideoSession* session) override;
 };

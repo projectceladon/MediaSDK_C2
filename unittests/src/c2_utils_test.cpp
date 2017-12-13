@@ -13,6 +13,9 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_pool.h"
 #include "mfx_gralloc_allocator.h"
 #include "mfx_va_allocator.h"
+#include "mfx_frame_pool_allocator.h"
+#include "C2BlockAllocator.h"
+#include "mfx_c2_utils.h"
 #include <map>
 #include <set>
 
@@ -879,6 +882,130 @@ TEST(MfxFrameConverter, CacheResources)
     };
 
     MfxFrameConverterTest( { test_cache } );
+}
+
+typedef std::function<void (MfxFrameAllocator* allocator, MfxFramePoolAllocator* pool_allocator)> MfxFramePoolAllocatorTestStep;
+
+static void MfxFramePoolAllocatorTest(const std::vector<MfxFramePoolAllocatorTestStep>& steps, int repeat_count = 1)
+{
+    std::shared_ptr<C2BlockAllocator> c2_allocator;
+    status_t res = GetC2BlockAllocator(&c2_allocator);
+    EXPECT_EQ(res, C2_OK);
+    EXPECT_NE(c2_allocator, nullptr);
+
+    std::unique_ptr<MfxDev> dev { new MfxDevVa(MfxDev::Usage::Decoder) };
+
+    mfxStatus sts = dev->Init();
+    EXPECT_EQ(MFX_ERR_NONE, sts);
+
+    if (c2_allocator) {
+        MfxFrameAllocator* allocator = dev->GetFrameAllocator();
+        EXPECT_NE(allocator, nullptr);
+        MfxFramePoolAllocator* pool_allocator = dev->GetFramePoolAllocator();
+        EXPECT_NE(pool_allocator, nullptr);
+        if (pool_allocator) {
+
+            pool_allocator->SetC2Allocator(c2_allocator);
+
+            for (int i = 0; i < repeat_count; ++i) {
+                for (auto& step : steps) {
+                    step(allocator, pool_allocator);
+                }
+            }
+        }
+    }
+
+    dev->Close();
+}
+
+// Tests a typical use sequence for MfxFramePoolAllocator.
+// 1) Preallocate pool of frames through MfxFrameAllocator::AllocFrames.
+// 2) Acquire C2 Graphic Blocks from the allocator, saves C2 handles and
+// their wired MFX Mem IDs for future comparison.
+// 3) Free C2 Graphic Blocks by releasing their shared_ptrs.
+// 4) Acquire C2 Graphic Blocks again, check C2 handles and
+// their wired MFX Mem IDs are the same as saved on step 2.
+// 5) Reset allocator - release ownership of allocated C2 handles (no allocated any more).
+// 6) Allocate again.
+// 7) Check all handles are new.
+TEST(MfxFramePoolAllocator, RetainHandles)
+{
+    const int FRAME_COUNT = 10;
+    const int WIDTH = 1920;
+    const int HEIGHT = 1080;
+    const mfxU32 FOURCC = MFX_FOURCC_NV12;
+    std::shared_ptr<C2GraphicBlock> c2_blocks[FRAME_COUNT];
+
+    std::map<const C2Handle*, mfxHDL> handleC2ToMfx;
+
+    mfxFrameAllocResponse response {};
+
+    auto mfx_alloc = [&] (MfxFrameAllocator* allocator, MfxFramePoolAllocator*) {
+
+        mfxFrameAllocRequest request {};
+        request.Type = MFX_MEMTYPE_VIDEO_MEMORY_DECODER_TARGET;
+        request.NumFrameMin = FRAME_COUNT;
+        request.NumFrameSuggested = FRAME_COUNT;
+        InitFrameInfo(FOURCC, WIDTH, HEIGHT, &request.Info);
+
+        mfxStatus sts = allocator->AllocFrames(&request, &response);
+        EXPECT_EQ(sts, MFX_ERR_NONE);
+        EXPECT_EQ(response.NumFrameActual, request.NumFrameMin);
+
+        EXPECT_NE(response.mids, nullptr);
+    };
+
+    auto pool_alloc = [&] (MfxFrameAllocator* allocator, MfxFramePoolAllocator* pool_allocator) {
+        for (int i = 0; i < FRAME_COUNT; ++i) {
+            c2_blocks[i] = pool_allocator->Alloc();
+            EXPECT_NE(c2_blocks[i], nullptr);
+
+            const C2Handle* c2_handle = c2_blocks[i]->handle();
+            mfxHDL mfx_handle {};
+            mfxStatus sts = allocator->GetFrameHDL(response.mids[i], &mfx_handle);
+            EXPECT_EQ(sts, MFX_ERR_NONE);
+            handleC2ToMfx[c2_handle] = mfx_handle;
+        }
+        EXPECT_EQ(handleC2ToMfx.size(), FRAME_COUNT);
+    };
+
+    auto pool_free = [&] (MfxFrameAllocator*, MfxFramePoolAllocator*) {
+        for (int i = 0; i < FRAME_COUNT; ++i) {
+            c2_blocks[i].reset();
+        }
+    };
+
+    auto pool_reset = [&] (MfxFrameAllocator*, MfxFramePoolAllocator* pool_allocator) {
+        pool_allocator->Reset();
+    };
+
+    auto alloc_retains_handles = [&] (MfxFrameAllocator* allocator, MfxFramePoolAllocator* pool_allocator) {
+        for (int i = 0; i < FRAME_COUNT; ++i) {
+            c2_blocks[i] = pool_allocator->Alloc();
+            EXPECT_NE(c2_blocks[i], nullptr);
+
+            const C2Handle* c2_handle = c2_blocks[i]->handle();
+            mfxHDL mfx_handle {};
+            mfxStatus sts = allocator->GetFrameHDL(response.mids[i], &mfx_handle);
+            EXPECT_EQ(sts, MFX_ERR_NONE);
+
+            EXPECT_EQ(handleC2ToMfx[c2_handle], mfx_handle);
+        }
+    };
+
+    auto alloc_another_handles = [&] (MfxFrameAllocator*, MfxFramePoolAllocator* pool_allocator) {
+        std::shared_ptr<C2GraphicBlock> c2_blocks_2[FRAME_COUNT];
+        for (int i = 0; i < FRAME_COUNT; ++i) {
+            c2_blocks_2[i] = pool_allocator->Alloc();
+            EXPECT_NE(c2_blocks_2[i], nullptr);
+
+            const C2Handle* c2_handle = c2_blocks_2[i]->handle();
+            EXPECT_EQ(handleC2ToMfx.find(c2_handle), handleC2ToMfx.end());
+        }
+    };
+
+    MfxFramePoolAllocatorTest( { mfx_alloc, pool_alloc, pool_free, alloc_retains_handles,
+        pool_reset, mfx_alloc, alloc_another_handles } );
 }
 
 #endif

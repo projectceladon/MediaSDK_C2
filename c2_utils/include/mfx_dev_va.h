@@ -14,6 +14,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include "mfx_dev.h"
 #include "mfx_va_allocator.h"
+#include "mfx_va_frame_pool_allocator.h"
 
 #define MFX_VA_ANDROID_DISPLAY_ID 0x18c34078
 
@@ -29,12 +30,10 @@ public:
 private:
     virtual mfxStatus Init() override;
     virtual mfxStatus Close() override;
-    MfxFrameAllocator* GetFrameAllocator() override { return va_allocator_.get(); }
+    MfxFrameAllocator* GetFrameAllocator() override;
+    MfxFrameConverter* GetFrameConverter() override;
+    virtual MfxFramePoolAllocator* GetFramePoolAllocator() override;
     virtual mfxStatus InitMfxSession(MFXVideoSession* session) override;
-
-    MfxFrameConverter* GetFrameConverter() override {
-        return va_allocator_.get();
-    }
 
 protected:
     typedef unsigned int MfxVaAndroidDisplayId;
@@ -45,6 +44,7 @@ protected:
     MfxVaAndroidDisplayId display_id_ = MFX_VA_ANDROID_DISPLAY_ID;
     VADisplay va_display_ { nullptr };
     std::unique_ptr<MfxVaFrameAllocator> va_allocator_;
+    std::unique_ptr<MfxVaFramePoolAllocator> va_pool_allocator_;
 
 private:
     MFX_CLASS_NO_COPY(MfxDevVa)

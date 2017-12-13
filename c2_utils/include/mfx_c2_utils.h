@@ -76,3 +76,5 @@ void InitNV12PlaneLayout(int32_t pitch, int32_t alloc_height, android::C2PlaneLa
 bool C2MemoryTypeToMfxIOPattern(android::C2MemoryType memory_type, mfxU16* io_pattern);
 
 bool MfxIOPatternToC2MemoryType(mfxU16 io_pattern, android::C2MemoryType* memory_type);
+
+int MfxFourCCToGralloc(mfxU32 fourcc);

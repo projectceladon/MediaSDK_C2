@@ -43,7 +43,7 @@ private: // MfxFrameAllocator
     virtual mfxStatus UnlockFrame(mfxMemId mid, mfxFrameData *frame_data) override;
     virtual mfxStatus GetFrameHDL(mfxMemId mid, mfxHDL *handle) override;
 
-private: // MfxFrameConverter
+protected: // MfxFrameConverter
     virtual mfxStatus ConvertGrallocToVa(buffer_handle_t gralloc_buffer_, bool decode_target,
         mfxMemId* mem_id) override;
     virtual void FreeGrallocToVaMapping(buffer_handle_t gralloc_buffer) override;

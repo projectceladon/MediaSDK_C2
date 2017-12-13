@@ -13,6 +13,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_defs.h"
 #include "mfx_allocator.h"
 #include "mfx_frame_converter.h"
+#include "mfx_frame_pool_allocator.h"
 
 #include <memory>
 
@@ -34,6 +35,8 @@ public:
     virtual MfxFrameAllocator* GetFrameAllocator() = 0;
 
     virtual MfxFrameConverter* GetFrameConverter() = 0;
+
+    virtual MfxFramePoolAllocator* GetFramePoolAllocator() = 0;
 
     virtual mfxStatus InitMfxSession(MFXVideoSession* session) = 0;
 
