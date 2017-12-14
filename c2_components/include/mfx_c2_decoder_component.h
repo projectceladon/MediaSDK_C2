@@ -16,6 +16,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_cmd_queue.h"
 #include "mfx_c2_frame_out.h"
 #include "mfx_c2_bitstream_in.h"
+#include "mfx_frame_pool_allocator.h"
 
 class MfxC2DecoderComponent : public MfxC2Component
 {
@@ -46,9 +47,11 @@ protected:
     android::status_t DoStop() override;
 
 private:
+    mfxStatus InitSession();
+
     mfxStatus Reset();
 
-    mfxStatus InitDecoder();
+    mfxStatus InitDecoder(std::shared_ptr<android::C2BlockAllocator> c2_allocator);
 
     void FreeDecoder();
 
@@ -75,6 +78,8 @@ private:
 
     std::unique_ptr<MfxDev> device_;
     MFXVideoSession session_;
+    // if custom allocator was set to session_ with SetFrameAllocator
+    bool allocator_set_ { false };
 
     // Accessed from working thread or stop method when working thread is stopped.
     std::unique_ptr<MFXVideoDECODE> decoder_;
@@ -99,4 +104,6 @@ private:
     std::unique_ptr<MfxC2BitstreamIn> c2_bitstream_;
 
     MfxC2FrameOutPool surfaces_;
+
+    MfxFramePoolAllocator* allocator_;
 };

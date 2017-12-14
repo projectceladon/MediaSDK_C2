@@ -18,7 +18,8 @@ using namespace android;
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_frame_out"
 
-status_t MfxC2FrameOut::Create(std::shared_ptr<android::C2GraphicBlock> block,
+status_t MfxC2FrameOut::Create(MfxFrameConverter* frame_converter,
+                               std::shared_ptr<android::C2GraphicBlock> block,
                                nsecs_t timeout,
                                std::unique_ptr<MfxC2FrameOut>& wrapper)
 {
@@ -35,16 +36,41 @@ status_t MfxC2FrameOut::Create(std::shared_ptr<android::C2GraphicBlock> block,
         uint64_t timestamp = 0;
         uint64_t frame_index = 0;
 
-        wrapper->mfx_surface_ = std::make_unique<mfxFrameSurface1>();
+        std::unique_ptr<mfxFrameSurface1> unique_mfx_frame =
+            std::make_unique<mfxFrameSurface1>();
+
+        if (nullptr != block->handle()) {
+            if (nullptr == frame_converter) {
+                res = C2_CORRUPTED;
+                break;
+            }
+
+            mfxMemId mem_id = nullptr;
+            bool decode_target = true;
+
+            mfxStatus mfx_sts = frame_converter->ConvertGrallocToVa(block->handle(),
+                decode_target, &mem_id);
+            if (MFX_ERR_NONE != mfx_sts) {
+                res = MfxStatusToC2(mfx_sts);
+                break;
+            }
+
+            InitMfxNV12FrameHW(timestamp, frame_index,
+                mem_id, block->width(), block->height(),
+                unique_mfx_frame.get());
+        } else {
+            std::unique_ptr<C2GraphicView> graph_view;
+            res = MapGraphicBlock(*block, timeout, &graph_view);
+            if(C2_OK != res) break;
+
+            InitMfxNV12FrameSW(timestamp, frame_index,
+                graph_view->data(), block->width(), block->height(),
+                unique_mfx_frame.get());
+        }
+
         wrapper->c2_graphic_block_ = block;
-
-        std::unique_ptr<C2GraphicView> graph_view;
-        res = MapGraphicBlock(*block, timeout, &graph_view);
-        if(C2_OK != res) break;
-
-        InitMfxNV12FrameSW(timestamp, frame_index,
-            graph_view->data(), block->width(), block->height(),
-            wrapper->mfx_surface_.get());
+        wrapper->frame_converter_ = frame_converter;
+        wrapper->mfx_surface_ = std::move(unique_mfx_frame);
 
     } while(false);
 
@@ -80,22 +106,31 @@ void MfxC2FrameOutPool::AddFrame(std::unique_ptr<MfxC2FrameOut>&& frame)
 {
     MFX_DEBUG_TRACE_FUNC;
     frame_pool_.push_back(std::move(frame));
+    MFX_DEBUG_TRACE_I32(frame_pool_.size());
 }
 
-std::unique_ptr<MfxC2FrameOut> MfxC2FrameOutPool::GetFrame()
+std::unique_ptr<MfxC2FrameOut> MfxC2FrameOutPool::AcquireUnlockedFrame()
 {
     MFX_DEBUG_TRACE_FUNC;
 
     std::unique_ptr<MfxC2FrameOut> frame;
-    if (!frame_pool_.empty()) {
-        frame = std::move(frame_pool_.front());
-        frame_pool_.pop_front();
+    std::list<std::unique_ptr<MfxC2FrameOut>>::iterator it = std::find_if (
+        frame_pool_.begin(),
+        frame_pool_.end(),
+        [] (std::unique_ptr<MfxC2FrameOut>& p) { return !p->GetMfxFrameSurface()->Data.Locked; } );
+
+    if (it != frame_pool_.end()) {
+        frame = std::move((*it));
+        frame_pool_.erase(it);
     }
+
+    MFX_DEBUG_TRACE_I32(frame_pool_.size());
+    MFX_DEBUG_TRACE_P(frame.get());
 
     return frame;
 }
 
-std::unique_ptr<MfxC2FrameOut> MfxC2FrameOutPool::GetFrameBySurface(mfxFrameSurface1* surface)
+std::unique_ptr<MfxC2FrameOut> MfxC2FrameOutPool::AcquireFrameBySurface(mfxFrameSurface1* surface)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -109,6 +144,9 @@ std::unique_ptr<MfxC2FrameOut> MfxC2FrameOutPool::GetFrameBySurface(mfxFrameSurf
         frame = std::move((*it));
         frame_pool_.erase(it);
     }
+
+    MFX_DEBUG_TRACE_I32(frame_pool_.size());
+    MFX_DEBUG_TRACE_P(frame.get());
 
     return frame;
 }
