@@ -9,5 +9,70 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 *********************************************************************************/
 
 #include "mfx_defs.h"
+#include "mfx_c2_utils.h"
+#include "mfx_debug.h"
 
 mfxVersion g_required_mfx_version = { {MFX_VERSION_MINOR, MFX_VERSION_MAJOR} };
+
+static void InitMfxNV12FrameHeader(
+    uint64_t timestamp, uint64_t frame_index,
+    uint32_t width, uint32_t height, mfxFrameSurface1* mfx_frame)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    mfx_frame->Info.BitDepthLuma = 8;
+    mfx_frame->Info.BitDepthChroma = 8;
+    mfx_frame->Info.FourCC = MFX_FOURCC_NV12;
+    mfx_frame->Info.ChromaFormat = MFX_CHROMAFORMAT_YUV420;
+    mfx_frame->Info.Width = width;
+    mfx_frame->Info.Height = height;
+    mfx_frame->Info.CropX = 0;
+    mfx_frame->Info.CropY = 0;
+    mfx_frame->Info.CropW = width;
+    mfx_frame->Info.CropH = height;
+    mfx_frame->Info.FrameRateExtN = 30;
+    mfx_frame->Info.FrameRateExtD = 1;
+    mfx_frame->Info.PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
+
+    mfx_frame->Data.TimeStamp = TimestampC2ToMfx(timestamp);
+
+    mfx_frame->Data.FrameOrder = frame_index;
+}
+
+void InitMfxNV12FrameSW(
+    uint64_t timestamp, uint64_t frame_index,
+    const uint8_t* data,
+    uint32_t width, uint32_t height, mfxFrameSurface1* mfx_frame)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    memset(mfx_frame, 0, sizeof(mfxFrameSurface1));
+
+    InitMfxNV12FrameHeader(timestamp, frame_index, width, height, mfx_frame);
+
+    mfx_frame->Data.MemType = MFX_MEMTYPE_SYSTEM_MEMORY;
+
+    uint32_t stride = width;
+
+    mfx_frame->Data.PitchHigh = stride / (std::numeric_limits<mfxU16>::max() + 1ul);
+    mfx_frame->Data.PitchLow = stride % (std::numeric_limits<mfxU16>::max() + 1ul);
+    // TODO: 16-byte align requirement is not fulfilled - copy might be needed
+    mfx_frame->Data.Y = const_cast<uint8_t*>(data);
+    mfx_frame->Data.UV = mfx_frame->Data.Y + stride * height;
+    mfx_frame->Data.V = mfx_frame->Data.UV;
+}
+
+void InitMfxNV12FrameHW(
+    uint64_t timestamp, uint64_t frame_index,
+    mfxMemId mem_id,
+    uint32_t width, uint32_t height, mfxFrameSurface1* mfx_frame)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    memset(mfx_frame, 0, sizeof(mfxFrameSurface1));
+
+    InitMfxNV12FrameHeader(timestamp, frame_index, width, height, mfx_frame);
+
+    mfx_frame->Data.MemType = MFX_MEMTYPE_EXTERNAL_FRAME;
+    mfx_frame->Data.MemId = mem_id;
+}
