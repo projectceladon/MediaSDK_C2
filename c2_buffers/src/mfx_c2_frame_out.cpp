@@ -18,38 +18,6 @@ using namespace android;
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_frame_out"
 
-static void InitMfxNV12Frame(uint8_t* data, uint32_t width, uint32_t height, mfxFrameSurface1* mfx_frame)
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    memset(mfx_frame, 0, sizeof(mfxFrameSurface1));
-
-    uint32_t stride = width;
-
-    mfx_frame->Info.BitDepthLuma = 8;
-    mfx_frame->Info.BitDepthChroma = 8;
-    mfx_frame->Info.FourCC = MFX_FOURCC_NV12;
-    mfx_frame->Info.ChromaFormat = MFX_CHROMAFORMAT_YUV420;
-    mfx_frame->Info.Width = width;
-    mfx_frame->Info.Height = height;
-    mfx_frame->Info.CropX = 0;
-    mfx_frame->Info.CropY = 0;
-    mfx_frame->Info.CropW = width;
-    mfx_frame->Info.CropH = height;
-    mfx_frame->Info.FrameRateExtN = 30;
-    mfx_frame->Info.FrameRateExtD = 1;
-    mfx_frame->Info.PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
-
-    mfx_frame->Data.MemType = MFX_MEMTYPE_SYSTEM_MEMORY;
-    mfx_frame->Data.PitchHigh = stride / (std::numeric_limits<mfxU16>::max() + 1ul);
-    mfx_frame->Data.PitchLow = stride % (std::numeric_limits<mfxU16>::max() + 1ul);
-
-    // TODO: 16-byte align requirement is not fulfilled - copy might be needed
-    mfx_frame->Data.Y = data;
-    mfx_frame->Data.UV = mfx_frame->Data.Y + stride * height;
-    mfx_frame->Data.V = mfx_frame->Data.UV;
-}
-
 status_t MfxC2FrameOut::Create(std::shared_ptr<android::C2GraphicBlock> block,
                                nsecs_t timeout,
                                std::unique_ptr<MfxC2FrameOut>& wrapper)
@@ -64,6 +32,9 @@ status_t MfxC2FrameOut::Create(std::shared_ptr<android::C2GraphicBlock> block,
             break;
         }
 
+        uint64_t timestamp = 0;
+        uint64_t frame_index = 0;
+
         wrapper->mfx_surface_ = std::make_unique<mfxFrameSurface1>();
         wrapper->c2_graphic_block_ = block;
 
@@ -71,7 +42,9 @@ status_t MfxC2FrameOut::Create(std::shared_ptr<android::C2GraphicBlock> block,
         res = MapGraphicBlock(*block, timeout, &graph_view);
         if(C2_OK != res) break;
 
-        InitMfxNV12Frame(graph_view->data(), block->width(), block->height(), wrapper->mfx_surface_.get());
+        InitMfxNV12FrameSW(timestamp, frame_index,
+            graph_view->data(), block->width(), block->height(),
+            wrapper->mfx_surface_.get());
 
     } while(false);
 

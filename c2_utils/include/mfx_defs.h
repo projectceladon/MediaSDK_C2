@@ -117,3 +117,13 @@ bool SecondToFirst(const std::pair<First, Second>(& array)[N], Second key, Resul
     }
     return res;
 }
+
+void InitMfxNV12FrameSW(
+    uint64_t timestamp, uint64_t frame_index,
+    const uint8_t* data,
+    uint32_t width, uint32_t height, mfxFrameSurface1* mfx_frame);
+
+void InitMfxNV12FrameHW(
+    uint64_t timestamp, uint64_t frame_index,
+    mfxMemId mem_id,
+    uint32_t width, uint32_t height, mfxFrameSurface1* mfx_frame);

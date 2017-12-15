@@ -17,6 +17,11 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 android::status_t MfxStatusToC2(mfxStatus mfx_status);
 
+inline mfxU64 TimestampC2ToMfx(uint64_t timestamp)
+{
+    return timestamp * 90000 / MFX_SECOND_NS;
+}
+
 android::status_t GetC2ConstGraphicBlock(
     const android::C2BufferPack& buf_pack, std::unique_ptr<android::C2ConstGraphicBlock>* c_graph_block);
 
