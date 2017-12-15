@@ -10,6 +10,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include "gtest_emulation.h"
 #include "mfx_cmd_queue.h"
+#include "mfx_pool.h"
 #include "mfx_gralloc_allocator.h"
 #include "mfx_va_allocator.h"
 #include <map>
@@ -112,6 +113,52 @@ TEST(MfxCmdQueue, Abort)
     EXPECT_EQ(result.size() < CMD_COUNT, true); // some commands must be dropped
     for(size_t i = 0; i < result.size(); ++i) {
         EXPECT_EQ(result[i], i);
+    }
+}
+
+// Tests that MfxPool allocates values among appended
+// and if no resources available, correctly waits for freeing resources.
+// Also checks allocated values are valid after pool destruction.
+TEST(MfxPool, Alloc)
+{
+    const int COUNT = 10;
+    std::shared_ptr<int> allocated_again[COUNT];
+
+    {
+        MfxPool<int> pool;
+        // append range of numbers
+        for (int i = 0; i < COUNT; ++i) {
+            pool.Append(std::make_shared<int>(i));
+        }
+
+        std::shared_ptr<int> allocated[COUNT];
+        for (int i = 0; i < COUNT; ++i) {
+            allocated[i] = pool.Alloc();
+            EXPECT_EQ(*allocated[i], i); // check values are those appended
+        }
+
+        std::thread free_thread([&] {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            for (int i = 0; i < COUNT; ++i) {
+                allocated[i].reset();
+            }
+        });
+
+        auto start = std::chrono::system_clock::now();
+        for (int i = 0; i < COUNT; ++i) {
+            allocated_again[i] = pool.Alloc(); // this Alloc should wait for free in free_thread
+            EXPECT_EQ(*allocated_again[i], i); // and got the same value
+        }
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end - start;
+        // elapsed time is around 1 second
+        EXPECT_TRUE((0.9 < elapsed_seconds.count()) && (elapsed_seconds.count() < 1.1));
+
+        free_thread.join();
+    }
+    // check allocated_again have correct values after pool destruction
+    for (int i = 0; i < COUNT; ++i) {
+        EXPECT_EQ(*allocated_again[i], i);
     }
 }
 
