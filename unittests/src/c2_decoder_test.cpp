@@ -234,9 +234,10 @@ protected:
                 EXPECT_NE(crop.mWidth, 0);
                 EXPECT_NE(crop.mHeight, 0);
 
-
                 std::unique_ptr<const C2GraphicView> c_graph_view;
                 sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &c_graph_view);
+
+                const C2PlaneLayout* layout = c_graph_view->planeLayout();
 
                 const uint8_t* raw  = c_graph_view->data();
 
@@ -247,13 +248,15 @@ protected:
                 data_buffer->resize(crop.mWidth * crop.mHeight * 3 / 2);
                 uint8_t* raw_cropped = &(data_buffer->front());
                 uint8_t* raw_cropped_chroma = raw_cropped + crop.mWidth * crop.mHeight;
-                const uint8_t* raw_chroma = raw + (crop.mLeft + crop.mWidth) * (crop.mTop + crop.mHeight);
+                const uint8_t* raw_chroma = raw + layout->mPlanes[C2PlaneLayout::U].mOffset;
 
                 for (uint32_t i = 0; i < crop.mHeight; i++) {
-                    memcpy(raw_cropped + i * crop.mWidth, raw + (i + crop.mTop) * (crop.mLeft + crop.mWidth) + crop.mLeft, crop.mWidth);
+                    const uint32_t stride = layout->mPlanes[C2PlaneLayout::Y].mRowInc;
+                    memcpy(raw_cropped + i * crop.mWidth, raw + (i + crop.mTop) * stride + crop.mLeft, crop.mWidth);
                 }
                 for (uint32_t i = 0; i < (crop.mHeight >> 1); i++) {
-                    memcpy(raw_cropped_chroma + i * crop.mWidth, raw_chroma + (i + (crop.mTop >> 1)) * (crop.mLeft + crop.mWidth) + crop.mLeft, crop.mWidth);
+                    const uint32_t stride = layout->mPlanes[C2PlaneLayout::U].mRowInc;
+                    memcpy(raw_cropped_chroma + i * crop.mWidth, raw_chroma + (i + (crop.mTop >> 1)) * stride + crop.mLeft, crop.mWidth);
                 }
 
                 if(nullptr != raw_cropped) {
