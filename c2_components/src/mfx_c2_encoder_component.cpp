@@ -722,7 +722,7 @@ status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Ty
             }
 
             C2MemoryTypeSetting* setting = static_cast<C2MemoryTypeSetting*>(*dst);
-            if (!MfxIOPatternToC2MemoryType(video_params_config_.IOPattern, &setting->mValue)) res = C2_CORRUPTED;
+            if (!MfxIOPatternToC2MemoryType(true, video_params_config_.IOPattern, &setting->mValue)) res = C2_CORRUPTED;
             break;
         }
         default:
@@ -952,7 +952,7 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param* const> &params,
             }
             case kParamIndexMemoryType: {
                 const C2MemoryTypeSetting* setting = static_cast<const C2MemoryTypeSetting*>(param);
-                bool set_res = C2MemoryTypeToMfxIOPattern(setting->mValue, &video_params_config_.IOPattern);
+                bool set_res = C2MemoryTypeToMfxIOPattern(true, setting->mValue, &video_params_config_.IOPattern);
                 if (!set_res) {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
                 }

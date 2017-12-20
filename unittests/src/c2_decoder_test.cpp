@@ -24,12 +24,18 @@ using namespace android;
 const uint64_t FRAME_DURATION_US = 33333; // 30 fps
 const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
+static std::vector<C2ParamDescriptor> h264_params_desc =
+{
+    { false, "MemoryType", C2MemoryTypeSetting::typeIndex },
+};
+
 namespace {
     struct ComponentDesc
     {
         const char* component_name;
         int flags;
         status_t creation_status;
+        std::vector<C2ParamDescriptor> params_desc;
         std::vector<const StreamDescription> streams;
     };
 }
@@ -40,8 +46,8 @@ static std::vector<const StreamDescription> h264_streams =
 };
 
 static ComponentDesc g_components_desc[] = {
-    { "C2.h264vd", 0, C2_OK, h264_streams },
-    { "C2.NonExistingDecoder", 0, C2_NOT_FOUND, {} },
+    { "C2.h264vd", 0, C2_OK, h264_params_desc, h264_streams },
+    { "C2.NonExistingDecoder", 0, C2_NOT_FOUND, {}, {} },
 };
 
 static const ComponentDesc* GetComponentDesc(const std::string& component_name)
@@ -108,6 +114,36 @@ TEST(MfxDecoderComponent, intf)
         [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         EXPECT_EQ(comp_intf->getName(), desc.component_name);
+    } );
+}
+
+// Checks list of actually supported parameters by all decoding components.
+// Parameters order doesn't matter.
+// For every parameter index, name, required and persistent fields are checked.
+TEST(MfxDecoderComponent, getSupportedParams)
+{
+    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+        [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
+
+        std::vector<std::shared_ptr<C2ParamDescriptor>> params_actual;
+        status_t sts = comp_intf->getSupportedParams(&params_actual);
+        EXPECT_EQ(sts, C2_OK);
+
+        EXPECT_EQ(desc.params_desc.size(), params_actual.size());
+
+        for(const C2ParamDescriptor& param_expected : desc.params_desc) {
+
+            const auto found_actual = std::find_if(params_actual.begin(), params_actual.end(),
+                [&] (auto p) { return p->type() == param_expected.type(); } );
+
+            EXPECT_NE(found_actual, params_actual.end())
+                << "missing parameter " << param_expected.name();
+            if (found_actual != params_actual.end()) {
+                EXPECT_EQ((*found_actual)->isRequired(), param_expected.isRequired());
+                EXPECT_EQ((*found_actual)->isPersistent(), param_expected.isPersistent());
+                EXPECT_EQ((*found_actual)->name(), param_expected.name());
+            }
+        }
     } );
 }
 
@@ -294,13 +330,24 @@ private:
 };
 
 static void Decode(
+    bool graphics_memory,
     std::shared_ptr<C2Component> component,
     std::shared_ptr<DecoderConsumer> validator,
     const StreamDescription& stream)
 {
     component->registerListener(validator);
 
-    status_t sts = component->start();
+    C2MemoryTypeSetting setting;
+    setting.mValue = graphics_memory ? C2MemoryTypeGraphics : C2MemoryTypeSystem;
+
+    std::vector<C2Param* const> params = { &setting };
+    std::vector<std::unique_ptr<C2SettingResult>> failures;
+    std::shared_ptr<C2ComponentInterface> comp_intf = component->intf();
+
+    status_t sts = comp_intf->config_nb(params, &failures);
+    EXPECT_EQ(sts, C2_OK);
+
+    sts = component->start();
     EXPECT_EQ(sts, C2_OK);
 
     StreamReader reader(stream);
@@ -346,6 +393,13 @@ TEST(MfxDecoderComponent, DecodeBitExact)
 
         const int TESTS_COUNT = 5;
 
+        // odd runs are on graphics memory
+        auto use_graphics_memory = [] (int i) -> bool { return (i % 2) != 0; };
+        std::map<bool, std::string> memory_names = {
+            { false, "(system memory)" },
+            { true, "(video memory)" },
+        };
+
         for(const StreamDescription& stream : desc.streams) {
             for(int i = 0; i < TESTS_COUNT; ++i) {
 
@@ -362,9 +416,10 @@ TEST(MfxDecoderComponent, DecodeBitExact)
                 std::shared_ptr<DecoderConsumer> validator =
                     std::make_shared<DecoderConsumer>(on_frame);
 
-                Decode(comp, validator, stream);
+                Decode(use_graphics_memory(i), comp, validator, stream);
 
-                EXPECT_EQ(crc_generator.GetCrc32(), stream.crc32) << "Pass " << i << " not equal to reference CRC32";
+                EXPECT_EQ(crc_generator.GetCrc32(), stream.crc32) << "Pass " << i << " not equal to reference CRC32"
+                    << memory_names[use_graphics_memory(i)];
             }
         }
     } );

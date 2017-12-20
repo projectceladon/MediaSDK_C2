@@ -402,20 +402,28 @@ void InitNV12PlaneLayout(int32_t pitch, int32_t alloc_height, C2PlaneLayout* lay
     }
 }
 
-static const std::pair<C2MemoryType, mfxU16> g_memory_types[] =
+static const std::pair<C2MemoryType, mfxU16> g_input_memory_types[] =
 {
     { C2MemoryTypeSystem, MFX_IOPATTERN_IN_SYSTEM_MEMORY },
     { C2MemoryTypeGraphics, MFX_IOPATTERN_IN_VIDEO_MEMORY }
 };
 
-bool C2MemoryTypeToMfxIOPattern(C2MemoryType memory_type, mfxU16* io_pattern)
+static const std::pair<C2MemoryType, mfxU16> g_output_memory_types[] =
 {
-    return FirstToSecond(g_memory_types, memory_type, io_pattern);
+    { C2MemoryTypeSystem, MFX_IOPATTERN_OUT_SYSTEM_MEMORY },
+    { C2MemoryTypeGraphics, MFX_IOPATTERN_OUT_VIDEO_MEMORY }
+};
+
+bool C2MemoryTypeToMfxIOPattern(bool input, C2MemoryType memory_type, mfxU16* io_pattern)
+{
+    return FirstToSecond(input ? g_input_memory_types : g_output_memory_types,
+        memory_type, io_pattern);
 }
 
-bool MfxIOPatternToC2MemoryType(mfxU16 io_pattern, C2MemoryType* memory_type)
+bool MfxIOPatternToC2MemoryType(bool input, mfxU16 io_pattern, C2MemoryType* memory_type)
 {
-    return SecondToFirst(g_memory_types, io_pattern, memory_type);
+    return SecondToFirst(input ? g_input_memory_types : g_output_memory_types,
+        io_pattern, memory_type);
 }
 
 int MfxFourCCToGralloc(mfxU32 fourcc)
