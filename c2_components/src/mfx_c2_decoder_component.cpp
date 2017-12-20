@@ -31,6 +31,17 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const android::C2String name, int f
     synced_points_count_(0)
 {
     MFX_DEBUG_TRACE_FUNC;
+
+    switch(decoder_type_) {
+        case DECODER_H264:
+
+            MfxC2ParamReflector& pr = param_reflector_;
+
+            pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
+        break;
+    }
+
+    param_reflector_.DumpParams();
 }
 
 MfxC2DecoderComponent::~MfxC2DecoderComponent()
@@ -169,7 +180,7 @@ mfxStatus MfxC2DecoderComponent::Reset()
     }
 
     mfx_set_defaults_mfxVideoParam_dec(&video_params_);
-    video_params_.IOPattern = MFX_IOPATTERN_OUT_VIDEO_MEMORY;
+    video_params_.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
 
     return res;
 }
@@ -196,6 +207,8 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockAllocator> c
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
 
+    std::lock_guard<std::mutex> lock(init_decoder_mutex_);
+
     {
         MFX_DEBUG_TRACE("InitDecoder: DecodeHeader");
 
@@ -217,18 +230,9 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockAllocator> c
         }
     }
     if (MFX_ERR_NONE == mfx_res) {
-        MFX_DEBUG_TRACE("InitDecoder: QueryIOSurf");
+        MFX_DEBUG_TRACE("InitDecoder: GetAsyncDepth");
 
         video_params_.AsyncDepth = GetAsyncDepth();
-
-        mfxFrameAllocRequest request;
-        MFX_ZERO_MEMORY(request);
-
-        mfx_res = decoder_->QueryIOSurf(&video_params_, &request);
-        if (MFX_WRN_PARTIAL_ACCELERATION == mfx_res) {
-            MFX_DEBUG_TRACE_MSG("[WRN] MFX_WRN_PARTIAL_ACCELERATION was received.");
-            mfx_res = MFX_ERR_NONE;
-        }
     }
     if (MFX_ERR_NONE == mfx_res) {
         MFX_DEBUG_TRACE("InitDecoder: Init");
@@ -287,6 +291,160 @@ void MfxC2DecoderComponent::FreeDecoder()
     if (allocator_) {
         allocator_->Reset();
     }
+}
+
+status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Type type, C2Param** dst) const
+{
+    status_t res = C2_OK;
+
+    switch (type.paramIndex()) {
+        case kParamIndexMemoryType: {
+            if (nullptr == *dst) {
+                *dst = new C2MemoryTypeSetting();
+            }
+
+            C2MemoryTypeSetting* setting = static_cast<C2MemoryTypeSetting*>(*dst);
+            if (!MfxIOPatternToC2MemoryType(false, src->IOPattern, &setting->mValue)) res = C2_CORRUPTED;
+            break;
+        }
+        default:
+            res = C2_BAD_INDEX;
+            break;
+    }
+    return res;
+}
+
+status_t MfxC2DecoderComponent::query_nb(
+    const std::vector<C2Param* const> &stackParams,
+    const std::vector<C2Param::Index> &heapParamIndices,
+    std::vector<std::unique_ptr<C2Param>>* const heapParams) const
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    std::lock_guard<std::mutex> lock(init_decoder_mutex_);
+
+    status_t res = C2_OK;
+
+    // determine source, update it if needed
+    const mfxVideoParam* params_view = &video_params_;
+    if (nullptr != params_view) {
+        // 1st cycle on stack params
+        for (C2Param* param : stackParams) {
+            status_t param_res = C2_OK;
+            if (param_reflector_.FindParam(param->type())) {
+                param_res = QueryParam(params_view, param->type(), &param);
+            } else {
+                param_res =  C2_BAD_INDEX;
+            }
+            if (param_res != C2_OK) {
+                param->invalidate();
+                res = param_res;
+            }
+        }
+        // 2nd cycle on heap params
+        for (C2Param::Index param_index : heapParamIndices) {
+            // allocate in QueryParam
+            C2Param* param = nullptr;
+            // check on presence
+            status_t param_res = C2_OK;
+            if (param_reflector_.FindParam(param_index.type())) {
+                param_res = QueryParam(params_view, param_index.type(), &param);
+            } else {
+                param_res = C2_BAD_INDEX;
+            }
+            if (param_res == C2_OK) {
+                if(nullptr != heapParams) {
+                    heapParams->push_back(std::unique_ptr<C2Param>(param));
+                } else {
+                    MFX_DEBUG_TRACE_MSG("heapParams is null");
+                    res = C2_BAD_VALUE;
+                }
+            } else {
+                delete param;
+                res = param_res;
+            }
+        }
+    } else {
+        // no params_view was acquired
+        for (C2Param* param : stackParams) {
+            param->invalidate();
+        }
+        res = C2_CORRUPTED;
+    }
+
+    MFX_DEBUG_TRACE__android_status_t(res);
+    return res;
+}
+
+void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param* const> &params,
+    std::vector<std::unique_ptr<C2SettingResult>>* const failures,
+    bool /*queue_update*/)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    for (const C2Param* param : params) {
+        // check whether plugin supports this parameter
+        std::unique_ptr<C2SettingResult> find_res = param_reflector_.FindParam(param);
+        if(nullptr != find_res) {
+            failures->push_back(std::move(find_res));
+            continue;
+        }
+        // check whether plugin is in a correct state to apply this parameter
+        bool modifiable = (param->kind() == C2Param::TUNING) ||
+            (param->kind() == C2Param::SETTING && state_ == State::STOPPED);
+
+        if (!modifiable) {
+            failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::READ_ONLY));
+            continue;
+        }
+
+        // check ranges
+        if(!param_reflector_.ValidateParam(param, failures)) {
+            continue;
+        }
+
+        // applying parameter
+        switch (C2Param::Type(param->type()).paramIndex()) {
+            case kParamIndexMemoryType: {
+                const C2MemoryTypeSetting* setting = static_cast<const C2MemoryTypeSetting*>(param);
+                bool set_res = C2MemoryTypeToMfxIOPattern(false, setting->mValue, &video_params_.IOPattern);
+                if (!set_res) {
+                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
+                }
+                break;
+            }
+            default:
+                failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE));
+                break;
+        }
+    }
+}
+
+status_t MfxC2DecoderComponent::config_nb(const std::vector<C2Param* const> &params,
+    std::vector<std::unique_ptr<C2SettingResult>>* const failures) {
+
+    MFX_DEBUG_TRACE_FUNC;
+
+    status_t res = C2_OK;
+
+    do {
+        if (nullptr == failures) {
+            res = C2_CORRUPTED; break;
+        }
+
+        failures->clear();
+
+        std::lock(init_decoder_mutex_, state_mutex_);
+        std::lock_guard<std::mutex> lock1(init_decoder_mutex_, std::adopt_lock);
+        std::lock_guard<std::mutex> lock2(state_mutex_, std::adopt_lock);
+
+        DoConfig(params, failures, true);
+
+        res = GetAggregateStatus(failures);
+
+    } while(false);
+
+    return res;
 }
 
 mfxStatus MfxC2DecoderComponent::DecodeFrameAsync(

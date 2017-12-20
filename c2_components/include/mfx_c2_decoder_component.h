@@ -36,6 +36,16 @@ public:
 public:
     static void RegisterClass(MfxC2ComponentsRegistry& registry);
 
+protected: // android::C2ComponentInterface
+    status_t query_nb(
+        const std::vector<android::C2Param* const> &stackParams,
+        const std::vector<android::C2Param::Index> &heapParamIndices,
+        std::vector<std::unique_ptr<android::C2Param>>* const heapParams) const override;
+
+    status_t config_nb(
+            const std::vector<android::C2Param* const> &params,
+            std::vector<std::unique_ptr<android::C2SettingResult>>* const failures) override;
+
 protected: // android::C2Component
     status_t queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items) override;
 
@@ -47,6 +57,13 @@ protected:
     android::status_t DoStop() override;
 
 private:
+    status_t QueryParam(const mfxVideoParam* src,
+        android::C2Param::Type type, android::C2Param** dst) const;
+
+    void DoConfig(const std::vector<android::C2Param* const> &params,
+        std::vector<std::unique_ptr<android::C2SettingResult>>* const failures,
+        bool queue_update);
+
     mfxStatus InitSession();
 
     mfxStatus Reset();
@@ -91,6 +108,8 @@ private:
     MFX_TRACEABLE(waiting_queue_);
 
     mfxVideoParam video_params_ {};
+    // Protects decoder initialization and video_params_
+    mutable std::mutex init_decoder_mutex_;
 
     // Members handling MFX_WRN_DEVICE_BUSY.
     // Active sync points got from DecodeFrameAsync for waiting on.
