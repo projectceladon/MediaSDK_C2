@@ -67,11 +67,14 @@ MfxVaFrameAllocator::~MfxVaFrameAllocator()
     MFX_DEBUG_TRACE_FUNC;
 }
 
-mfxStatus MfxVaFrameAllocator::AllocImpl(mfxFrameAllocRequest *request, mfxFrameAllocResponse *response)
+mfxStatus MfxVaFrameAllocator::AllocFrames(mfxFrameAllocRequest *request, mfxFrameAllocResponse *response)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     MFX_DEBUG_TRACE_U32(request->Info.FourCC);
+    MFX_DEBUG_TRACE_U32(request->Type);
+    MFX_DEBUG_TRACE_I32(request->NumFrameMin);
+    MFX_DEBUG_TRACE_I32(request->NumFrameSuggested);
 
     std::lock_guard<std::mutex> lock(mutex_);
 
@@ -160,7 +163,7 @@ mfxStatus MfxVaFrameAllocator::AllocImpl(mfxFrameAllocRequest *request, mfxFrame
     return mfx_res;
 }
 
-mfxStatus MfxVaFrameAllocator::FreeImpl(mfxFrameAllocResponse *response)
+mfxStatus MfxVaFrameAllocator::FreeFrames(mfxFrameAllocResponse *response)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -379,6 +382,8 @@ mfxStatus MfxVaFrameAllocator::ConvertGrallocToVa(buffer_handle_t gralloc_buffer
             *mem_id = mem_id_alloc.get();
 
             mapped_va_surfaces_.emplace(gralloc_buffer, std::move(mem_id_alloc));
+
+            MFX_DEBUG_TRACE_STREAM(NAMED(this) << NAMED(gralloc_buffer) << NAMED(*mem_id) << NAMED(mapped_va_surfaces_.size()));
         }
     } while(false);
 

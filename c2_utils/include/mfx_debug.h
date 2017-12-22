@@ -48,6 +48,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include <stdio.h>
 #include <string>
+#include <sstream>
 #include <unordered_map>
 #include <thread>
 #include "mfxdefs.h"
@@ -202,6 +203,13 @@ void printf_value_from_desc(
     char MFX_DEBUG_LOG[MFX_DEBUG_MAX_LOG_SIZE]; \
     snprintf(MFX_DEBUG_LOG, MFX_DEBUG_MAX_LOG_SIZE, __VA_ARGS__); \
     MFX_DEBUG_TRACE_MSG(MFX_DEBUG_LOG); \
+}
+
+#define MFX_DEBUG_TRACE_STREAM(...) \
+{ \
+    std::ostringstream ss; \
+    ss << __VA_ARGS__; \
+    MFX_DEBUG_TRACE_MSG(ss.str().c_str()); \
 }
 
 #define mfx_enumval_eq(_e, _v) ((_e) == _v) MFX_DEBUG_TRACE_E(_e, #_v)

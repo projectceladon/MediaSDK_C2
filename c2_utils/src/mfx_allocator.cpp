@@ -60,13 +60,3 @@ MfxFrameAllocator::MfxFrameAllocator()
 MfxFrameAllocator::~MfxFrameAllocator()
 {
 }
-
-mfxStatus MfxFrameAllocator::AllocFrames(mfxFrameAllocRequest *request, mfxFrameAllocResponse *response)
-{
-    return AllocImpl(request, response);
-}
-
-mfxStatus MfxFrameAllocator::FreeFrames(mfxFrameAllocResponse *response)
-{
-    return FreeImpl(response);
-}

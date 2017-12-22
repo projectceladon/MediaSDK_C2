@@ -37,11 +37,11 @@ public:
     virtual ~MfxVaFrameAllocator();
 
 private: // MfxFrameAllocator
+    virtual mfxStatus AllocFrames(mfxFrameAllocRequest *request, mfxFrameAllocResponse *response) override;
+    virtual mfxStatus FreeFrames(mfxFrameAllocResponse *response) override;
     virtual mfxStatus LockFrame(mfxMemId mid, mfxFrameData *frame_data) override;
     virtual mfxStatus UnlockFrame(mfxMemId mid, mfxFrameData *frame_data) override;
     virtual mfxStatus GetFrameHDL(mfxMemId mid, mfxHDL *handle) override;
-    virtual mfxStatus AllocImpl(mfxFrameAllocRequest *request, mfxFrameAllocResponse *response) override;
-    virtual mfxStatus FreeImpl(mfxFrameAllocResponse *response) override;
 
 private: // MfxFrameConverter
     virtual mfxStatus ConvertGrallocToVa(buffer_handle_t gralloc_buffer_, bool decode_target,
