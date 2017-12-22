@@ -22,19 +22,13 @@ public:
     mfxFrameAllocator& GetMfxAllocator() { return mfx_allocator_; }
 
 public:
-    virtual mfxStatus AllocFrames(mfxFrameAllocRequest *request, mfxFrameAllocResponse *response);
-    virtual mfxStatus FreeFrames(mfxFrameAllocResponse *response);
+    virtual mfxStatus AllocFrames(mfxFrameAllocRequest *request, mfxFrameAllocResponse *response) = 0;
+    virtual mfxStatus FreeFrames(mfxFrameAllocResponse *response) = 0;
 
     virtual mfxStatus LockFrame(mfxMemId mid, mfxFrameData *ptr) = 0;
     virtual mfxStatus UnlockFrame(mfxMemId mid, mfxFrameData *ptr) = 0;
 
     virtual mfxStatus GetFrameHDL(mfxMemId mid, mfxHDL *handle) = 0;
-
-protected: // methods to be overridden
-    // allocates memory
-    virtual mfxStatus AllocImpl(mfxFrameAllocRequest *request, mfxFrameAllocResponse *response) = 0;
-    // frees memory attached to response
-    virtual mfxStatus FreeImpl(mfxFrameAllocResponse *response) = 0;
 
 private:
     MFX_CLASS_NO_COPY(MfxFrameAllocator)
