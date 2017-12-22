@@ -56,7 +56,7 @@ android::status_t MfxC2DecoderComponent::Init()
 
     Reset();
 
-    mfxStatus mfx_res = MfxDev::Create(&device_);
+    mfxStatus mfx_res = MfxDev::Create(MfxDev::Usage::Decoder, &device_);
     if(mfx_res == MFX_ERR_NONE) {
         mfx_res = session_.Init(mfx_implementation_, &g_required_mfx_version);
         MFX_DEBUG_TRACE_I32(g_required_mfx_version.Major);

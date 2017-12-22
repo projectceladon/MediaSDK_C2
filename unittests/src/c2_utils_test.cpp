@@ -171,7 +171,7 @@ TEST(MfxDev, InitCloseNoLeaks)
     for (int i = 0; i < COUNT; ++i)
     {
         std::unique_ptr<MfxDev> device;
-        mfxStatus sts = MfxDev::Create(&device);
+        mfxStatus sts = MfxDev::Create(MfxDev::Usage::Decoder, &device);
 
         EXPECT_EQ(MFX_ERR_NONE, sts);
         EXPECT_NE(device, nullptr);
@@ -484,7 +484,7 @@ typedef std::function<void (const MfxAllocTestRun& run, MfxFrameAllocator* alloc
 
 static void MfxVaAllocatorTest(const std::vector<MfxVaAllocatorTestStep>& steps, int repeat_count = 1)
 {
-    MfxDevVa* dev_va = new MfxDevVa();
+    MfxDevVa* dev_va = new MfxDevVa(MfxDev::Usage::Encoder);
     std::unique_ptr<MfxDev> dev { dev_va };
 
     mfxStatus sts = dev->Init();
@@ -649,7 +649,7 @@ static void MfxFrameConverterTest(const std::vector<MfxFrameConverterTestStep>& 
     EXPECT_EQ(res, C2_OK);
     EXPECT_NE(gr_allocator, nullptr);
 
-    std::unique_ptr<MfxDev> dev { new MfxDevVa() };
+    std::unique_ptr<MfxDev> dev { new MfxDevVa(MfxDev::Usage::Encoder) };
 
     mfxStatus sts = dev->Init();
     EXPECT_EQ(MFX_ERR_NONE, sts);
