@@ -20,7 +20,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 class MfxDevVa : public MfxDev
 {
 public:
-    MfxDevVa();
+    MfxDevVa(Usage usage);
     virtual ~MfxDevVa();
 
 public:
@@ -40,6 +40,7 @@ protected:
     typedef unsigned int MfxVaAndroidDisplayId;
 
 protected:
+    Usage usage_ {};
     bool va_initialized_ { false };
     MfxVaAndroidDisplayId display_id_ = MFX_VA_ANDROID_DISPLAY_ID;
     VADisplay va_display_ { nullptr };

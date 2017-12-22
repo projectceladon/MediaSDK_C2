@@ -22,7 +22,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_dev"
 
-mfxStatus MfxDev::Create(std::unique_ptr<MfxDev>* device)
+mfxStatus MfxDev::Create(Usage usage, std::unique_ptr<MfxDev>* device)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -31,8 +31,9 @@ mfxStatus MfxDev::Create(std::unique_ptr<MfxDev>* device)
     mfxStatus sts = MFX_ERR_NONE;
 
 #ifdef LIBVA_SUPPORT
-    created_dev.reset(MFX_NEW_NO_THROW(MfxDevVa()));
+    created_dev.reset(MFX_NEW_NO_THROW(MfxDevVa(usage)));
 #else
+    (void)usage;
     created_dev.reset(MFX_NEW_NO_THROW(MfxDevAndroid()));
 #endif
     if(created_dev == nullptr) {

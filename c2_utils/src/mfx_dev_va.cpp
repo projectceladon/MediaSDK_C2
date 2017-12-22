@@ -22,7 +22,8 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_dev_va"
 
-MfxDevVa::MfxDevVa()
+MfxDevVa::MfxDevVa(Usage usage):
+    usage_(usage)
 {
     MFX_DEBUG_TRACE_FUNC;
 }
@@ -55,11 +56,23 @@ mfxStatus MfxDevVa::Init()
         }
     }
 
-    if (MFX_ERR_NONE == mfx_res && !va_allocator_) {
-
-        va_allocator_.reset(new (std::nothrow)MfxVaFrameAllocator(va_display_));
-        if (nullptr == va_allocator_) mfx_res = MFX_ERR_MEMORY_ALLOC;
+    if (MFX_ERR_NONE == mfx_res) {
+        switch(usage_) {
+            case Usage::Encoder:
+                if (!va_allocator_) {
+                    va_allocator_.reset(new (std::nothrow)MfxVaFrameAllocator(va_display_));
+                    if (nullptr == va_allocator_) mfx_res = MFX_ERR_MEMORY_ALLOC;
+                }
+                break;
+            case Usage::Decoder:
+                mfx_res = MFX_ERR_NONE;
+                break;
+            default:
+                mfx_res = MFX_ERR_UNKNOWN;
+                break;
+        }
     }
+
 
     if (MFX_ERR_NONE != mfx_res) Close();
 

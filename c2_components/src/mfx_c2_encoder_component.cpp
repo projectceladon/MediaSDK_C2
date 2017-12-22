@@ -112,7 +112,7 @@ android::status_t MfxC2EncoderComponent::Init()
 
     Reset();
 
-    mfxStatus mfx_res = MfxDev::Create(&device_);
+    mfxStatus mfx_res = MfxDev::Create(MfxDev::Usage::Encoder, &device_);
 
     if(mfx_res == MFX_ERR_NONE) mfx_res = InitSession();
 

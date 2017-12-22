@@ -19,6 +19,11 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 class MfxDev
 {
 public:
+    enum class Usage {
+        Encoder,
+        Decoder
+    };
+public:
     virtual ~MfxDev() = default;
 
 public:
@@ -32,5 +37,5 @@ public:
 
     virtual mfxStatus InitMfxSession(MFXVideoSession* session) = 0;
 
-    static mfxStatus Create(std::unique_ptr<MfxDev>* device);
+    static mfxStatus Create(Usage usage, std::unique_ptr<MfxDev>* device);
 };
