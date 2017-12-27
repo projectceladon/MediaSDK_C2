@@ -16,6 +16,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_components_registry.h"
 #include "C2BlockAllocator.h"
 #include "streams/h264/aud_mw_e.264.h"
+#include "streams/h264/freh9.264.h"
 
 #include <future>
 
@@ -42,7 +43,7 @@ namespace {
 
 static std::vector<const StreamDescription> h264_streams =
 {
-    { aud_mw_e_264 },
+    { aud_mw_e_264, freh9_264 },
 };
 
 static ComponentDesc g_components_desc[] = {
