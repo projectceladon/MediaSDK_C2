@@ -117,6 +117,7 @@ define build_mock_unittests
       src/c2_utils_test.cpp \
       src/gtest_emulation.cpp \
       src/test_components.cpp \
+      src/test_streams.cpp \
       src/test_frame_constructor.cpp \
       src/test_main.cpp
 

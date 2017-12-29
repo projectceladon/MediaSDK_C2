@@ -833,7 +833,7 @@ uint32_t CountIdrSlices(std::vector<char>&& contents)
     StreamDescription stream {};
     stream.data = std::move(contents); // do not init sps/pps regions, don't care of them
 
-    StreamReader reader(stream);
+    SingleStreamReader reader(&stream);
 
     uint32_t count = 0;
 
