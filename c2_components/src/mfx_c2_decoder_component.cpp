@@ -636,27 +636,44 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
         res = c2_bitstream_->LoadC2BufferPack(work->input, TIMEOUT_NS);
         if (C2_OK != res) break;
 
-        if (!initialized_) {
-            mfx_sts = InitDecoder(work->worklets.front()->allocators.front());
-            if(MFX_ERR_NONE != mfx_sts) {
-                MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
-                res = MfxStatusToC2(mfx_sts);
-                break;
-            }
+        // loop repeats DecodeFrame on the same frame
+        // if DecodeFrame returns error which is repairable, like resolution change
+        bool resolution_change = false;
+        do {
             if (!initialized_) {
-                MFX_DEBUG_TRACE_MSG("Cannot initialize mfx decoder");
-                res = C2_BAD_VALUE;
-                break;
+                mfx_sts = InitDecoder(work->worklets.front()->allocators.front());
+                if(MFX_ERR_NONE != mfx_sts) {
+                    MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
+                    res = MfxStatusToC2(mfx_sts);
+                    break;
+                }
+                if (!initialized_) {
+                    MFX_DEBUG_TRACE_MSG("Cannot initialize mfx decoder");
+                    res = C2_BAD_VALUE;
+                    break;
+                }
             }
-        }
 
-        std::unique_ptr<MfxC2FrameOut> mfx_frame;
-        res = AllocateFrame(work, mfx_frame);
-        if (C2_OK != res) break;
+            std::unique_ptr<MfxC2FrameOut> mfx_frame;
+            res = AllocateFrame(work, mfx_frame);
+            if (C2_OK != res) break;
 
-        mfx_frame->PutC2Work(std::move(work));
+            mfx_frame->PutC2Work(std::move(work));
 
-        mfx_sts = DecodeFrame(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(), std::move(mfx_frame));
+            mfx_sts = DecodeFrame(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(), std::move(mfx_frame));
+
+            resolution_change = (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == mfx_sts);
+            if (resolution_change) {
+
+                Drain();
+                FreeDecoder();
+                work = mfx_frame->GetC2Work(); // move back C2Work to re-use on next iteration
+            }
+
+        } while (resolution_change); // try again as it is a resolution change
+
+        if (C2_OK != res) break; // if loop above was interrupted by C2 error
+
         if (MFX_ERR_NONE != mfx_sts) {
             res = MfxStatusToC2(mfx_sts);
             break;

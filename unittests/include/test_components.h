@@ -51,17 +51,19 @@ private:
 class CRC32Generator
 {
 public:
-    CRC32Generator() : crc32_(0) {}
+    CRC32Generator() {}
 
-    void AddData(const uint8_t* data, size_t length);
+    void AddData(uint32_t width, uint32_t height, const uint8_t* data, size_t length);
 
-    uint32_t GetCrc32()
+    std::list<uint32_t> GetCrc32()
     {
         return crc32_;
     }
 
 private:
-    uint32_t  crc32_;
+    uint32_t cur_width_ {};
+    uint32_t cur_height_ {};
+    std::list<uint32_t> crc32_; // one crc32 for evety resolution change
 };
 
 // Writes binary buffers to file.
