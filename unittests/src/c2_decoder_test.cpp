@@ -37,13 +37,13 @@ namespace {
         int flags;
         status_t creation_status;
         std::vector<C2ParamDescriptor> params_desc;
-        std::vector<const StreamDescription> streams;
+        std::vector<std::vector<const StreamDescription*>> streams;
     };
 }
 
-static std::vector<const StreamDescription> h264_streams =
+static std::vector<std::vector<const StreamDescription*>> h264_streams =
 {
-    { aud_mw_e_264, freh9_264 },
+    { &aud_mw_e_264 }, { &freh9_264 }, { &aud_mw_e_264, &freh9_264 }
 };
 
 static ComponentDesc g_components_desc[] = {
@@ -150,8 +150,7 @@ TEST(MfxDecoderComponent, getSupportedParams)
 
 static void PrepareWork(uint32_t frame_index,
     std::unique_ptr<C2Work>* work,
-    const StreamDescription& stream,
-    StreamDescription::Region& region, bool header)
+    const std::vector<char>& bitstream, bool end_stream, bool header)
 {
     *work = std::make_unique<C2Work>();
     C2BufferPack* buffer_pack = &((*work)->input);
@@ -159,7 +158,7 @@ static void PrepareWork(uint32_t frame_index,
     buffer_pack->flags = flags_t(0);
     if (header)
         buffer_pack->flags = flags_t(buffer_pack->flags | BUFFERFLAG_CODEC_CONFIG);
-    if (region.offset + region.size == (size_t)(stream.data.end() - stream.data.begin()))
+    if (end_stream)
         buffer_pack->flags = flags_t(buffer_pack->flags | BUFFERFLAG_END_OF_STREAM);
 
     // Set up frame header properties:
@@ -180,7 +179,7 @@ static void PrepareWork(uint32_t frame_index,
 
         C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
         std::shared_ptr<C2LinearBlock> block;
-        sts = allocator->allocateLinearBlock(region.size,
+        sts = allocator->allocateLinearBlock(bitstream.size(),
             mem_usage, &block);
 
         EXPECT_EQ(sts, C2_OK);
@@ -193,11 +192,11 @@ static void PrepareWork(uint32_t frame_index,
         EXPECT_EQ(sts, C2_OK);
         EXPECT_NE(data, nullptr);
 
-        memcpy(data, (char*)&stream.data.front() + region.offset, region.size);
+        memcpy(data, &bitstream.front(), bitstream.size());
 
         C2Event event;
         event.fire(); // pre-fire as buffer is already ready to use
-        C2ConstLinearBlock const_block = block->share(0, region.size, event.fence());
+        C2ConstLinearBlock const_block = block->share(0, bitstream.size(), event.fence());
         // make buffer of linear block
         C2BufferData buffer_data = const_block;
         std::shared_ptr<C2Buffer> buffer = std::make_shared<C2Buffer>(buffer_data);
@@ -217,7 +216,8 @@ static void PrepareWork(uint32_t frame_index,
 class DecoderConsumer : public C2ComponentListener
 {
 public:
-    typedef std::function<void(const uint8_t* data, size_t length)> OnFrame;
+    typedef std::function<void(uint32_t width, uint32_t height,
+        const uint8_t* data, size_t length)> OnFrame;
 
 public:
     DecoderConsumer(OnFrame on_frame)
@@ -297,7 +297,8 @@ protected:
                 }
 
                 if(nullptr != raw_cropped) {
-                    on_frame_(raw_cropped, crop.mWidth * crop.mHeight * 3 / 2);
+                    on_frame_(crop.mWidth, crop.mHeight,
+                        raw_cropped, crop.mWidth * crop.mHeight * 3 / 2);
                 }
             }
         }
@@ -334,7 +335,7 @@ static void Decode(
     bool graphics_memory,
     std::shared_ptr<C2Component> component,
     std::shared_ptr<DecoderConsumer> validator,
-    const StreamDescription& stream)
+    const std::vector<const StreamDescription*>& streams)
 {
     component->registerListener(validator);
 
@@ -351,25 +352,26 @@ static void Decode(
     sts = component->start();
     EXPECT_EQ(sts, C2_OK);
 
-    SingleStreamReader reader(&stream);
+    std::unique_ptr<StreamReader> reader { StreamReader::Create(streams) };
     uint32_t frame_index = 0;
 
     StreamDescription::Region region {};
     bool header = false;
 
-    bool res = reader.Read(StreamReader::Slicing::Frame(), &region, &header);
+    bool res = reader->Read(StreamReader::Slicing::Frame(), &region, &header);
     while(res) {
         // prepare worklet and push
         std::unique_ptr<C2Work> work;
 
         // insert input data
-        PrepareWork(frame_index, &work, stream, region, header);
+        PrepareWork(frame_index, &work, reader->GetRegionContents(region),
+            reader->EndOfStream(), header);
         std::list<std::unique_ptr<C2Work>> works;
         works.push_back(std::move(work));
 
         frame_index++;
 
-        res = reader.Read(StreamReader::Slicing::Frame(), &region, &header);
+        res = reader->Read(StreamReader::Slicing::Frame(), &region, &header);
         if (!res) {
             validator->SetSubmittedFrames(frame_index);
         }
@@ -416,25 +418,32 @@ TEST(MfxDecoderComponent, DecodeBitExact)
             { true, "(video memory)" },
         };
 
-        for(const StreamDescription& stream : desc.streams) {
+        for(const std::vector<const StreamDescription*>& streams : desc.streams) {
             for(int i = 0; i < TESTS_COUNT; ++i) {
 
                 CRC32Generator crc_generator;
 
                 GTestBinaryWriter writer(std::ostringstream()
-                    << comp_intf->getName() << "-" << stream.name << "-" << i << ".nv12");
+                    << comp_intf->getName() << "-" << GetStreamsCombinedName(streams) << "-" << i << ".nv12");
 
-                DecoderConsumer::OnFrame on_frame = [&] (const uint8_t* data, size_t length) {
+                DecoderConsumer::OnFrame on_frame = [&] (uint32_t width, uint32_t height,
+                    const uint8_t* data, size_t length) {
+
                     writer.Write(data, length);
-                    crc_generator.AddData(data, length);
+                    crc_generator.AddData(width, height, data, length);
                 };
 
                 std::shared_ptr<DecoderConsumer> validator =
                     std::make_shared<DecoderConsumer>(on_frame);
 
-                Decode(use_graphics_memory(i), comp, validator, stream);
+                Decode(use_graphics_memory(i), comp, validator, streams);
 
-                EXPECT_EQ(crc_generator.GetCrc32(), stream.crc32_nv12) << "Pass " << i << " not equal to reference CRC32"
+                std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
+                std::list<uint32_t> expected_crc;
+                std::transform(streams.begin(), streams.end(), std::back_inserter(expected_crc),
+                    [] (const StreamDescription* stream) { return stream->crc32_nv12; } );
+
+                EXPECT_EQ(actual_crc, expected_crc) << "Pass " << i << " not equal to reference CRC32"
                     << memory_names[use_graphics_memory(i)];
             }
         }

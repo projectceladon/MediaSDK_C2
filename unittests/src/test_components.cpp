@@ -13,11 +13,16 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "ipp.h"
 #include <sstream>
 
-void CRC32Generator::AddData(const uint8_t* data, size_t length)
+void CRC32Generator::AddData(uint32_t width, uint32_t height, const uint8_t* data, size_t length)
 {
     if (nullptr != data)
     {
-        ippsCRC32_8u(data, length, &crc32_);
+        if (cur_width_ != width || cur_height_ != height) {
+            crc32_.push_back(0);
+            cur_width_ = width;
+            cur_height_ = height;
+        }
+        ippsCRC32_8u(data, length, &crc32_.back());
     }
 }
 
