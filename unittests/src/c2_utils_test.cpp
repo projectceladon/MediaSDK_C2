@@ -18,6 +18,9 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_utils.h"
 #include <map>
 #include <set>
+#include "test_streams.h"
+#include "streams/h264/aud_mw_e.264.h"
+#include "streams/h264/freh9.264.h"
 
 #ifdef LIBVA_SUPPORT
 #include "mfx_dev_va.h"
@@ -29,6 +32,97 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 using namespace android;
 
 static const size_t CMD_COUNT = 10;
+
+static std::vector<const StreamDescription*> g_streams { &aud_mw_e_264, &freh9_264 };
+
+// Multiple streams read till the end with CombinedStreamReader should give the same output
+// as those streams read with SingleStreamReader instances.
+TEST(CombinedStreamReader, Read)
+{
+    bool header {};
+    StreamDescription::Region region;
+
+    std::list<std::vector<char>> single_readers_res;
+    {
+        std::vector<SingleStreamReader> readers;
+        for (const auto& stream : g_streams ) {
+            readers.emplace_back(stream);
+        }
+
+        for (auto& reader : readers) {
+            while (reader.Read(StreamReader::Slicing::Frame(), &region, &header)) {
+                single_readers_res.push_back(reader.GetRegionContents(region));
+            }
+        }
+    }
+
+    std::list<std::vector<char>> combined_reader_res;
+    {
+        CombinedStreamReader reader(g_streams);
+
+        while (reader.Read(StreamReader::Slicing::Frame(), &region, &header)) {
+            combined_reader_res.push_back(reader.GetRegionContents(region));
+        }
+    }
+
+    EXPECT_EQ(single_readers_res, combined_reader_res);
+}
+
+// Reads from stream by one byte, EndOfStream should give true iff next Read is imposssible.
+TEST(CombinedStreamReader, EndOfStream)
+{
+    CombinedStreamReader reader(g_streams);
+
+    bool header {};
+    StreamDescription::Region region;
+
+    for (;;) {
+        bool eos = reader.EndOfStream();
+        bool read_ok = reader.Read(StreamReader::Slicing(1), &region, &header);
+        EXPECT_NE(read_ok, eos);
+        if (!read_ok) break;
+    }
+}
+
+// Seek to position around edge between adjacent streams, read some chunk of data
+// and compares it with part in all contents array.
+TEST(CombinedStreamReader, Seek)
+{
+    size_t total_size = 0;
+    for (const auto& stream : g_streams) {
+        total_size += stream->data.size();
+    }
+
+    bool header {};
+    StreamDescription::Region region;
+
+    std::vector<char> combined_reader_res;
+    CombinedStreamReader reader(g_streams);
+
+    while (reader.Read(StreamReader::Slicing(1024), &region, &header)) {
+        std::vector<char> chunk = reader.GetRegionContents(region);
+        combined_reader_res.insert(combined_reader_res.end(),
+            chunk.begin(), chunk.end());
+    }
+    EXPECT_EQ(combined_reader_res.size(), total_size); // check read all contents
+
+    const size_t len = 100; // len to read
+    size_t edge = 0;
+    for (size_t i = 0; i < g_streams.size() - 1; ++i) {
+        edge += g_streams[i]->data.size();
+
+        for (size_t start : { edge - len, edge - len / 2, edge, edge + len, edge - len } ) {
+            reader.Seek(start);
+            bool res = reader.Read(StreamReader::Slicing(len), &region, &header);
+            EXPECT_TRUE(res);
+            std::vector<char> chunk = reader.GetRegionContents(region);
+
+            auto mismatch_res = std::mismatch(chunk.begin(), chunk.end(),
+                combined_reader_res.begin() + start);
+            EXPECT_EQ(mismatch_res.first, chunk.end());
+        }
+    }
+}
 
 // Tests abstract command queue processed all supplied tasks in correct order.
 TEST(MfxCmdQueue, ProcessAll)

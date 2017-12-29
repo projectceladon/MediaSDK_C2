@@ -351,7 +351,7 @@ static void Decode(
     sts = component->start();
     EXPECT_EQ(sts, C2_OK);
 
-    StreamReader reader(stream);
+    SingleStreamReader reader(&stream);
     uint32_t frame_index = 0;
 
     StreamDescription::Region region {};
@@ -385,6 +385,21 @@ static void Decode(
     component->unregisterListener(validator);
     sts = component->stop();
     EXPECT_EQ(sts, C2_OK);
+}
+
+static std::string GetStreamsCombinedName(const std::vector<const StreamDescription*>& streams)
+{
+    std::ostringstream res;
+
+    bool first = true;
+    for (const auto& stream : streams) {
+        if (!first) {
+            res << "-";
+        }
+        res << stream->name;
+        first = false;
+    }
+    return res.str();
 }
 
 TEST(MfxDecoderComponent, DecodeBitExact)

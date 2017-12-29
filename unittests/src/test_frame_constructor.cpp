@@ -114,7 +114,7 @@ TEST(FrameConstructor, PassEverything)
         mfxStatus sts = frame_constructor->Init(0, {}/*init parameters don't matter*/);
         EXPECT_EQ(sts, MFX_ERR_NONE);
 
-        StreamReader reader(test_case.stream_desc);
+        SingleStreamReader reader(&test_case.stream_desc);
 
         mfxU64 pts = 0;
         mfxU64 loaded_pts = 0;
@@ -218,7 +218,7 @@ TEST(FrameConstructor, Reset)
             mfxStatus sts = frame_constructor->Init(0, {}/*init parameters don't matter*/);
             EXPECT_EQ(sts, MFX_ERR_NONE);
 
-            StreamReader reader(stream);
+            SingleStreamReader reader(&stream);
 
             bool res = PassThrough(frame_constructor, reader,
                 StreamReader::Slicing(test_case.read_before_reset), stream,
@@ -309,7 +309,7 @@ TEST(FrameConstructor, SaveHeaders)
             mfxStatus sts = frame_constructor->Init(0, {}/*init parameters don't matter*/);
             EXPECT_EQ(sts, MFX_ERR_NONE);
 
-            StreamReader reader(stream);
+            SingleStreamReader reader(&stream);
 
             std::shared_ptr<mfxBitstream> sps1 = MakeBitstream("sps1");
             std::shared_ptr<mfxBitstream> pps1 = MakeBitstream("pps1");

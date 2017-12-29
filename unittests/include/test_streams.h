@@ -78,28 +78,75 @@ public:
     };
 
 public:
-    StreamReader(const StreamDescription& stream):
-        stream_(stream),
-        pos_(stream.data.begin())
-        {}
-    // reads next stream chunk specified in slicing
-    bool Read(const Slicing& slicing, StreamDescription::Region* region, bool* header, size_t* start_code_len = nullptr);
+    static std::unique_ptr<StreamReader> Create(const std::vector<const StreamDescription*>& streams);
 
+    virtual ~StreamReader() = default;
+    // reads next stream chunk specified in slicing
+    virtual bool Read(const Slicing& slicing, StreamDescription::Region* region, bool* header, size_t* start_code_len = nullptr) = 0;
+
+    virtual bool Seek(size_t pos) = 0;
+
+    virtual bool EndOfStream() = 0;
+
+    virtual std::vector<char> GetRegionContents(StreamDescription::Region region) const = 0;
+};
+
+class SingleStreamReader : public StreamReader
+{
+public:
+    SingleStreamReader(const StreamDescription* stream):
+        stream_(stream),
+        pos_(stream->data.begin())
+        {}
+public:
+    virtual bool Read(const Slicing& slicing, StreamDescription::Region* region, bool* header, size_t* start_code_len = nullptr) override;
+
+    virtual bool Seek(size_t pos) override;
+
+    virtual bool EndOfStream() override;
+
+    virtual std::vector<char> GetRegionContents(StreamDescription::Region region) const override;
+
+private:
     bool ContainsHeader(const StreamDescription::Region& region);
 
     bool ContainsSlice(const StreamDescription::Region& region, size_t start_code_len);
 
-    bool Seek(size_t pos);
-
 private:
-    const StreamDescription& stream_;
+    const StreamDescription* stream_;
     std::vector<char>::const_iterator pos_;
 };
 
-inline bool StreamReader::Read(const Slicing& slicing, StreamDescription::Region* region, bool* header, size_t* start_code_len)
+class CombinedStreamReader : public StreamReader
+{
+public:
+    CombinedStreamReader(std::vector<const StreamDescription*> streams):
+        streams_(streams)
+    {
+        std::transform(streams.begin(), streams.end(), std::back_inserter(readers_),
+            [] (const StreamDescription* stream) { return SingleStreamReader(stream); } );
+    }
+    virtual ~CombinedStreamReader() = default;
+public:
+    virtual bool Read(const Slicing& slicing, StreamDescription::Region* region, bool* header, size_t* start_code_len = nullptr) override;
+
+    virtual bool Seek(size_t pos) override;
+
+    virtual bool EndOfStream() override;
+
+    virtual std::vector<char> GetRegionContents(StreamDescription::Region region) const override;
+
+private:
+    std::vector<const StreamDescription*> streams_;
+    std::vector<SingleStreamReader> readers_;
+    size_t active_stream_offset_ { 0 };
+    size_t active_stream_index_ { 0 };
+};
+
+inline bool SingleStreamReader::Read(const Slicing& slicing, StreamDescription::Region* region, bool* header, size_t* start_code_len)
 {
     bool res = true;
-    if(pos_ < stream_.data.end()) {
+    if(pos_ < stream_->data.end()) {
         switch(slicing.GetType()) {
             case Slicing::Type::NalUnit: {
                 const std::vector<std::vector<char>> delims =
@@ -108,22 +155,22 @@ inline bool StreamReader::Read(const Slicing& slicing, StreamDescription::Region
                 std::vector<char>::const_iterator find_from = pos_;
                 for (const auto& delim : delims) {
                     std::vector<char>::const_iterator found =
-                        std::search(pos_, stream_.data.end(), delim.begin(), delim.end());
+                        std::search(pos_, stream_->data.end(), delim.begin(), delim.end());
                     if (found == pos_) { // this is current beginning of current nal unit, skip it
                         find_from = pos_ + delim.size();
                         break;
                     }
                 }
 
-                std::vector<char>::const_iterator nearest_delim = stream_.data.end();
+                std::vector<char>::const_iterator nearest_delim = stream_->data.end();
                 for (const auto& delim : delims) {
                     std::vector<char>::const_iterator found =
-                        std::search(find_from, stream_.data.end(), delim.begin(), delim.end());
+                        std::search(find_from, stream_->data.end(), delim.begin(), delim.end());
                     if (found < nearest_delim) {
                         nearest_delim = found;
                     }
                 }
-                region->offset = pos_ - stream_.data.begin();
+                region->offset = pos_ - stream_->data.begin();
                 region->size = nearest_delim - pos_;
                 *header = ContainsHeader(*region);
                 if (nullptr != start_code_len) {
@@ -182,8 +229,8 @@ inline bool StreamReader::Read(const Slicing& slicing, StreamDescription::Region
                 break;
             }
             case Slicing::Type::Fixed: {
-                region->offset = pos_ - stream_.data.begin();
-                region->size = std::min<size_t>(stream_.data.end() - pos_, slicing.GetSize());
+                region->offset = pos_ - stream_->data.begin();
+                region->size = std::min<size_t>(stream_->data.end() - pos_, slicing.GetSize());
                 *header = ContainsHeader(*region);
                 pos_ += region->size;
                 break;
@@ -198,16 +245,16 @@ inline bool StreamReader::Read(const Slicing& slicing, StreamDescription::Region
     return res;
 }
 
-inline bool StreamReader::ContainsHeader(const StreamDescription::Region& region)
+inline bool SingleStreamReader::ContainsHeader(const StreamDescription::Region& region)
 {
-    return stream_.sps.Intersects(region) || stream_.pps.Intersects(region);
+    return stream_->sps.Intersects(region) || stream_->pps.Intersects(region);
 }
 
-inline bool StreamReader::ContainsSlice(const StreamDescription::Region& region, size_t start_code_len)
+inline bool SingleStreamReader::ContainsSlice(const StreamDescription::Region& region, size_t start_code_len)
 {
     bool is_slice = false;
     if (region.size >= start_code_len + 1) {
-        char header_byte = stream_.data[region.offset + start_code_len]; // first byte after start code
+        char header_byte = stream_->data[region.offset + start_code_len]; // first byte after start code
         uint8_t nal_unit_type = (uint8_t)header_byte & 0x1F;
         if(nal_unit_type == 1 || nal_unit_type == 5) { // slice types
             is_slice = true;
@@ -216,15 +263,29 @@ inline bool StreamReader::ContainsSlice(const StreamDescription::Region& region,
     return is_slice;
 }
 
-inline bool StreamReader::Seek(size_t pos)
+inline bool SingleStreamReader::Seek(size_t pos)
 {
     bool res = true;
-    if(pos <= stream_.data.size()) {
-        pos_ = stream_.data.begin() + pos;
+    if(pos <= stream_->data.size()) {
+        pos_ = stream_->data.begin() + pos;
     } else {
         res = false;
     }
     return res;
+}
+
+inline bool SingleStreamReader::EndOfStream()
+{
+    return pos_ == stream_->data.end();
+}
+
+inline std::vector<char> SingleStreamReader::GetRegionContents(StreamDescription::Region region) const
+{
+    size_t begin = std::min(region.offset, stream_->data.size());
+    size_t end = std::min(region.offset + region.size, stream_->data.size());
+
+    return std::vector<char>(stream_->data.begin() + begin,
+        stream_->data.begin() + end);
 }
 
 struct AvcSequenceParameterSet
