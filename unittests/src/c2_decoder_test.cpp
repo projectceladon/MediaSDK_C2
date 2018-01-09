@@ -418,7 +418,7 @@ TEST(MfxDecoderComponent, DecodeBitExact)
 
                 Decode(use_graphics_memory(i), comp, validator, stream);
 
-                EXPECT_EQ(crc_generator.GetCrc32(), stream.crc32) << "Pass " << i << " not equal to reference CRC32"
+                EXPECT_EQ(crc_generator.GetCrc32(), stream.crc32_nv12) << "Pass " << i << " not equal to reference CRC32"
                     << memory_names[use_graphics_memory(i)];
             }
         }
