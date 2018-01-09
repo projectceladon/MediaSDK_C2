@@ -27,7 +27,9 @@ struct StreamDescription
     Region sps;
     Region pps;
 
-    uint32_t crc32; //checksum of the video decoded to nv12 format
+    uint32_t crc32_nv12; // Checksum of the video decoded to nv12 format,
+    // obtained with command line: ./mfx_player64 -i {bitstream}.264 -crc -hw -o:nv12
+    // It does not match default crc32 checksums which are actually for I420.
 
     std::vector<char> data;
 };
