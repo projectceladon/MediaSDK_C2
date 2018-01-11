@@ -15,6 +15,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 struct StreamDescription
 {
+    const char* name;
     struct Region
     {
         size_t offset;

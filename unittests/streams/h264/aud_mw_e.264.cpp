@@ -1,6 +1,7 @@
 #include "aud_mw_e.264.h"
 
 StreamDescription aud_mw_e_264 = {
+    .name = "aud_mw_e_264",
     .sps = { 6, 13 }, // with delimiter
     .pps = { 19, 8 }, // with delimiter
     .crc32_nv12 = 0xA5A66581,
