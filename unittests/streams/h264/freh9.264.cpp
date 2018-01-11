@@ -1,6 +1,7 @@
 #include "freh9.264.h"
 
 StreamDescription freh9_264 = {
+    .name = "freh9_264",
     .sps = { 0, 15 }, // includes heading delimiter
     .pps = { 15, 10 }, // includes heading delimiter
     .crc32_nv12 = 0x4240C8B5,

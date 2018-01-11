@@ -407,7 +407,7 @@ TEST(MfxDecoderComponent, DecodeBitExact)
                 CRC32Generator crc_generator;
 
                 GTestBinaryWriter writer(std::ostringstream()
-                    << comp_intf->getName() << "-" << i << ".nv12");
+                    << comp_intf->getName() << "-" << stream.name << "-" << i << ".nv12");
 
                 DecoderConsumer::OnFrame on_frame = [&] (const uint8_t* data, size_t length) {
                     writer.Write(data, length);

@@ -30,6 +30,7 @@ for root, dirs, filenames in os.walk(args.binary_dir):
             with open(os.path.join(args.c_dir, c_file_name), 'w') as dst:
                 dst.write('#include "{}"\n\n'.format(h_file_name))
                 dst.write("StreamDescription {} = {{\n".format(c_id))
+                dst.write('    .name = "{}",\n'.format(c_id));
                 dst.write("    .sps = { },\n");
                 dst.write("    .pps = { },\n");
                 dst.write("    .data = {\n");
