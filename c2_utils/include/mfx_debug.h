@@ -207,9 +207,9 @@ void printf_value_from_desc(
 
 #define MFX_DEBUG_TRACE_STREAM(...) \
 { \
-    std::ostringstream ss; \
-    ss << __VA_ARGS__; \
-    MFX_DEBUG_TRACE_MSG(ss.str().c_str()); \
+    std::ostringstream MFX_DEBUG_STREAM; \
+    MFX_DEBUG_STREAM << __VA_ARGS__; \
+    MFX_DEBUG_TRACE_MSG(MFX_DEBUG_STREAM.str().c_str()); \
 }
 
 #define mfx_enumval_eq(_e, _v) ((_e) == _v) MFX_DEBUG_TRACE_E(_e, #_v)
