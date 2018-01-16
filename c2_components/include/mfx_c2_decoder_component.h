@@ -76,7 +76,7 @@ private:
         mfxBitstream *bs, mfxFrameSurface1 *surface_work, mfxFrameSurface1 **surface_out,
         mfxSyncPoint *syncp);
 
-    status_t DecodeFrame(mfxBitstream *bs, std::unique_ptr<MfxC2FrameOut>&& mfx_frame);
+    mfxStatus DecodeFrame(mfxBitstream *bs, std::unique_ptr<MfxC2FrameOut>&& mfx_frame);
 
     android::status_t AllocateFrame(const std::unique_ptr<android::C2Work>& work,
         std::unique_ptr<MfxC2FrameOut>& mfx_frame);
