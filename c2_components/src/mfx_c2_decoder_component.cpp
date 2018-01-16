@@ -556,7 +556,7 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, std::unique_ptr<M
     return mfx_sts;
 }
 
-status_t MfxC2DecoderComponent::AllocateFrame(const std::unique_ptr<android::C2Work>& work,
+status_t MfxC2DecoderComponent::AllocateFrame(std::unique_ptr<android::C2Work>&& work,
     std::unique_ptr<MfxC2FrameOut>& mfx_frame)
 {
     // TODO: allocation pool is required here
@@ -586,36 +586,39 @@ status_t MfxC2DecoderComponent::AllocateFrame(const std::unique_ptr<android::C2W
             } else {
 
                 if (nullptr == work) {
-                    MFX_DEBUG_TRACE_MSG("No work supplied for system memory allocation");
-                    res = C2_BAD_VALUE;
-                    break;
+                    mfx_frame = nullptr; // for system memory if no frame is in surfaces_ return nullptr
+                } else {
+
+                    if(work->worklets.size() != 1) {
+                        MFX_DEBUG_TRACE_MSG("Cannot handle multiple worklets");
+                        res = C2_BAD_VALUE;
+                        break;
+                    }
+
+                    std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
+                    C2BufferPack& output = worklet->output;
+
+                    if(worklet->allocators.size() != 1 || worklet->output.buffers.size() != 1) {
+                        MFX_DEBUG_TRACE_MSG("Cannot handle multiple outputs");
+                        res = C2_BAD_VALUE;
+                        break;
+                    }
+
+                    std::shared_ptr<C2BlockAllocator> allocator = worklet->allocators.front();
+                    C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
+
+                    res = allocator->allocateGraphicBlock(video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height, 0/*format*/, mem_usage, &out_block);
+                    if(C2_OK != res) break;
                 }
-
-                if(work->worklets.size() != 1) {
-                    MFX_DEBUG_TRACE_MSG("Cannot handle multiple worklets");
-                    res = C2_BAD_VALUE;
-                    break;
-                }
-
-                std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
-                C2BufferPack& output = worklet->output;
-
-                if(worklet->allocators.size() != 1 || worklet->output.buffers.size() != 1) {
-                    MFX_DEBUG_TRACE_MSG("Cannot handle multiple outputs");
-                    res = C2_BAD_VALUE;
-                    break;
-                }
-
-                std::shared_ptr<C2BlockAllocator> allocator = worklet->allocators.front();
-                C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
-
-                res = allocator->allocateGraphicBlock(video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height, 0/*format*/, mem_usage, &out_block);
-                if(C2_OK != res) break;
             }
 
-            mfx_frame = std::make_unique<MfxC2FrameOut>();
-            MFX_DEBUG_TRACE_P(out_block.get());
-            res = MfxC2FrameOut::Create(frame_converter, out_block, TIMEOUT_NS, mfx_frame);
+            if (out_block) {
+                mfx_frame = std::make_unique<MfxC2FrameOut>();
+                MFX_DEBUG_TRACE_P(out_block.get());
+                res = MfxC2FrameOut::Create(frame_converter, out_block, TIMEOUT_NS, mfx_frame);
+                if (C2_OK != res) break;
+                mfx_frame->PutC2Work(std::move(work));
+            }
         }
     } while(false);
 
@@ -655,10 +658,8 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
             }
 
             std::unique_ptr<MfxC2FrameOut> mfx_frame;
-            res = AllocateFrame(work, mfx_frame);
+            res = AllocateFrame(std::move(work), mfx_frame);
             if (C2_OK != res) break;
-
-            mfx_frame->PutC2Work(std::move(work));
 
             mfx_sts = DecodeFrame(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(), std::move(mfx_frame));
 
@@ -703,6 +704,7 @@ void MfxC2DecoderComponent::Drain()
 
         std::unique_ptr<MfxC2FrameOut> mfx_frame;
         AllocateFrame(nullptr, mfx_frame); // mfx_frame without associated C2Work
+        if (!mfx_frame) break; // no mfx_frame found, no sense in calling DecodeFrame
 
         mfx_sts = DecodeFrame(nullptr, std::move(mfx_frame));
     } while (MFX_ERR_NONE == mfx_sts);

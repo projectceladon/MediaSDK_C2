@@ -78,7 +78,7 @@ private:
 
     mfxStatus DecodeFrame(mfxBitstream *bs, std::unique_ptr<MfxC2FrameOut>&& mfx_frame);
 
-    android::status_t AllocateFrame(const std::unique_ptr<android::C2Work>& work,
+    android::status_t AllocateFrame(std::unique_ptr<android::C2Work>&& work,
         std::unique_ptr<MfxC2FrameOut>& mfx_frame);
 
     mfxU16 GetAsyncDepth();
