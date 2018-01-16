@@ -480,30 +480,27 @@ mfxStatus MfxC2DecoderComponent::DecodeFrameAsync(
     return mfx_res;
 }
 
-status_t MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, std::unique_ptr<MfxC2FrameOut>&& mfx_frame)
+mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, std::unique_ptr<MfxC2FrameOut>&& mfx_frame)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = C2_OK;
     mfxStatus mfx_sts = MFX_ERR_NONE;
     mfxFrameSurface1 *surface_work = nullptr, *surface_out = nullptr;
 
     do {
         if (nullptr == mfx_frame) {
-            res = C2_BAD_VALUE;
+            mfx_sts = MFX_ERR_NULL_PTR;
             break;
         }
 
         surface_work = mfx_frame->GetMfxFrameSurface();
         if (nullptr == surface_work) {
-            res = C2_BAD_VALUE;
+            mfx_sts = MFX_ERR_NULL_PTR;
             break;
         }
 
         MFX_DEBUG_TRACE_P(mfx_frame.get());
         MFX_DEBUG_TRACE_P(surface_work);
-
-        surfaces_.AddFrame(std::move(mfx_frame));
 
         mfxSyncPoint sync_point;
         mfx_sts = DecodeFrameAsync(bs,
@@ -522,6 +519,9 @@ status_t MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, std::unique_ptr<Mf
         if (MFX_WRN_VIDEO_PARAM_CHANGED == mfx_sts) mfx_sts = MFX_ERR_MORE_SURFACE;
 
         if ((MFX_ERR_NONE == mfx_sts) || (MFX_ERR_MORE_DATA == mfx_sts) || (MFX_ERR_MORE_SURFACE == mfx_sts)) {
+
+            surfaces_.AddFrame(std::move(mfx_frame)); // add output to waiting pool in case of Decode success only
+
             MFX_DEBUG_TRACE_P(surface_out);
             if (nullptr != surface_out) {
 
@@ -540,25 +540,20 @@ status_t MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, std::unique_ptr<Mf
                         ++synced_points_count_;
                     }
                 }
-            } else if (nullptr == bs && MFX_ERR_MORE_DATA == mfx_sts) {
-                // This happens when we do drain and no more output can be produced,
-                // have to return error to upper level to stop drain.
-                res = MfxStatusToC2(mfx_sts);
             }
+
+            // This happens when we do drain and no more output can be produced,
+            // have to return error to upper level to stop drain.
+            bool drain_completed = (nullptr == bs && MFX_ERR_MORE_DATA == mfx_sts);
+            if (!drain_completed) mfx_sts = MFX_ERR_NONE;
+
         } else if (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == mfx_sts) {
             MFX_DEBUG_TRACE_MSG("MFX_ERR_INCOMPATIBLE_VIDEO_PARAM: resolution was changed");
-            res = C2_BAD_VALUE;
-            break;
-
-        } else {
-            res = MfxStatusToC2(mfx_sts);
-            break;
         }
-
     } while(false); // fake loop to have a cleanup point there
 
-    MFX_DEBUG_TRACE__android_status_t(res);
-    return res;
+    MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
+    return mfx_sts;
 }
 
 status_t MfxC2DecoderComponent::AllocateFrame(const std::unique_ptr<android::C2Work>& work,
@@ -661,8 +656,11 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
 
         mfx_frame->PutC2Work(std::move(work));
 
-        res = DecodeFrame(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(), std::move(mfx_frame));
-        if (C2_OK != res) break;
+        mfx_sts = DecodeFrame(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(), std::move(mfx_frame));
+        if (MFX_ERR_NONE != mfx_sts) {
+            res = MfxStatusToC2(mfx_sts);
+            break;
+        }
 
         mfx_sts = c2_bitstream_->GetFrameConstructor()->Unload();
         if (MFX_ERR_NONE != mfx_sts) {
@@ -682,21 +680,21 @@ void MfxC2DecoderComponent::Drain()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = C2_OK;
+    mfxStatus mfx_sts = MFX_ERR_NONE;
 
     do {
 
         std::unique_ptr<MfxC2FrameOut> mfx_frame;
         AllocateFrame(nullptr, mfx_frame); // mfx_frame without associated C2Work
 
-        res = DecodeFrame(nullptr, std::move(mfx_frame));
-    } while (C2_OK == res);
+        mfx_sts = DecodeFrame(nullptr, std::move(mfx_frame));
+    } while (MFX_ERR_NONE == mfx_sts);
 
-    if(C2_OK != res) {
+    if(MFX_ERR_NONE != mfx_sts) {
         std::unique_ptr<MfxC2FrameOut> mfx_frame = surfaces_.AcquireUnlockedFrame();
         while(nullptr != mfx_frame) {
             std::unique_ptr<android::C2Work> work = mfx_frame->GetC2Work();
-            if (work != nullptr) NotifyWorkDone(std::move(work), res);
+            if (work != nullptr) NotifyWorkDone(std::move(work), MfxStatusToC2(mfx_sts));
             mfx_frame = surfaces_.AcquireUnlockedFrame();
         }
     }
