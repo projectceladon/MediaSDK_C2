@@ -21,32 +21,21 @@ class MfxC2FrameOut
 public:
     MfxC2FrameOut() = default;
 
+    MfxC2FrameOut(std::shared_ptr<android::C2GraphicBlock>&& c2_block,
+        std::shared_ptr<mfxFrameSurface1> mfx_frame)
+        : c2_graphic_block_(std::move(c2_block))
+        , mfx_surface_(mfx_frame)
+    {}
+
     static android::status_t Create(MfxFrameConverter* frame_converter,
                                     std::shared_ptr<android::C2GraphicBlock> block,
                                     nsecs_t timeout,
-                                    std::unique_ptr<MfxC2FrameOut>& wrapper);
+                                    MfxC2FrameOut* wrapper);
 
-    std::unique_ptr<android::C2Work> GetC2Work();
     std::shared_ptr<android::C2GraphicBlock> GetC2GraphicBlock() const;
-    mfxFrameSurface1* GetMfxFrameSurface() const;
-    void PutC2Work(std::unique_ptr<android::C2Work>&& work);
+    std::shared_ptr<mfxFrameSurface1> GetMfxFrameSurface() const;
 
 private:
-    std::unique_ptr<android::C2Work> work_;
     std::shared_ptr<android::C2GraphicBlock> c2_graphic_block_;
-    std::unique_ptr<mfxFrameSurface1> mfx_surface_;
-    MfxFrameConverter* frame_converter_ {};
-};
-
-class MfxC2FrameOutPool
-{
-public:
-    MfxC2FrameOutPool() = default;
-
-    void AddFrame(std::unique_ptr<MfxC2FrameOut>&& frame);
-    std::unique_ptr<MfxC2FrameOut> AcquireFrameBySurface(mfxFrameSurface1* surface);
-    std::unique_ptr<MfxC2FrameOut> AcquireUnlockedFrame();
-    size_t Size() const { return frame_pool_.size(); }
-private:
-    std::list<std::unique_ptr<MfxC2FrameOut>> frame_pool_;
+    std::shared_ptr<mfxFrameSurface1> mfx_surface_;
 };

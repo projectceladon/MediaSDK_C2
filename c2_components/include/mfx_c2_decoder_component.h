@@ -57,6 +57,13 @@ protected:
     android::status_t DoStop() override;
 
 private:
+    struct C2WorkOutput
+    {
+        std::unique_ptr<android::C2Work> work_;
+        MfxC2FrameOut frame_;
+    };
+
+private:
     status_t QueryParam(const mfxVideoParam* src,
         android::C2Param::Type type, android::C2Param** dst) const;
 
@@ -76,19 +83,22 @@ private:
         mfxBitstream *bs, mfxFrameSurface1 *surface_work, mfxFrameSurface1 **surface_out,
         mfxSyncPoint *syncp);
 
-    mfxStatus DecodeFrame(mfxBitstream *bs, std::unique_ptr<MfxC2FrameOut>&& mfx_frame);
+    mfxStatus DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& frame_out);
 
-    android::status_t AllocateFrame(std::unique_ptr<android::C2Work>&& work,
-        std::unique_ptr<MfxC2FrameOut>& mfx_frame);
+    status_t AllocateC2Block(std::shared_ptr<android::C2GraphicBlock>* out_block);
+
+    android::status_t AllocateFrame(MfxC2FrameOut* frame_out);
 
     mfxU16 GetAsyncDepth();
 
     // Work routines
+    status_t ValidateWork(const std::unique_ptr<android::C2Work>& work);
+
     void DoWork(std::unique_ptr<android::C2Work>&& work);
 
     void Drain();
     // waits for the sync_point and update work with decoder output then
-    void WaitWork(std::unique_ptr<MfxC2FrameOut>&& frame, mfxSyncPoint sync_point);
+    void WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sync_point);
 
 private:
     DecoderType decoder_type_;
@@ -122,7 +132,13 @@ private:
 
     std::unique_ptr<MfxC2BitstreamIn> c2_bitstream_;
 
-    MfxC2FrameOutPool surfaces_;
+    std::map<const C2Handle*, std::shared_ptr<mfxFrameSurface1>> surfaces_; // all ever send to Decoder
 
-    MfxFramePoolAllocator* allocator_;
+    std::list<MfxC2FrameOut> locked_surfaces_; // allocated, but cannot be re-used as Locked by Decoder
+
+    std::queue<std::unique_ptr<android::C2Work>> works_queue_;
+
+    MfxFramePoolAllocator* allocator_; // used when Video memory output
+
+    std::shared_ptr<android::C2BlockAllocator> last_work_allocator_; // used when System memory output
 };
