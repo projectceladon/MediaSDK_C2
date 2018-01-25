@@ -120,6 +120,10 @@ private:
     mfxVideoParam video_params_ {};
     // Protects decoder initialization and video_params_
     mutable std::mutex init_decoder_mutex_;
+    // Width and height of decoding surfaces and respectively maximum frame size supported
+    // without re-creation of decoder when resolution changed.
+    mfxU16 max_width_ {};
+    mfxU16 max_height_ {};
 
     // Members handling MFX_WRN_DEVICE_BUSY.
     // Active sync points got from DecodeFrameAsync for waiting on.

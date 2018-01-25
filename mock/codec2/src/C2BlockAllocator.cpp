@@ -293,7 +293,7 @@ C2ConstGraphicBlock C2GraphicBlock::share(const C2Rect &crop, C2Fence fence)
 {
     C2ConstGraphicBlock const_graphics_block(this, fence);
     const_graphics_block.mImpl = mImpl;
-    (void)crop;//const_graphics_block.setCrop(crop); crop not supported yet
+    const_graphics_block.setCrop(crop);
 
     return const_graphics_block;
 }
