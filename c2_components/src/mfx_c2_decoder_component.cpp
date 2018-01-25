@@ -260,6 +260,9 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockAllocator> c
         }
         if (MFX_ERR_NONE == mfx_res) {
             mfx_res = decoder_->GetVideoParam(&video_params_);
+            max_width_ = video_params_.mfx.FrameInfo.Width;
+            max_height_ = video_params_.mfx.FrameInfo.Height;
+
             MFX_DEBUG_TRACE__mfxVideoParam_dec(video_params_);
         }
         if (MFX_ERR_NONE == mfx_res) {
@@ -286,6 +289,9 @@ void MfxC2DecoderComponent::FreeDecoder()
         decoder_->Close();
         decoder_ = nullptr;
     }
+
+    max_height_ = 0;
+    max_width_ = 0;
 
     surfaces_.clear();
 
@@ -576,6 +582,12 @@ status_t MfxC2DecoderComponent::AllocateC2Block(std::shared_ptr<C2GraphicBlock>*
                 break;
             }
 
+            C2Rect required_rect(video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height);
+            if (block->width() > required_rect.mWidth || block->height() > required_rect.mHeight) {
+                MFX_DEBUG_TRACE_STREAM(NAMED(required_rect.mWidth) << NAMED(required_rect.mHeight));
+                block->setCrop(required_rect);
+            }
+
             *out_block = std::move(block);
 
         } else {
@@ -690,8 +702,28 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
             resolution_change = (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == mfx_sts);
             if (resolution_change) {
 
+                frame_out = MfxC2FrameOut(); // release the frame to be used in Drain
+
                 Drain();
-                FreeDecoder();
+
+                bool resolution_change_done = false;
+
+                mfx_sts = decoder_->DecodeHeader(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(), &video_params_);
+                if (MFX_ERR_NONE == mfx_sts) {
+                    if (video_params_.mfx.FrameInfo.Width <= max_width_ &&
+                        video_params_.mfx.FrameInfo.Height <= max_height_) {
+
+                        mfxStatus reset_res = decoder_->Reset(&video_params_);
+                        MFX_DEBUG_TRACE__mfxStatus(reset_res);
+                        if (MFX_ERR_NONE == reset_res) {
+                            resolution_change_done = true;
+                        }
+                    }
+                }
+
+                if (!resolution_change_done) {
+                    FreeDecoder();
+                }
             }
 
         } while (resolution_change); // try again as it is a resolution change
@@ -763,8 +795,9 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
 
                 const C2Rect rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH,
                                 mfx_surface->Info.CropX, mfx_surface->Info.CropY);
+                C2Rect crop = work_output.frame_.GetC2GraphicBlock()->crop();
 
-                C2ConstGraphicBlock const_graphic = work_output.frame_.GetC2GraphicBlock()->share(rect, event.fence());
+                C2ConstGraphicBlock const_graphic = work_output.frame_.GetC2GraphicBlock()->share(work_output.frame_.GetC2GraphicBlock()->crop(), event.fence());
                 C2BufferData out_buffer_data = const_graphic;
 
                 std::unique_ptr<C2Worklet>& worklet = work->worklets.front();

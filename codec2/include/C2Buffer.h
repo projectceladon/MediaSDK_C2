@@ -945,7 +945,11 @@ public:
      *
      * \return true iff crop is within the dimensions of this object
      */
-    inline bool setCrop(const C2Rect &crop);
+    inline bool setCrop(const C2Rect &crop)
+    {
+        mCrop = crop;
+        return true;
+    }
 
 private:
     C2Rect mCrop;

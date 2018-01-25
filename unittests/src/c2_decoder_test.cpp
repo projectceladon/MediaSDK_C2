@@ -43,7 +43,10 @@ namespace {
 
 static std::vector<std::vector<const StreamDescription*>> h264_streams =
 {
-    { &aud_mw_e_264 }, { &freh9_264 }, { &aud_mw_e_264, &freh9_264 }
+    { &aud_mw_e_264 },
+    { &freh9_264 },
+    { &aud_mw_e_264, &freh9_264 },
+    { &freh9_264, &aud_mw_e_264 }
 };
 
 static ComponentDesc g_components_desc[] = {
