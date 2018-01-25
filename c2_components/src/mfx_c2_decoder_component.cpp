@@ -121,7 +121,7 @@ status_t MfxC2DecoderComponent::DoStart()
             allocator_set_ = allocator_required;
         }
 
-        MFX_DEBUG_TRACE_STREAM(surfaces_.Size());
+        MFX_DEBUG_TRACE_STREAM(surfaces_.size());
 
         working_queue_.Start();
         waiting_queue_.Start();
@@ -137,6 +137,9 @@ status_t MfxC2DecoderComponent::DoStop()
 
     waiting_queue_.Stop();
     working_queue_.Stop();
+
+    last_work_allocator_ = nullptr;
+
     FreeDecoder();
 
     return C2_OK;
@@ -277,16 +280,14 @@ void MfxC2DecoderComponent::FreeDecoder()
 
     initialized_ = false;
 
+    locked_surfaces_.clear();
+
     if(nullptr != decoder_) {
         decoder_->Close();
         decoder_ = nullptr;
     }
 
-    std::unique_ptr<MfxC2FrameOut> mfx_frame = surfaces_.AcquireUnlockedFrame();
-    while(nullptr != mfx_frame) {
-        NotifyWorkDone(mfx_frame->GetC2Work(), C2_OK);
-        mfx_frame = surfaces_.AcquireUnlockedFrame();
-    }
+    surfaces_.clear();
 
     if (allocator_) {
         allocator_->Reset();
@@ -480,7 +481,7 @@ mfxStatus MfxC2DecoderComponent::DecodeFrameAsync(
     return mfx_res;
 }
 
-mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, std::unique_ptr<MfxC2FrameOut>&& mfx_frame)
+mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& frame_work)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -488,18 +489,13 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, std::unique_ptr<M
     mfxFrameSurface1 *surface_work = nullptr, *surface_out = nullptr;
 
     do {
-        if (nullptr == mfx_frame) {
-            mfx_sts = MFX_ERR_NULL_PTR;
-            break;
-        }
 
-        surface_work = mfx_frame->GetMfxFrameSurface();
+        surface_work = frame_work.GetMfxFrameSurface().get();
         if (nullptr == surface_work) {
             mfx_sts = MFX_ERR_NULL_PTR;
             break;
         }
 
-        MFX_DEBUG_TRACE_P(mfx_frame.get());
         MFX_DEBUG_TRACE_P(surface_work);
 
         mfxSyncPoint sync_point;
@@ -520,7 +516,8 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, std::unique_ptr<M
 
         if ((MFX_ERR_NONE == mfx_sts) || (MFX_ERR_MORE_DATA == mfx_sts) || (MFX_ERR_MORE_SURFACE == mfx_sts)) {
 
-            surfaces_.AddFrame(std::move(mfx_frame)); // add output to waiting pool in case of Decode success only
+            // add output to waiting pool in case of Decode success only
+            locked_surfaces_.push_back(std::move(frame_work));
 
             MFX_DEBUG_TRACE_P(surface_out);
             if (nullptr != surface_out) {
@@ -530,11 +527,19 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, std::unique_ptr<M
 
                 if (MFX_ERR_NONE == mfx_sts) {
 
+                    auto pred_match_surface =
+                        [surface_out] (const auto& item) { return item.GetMfxFrameSurface().get() == surface_out; };
+
+                    MfxC2FrameOut frame_out = Extract(locked_surfaces_, pred_match_surface);
+                    C2WorkOutput work_output;
+                    work_output.frame_ = std::move(frame_out);
+                    work_output.work_ = std::move(works_queue_.front());
+                    works_queue_.pop();
+
                     waiting_queue_.Push(
-                        [ frame = surfaces_.AcquireFrameBySurface(surface_out), sync_point, this ] () mutable {
+                        [ frame = std::move(work_output), sync_point, this ] () mutable {
                         WaitWork(std::move(frame), sync_point);
                     } );
-
                     {
                         std::unique_lock<std::mutex> lock(dev_busy_mutex_);
                         ++synced_points_count_;
@@ -556,71 +561,82 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, std::unique_ptr<M
     return mfx_sts;
 }
 
-status_t MfxC2DecoderComponent::AllocateFrame(std::unique_ptr<android::C2Work>&& work,
-    std::unique_ptr<MfxC2FrameOut>& mfx_frame)
+status_t MfxC2DecoderComponent::AllocateC2Block(std::shared_ptr<C2GraphicBlock>* out_block)
 {
-    // TODO: allocation pool is required here
     MFX_DEBUG_TRACE_FUNC;
 
     status_t res = C2_OK;
 
     do {
 
-        if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY || work == nullptr) {
-            // The condition above is true when we should not use C2 allocator from the C2Work:
-            // 1) If video memory is used and all frames are pre-allocated already
-            // 2) If system memory is used and we drain, no work for it
-            // and surfaces_ should have remaining frames.
-            mfx_frame = surfaces_.AcquireUnlockedFrame();
+        if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
+            std::shared_ptr<C2GraphicBlock> block = allocator_->Alloc();
+            if (!block) {
+                res = C2_TIMED_OUT;
+                break;
+            }
+
+            *out_block = std::move(block);
+
+        } else {
+
+            if (!last_work_allocator_) {
+                res = C2_NOT_FOUND;
+                break;
+            }
+
+            C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
+
+            res = last_work_allocator_->allocateGraphicBlock(
+                video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height,
+                0/*format*/, mem_usage, out_block);
+        }
+    } while (false);
+
+    return res;
+}
+
+status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    status_t res = C2_OK;
+
+    MfxFrameConverter* converter = nullptr;
+    if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
+        converter = device_->GetFrameConverter();
+    }
+
+    do {
+        auto pred_unlocked = [] (const MfxC2FrameOut& item) { return !item.GetMfxFrameSurface()->Data.Locked; };
+
+        locked_surfaces_.remove_if(pred_unlocked);
+
+        std::shared_ptr<C2GraphicBlock> out_block;
+        res = AllocateC2Block(&out_block);
+        if (C2_TIMED_OUT == res) {
+            continue;
         }
 
-        if (nullptr == mfx_frame) {
-            MfxFrameConverter* frame_converter = nullptr;
-            std::shared_ptr<C2GraphicBlock> out_block;
+        if (C2_OK != res) break;
 
+        auto it = surfaces_.end();
+        if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
+            it = surfaces_.find(out_block->handle());
+        }
+        if (it == surfaces_.end()) {
+            // haven't been used for decoding yet
+            res = MfxC2FrameOut::Create(converter, out_block, TIMEOUT_NS, frame_out);
+            if (C2_OK != res) break;
+
+            // put to map
             if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
-
-                out_block = allocator_->Alloc();
-                MFX_DEBUG_TRACE_P(out_block.get());
-                frame_converter = device_->GetFrameConverter();
-            } else {
-
-                if (nullptr == work) {
-                    mfx_frame = nullptr; // for system memory if no frame is in surfaces_ return nullptr
-                } else {
-
-                    if(work->worklets.size() != 1) {
-                        MFX_DEBUG_TRACE_MSG("Cannot handle multiple worklets");
-                        res = C2_BAD_VALUE;
-                        break;
-                    }
-
-                    std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
-                    C2BufferPack& output = worklet->output;
-
-                    if(worklet->allocators.size() != 1 || worklet->output.buffers.size() != 1) {
-                        MFX_DEBUG_TRACE_MSG("Cannot handle multiple outputs");
-                        res = C2_BAD_VALUE;
-                        break;
-                    }
-
-                    std::shared_ptr<C2BlockAllocator> allocator = worklet->allocators.front();
-                    C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
-
-                    res = allocator->allocateGraphicBlock(video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height, 0/*format*/, mem_usage, &out_block);
-                    if(C2_OK != res) break;
-                }
+                surfaces_.emplace(out_block->handle(), frame_out->GetMfxFrameSurface());
             }
-
-            if (out_block) {
-                mfx_frame = std::make_unique<MfxC2FrameOut>();
-                MFX_DEBUG_TRACE_P(out_block.get());
-                res = MfxC2FrameOut::Create(frame_converter, out_block, TIMEOUT_NS, mfx_frame);
-                if (C2_OK != res) break;
-                mfx_frame->PutC2Work(std::move(work));
-            }
+        } else {
+            *frame_out = MfxC2FrameOut(std::move(out_block), it->second);
         }
-    } while(false);
+    } while (C2_TIMED_OUT == res);
 
     MFX_DEBUG_TRACE__android_status_t(res);
     return res;
@@ -635,16 +651,23 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
     status_t res = C2_OK;
     mfxStatus mfx_sts = MFX_ERR_NONE;
 
+    std::shared_ptr<C2BlockAllocator> work_allocator = work->worklets.front()->allocators.front();
+    if (work_allocator) {
+        last_work_allocator_ = work_allocator;
+    }
+
     do {
         res = c2_bitstream_->LoadC2BufferPack(work->input, TIMEOUT_NS);
         if (C2_OK != res) break;
+
+        works_queue_.push(std::move(work));
 
         // loop repeats DecodeFrame on the same frame
         // if DecodeFrame returns error which is repairable, like resolution change
         bool resolution_change = false;
         do {
             if (!initialized_) {
-                mfx_sts = InitDecoder(work->worklets.front()->allocators.front());
+                mfx_sts = InitDecoder(work_allocator);
                 if(MFX_ERR_NONE != mfx_sts) {
                     MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
                     res = MfxStatusToC2(mfx_sts);
@@ -657,18 +680,18 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
                 }
             }
 
-            std::unique_ptr<MfxC2FrameOut> mfx_frame;
-            res = AllocateFrame(std::move(work), mfx_frame);
+            MfxC2FrameOut frame_out;
+            res = AllocateFrame(&frame_out);
             if (C2_OK != res) break;
 
-            mfx_sts = DecodeFrame(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(), std::move(mfx_frame));
+            mfx_sts = DecodeFrame(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(),
+                std::move(frame_out));
 
             resolution_change = (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == mfx_sts);
             if (resolution_change) {
 
                 Drain();
                 FreeDecoder();
-                work = mfx_frame->GetC2Work(); // move back C2Work to re-use on next iteration
             }
 
         } while (resolution_change); // try again as it is a resolution change
@@ -702,24 +725,15 @@ void MfxC2DecoderComponent::Drain()
 
     do {
 
-        std::unique_ptr<MfxC2FrameOut> mfx_frame;
-        AllocateFrame(nullptr, mfx_frame); // mfx_frame without associated C2Work
-        if (!mfx_frame) break; // no mfx_frame found, no sense in calling DecodeFrame
+        MfxC2FrameOut frame_out;
+        status_t c2_sts = AllocateFrame(&frame_out);
+        if (C2_OK != c2_sts) break; // no output allocated, no sense in calling DecodeFrame
 
-        mfx_sts = DecodeFrame(nullptr, std::move(mfx_frame));
+        mfx_sts = DecodeFrame(nullptr, std::move(frame_out));
     } while (MFX_ERR_NONE == mfx_sts);
-
-    if(MFX_ERR_NONE != mfx_sts) {
-        std::unique_ptr<MfxC2FrameOut> mfx_frame = surfaces_.AcquireUnlockedFrame();
-        while(nullptr != mfx_frame) {
-            std::unique_ptr<android::C2Work> work = mfx_frame->GetC2Work();
-            if (work != nullptr) NotifyWorkDone(std::move(work), MfxStatusToC2(mfx_sts));
-            mfx_frame = surfaces_.AcquireUnlockedFrame();
-        }
-    }
 }
 
-void MfxC2DecoderComponent::WaitWork(std::unique_ptr<MfxC2FrameOut>&& frame, mfxSyncPoint sync_point)
+void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sync_point)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -732,15 +746,15 @@ void MfxC2DecoderComponent::WaitWork(std::unique_ptr<MfxC2FrameOut>&& frame, mfx
         MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     }
 
-    std::unique_ptr<android::C2Work> work = frame->GetC2Work();
+    std::unique_ptr<android::C2Work> work = std::move(work_output.work_);
     if (work) {
         if(MFX_ERR_NONE == mfx_res) {
 
             C2Event event;
             event.fire(); // pre-fire event as output buffer is ready to use
 
-            mfxFrameSurface1 *mfx_surface = frame->GetMfxFrameSurface();
-            MFX_DEBUG_TRACE_P(mfx_surface);
+            std::shared_ptr<mfxFrameSurface1> mfx_surface = work_output.frame_.GetMfxFrameSurface();
+            MFX_DEBUG_TRACE_P(mfx_surface.get());
 
             if(!mfx_surface) mfx_res = MFX_ERR_NULL_PTR;
             else {
@@ -750,7 +764,7 @@ void MfxC2DecoderComponent::WaitWork(std::unique_ptr<MfxC2FrameOut>&& frame, mfx
                 const C2Rect rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH,
                                 mfx_surface->Info.CropX, mfx_surface->Info.CropY);
 
-                C2ConstGraphicBlock const_graphic = frame->GetC2GraphicBlock()->share(rect, event.fence());
+                C2ConstGraphicBlock const_graphic = work_output.frame_.GetC2GraphicBlock()->share(rect, event.fence());
                 C2BufferData out_buffer_data = const_graphic;
 
                 std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
@@ -772,6 +786,34 @@ void MfxC2DecoderComponent::WaitWork(std::unique_ptr<MfxC2FrameOut>&& frame, mfx
     dev_busy_cond_.notify_one();
 }
 
+status_t MfxC2DecoderComponent::ValidateWork(const std::unique_ptr<android::C2Work>& work)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    status_t res = C2_OK;
+
+    do {
+
+        if(work->worklets.size() != 1) {
+            MFX_DEBUG_TRACE_MSG("Cannot handle multiple worklets");
+            res = C2_BAD_VALUE;
+            break;
+        }
+
+        const std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
+        C2BufferPack& output = worklet->output;
+
+        if(worklet->allocators.size() != 1 || worklet->output.buffers.size() != 1) {
+            MFX_DEBUG_TRACE_MSG("Cannot handle multiple outputs");
+            res = C2_BAD_VALUE;
+            break;
+        }
+    }
+    while (false);
+
+    return res;
+}
+
 status_t MfxC2DecoderComponent::queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -780,11 +822,15 @@ status_t MfxC2DecoderComponent::queue_nb(std::list<std::unique_ptr<android::C2Wo
 
         bool eos = (item->input.flags & BUFFERFLAG_END_OF_STREAM);
 
-        working_queue_.Push( [ work = std::move(item), this ] () mutable {
+        status_t sts = ValidateWork(item);
 
-            DoWork(std::move(work));
-
-        } );
+        if (C2_OK == sts) {
+            working_queue_.Push( [ work = std::move(item), this ] () mutable {
+                DoWork(std::move(work));
+            } );
+        } else {
+            NotifyWorkDone(std::move(item), sts);
+        }
 
         if(eos) {
             working_queue_.Push( [this] () { Drain(); } );

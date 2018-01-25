@@ -118,6 +118,22 @@ bool SecondToFirst(const std::pair<First, Second>(& array)[N], Second key, Resul
     return res;
 }
 
+// Finds first item in the collection where Pred is true,
+// if item is found then removes it from the collection.
+template<typename Collection, typename Pred>
+typename std::iterator_traits<typename Collection::iterator>::value_type Extract(Collection& collection, Pred pred)
+{
+    typename std::iterator_traits<typename Collection::iterator>::value_type result {};
+
+    auto it = std::find_if(collection.begin(), collection.end(), pred);
+
+    if (it != collection.end()) {
+        result = std::move(*it);
+        collection.erase(it);
+    }
+    return result;
+}
+
 void InitMfxNV12FrameSW(
     uint64_t timestamp, uint64_t frame_index,
     const uint8_t* data,
