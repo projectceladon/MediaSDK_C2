@@ -84,7 +84,8 @@ private:
             std::unique_lock<std::mutex> lock(mutex_);
 
             if (free_.empty()) {
-                condition_.wait(lock, [this] { return !free_.empty(); });
+                bool success = condition_.wait_for(lock, std::chrono::seconds(1), [this] { return !free_.empty(); });
+                if (!success) return nullptr;
             }
 
             std::weak_ptr<MfxPoolImpl> weak_this { this->shared_from_this() };

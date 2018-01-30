@@ -235,7 +235,7 @@ TEST(MfxPool, Alloc)
         }
 
         std::thread free_thread([&] {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
             for (int i = 0; i < COUNT; ++i) {
                 allocated[i].reset();
             }
@@ -248,10 +248,17 @@ TEST(MfxPool, Alloc)
         }
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> elapsed_seconds = end - start;
-        // elapsed time is around 1 second
-        EXPECT_TRUE((0.9 < elapsed_seconds.count()) && (elapsed_seconds.count() < 1.1));
+        // elapsed time is around 0.5 seconds when free_thread deallocates the resources
+        EXPECT_TRUE((0.4 < elapsed_seconds.count()) && (elapsed_seconds.count() < 0.6));
 
         free_thread.join();
+
+        start = std::chrono::system_clock::now();
+        std::shared_ptr<int> allocation_failed = pool.Alloc();
+        EXPECT_EQ(allocation_failed, nullptr); // should get null in timeout value (1 second)
+        end = std::chrono::system_clock::now();
+        elapsed_seconds = end - start;
+        EXPECT_TRUE((0.9 < elapsed_seconds.count()) && (elapsed_seconds.count() < 1.1));
     }
     // check allocated_again have correct values after pool destruction
     for (int i = 0; i < COUNT; ++i) {
