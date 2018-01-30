@@ -19,6 +19,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "streams/h264/freh9.264.h"
 
 #include <future>
+#include <set>
 
 using namespace android;
 
@@ -236,9 +237,25 @@ public:
         return done_.get_future();
     }
 
+    std::string GetMissingFramesList()
+    {
+        std::ostringstream ss;
+        bool first = true;
+        for (const auto& index : frame_submitted_set_) {
+            if (!first) ss << ";";
+            ss << index;
+            first = false;
+        }
+        return ss.str();
+    }
+
     void SetSubmittedFrames(uint64_t frame_submitted)
     {
         frame_submitted_ = frame_submitted;
+
+        for (uint64_t i = 0; i < frame_submitted; ++i) {
+            frame_submitted_set_.insert(i);
+        }
     }
 
 protected:
@@ -256,6 +273,8 @@ protected:
             C2BufferPack& buffer_pack = worklet->output;
 
             uint64_t frame_index = buffer_pack.ordinal.frame_index;
+
+            frame_submitted_set_.erase(frame_index);
 
             EXPECT_EQ(buffer_pack.ordinal.timestamp, frame_index * FRAME_DURATION_US); // 30 fps
 
@@ -331,6 +350,7 @@ private:
     OnFrame on_frame_;
     uint64_t frame_submitted_; // number of the frames submitted for decoding
     uint64_t frame_decoded_;   // number of decoded frames
+    std::set<uint64_t> frame_submitted_set_;
     std::promise<void> done_;  // fire when all expected frames came
 };
 
@@ -385,7 +405,9 @@ static void Decode(
 
     std::future<void> future = validator->GetFuture();
     std::future_status future_sts = future.wait_for(std::chrono::seconds(10));
-    EXPECT_EQ(future_sts, std::future_status::ready) << " decoded less frames than expected";
+
+    EXPECT_EQ(future_sts, std::future_status::ready) << " decoded less frames than expected, missing: "
+        << validator->GetMissingFramesList();
 
     component->unregisterListener(validator);
     sts = component->stop();
