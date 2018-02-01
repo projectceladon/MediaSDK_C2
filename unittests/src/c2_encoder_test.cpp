@@ -41,14 +41,14 @@ const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
 static std::vector<C2ParamDescriptor> h264_params_desc =
 {
-    { false, "RateControl", C2RateControlSetting::typeIndex },
-    { false, "Bitrate", C2BitrateTuning::typeIndex },
-    { false, "FrameQP", C2FrameQPSetting::typeIndex },
-    { false, "IntraRefresh", C2IntraRefreshTuning::typeIndex },
-    { false, "Profile", C2ProfileSetting::typeIndex },
-    { false, "Level", C2LevelSetting::typeIndex },
-    { false, "SupportedProfilesLevels", C2ProfileLevelInfo::output::typeIndex },
-    { false, "MemoryType", C2MemoryTypeSetting::typeIndex },
+    { false, "RateControl", C2RateControlSetting::PARAM_TYPE },
+    { false, "Bitrate", C2BitrateTuning::PARAM_TYPE },
+    { false, "FrameQP", C2FrameQPSetting::PARAM_TYPE },
+    { false, "IntraRefresh", C2IntraRefreshTuning::PARAM_TYPE },
+    { false, "Profile", C2ProfileSetting::PARAM_TYPE },
+    { false, "Level", C2LevelSetting::PARAM_TYPE },
+    { false, "SupportedProfilesLevels", C2ProfileLevelInfo::output::PARAM_TYPE },
+    { false, "MemoryType", C2MemoryTypeSetting::PARAM_TYPE },
 };
 
 namespace {
@@ -367,7 +367,7 @@ static void Encode(
     component->registerListener(validator);
 
     C2MemoryTypeSetting setting;
-    setting.mValue = graphics_memory ? C2MemoryTypeGraphics : C2MemoryTypeSystem;
+    setting.value = graphics_memory ? C2MemoryTypeGraphics : C2MemoryTypeSystem;
 
     std::vector<C2Param* const> params = { &setting };
     std::vector<std::unique_ptr<C2SettingResult>> failures;
@@ -519,7 +519,7 @@ TEST(MfxEncoderComponent, UnsupportedParam)
     ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
         [] (const ComponentDesc&, C2CompPtr, C2CompIntfPtr comp_intf) {
 
-        const uint32_t kParamIndexUnsupported = C2Param::BaseIndex::kVendorStart + 1000;
+        const uint32_t kParamIndexUnsupported = C2Param::TYPE_INDEX_VENDOR_START + 1000;
 
         typedef C2GlobalParam<C2Setting, C2Int32Value, kParamIndexUnsupported> C2UnsupportedSetting;
 
@@ -537,7 +537,7 @@ TEST(MfxEncoderComponent, UnsupportedParam)
             std::unique_ptr<C2SettingResult>& set_res = failures.front();
 
             // if a setting totally unknown for the component
-            // it doesn't have info about its mValue of other fields
+            // it doesn't have info about its value of other fields
             // so return C2ParamField about whole parameter
             EXPECT_EQ(set_res->field, C2ParamField(&setting));
             EXPECT_EQ(set_res->failure, C2SettingResult::BAD_TYPE);
@@ -559,7 +559,7 @@ TEST(MfxEncoderComponent, StaticBitrate)
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         C2RateControlSetting param_rate_control;
-        param_rate_control.mValue = C2RateControlCBR;
+        param_rate_control.value = C2RateControlCBR;
         C2BitrateTuning param_bitrate;
 
         // these bit rates handles accurately for low res (320x240) and significant frame count (150)
@@ -571,7 +571,7 @@ TEST(MfxEncoderComponent, StaticBitrate)
             StripeGenerator stripe_generator;
             NoiseGenerator noise_generator;
 
-            param_bitrate.mValue = bitrates[test_index];
+            param_bitrate.value = bitrates[test_index];
 
             std::vector<C2Param* const> params = { &param_rate_control, &param_bitrate };
             std::vector<std::unique_ptr<C2SettingResult>> failures;
@@ -624,12 +624,12 @@ TEST(MfxEncoderComponent, StaticRateControlMethod)
 
         for(int test_index = 0; test_index < TESTS_COUNT; ++test_index) {
 
-            param_rate_control.mValue = rate_control_values[test_index];
+            param_rate_control.value = rate_control_values[test_index];
 
             StripeGenerator stripe_generator;
 
             GTestBinaryWriter writer(std::ostringstream() <<
-                comp_intf->getName() << "-" << param_rate_control.mValue << ".out");
+                comp_intf->getName() << "-" << param_rate_control.value << ".out");
 
             std::vector<C2Param* const> params = { &param_rate_control };
             std::vector<std::unique_ptr<C2SettingResult>> failures;
@@ -672,7 +672,7 @@ TEST(MfxEncoderComponent, StaticFrameQP)
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         C2RateControlSetting param_rate_control;
-        param_rate_control.mValue = C2RateControlCQP;
+        param_rate_control.value = C2RateControlCQP;
 
         C2FrameQPSetting param_qp;
 
@@ -886,7 +886,7 @@ TEST(MfxEncoderComponent, IntraRefresh)
 
                         std::unique_ptr<C2IntraRefreshTuning> intra_refresh =
                             std::make_unique<C2IntraRefreshTuning>();
-                        intra_refresh->mValue = true;
+                        intra_refresh->value = true;
                         if (use_config_nb) {
                             std::vector<android::C2Param* const> params { intra_refresh.get() };
                             std::vector<std::unique_ptr<android::C2SettingResult>> failures;
@@ -941,7 +941,7 @@ TEST(MfxEncoderComponent, DynamicBitrate)
         (void)comp;
 
         C2RateControlSetting param_rate_control;
-        param_rate_control.mValue = C2RateControlVBR;
+        param_rate_control.value = C2RateControlVBR;
         std::vector<android::C2Param* const> static_params { &param_rate_control };
         std::vector<std::unique_ptr<C2SettingResult>> failures;
         c2_status_t sts = comp_intf->config_nb(static_params, &failures);
@@ -969,7 +969,7 @@ TEST(MfxEncoderComponent, DynamicBitrate)
             GTestBinaryWriter writer(std::ostringstream()
                 << comp_intf->getName() << "-" << (int)use_config_nb << ".out");
 
-            param_bitrate->mValue = BITRATE_1;
+            param_bitrate->value = BITRATE_1;
 
             std::vector<C2Param* const> dynamic_params = { param_bitrate.get() };
 
@@ -981,7 +981,7 @@ TEST(MfxEncoderComponent, DynamicBitrate)
 
                 if (frame_index == TEST_FRAME_COUNT / 2) {
 
-                    param_bitrate->mValue = BITRATE_2;
+                    param_bitrate->value = BITRATE_2;
 
                     if (use_config_nb) {
                         c2_status_t sts = comp_intf->config_nb(dynamic_params, &failures);
@@ -1031,26 +1031,24 @@ TEST(MfxEncoderComponent, ProfileLevelInfo)
         (void)comp;
 
         std::vector<std::unique_ptr<C2Param>> heap_params;
-        c2_status_t res = comp_intf->query_nb({} , { C2ProfileLevelInfo::output::typeIndex }, &heap_params);
+        c2_status_t res = comp_intf->query_nb({} , { C2ProfileLevelInfo::output::PARAM_TYPE }, &heap_params);
         EXPECT_EQ(res, C2_OK);
         EXPECT_EQ(heap_params.size(), 1);
 
         if (heap_params.size() > 0) {
             C2Param* param = heap_params[0].get();
 
-            // Should be TRUE, but Google params impl determines kFlexibleFlag wrong for
-            // C2PortParam<..., C2SimpleArrayStruct, ...>::output
-            EXPECT_FALSE(param->isFlexible());
-            EXPECT_EQ(param->type(), C2ProfileLevelInfo::output::typeIndex);
+            EXPECT_TRUE(param->isFlexible());
+            EXPECT_EQ(param->type(), C2ProfileLevelInfo::output::PARAM_TYPE);
 
-            if (param->type() == C2ProfileLevelInfo::output::typeIndex) {
+            if (param->type() == C2ProfileLevelInfo::output::PARAM_TYPE) {
                 C2ProfileLevelInfo* info = (C2ProfileLevelInfo*)param;
                 EXPECT_EQ(info->flexCount(), comp_desc.profile_levels.size());
 
                 size_t to_compare = std::min(info->flexCount(), comp_desc.profile_levels.size());
                 for (size_t i = 0; i < to_compare; ++i) {
-                    EXPECT_EQ(info->m.mValues[i].profile, comp_desc.profile_levels[i].profile);
-                    EXPECT_EQ(info->m.mValues[i].level, comp_desc.profile_levels[i].level);
+                    EXPECT_EQ(info->m.values[i].profile, comp_desc.profile_levels[i].profile);
+                    EXPECT_EQ(info->m.values[i].level, comp_desc.profile_levels[i].level);
                 }
             }
         }

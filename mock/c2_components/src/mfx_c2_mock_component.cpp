@@ -209,9 +209,9 @@ c2_status_t MfxC2MockComponent::config_nb(
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
-    if (params.size() == 1 && params[0]->type() == C2ProducerMemoryType::typeIndex) {
+    if (params.size() == 1 && params[0]->type() == C2ProducerMemoryType::PARAM_TYPE) {
         const C2ProducerMemoryType* param = (const C2ProducerMemoryType*)params[0];
-        producer_memory_type_ = static_cast<C2MemoryUsage::Producer>(param->mValue);
+        producer_memory_type_ = static_cast<C2MemoryUsage::Producer>(param->value);
         MFX_DEBUG_TRACE_I32(producer_memory_type_);
     } else {
         res = C2_BAD_VALUE;

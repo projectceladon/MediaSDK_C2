@@ -76,7 +76,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const android::C2String name, int f
             pr.RegisterSupportedRange<C2FrameQPSetting>(&C2FrameQPSetting::qp_b, MIN_QP, MAX_QP);
 
             pr.RegisterParam<C2IntraRefreshTuning>("IntraRefresh");
-            pr.RegisterSupportedRange<C2IntraRefreshTuning>(&C2IntraRefreshTuning::mValue, (int)false, (int)true);
+            pr.RegisterSupportedRange<C2IntraRefreshTuning>(&C2IntraRefreshTuning::value, (int)false, (int)true);
 
             pr.RegisterParam<C2ProfileSetting>("Profile");
             pr.RegisterParam<C2LevelSetting>("Level");
@@ -621,16 +621,16 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
 {
     c2_status_t res = C2_OK;
 
-    switch (type.paramIndex()) {
+    switch (type.typeIndex()) {
         case kParamIndexRateControl: {
             if (nullptr == *dst) {
                 *dst = new C2RateControlSetting();
             }
             C2RateControlSetting* rate_control = (C2RateControlSetting*)*dst;
             switch(src->mfx.RateControlMethod) {
-                case MFX_RATECONTROL_CBR: rate_control->mValue = C2RateControlCBR; break;
-                case MFX_RATECONTROL_VBR: rate_control->mValue = C2RateControlVBR; break;
-                case MFX_RATECONTROL_CQP: rate_control->mValue = C2RateControlCQP; break;
+                case MFX_RATECONTROL_CBR: rate_control->value = C2RateControlCBR; break;
+                case MFX_RATECONTROL_VBR: rate_control->value = C2RateControlVBR; break;
+                case MFX_RATECONTROL_CQP: rate_control->value = C2RateControlCQP; break;
                 default:
                     res = C2_CORRUPTED;
                     break;
@@ -643,7 +643,7 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
             }
             C2BitrateTuning* bitrate = (C2BitrateTuning*)*dst;
             if (src->mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
-                bitrate->mValue = src->mfx.TargetKbps;
+                bitrate->value = src->mfx.TargetKbps;
             } else {
                 res = C2_CORRUPTED;
             }
@@ -671,7 +671,7 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
             bool set_res = false;
             switch (encoder_type_) {
                 case ENCODER_H264:
-                    set_res = AvcProfileMfxToAndroid(video_params_config_.mfx.CodecProfile, &setting->mValue);
+                    set_res = AvcProfileMfxToAndroid(video_params_config_.mfx.CodecProfile, &setting->value);
                     break;
                 default:
                     break;
@@ -689,7 +689,7 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
             bool set_res = false;
             switch (encoder_type_) {
                 case ENCODER_H264:
-                    set_res = AvcLevelMfxToAndroid(video_params_config_.mfx.CodecLevel, &setting->mValue);
+                    set_res = AvcLevelMfxToAndroid(video_params_config_.mfx.CodecLevel, &setting->value);
                     break;
                 default:
                     break;
@@ -706,7 +706,7 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
                         C2ProfileLevelInfo::output::alloc_unique(g_h264_profile_levels_count);
 
                     for (size_t i = 0; i < g_h264_profile_levels_count; ++i) {
-                        info->m.mValues[i] = g_h264_profile_levels[i];
+                        info->m.values[i] = g_h264_profile_levels[i];
                     }
                     *dst = info.release();
                 } else {
@@ -722,7 +722,7 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
             }
 
             C2MemoryTypeSetting* setting = static_cast<C2MemoryTypeSetting*>(*dst);
-            if (!MfxIOPatternToC2MemoryType(true, video_params_config_.IOPattern, &setting->mValue)) res = C2_CORRUPTED;
+            if (!MfxIOPatternToC2MemoryType(true, video_params_config_.IOPattern, &setting->value)) res = C2_CORRUPTED;
             break;
         }
         default:
@@ -822,10 +822,10 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param* const> &params,
         }
 
         // applying parameter
-        switch (C2Param::Type(param->type()).paramIndex()) {
+        switch (C2Param::Type(param->type()).typeIndex()) {
             case kParamIndexRateControl: {
                 mfxStatus sts = MFX_ERR_NONE;
-                switch (static_cast<const C2RateControlSetting*>(param)->mValue) {
+                switch (static_cast<const C2RateControlSetting*>(param)->value) {
                     case C2RateControlCBR:
                         sts = mfx_set_RateControlMethod(MFX_RATECONTROL_CBR, &video_params_config_);
                         break;
@@ -846,7 +846,7 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param* const> &params,
             }
             case kParamIndexBitrate:
                 if (video_params_config_.mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
-                    uint32_t bitrate_value = static_cast<const C2BitrateTuning*>(param)->mValue;
+                    uint32_t bitrate_value = static_cast<const C2BitrateTuning*>(param)->value;
                     if (state_ == State::STOPPED) {
                         video_params_config_.mfx.TargetKbps = bitrate_value;
                     } else if (video_params_config_.mfx.RateControlMethod == MFX_RATECONTROL_VBR) {
@@ -901,7 +901,7 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param* const> &params,
             }
             case kParamIndexIntraRefresh: {
                 const C2IntraRefreshTuning* intra_refresh = static_cast<const C2IntraRefreshTuning*>(param);
-                if (intra_refresh->mValue != 0) {
+                if (intra_refresh->value != 0) {
 
                     auto update = [this] () {
                         EncoderControl::ModifyFunction modify = [] (mfxEncodeCtrl* ctrl) {
@@ -923,7 +923,7 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param* const> &params,
                 bool set_res = false;
                 switch (encoder_type_) {
                     case ENCODER_H264:
-                        set_res = AvcProfileAndroidToMfx(profile_setting->mValue, &video_params_config_.mfx.CodecProfile);
+                        set_res = AvcProfileAndroidToMfx(profile_setting->value, &video_params_config_.mfx.CodecProfile);
                         break;
                     default:
                         break;
@@ -939,7 +939,7 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param* const> &params,
                 bool set_res = false;
                 switch (encoder_type_) {
                     case ENCODER_H264:
-                        set_res = AvcLevelAndroidToMfx(setting->mValue, &video_params_config_.mfx.CodecLevel);
+                        set_res = AvcLevelAndroidToMfx(setting->value, &video_params_config_.mfx.CodecLevel);
                         break;
                     default:
                         break;
@@ -952,7 +952,7 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param* const> &params,
             }
             case kParamIndexMemoryType: {
                 const C2MemoryTypeSetting* setting = static_cast<const C2MemoryTypeSetting*>(param);
-                bool set_res = C2MemoryTypeToMfxIOPattern(true, setting->mValue, &video_params_config_.IOPattern);
+                bool set_res = C2MemoryTypeToMfxIOPattern(true, setting->value, &video_params_config_.IOPattern);
                 if (!set_res) {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
                 }

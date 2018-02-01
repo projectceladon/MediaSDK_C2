@@ -24,7 +24,7 @@ bool MfxC2ParamReflector::ValidateParam(const C2Param* param,
 
     do {
 
-        C2Param::BaseIndex base_index = C2Param::Type(param->type()).paramIndex();
+        C2Param::CoreIndex base_index = C2Param::Type(param->type()).typeIndex();
         auto found_struct = params_struct_descriptors_.find(base_index);
         if(found_struct == params_struct_descriptors_.end()) {
             // the whole param is not supported
@@ -109,7 +109,7 @@ c2_status_t MfxC2ParamReflector::getSupportedParams(
 
 #if MFX_DEBUG == MFX_DEBUG_YES
 
-static std::ostream& operator<<(std::ostream& os, C2FieldDescriptor::Type type)
+static std::ostream& operator<<(std::ostream& os, C2FieldDescriptor::type_t type)
 {
     const char* type_names[] = { "NO_INIT", "INT32", "UINT32", "INT64", "UINT64", "FLOAT", };
 
@@ -123,7 +123,7 @@ static std::ostream& operator<<(std::ostream& os, C2FieldDescriptor::Type type)
     return os;
 }
 
-static std::ostream& operator<<(std::ostream& os, C2FieldSupportedValues::Type type)
+static std::ostream& operator<<(std::ostream& os, C2FieldSupportedValues::type_t type)
 {
     const char* type_names[] = { "RANGE", "VALUES", "FLAGS", };
 

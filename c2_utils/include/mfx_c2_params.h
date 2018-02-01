@@ -17,7 +17,7 @@ namespace android {
 
 enum C2ParamIndexKindVendor : uint32_t {
 
-    kParamIndexRateControl = C2Param::BaseIndex::kVendorStart,
+    kParamIndexRateControl = C2Param::TYPE_INDEX_VENDOR_START,
     kParamIndexBitrate,
     kParamIndexProfile,
     kParamIndexLevel,

@@ -44,7 +44,7 @@ template<typename ParamType>
 android::C2ParamField MakeC2ParamField()
 {
     ParamType p; // have to instantiate param here as C2ParamField constructor demands this
-    return android::C2ParamField(&p, &p.mValue);
+    return android::C2ParamField(&p, &p.value);
 }
 
 std::unique_ptr<android::C2SettingResult> MakeC2SettingResult(
