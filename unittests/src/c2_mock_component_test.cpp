@@ -46,7 +46,7 @@ TEST(MfxMockComponent, Create)
 {
     int flags = 0;
     MfxC2Component* c_mfx_component;
-    status_t result = MfxCreateC2Component(MOCK_COMPONENT, flags, &c_mfx_component);
+    c2_status_t result = MfxCreateC2Component(MOCK_COMPONENT, flags, &c_mfx_component);
     std::shared_ptr<MfxC2Component> mfx_component(c_mfx_component);
     EXPECT_EQ(result, C2_OK);
     EXPECT_NE(mfx_component, nullptr);
@@ -58,7 +58,7 @@ TEST(MfxMockComponent, intf)
 {
     int flags = 0;
     MfxC2Component* c_mfx_component;
-    status_t result = MfxCreateC2Component(MOCK_COMPONENT, flags, &c_mfx_component);
+    c2_status_t result = MfxCreateC2Component(MOCK_COMPONENT, flags, &c_mfx_component);
     std::shared_ptr<MfxC2Component> mfx_component(c_mfx_component);
 
     EXPECT_NE(mfx_component, nullptr);
@@ -83,7 +83,7 @@ static std::unique_ptr<C2ConstGraphicBlock> CreateFilledGraphicBlock(
     do {
         C2MemoryUsage mem_usage = { memory_type, C2MemoryUsage::kSoftwareWrite };
         std::shared_ptr<C2GraphicBlock> block;
-        status_t sts = allocator->allocateGraphicBlock(FRAME_WIDTH, FRAME_HEIGHT, FRAME_FORMAT,
+        c2_status_t sts = allocator->allocateGraphicBlock(FRAME_WIDTH, FRAME_HEIGHT, FRAME_FORMAT,
             mem_usage, &block);
 
         EXPECT_EQ(sts, C2_OK);
@@ -119,7 +119,7 @@ static std::unique_ptr<C2ConstLinearBlock> CreateFilledLinearBlock(
     do {
         C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
         std::shared_ptr<C2LinearBlock> block;
-        status_t sts = allocator->allocateLinearBlock(FRAME_BUF_SIZE, mem_usage, &block);
+        c2_status_t sts = allocator->allocateLinearBlock(FRAME_BUF_SIZE, mem_usage, &block);
 
         EXPECT_EQ(sts, C2_OK);
         EXPECT_NE(block, nullptr);
@@ -169,7 +169,7 @@ static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work,
 
     do {
         std::shared_ptr<android::C2BlockAllocator> allocator;
-        android::status_t sts = GetC2BlockAllocator(&allocator);
+        android::c2_status_t sts = GetC2BlockAllocator(&allocator);
 
         EXPECT_EQ(sts, C2_OK);
         EXPECT_NE(allocator, nullptr);
@@ -266,7 +266,7 @@ protected:
             std::unique_ptr<C2ConstGraphicBlock> graphic_block;
 
             if(output_type_ == C2BufferData::LINEAR) {
-                C2Error sts = GetC2ConstLinearBlock(buffer_pack, &linear_block);
+                c2_status_t sts = GetC2ConstLinearBlock(buffer_pack, &linear_block);
                 EXPECT_EQ(sts, C2_OK);
                 if(nullptr != linear_block) {
                     EXPECT_EQ(linear_block->capacity(), FRAME_BUF_SIZE);
@@ -279,7 +279,7 @@ protected:
                     CheckFilledBuffer(raw, frame_index);
                 }
             } else {
-                C2Error sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
+                c2_status_t sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
                 EXPECT_EQ(sts, C2_OK);
                 if(nullptr != graphic_block) {
                     EXPECT_EQ(graphic_block->width(), FRAME_WIDTH);
@@ -331,9 +331,9 @@ public:
 // All supplementary entities (c2 buffers and command queues) are tested by this test.
 TEST(MfxMockComponent, Encode)
 {
-    status_t sts = C2_OK;
+    c2_status_t sts = C2_OK;
     MfxC2Component* c_mfx_component;
-    status_t result = MfxCreateC2Component(MOCK_COMPONENT, 0/*flags*/, &c_mfx_component);
+    c2_status_t result = MfxCreateC2Component(MOCK_COMPONENT, 0/*flags*/, &c_mfx_component);
     std::shared_ptr<C2Component> component(c_mfx_component);
     EXPECT_NE(component, nullptr);
     if(nullptr != component) {
@@ -383,9 +383,9 @@ TEST(MfxMockComponent, Encode)
 // All supplementary entities (c2 buffers and command queues) are tested by this test.
 TEST(MfxMockComponent, Decode)
 {
-    status_t sts = C2_OK;
+    c2_status_t sts = C2_OK;
     MfxC2Component* c_mfx_component;
-    status_t result = MfxCreateC2Component(MOCK_COMPONENT_DEC, 0/*flags*/, &c_mfx_component);
+    c2_status_t result = MfxCreateC2Component(MOCK_COMPONENT_DEC, 0/*flags*/, &c_mfx_component);
     std::shared_ptr<C2Component> component(c_mfx_component);
     EXPECT_NE(component, nullptr);
     if(nullptr != component) {
@@ -442,9 +442,9 @@ TEST(MfxMockComponent, Decode)
 // stop from RUNNING state. Otherwise, C2_BAD_STATE should be returned.
 TEST(MfxMockComponent, State)
 {
-    status_t sts = C2_OK;
+    c2_status_t sts = C2_OK;
     MfxC2Component* c_mfx_component;
-    status_t result = MfxCreateC2Component(MOCK_COMPONENT, 0/*flags*/, &c_mfx_component);
+    c2_status_t result = MfxCreateC2Component(MOCK_COMPONENT, 0/*flags*/, &c_mfx_component);
     std::shared_ptr<C2Component> component(c_mfx_component);
     EXPECT_NE(component, nullptr);
     if(nullptr != component) {

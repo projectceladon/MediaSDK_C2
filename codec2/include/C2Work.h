@@ -146,7 +146,7 @@ struct C2Work {
     std::list<std::unique_ptr<C2Worklet>> worklets;
 
     uint32_t worklets_processed;
-    status_t result;
+    c2_status_t result;
 };
 
 struct C2WorkOutline {

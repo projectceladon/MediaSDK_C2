@@ -23,7 +23,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 class MfxGrallocModule
 {
 public:
-    static android::status_t Create(std::unique_ptr<MfxGrallocModule>* module);
+    static android::c2_status_t Create(std::unique_ptr<MfxGrallocModule>* module);
 
     virtual ~MfxGrallocModule();
 
@@ -39,12 +39,12 @@ public:
     };
 
 public:
-    android::status_t GetBufferDetails(const buffer_handle_t handle, BufferDetails* details);
+    android::c2_status_t GetBufferDetails(const buffer_handle_t handle, BufferDetails* details);
 
 protected:
     MfxGrallocModule() = default;
 
-    android::status_t Init();
+    android::c2_status_t Init();
 
 protected:
     hw_module_t const* hw_module_ {};
@@ -77,19 +77,19 @@ protected:
 class MfxGrallocAllocator : public MfxGrallocModule
 {
 public:
-    static android::status_t Create(std::unique_ptr<MfxGrallocAllocator>* allocator);
+    static android::c2_status_t Create(std::unique_ptr<MfxGrallocAllocator>* allocator);
 
     virtual ~MfxGrallocAllocator();
 
-    virtual android::status_t Alloc(const uint16_t width, const uint16_t height, buffer_handle_t* handle);
-    virtual android::status_t Free(const buffer_handle_t handle);
-    virtual android::status_t LockFrame(buffer_handle_t handle, uint8_t** data, android::C2PlaneLayout *layout);
-    virtual android::status_t UnlockFrame(buffer_handle_t handle);
+    virtual android::c2_status_t Alloc(const uint16_t width, const uint16_t height, buffer_handle_t* handle);
+    virtual android::c2_status_t Free(const buffer_handle_t handle);
+    virtual android::c2_status_t LockFrame(buffer_handle_t handle, uint8_t** data, android::C2PlaneLayout *layout);
+    virtual android::c2_status_t UnlockFrame(buffer_handle_t handle);
 
 private:
     MfxGrallocAllocator() = default;
 
-    android::status_t Init();
+    android::c2_status_t Init();
 
 protected:
 

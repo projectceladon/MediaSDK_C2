@@ -29,13 +29,13 @@ static void InitMfxBitstream(
     mfx_bitstream->MaxLength = capacity;
 }
 
-status_t MfxC2BitstreamOut::Create(
+c2_status_t MfxC2BitstreamOut::Create(
     std::shared_ptr<C2LinearBlock> block, nsecs_t timeout,
     MfxC2BitstreamOut* wrapper)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    C2Error res = C2_OK;
+    c2_status_t res = C2_OK;
 
     do {
 
@@ -56,7 +56,7 @@ status_t MfxC2BitstreamOut::Create(
 
     } while(false);
 
-    MFX_DEBUG_TRACE__android_status_t(res);
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 

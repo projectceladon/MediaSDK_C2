@@ -27,7 +27,7 @@ public:
         , mfx_surface_(mfx_frame)
     {}
 
-    static android::status_t Create(MfxFrameConverter* frame_converter,
+    static android::c2_status_t Create(MfxFrameConverter* frame_converter,
                                     std::shared_ptr<android::C2GraphicBlock> block,
                                     nsecs_t timeout,
                                     MfxC2FrameOut* wrapper);

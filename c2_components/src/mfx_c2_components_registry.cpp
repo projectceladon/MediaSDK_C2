@@ -29,7 +29,7 @@ using namespace android;
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_components_registry"
 
-extern "C" EXPORT status_t MfxCreateC2Component(
+extern "C" EXPORT c2_status_t MfxCreateC2Component(
     const char* name,
     int flags,
     MfxC2Component** component)
@@ -60,11 +60,11 @@ MfxC2ComponentsRegistry& MfxC2ComponentsRegistry::getInstance()
     return g_registry;
 }
 
-status_t MfxC2ComponentsRegistry::CreateMfxC2Component(const char* name, int flags, MfxC2Component** component)
+c2_status_t MfxC2ComponentsRegistry::CreateMfxC2Component(const char* name, int flags, MfxC2Component** component)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t result = C2_OK;
+    c2_status_t result = C2_OK;
     *component = nullptr;
 
     MFX_DEBUG_TRACE_I32(registry_.size());
@@ -78,7 +78,7 @@ status_t MfxC2ComponentsRegistry::CreateMfxC2Component(const char* name, int fla
         result = C2_NOT_FOUND;
     }
 
-    MFX_DEBUG_TRACE__android_C2Error(result);
+    MFX_DEBUG_TRACE__android_c2_status_t(result);
     return result;
 }
 

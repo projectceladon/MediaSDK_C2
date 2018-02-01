@@ -23,7 +23,7 @@ public:
     MfxC2FrameIn(MfxC2FrameIn&& other) = default;
     ~MfxC2FrameIn();
 
-    static android::status_t Create(MfxFrameConverter* frame_converter,
+    static android::c2_status_t Create(MfxFrameConverter* frame_converter,
         android::C2BufferPack& buf_pack, nsecs_t timeout, MfxC2FrameIn* wrapper);
 
     mfxFrameSurface1* GetMfxFrameSurface() const

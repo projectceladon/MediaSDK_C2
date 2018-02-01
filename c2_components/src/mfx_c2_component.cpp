@@ -33,11 +33,11 @@ MfxC2Component::~MfxC2Component()
     MFX_DEBUG_TRACE_FUNC;
 }
 
-status_t MfxC2Component::DoStart()
+c2_status_t MfxC2Component::DoStart()
 {
     return C2_OK;
 }
-status_t MfxC2Component::DoStop()
+c2_status_t MfxC2Component::DoStop()
 {
     return C2_OK;
 }
@@ -55,10 +55,10 @@ node_id MfxC2Component::getId() const
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
-status_t MfxC2Component::query_nb(
+c2_status_t MfxC2Component::query_nb(
     const std::vector<C2Param* const> &stackParams,
     const std::vector<C2Param::Index> &heapParamIndices,
     std::vector<std::unique_ptr<C2Param>>* const heapParams) const
@@ -69,10 +69,10 @@ status_t MfxC2Component::query_nb(
     (void)heapParamIndices;
     (void)heapParams;
 
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
-status_t MfxC2Component::config_nb(
+c2_status_t MfxC2Component::config_nb(
         const std::vector<C2Param* const> &params,
         std::vector<std::unique_ptr<C2SettingResult>>* const failures)
 {
@@ -81,10 +81,10 @@ status_t MfxC2Component::config_nb(
     (void)params;
     (void)failures;
 
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
-status_t MfxC2Component::commit_sm(
+c2_status_t MfxC2Component::commit_sm(
         const std::vector<C2Param* const> &params,
         std::vector<std::unique_ptr<C2SettingResult>>* const failures)
 {
@@ -93,25 +93,25 @@ status_t MfxC2Component::commit_sm(
     (void)params;
     (void)failures;
 
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
-status_t MfxC2Component::createTunnel_sm(node_id targetComponent)
+c2_status_t MfxC2Component::createTunnel_sm(node_id targetComponent)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     (void)targetComponent;
 
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
-status_t MfxC2Component::releaseTunnel_sm(node_id targetComponent)
+c2_status_t MfxC2Component::releaseTunnel_sm(node_id targetComponent)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     (void)targetComponent;
 
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
 std::shared_ptr<C2ParamReflector> MfxC2Component::getParamReflector() const
@@ -121,7 +121,7 @@ std::shared_ptr<C2ParamReflector> MfxC2Component::getParamReflector() const
     return nullptr;
 }
 
-status_t MfxC2Component::getSupportedParams(
+c2_status_t MfxC2Component::getSupportedParams(
     std::vector<std::shared_ptr<C2ParamDescriptor>>* const params) const
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -129,7 +129,7 @@ status_t MfxC2Component::getSupportedParams(
     return param_reflector_.getSupportedParams(params);
 }
 
-status_t MfxC2Component::getSupportedValues(
+c2_status_t MfxC2Component::getSupportedValues(
         const std::vector<const C2ParamField> fields,
         std::vector<C2FieldSupportedValues>* const values) const
 {
@@ -138,51 +138,51 @@ status_t MfxC2Component::getSupportedValues(
     (void)fields;
     (void)values;
 
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
-status_t MfxC2Component::queue_nb(std::list<std::unique_ptr<C2Work>>* const items)
+c2_status_t MfxC2Component::queue_nb(std::list<std::unique_ptr<C2Work>>* const items)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     (void)items;
 
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
-status_t MfxC2Component::announce_nb(const std::vector<C2WorkOutline> &items)
+c2_status_t MfxC2Component::announce_nb(const std::vector<C2WorkOutline> &items)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     (void)items;
 
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
-status_t MfxC2Component::flush_sm(bool flushThrough, std::list<std::unique_ptr<C2Work>>* const flushedWork)
+c2_status_t MfxC2Component::flush_sm(bool flushThrough, std::list<std::unique_ptr<C2Work>>* const flushedWork)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     (void)flushThrough;
     (void)flushedWork;
 
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
-status_t MfxC2Component::drain_nb(bool drainThrough)
+c2_status_t MfxC2Component::drain_nb(bool drainThrough)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     (void)drainThrough;
 
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
-status_t MfxC2Component::start()
+c2_status_t MfxC2Component::start()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
     std::lock_guard<std::mutex> lock(state_mutex_);
 
@@ -201,11 +201,11 @@ status_t MfxC2Component::start()
     return res;
 }
 
-status_t MfxC2Component::stop()
+c2_status_t MfxC2Component::stop()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
     std::lock_guard<std::mutex> lock(state_mutex_);
 
@@ -244,14 +244,14 @@ std::shared_ptr<C2ComponentInterface> MfxC2Component::intf()
     return result;
 }
 
-status_t MfxC2Component::registerListener(std::shared_ptr<C2ComponentListener> listener)
+c2_status_t MfxC2Component::registerListener(std::shared_ptr<C2ComponentListener> listener)
 {
     std::lock_guard<std::mutex> lock(listeners_mutex_);
     listeners_.push_back(listener);
     return C2_OK;
 }
 
-status_t MfxC2Component::unregisterListener(std::shared_ptr<C2ComponentListener> listener)
+c2_status_t MfxC2Component::unregisterListener(std::shared_ptr<C2ComponentListener> listener)
 {
     std::lock_guard<std::mutex> lock(listeners_mutex_);
     auto found = std::find(listeners_.begin(), listeners_.end(), listener);
@@ -275,11 +275,11 @@ void MfxC2Component::NotifyListeners(std::function<void(std::shared_ptr<C2Compon
     }
 }
 
-void MfxC2Component::NotifyWorkDone(std::unique_ptr<android::C2Work>&& work, android::status_t sts)
+void MfxC2Component::NotifyWorkDone(std::unique_ptr<android::C2Work>&& work, android::c2_status_t sts)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    MFX_DEBUG_TRACE__android_status_t(sts);
+    MFX_DEBUG_TRACE__android_c2_status_t(sts);
 
     if(C2_OK == sts) {
         work->worklets_processed = 1;

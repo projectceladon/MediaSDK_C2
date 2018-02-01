@@ -57,10 +57,10 @@ namespace {
     {
         const char* component_name;
         int flags;
-        status_t creation_status;
+        c2_status_t creation_status;
         std::vector<C2ParamDescriptor> params_desc;
         C2ParamValues default_values;
-        status_t query_status;
+        c2_status_t query_status;
         std::vector<C2ProfileLevelStruct> profile_levels;
 
         typedef bool TestStreamProfileLevel(
@@ -145,7 +145,7 @@ static std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name)
         ASSERT_NE(desc, nullptr);
 
         MfxC2Component* mfx_component;
-        status_t status = MfxCreateC2Component(name, desc->flags, &mfx_component);
+        c2_status_t status = MfxCreateC2Component(name, desc->flags, &mfx_component);
         EXPECT_EQ(status, desc->creation_status);
         if(desc->creation_status == C2_OK) {
             EXPECT_NE(mfx_component, nullptr);
@@ -202,7 +202,7 @@ static void PrepareWork(uint32_t frame_index, bool last_frame, bool graphics_mem
     do {
 
         std::shared_ptr<android::C2BlockAllocator> allocator;
-        android::status_t sts = GetC2BlockAllocator(&allocator);
+        android::c2_status_t sts = GetC2BlockAllocator(&allocator);
 
         EXPECT_EQ(sts, C2_OK);
         EXPECT_NE(allocator, nullptr);
@@ -309,7 +309,7 @@ protected:
             ++frame_expected_;
 
             std::unique_ptr<C2ConstLinearBlock> linear_block;
-            C2Error sts = GetC2ConstLinearBlock(buffer_pack, &linear_block);
+            c2_status_t sts = GetC2ConstLinearBlock(buffer_pack, &linear_block);
             EXPECT_EQ(sts, C2_OK);
 
             if(nullptr != linear_block) {
@@ -373,7 +373,7 @@ static void Encode(
     std::vector<std::unique_ptr<C2SettingResult>> failures;
     std::shared_ptr<C2ComponentInterface> comp_intf = component->intf();
 
-    status_t sts = comp_intf->config_nb(params, &failures);
+    c2_status_t sts = comp_intf->config_nb(params, &failures);
     EXPECT_EQ(sts, C2_OK);
 
     sts = component->start();
@@ -465,7 +465,7 @@ TEST(MfxEncoderComponent, State)
     ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr) {
 
-        status_t sts = C2_OK;
+        c2_status_t sts = C2_OK;
 
         sts = comp->start();
         EXPECT_EQ(sts, C2_OK);
@@ -490,7 +490,7 @@ TEST(MfxEncoderComponent, getSupportedParams)
         [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         std::vector<std::shared_ptr<C2ParamDescriptor>> params_actual;
-        status_t sts = comp_intf->getSupportedParams(&params_actual);
+        c2_status_t sts = comp_intf->getSupportedParams(&params_actual);
         EXPECT_EQ(sts, C2_OK);
 
         EXPECT_EQ(desc.params_desc.size(), params_actual.size());
@@ -528,7 +528,7 @@ TEST(MfxEncoderComponent, UnsupportedParam)
         std::vector<C2Param* const> params = { &setting };
         std::vector<std::unique_ptr<C2SettingResult>> failures;
 
-        status_t sts = comp_intf->config_nb(params, &failures);
+        c2_status_t sts = comp_intf->config_nb(params, &failures);
         EXPECT_EQ(sts, C2_BAD_INDEX);
 
         EXPECT_EQ(failures.size(), 1);
@@ -576,7 +576,7 @@ TEST(MfxEncoderComponent, StaticBitrate)
             std::vector<C2Param* const> params = { &param_rate_control, &param_bitrate };
             std::vector<std::unique_ptr<C2SettingResult>> failures;
 
-            status_t sts = comp_intf->config_nb(params, &failures);
+            c2_status_t sts = comp_intf->config_nb(params, &failures);
             EXPECT_EQ(sts, C2_OK);
 
             GTestBinaryWriter writer(std::ostringstream() << comp_intf->getName()
@@ -634,7 +634,7 @@ TEST(MfxEncoderComponent, StaticRateControlMethod)
             std::vector<C2Param* const> params = { &param_rate_control };
             std::vector<std::unique_ptr<C2SettingResult>> failures;
 
-            status_t sts = comp_intf->config_nb(params, &failures);
+            c2_status_t sts = comp_intf->config_nb(params, &failures);
             EXPECT_EQ(sts, C2_OK);
 
             EncoderConsumer::OnFrame on_frame =
@@ -681,13 +681,13 @@ TEST(MfxEncoderComponent, StaticFrameQP)
         // and test runs where qp is set to invalid values don't work
         std::vector<std::unique_ptr<C2SettingResult>> failures;
         std::vector<C2Param* const> params = { &param_rate_control };
-        status_t sts = comp_intf->config_nb(params, &failures);
+        c2_status_t sts = comp_intf->config_nb(params, &failures);
         EXPECT_EQ(sts, C2_OK);
         EXPECT_EQ(failures.size(), 0);
 
         struct TestRun {
             uint32_t qp;
-            status_t expected_result;
+            c2_status_t expected_result;
         };
 
         const TestRun test_runs[] = {
@@ -720,7 +720,7 @@ TEST(MfxEncoderComponent, StaticFrameQP)
             param_qp.qp_b = test_run.qp;
 
             std::vector<C2Param* const> params = { &param_qp };
-            status_t sts = comp_intf->config_nb(params, &failures);
+            c2_status_t sts = comp_intf->config_nb(params, &failures);
             EXPECT_EQ(sts, test_run.expected_result);
             if(test_run.expected_result == C2_OK) {
                 EXPECT_EQ(failures.size(), 0);
@@ -794,7 +794,7 @@ TEST(MfxEncoderComponent, query_nb)
             // check query through stack placeholders and the same with heap allocated
             std::vector<std::unique_ptr<C2Param>> heap_params;
             const C2ParamValues& default_values = comp_desc.default_values;
-            status_t res = comp_intf->query_nb(default_values.GetStackPointers(),
+            c2_status_t res = comp_intf->query_nb(default_values.GetStackPointers(),
                 default_values.GetIndices(), &heap_params);
             EXPECT_EQ(res, comp_desc.query_status);
 
@@ -890,7 +890,7 @@ TEST(MfxEncoderComponent, IntraRefresh)
                         if (use_config_nb) {
                             std::vector<android::C2Param* const> params { intra_refresh.get() };
                             std::vector<std::unique_ptr<android::C2SettingResult>> failures;
-                            status_t sts = comp_intf->config_nb(params, &failures);
+                            c2_status_t sts = comp_intf->config_nb(params, &failures);
 
                             EXPECT_EQ(sts, C2_OK);
                             EXPECT_EQ(failures.size(), 0);
@@ -944,7 +944,7 @@ TEST(MfxEncoderComponent, DynamicBitrate)
         param_rate_control.mValue = C2RateControlVBR;
         std::vector<android::C2Param* const> static_params { &param_rate_control };
         std::vector<std::unique_ptr<C2SettingResult>> failures;
-        status_t sts = comp_intf->config_nb(static_params, &failures);
+        c2_status_t sts = comp_intf->config_nb(static_params, &failures);
         EXPECT_EQ(sts, C2_OK);
         EXPECT_EQ(failures.size(), 0);
 
@@ -973,7 +973,7 @@ TEST(MfxEncoderComponent, DynamicBitrate)
 
             std::vector<C2Param* const> dynamic_params = { param_bitrate.get() };
 
-            status_t sts = comp_intf->config_nb(dynamic_params, &failures);
+            c2_status_t sts = comp_intf->config_nb(dynamic_params, &failures);
             EXPECT_EQ(sts, C2_OK);
             EXPECT_EQ(failures.size(), 0);
 
@@ -984,7 +984,7 @@ TEST(MfxEncoderComponent, DynamicBitrate)
                     param_bitrate->mValue = BITRATE_2;
 
                     if (use_config_nb) {
-                        status_t sts = comp_intf->config_nb(dynamic_params, &failures);
+                        c2_status_t sts = comp_intf->config_nb(dynamic_params, &failures);
 
                         EXPECT_EQ(sts, C2_OK);
                         EXPECT_EQ(failures.size(), 0);
@@ -1031,7 +1031,7 @@ TEST(MfxEncoderComponent, ProfileLevelInfo)
         (void)comp;
 
         std::vector<std::unique_ptr<C2Param>> heap_params;
-        status_t res = comp_intf->query_nb({} , { C2ProfileLevelInfo::output::typeIndex }, &heap_params);
+        c2_status_t res = comp_intf->query_nb({} , { C2ProfileLevelInfo::output::typeIndex }, &heap_params);
         EXPECT_EQ(res, C2_OK);
         EXPECT_EQ(heap_params.size(), 1);
 
@@ -1083,7 +1083,7 @@ TEST(MfxEncoderComponent, CodecProfileAndLevel)
             std::vector<C2Param* const> params = { &param_profile, &param_level };
             std::vector<std::unique_ptr<C2SettingResult>> failures;
 
-            status_t sts = comp_intf->config_nb(params, &failures);
+            c2_status_t sts = comp_intf->config_nb(params, &failures);
             EXPECT_EQ(sts, C2_OK);
             EXPECT_EQ(failures.size(), 0);
 

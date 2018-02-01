@@ -38,7 +38,7 @@ public:
 
     bool FindParam(android::C2Param::Type param_type) const;
 
-    status_t getSupportedParams(
+    android::c2_status_t getSupportedParams(
         std::vector<std::shared_ptr<android::C2ParamDescriptor>>* const params) const;
 
 #if MFX_DEBUG == MFX_DEBUG_YES

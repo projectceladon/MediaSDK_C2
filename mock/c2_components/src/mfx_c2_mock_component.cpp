@@ -32,12 +32,12 @@ void MfxC2MockComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
         &MfxC2Component::Factory<MfxC2MockComponent, Type>::Create<Decoder>);
 }
 
-status_t MfxC2MockComponent::CopyGraphicToLinear(const C2BufferPack& input,
+c2_status_t MfxC2MockComponent::CopyGraphicToLinear(const C2BufferPack& input,
     const std::shared_ptr<C2BlockAllocator>& allocator, std::shared_ptr<C2Buffer>* out_buffer)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
     do {
         std::unique_ptr<C2ConstGraphicBlock> const_graphic_block;
@@ -83,14 +83,14 @@ status_t MfxC2MockComponent::CopyGraphicToLinear(const C2BufferPack& input,
     return res;
 }
 
-static status_t GuessFrameSize(uint32_t buffer_size, uint32_t* width, uint32_t* height)
+static c2_status_t GuessFrameSize(uint32_t buffer_size, uint32_t* width, uint32_t* height)
 {
     uint32_t typical_frame_sizes[][2] = {
         { 320, 240 },
         { 640, 480 },
     };
 
-    status_t res = C2_BAD_VALUE;
+    c2_status_t res = C2_BAD_VALUE;
     for(const auto& frame_sizes : typical_frame_sizes) {
         if(frame_sizes[0] * frame_sizes[1] * 3 / 2 == buffer_size) {
             *width = frame_sizes[0];
@@ -102,12 +102,12 @@ static status_t GuessFrameSize(uint32_t buffer_size, uint32_t* width, uint32_t* 
     return res;
 }
 
-status_t MfxC2MockComponent::CopyLinearToGraphic(const C2BufferPack& input,
+c2_status_t MfxC2MockComponent::CopyLinearToGraphic(const C2BufferPack& input,
     const std::shared_ptr<C2BlockAllocator>& allocator, std::shared_ptr<C2Buffer>* out_buffer)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
     do {
         std::unique_ptr<C2ConstLinearBlock> const_linear_block;
@@ -168,7 +168,7 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
 
     MFX_DEBUG_TRACE_P(work.get());
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
     do {
         if(work->worklets.size() != 1) {
@@ -202,13 +202,13 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
     NotifyWorkDone(std::move(work), res);
 }
 
-status_t MfxC2MockComponent::config_nb(
+c2_status_t MfxC2MockComponent::config_nb(
         const std::vector<android::C2Param* const> &params,
         std::vector<std::unique_ptr<android::C2SettingResult>>* const)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
     if (params.size() == 1 && params[0]->type() == C2ProducerMemoryType::typeIndex) {
         const C2ProducerMemoryType* param = (const C2ProducerMemoryType*)params[0];
         producer_memory_type_ = static_cast<C2MemoryUsage::Producer>(param->mValue);
@@ -219,7 +219,7 @@ status_t MfxC2MockComponent::config_nb(
     return res;
 }
 
-status_t MfxC2MockComponent::queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items)
+c2_status_t MfxC2MockComponent::queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -233,11 +233,11 @@ status_t MfxC2MockComponent::queue_nb(std::list<std::unique_ptr<android::C2Work>
     return C2_OK;
 }
 
-android::status_t MfxC2MockComponent::Init()
+android::c2_status_t MfxC2MockComponent::Init()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
     if(type_ != Encoder && type_ != Decoder) {
         res = C2_CORRUPTED;
@@ -246,7 +246,7 @@ android::status_t MfxC2MockComponent::Init()
     return res;
 }
 
-status_t MfxC2MockComponent::DoStart()
+c2_status_t MfxC2MockComponent::DoStart()
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -255,7 +255,7 @@ status_t MfxC2MockComponent::DoStart()
     return C2_OK;
 }
 
-status_t MfxC2MockComponent::DoStop()
+c2_status_t MfxC2MockComponent::DoStop()
 {
     MFX_DEBUG_TRACE_FUNC;
 

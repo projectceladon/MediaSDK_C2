@@ -438,7 +438,7 @@ TEST(MfxGrallocAllocator, BufferKeepsContents)
 {
     std::unique_ptr<MfxGrallocAllocator> allocator;
 
-    status_t res = MfxGrallocAllocator::Create(&allocator);
+    c2_status_t res = MfxGrallocAllocator::Create(&allocator);
     EXPECT_EQ(res, C2_OK);
     EXPECT_NE(allocator, nullptr);
 
@@ -449,7 +449,7 @@ TEST(MfxGrallocAllocator, BufferKeepsContents)
     if (allocator) {
 
         buffer_handle_t handle[FRAME_COUNT] {};
-        status_t res;
+        c2_status_t res;
 
         for (int i = 0; i < FRAME_COUNT; ++i) {
             res = allocator->Alloc(WIDTH, HEIGHT, &handle[i]);
@@ -742,7 +742,7 @@ static void MfxFrameConverterTest(const std::vector<MfxFrameConverterTestStep>& 
 {
     std::unique_ptr<MfxGrallocAllocator> gr_allocator;
 
-    status_t res = MfxGrallocAllocator::Create(&gr_allocator);
+    c2_status_t res = MfxGrallocAllocator::Create(&gr_allocator);
     EXPECT_EQ(res, C2_OK);
     EXPECT_NE(gr_allocator, nullptr);
 
@@ -782,7 +782,7 @@ TEST(MfxFrameConverter, GrallocContentsMappedToVa)
 
     buffer_handle_t handles[FRAME_COUNT] {};
     mfxMemId mfx_mem_ids[FRAME_COUNT] {};
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
     mfxStatus sts = MFX_ERR_NONE;
 
     // gralloc allocation step
@@ -906,7 +906,7 @@ TEST(MfxFrameConverter, NoLeaks)
     auto alloc_and_map = [&] (MfxGrallocAllocator* gr_allocator, MfxFrameAllocator*,
         MfxFrameConverter* converter) {
 
-        status_t res = gr_allocator->Alloc(WIDTH, HEIGHT, &handle);
+        c2_status_t res = gr_allocator->Alloc(WIDTH, HEIGHT, &handle);
         EXPECT_EQ(res, C2_OK);
         EXPECT_NE(handle, nullptr);
 
@@ -917,7 +917,7 @@ TEST(MfxFrameConverter, NoLeaks)
     };
 
     auto gr_free = [&] (MfxGrallocAllocator* gr_allocator, MfxFrameAllocator*, MfxFrameConverter*) {
-        status_t res = gr_allocator->Free(handle);
+        c2_status_t res = gr_allocator->Free(handle);
         EXPECT_EQ(res, C2_OK);
     };
 
@@ -956,7 +956,7 @@ TEST(MfxFrameConverter, CacheResources)
 
         buffer_handle_t handle {};
 
-        status_t res = gr_allocator->Alloc(WIDTH, HEIGHT, &handle);
+        c2_status_t res = gr_allocator->Alloc(WIDTH, HEIGHT, &handle);
         EXPECT_EQ(res, C2_OK);
         EXPECT_NE(handle, nullptr);
 
@@ -983,7 +983,7 @@ typedef std::function<void (MfxFrameAllocator* allocator, MfxFramePoolAllocator*
 static void MfxFramePoolAllocatorTest(const std::vector<MfxFramePoolAllocatorTestStep>& steps, int repeat_count = 1)
 {
     std::shared_ptr<C2BlockAllocator> c2_allocator;
-    status_t res = GetC2BlockAllocator(&c2_allocator);
+    c2_status_t res = GetC2BlockAllocator(&c2_allocator);
     EXPECT_EQ(res, C2_OK);
     EXPECT_NE(c2_allocator, nullptr);
 

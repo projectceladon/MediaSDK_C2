@@ -97,7 +97,7 @@ std::unique_ptr<C2SettingResult> MfxC2ParamReflector::FindParam(const C2Param* p
     return FindC2Param(params_descriptors_, param);
 }
 
-status_t MfxC2ParamReflector::getSupportedParams(
+c2_status_t MfxC2ParamReflector::getSupportedParams(
     std::vector<std::shared_ptr<C2ParamDescriptor>>* const params) const
 {
     MFX_DEBUG_TRACE_FUNC;
