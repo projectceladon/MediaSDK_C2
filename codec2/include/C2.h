@@ -66,8 +66,8 @@ enum {
  * mitigate binary breaks by adhering to the following conventions:
  *
  * - at most one vtable with placeholder virtual methods
- * - all optional/placeholder virtual methods returning a status_t, with C2_NOT_IMPLEMENTED not
- *   requiring any update to input/output arguments.
+ * - all optional/placeholder virtual methods returning a c2_status_t, with C2_OMITTED not requiring
+ *   any update to input/output arguments.
  * - limiting symbol export of inline methods
  * - use of pimpl (or shared-pimpl)
  *
@@ -98,10 +98,15 @@ enum {
  * C2String: basic string implementation
  */
 typedef std::string C2String;
+
+/**
+ * C2StringLiteral: basic string literal implementation.
+ * \note these are never owned by any object, and can only refer to C string literals.
+ */
 typedef const char *C2StringLiteral;
 
 /**
- * C2Error: status codes used.
+ * c2_status_t: status codes used.
  */
 enum c2_status_t : int32_t {
 
@@ -110,20 +115,23 @@ enum c2_status_t : int32_t {
  * additional enum values using POSIX errno constants.
  */
 #ifndef __ANDROID__
-    OK                  = 0,
+    ALREADY_EXISTS      = -EEXIST,
     BAD_VALUE           = -EINVAL,
     BAD_INDEX           = -EOVERFLOW,
-    UNKNOWN_TRANSACTION = -EBADMSG,
-    ALREADY_EXISTS      = -EEXIST,
-    NAME_NOT_FOUND      = -ENOENT,
+    FAILED_TRANSACTION  = -ENOTSUP,
     INVALID_OPERATION   = -ENOSYS,
+    NAME_NOT_FOUND      = -ENOENT,
     NO_MEMORY           = -ENOMEM,
+    NO_INIT             = -ENODEV,
+    OK                  = 0,
     PERMISSION_DENIED   = -EPERM,
     TIMED_OUT           = -ETIMEDOUT,
-    UNKNOWN_ERROR       = -EINVAL,
+    UNKNOWN_ERROR       = -EFAULT,
+    UNKNOWN_TRANSACTION = -EBADMSG,
+    WOULD_BLOCK         = -EWOULDBLOCK,
 #endif
 
-    C2_OK               = OK,                   ///< operation completed successfully
+    C2_OK        = OK,                   ///< operation completed successfully
 
     // bad input
     C2_BAD_VALUE = BAD_VALUE,            ///< argument has invalid value (user error)
@@ -131,20 +139,41 @@ enum c2_status_t : int32_t {
     C2_CANNOT_DO = FAILED_TRANSACTION,   ///< argument/index is valid but not possible
 
     // bad sequencing of events
-    C2_DUPLICATE        = ALREADY_EXISTS,       ///< object already exists
-    C2_NOT_FOUND        = NAME_NOT_FOUND,       ///< object not found
-    C2_BAD_STATE        = INVALID_OPERATION,    ///< operation is not permitted in the current state
+    C2_DUPLICATE = ALREADY_EXISTS,       ///< object already exists
+    C2_NOT_FOUND = NAME_NOT_FOUND,       ///< object not found
+    C2_BAD_STATE = INVALID_OPERATION,    ///< operation is not permitted in the current state
+    C2_BLOCKING  = WOULD_BLOCK,          ///< operation would block but blocking is not permitted
 
     // bad environment
     C2_NO_MEMORY = NO_MEMORY,            ///< not enough memory to complete operation
     C2_REFUSED   = PERMISSION_DENIED,    ///< missing permission to complete operation
-    C2_TIMED_OUT        = TIMED_OUT,            ///< operation did not complete within timeout
+
+    C2_TIMED_OUT = TIMED_OUT,            ///< operation did not complete within timeout
 
     // bad versioning
     C2_OMITTED   = UNKNOWN_TRANSACTION,  ///< operation is not implemented/supported (optional only)
 
     // unknown fatal
-    C2_CORRUPTED        = UNKNOWN_ERROR,        ///< some unexpected error prevented the operation
+    C2_CORRUPTED = UNKNOWN_ERROR,        ///< some unexpected error prevented the operation
+    C2_NO_INIT   = NO_INIT,              ///< status has not been initialized
+};
+
+/**
+ * Type that describes the desired blocking behavior for variable blocking calls. Blocking in this
+ * API is used in a somewhat modified meaning such that operations that merely update variables
+ * protected by mutexes are still considered "non-blocking" (always used in quotes).
+ */
+enum c2_blocking_t : int32_t {
+    /**
+     * The operation SHALL be "non-blocking". This means that it shall not perform any file
+     * operations, or call/wait on other processes. It may use a protected region as long as the
+     * mutex is never used to protect code that is otherwise "may block".
+     */
+    C2_DONT_BLOCK = false,
+    /**
+     * The operation MAY be temporarily blocking.
+     */
+    C2_MAY_BLOCK = true,
 };
 
 /// @}
@@ -162,15 +191,237 @@ enum c2_status_t : int32_t {
 #define C2_INTERNAL __attribute__((internal_linkage))
 
 #define DEFINE_OTHER_COMPARISON_OPERATORS(type) \
-    inline bool operator!=(const type &other) { return !(*this == other); } \
-    inline bool operator<=(const type &other) { return (*this == other) || (*this < other); } \
-    inline bool operator>=(const type &other) { return !(*this < other); } \
-    inline bool operator>(const type &other) { return !(*this < other) && !(*this == other); }
+    inline bool operator!=(const type &other) const { return !(*this == other); } \
+    inline bool operator<=(const type &other) const { return (*this == other) || (*this < other); } \
+    inline bool operator>=(const type &other) const { return !(*this < other); } \
+    inline bool operator>(const type &other) const { return !(*this < other) && !(*this == other); }
 
 #define DEFINE_FIELD_BASED_COMPARISON_OPERATORS(type, field) \
     inline bool operator<(const type &other) const { return field < other.field; } \
     inline bool operator==(const type &other) const { return field == other.field; } \
     DEFINE_OTHER_COMPARISON_OPERATORS(type)
+
+#define DEFINE_FIELD_AND_MASK_BASED_COMPARISON_OPERATORS(type, field, mask) \
+    inline bool operator<(const type &other) const { \
+        return (field & mask) < (other.field & (mask)); \
+    } \
+    inline bool operator==(const type &other) const { \
+        return (field & mask) == (other.field & (mask)); \
+    } \
+    DEFINE_OTHER_COMPARISON_OPERATORS(type)
+
+template<typename T, typename B>
+class C2_HIDE c2_cntr_t;
+
+/// \cond INTERNAL
+
+/// \defgroup utils_internal
+/// @{
+
+template<typename T>
+struct C2_HIDE _c2_cntr_compat_helper {
+    template<typename U, typename E=typename std::enable_if<std::is_integral<U>::value>::type>
+    __attribute__((no_sanitize("integer")))
+    inline static constexpr T get(const U &value) {
+        return T(value);
+    }
+
+    template<typename U, typename E=typename std::enable_if<(sizeof(U) >= sizeof(T))>::type>
+    __attribute__((no_sanitize("integer")))
+    inline static constexpr T get(const c2_cntr_t<U, void> &value) {
+        return T(value.mValue);
+    }
+};
+
+/// @}
+
+/// \endcond
+
+/**
+ * Integral counter type.
+ *
+ * This is basically an unsigned integral type that is NEVER checked for overflow/underflow - and
+ * comparison operators are redefined.
+ *
+ * \note Comparison of counter types is not fully transitive, e.g.
+ * it could be that a > b > c but a !> c.
+ * std::less<>, greater<>, less_equal<> and greater_equal<> specializations yield total ordering,
+ * but may not match semantic ordering of the values.
+ *
+ * Technically: counter types represent integer values: A * 2^N + value, where A can be arbitrary.
+ * This makes addition, subtraction, multiplication (as well as bitwise operations) well defined.
+ * However, division is in general not well defined, as the result may depend on A. This is also
+ * true for logical operators and boolean conversion.
+ *
+ * Even though well defined, bitwise operators are not implemented for counter types as they are not
+ * meaningful.
+ */
+template<typename T, typename B=typename std::enable_if<std::is_integral<T>::value && std::is_unsigned<T>::value>::type>
+class C2_HIDE c2_cntr_t {
+    using compat = _c2_cntr_compat_helper<T>;
+
+    T mValue;
+    constexpr static T HALF_RANGE = T(~0) ^ (T(~0) >> 1);
+
+    template<typename U>
+    friend struct _c2_cntr_compat_helper;
+public:
+
+    /**
+     * Default constructor. Initialized counter to 0.
+     */
+    inline constexpr c2_cntr_t() : mValue(T(0)) {}
+
+    /**
+     * Construct from a compatible type.
+     */
+    template<typename U>
+    inline constexpr c2_cntr_t(const U &value) : mValue(compat::get(value)) {}
+
+    /**
+     * Peek as underlying signed type.
+     */
+    __attribute__((no_sanitize("integer")))
+    inline constexpr typename std::make_signed<T>::type peek() const {
+        return static_cast<typename std::make_signed<T>::type>(mValue);
+    }
+
+    /**
+     * Peek as underlying unsigned type.
+     */
+    inline constexpr T peeku() const {
+        return mValue;
+    }
+
+    /**
+     * Peek as long long - e.g. for printing.
+     */
+    __attribute__((no_sanitize("integer")))
+    inline constexpr long long peekll() const {
+        return (long long)mValue;
+    }
+
+    /**
+     * Peek as unsigned long long - e.g. for printing.
+     */
+    __attribute__((no_sanitize("integer")))
+    inline constexpr unsigned long long peekull() const {
+        return (unsigned long long)mValue;
+    }
+
+    /**
+     * Convert to a smaller counter type. This is always safe.
+     */
+    template<typename U, typename E=typename std::enable_if<sizeof(U) < sizeof(T)>::type>
+    inline operator c2_cntr_t<U>() {
+        return c2_cntr_t<U>(mValue);
+    }
+
+    /**
+     * Arithmetic operators
+     */
+
+#define DEFINE_C2_CNTR_BINARY_OP(attrib, op, op_assign) \
+    template<typename U> \
+    attrib inline c2_cntr_t<T>& operator op_assign(const U &value) { \
+        mValue op_assign compat::get(value); \
+        return *this; \
+    } \
+    \
+    template<typename U, typename E=decltype(compat::get(U(0)))> \
+    attrib inline constexpr c2_cntr_t<T> operator op(const U &value) const { \
+        return c2_cntr_t<T>(mValue op compat::get(value)); \
+    } \
+    \
+    template<typename U, typename E=typename std::enable_if<sizeof(U) < sizeof(T)>::type> \
+    attrib inline constexpr c2_cntr_t<U> operator op(const c2_cntr_t<U> &value) const { \
+        return c2_cntr_t<U>(U(mValue) op value.peeku()); \
+    }
+
+#define DEFINE_C2_CNTR_UNARY_OP(attrib, op) \
+    attrib inline constexpr c2_cntr_t<T> operator op() const { \
+        return c2_cntr_t<T>(op mValue); \
+    }
+
+#define DEFINE_C2_CNTR_CREMENT_OP(attrib, op) \
+    attrib inline c2_cntr_t<T> &operator op() { \
+        op mValue; \
+        return *this; \
+    } \
+    attrib inline c2_cntr_t<T> operator op(int) { \
+        return c2_cntr_t<T, void>(mValue op); \
+    }
+
+    DEFINE_C2_CNTR_BINARY_OP(__attribute__((no_sanitize("integer"))), +, +=)
+    DEFINE_C2_CNTR_BINARY_OP(__attribute__((no_sanitize("integer"))), -, -=)
+    DEFINE_C2_CNTR_BINARY_OP(__attribute__((no_sanitize("integer"))), *, *=)
+
+    DEFINE_C2_CNTR_UNARY_OP(__attribute__((no_sanitize("integer"))), -)
+    DEFINE_C2_CNTR_UNARY_OP(__attribute__((no_sanitize("integer"))), +)
+
+    DEFINE_C2_CNTR_CREMENT_OP(__attribute__((no_sanitize("integer"))), ++)
+    DEFINE_C2_CNTR_CREMENT_OP(__attribute__((no_sanitize("integer"))), --)
+
+    template<typename U, typename E=typename std::enable_if<std::is_unsigned<U>::value>::type>
+    __attribute__((no_sanitize("integer")))
+    inline constexpr c2_cntr_t<T> operator<<(const U &value) const {
+        return c2_cntr_t<T>(mValue << value);
+    }
+
+    template<typename U, typename E=typename std::enable_if<std::is_unsigned<U>::value>::type>
+    __attribute__((no_sanitize("integer")))
+    inline c2_cntr_t<T> &operator<<=(const U &value) {
+        mValue <<= value;
+        return *this;
+    }
+
+    /**
+     * Comparison operators
+     */
+    __attribute__((no_sanitize("integer")))
+    inline constexpr bool operator<=(const c2_cntr_t<T> &other) const {
+        return T(other.mValue - mValue) < HALF_RANGE;
+    }
+
+    __attribute__((no_sanitize("integer")))
+    inline constexpr bool operator>=(const c2_cntr_t<T> &other) const {
+        return T(mValue - other.mValue) < HALF_RANGE;
+    }
+
+    inline constexpr bool operator==(const c2_cntr_t<T> &other) const {
+        return mValue == other.mValue;
+    }
+
+    inline constexpr bool operator!=(const c2_cntr_t<T> &other) const {
+        return !(*this == other);
+    }
+
+    inline constexpr bool operator<(const c2_cntr_t<T> &other) const {
+        return *this <= other && *this != other;
+    }
+
+    inline constexpr bool operator>(const c2_cntr_t<T> &other) const {
+        return *this >= other && *this != other;
+    }
+};
+
+template<typename U, typename T, typename E=typename std::enable_if<std::is_integral<U>::value>::type>
+inline constexpr c2_cntr_t<T> operator+(const U &a, const c2_cntr_t<T> &b) {
+    return b + a;
+}
+
+template<typename U, typename T, typename E=typename std::enable_if<std::is_integral<U>::value>::type>
+inline constexpr c2_cntr_t<T> operator-(const U &a, const c2_cntr_t<T> &b) {
+    return c2_cntr_t<T>(a) - b;
+}
+
+template<typename U, typename T, typename E=typename std::enable_if<std::is_integral<U>::value>::type>
+inline constexpr c2_cntr_t<T> operator*(const U &a, const c2_cntr_t<T> &b) {
+    return b * a;
+}
+
+typedef c2_cntr_t<uint32_t> c2_cntr32_t; /** 32-bit counter type */
+typedef c2_cntr_t<uint64_t> c2_cntr64_t; /** 64-bit counter type */
 
 /// \cond INTERNAL
 
@@ -184,7 +435,7 @@ template<typename T>
 struct c2_types<T> {
     typedef typename std::decay<T>::type wide_type;
     typedef wide_type narrow_type;
-    typedef wide_type mintype;
+    typedef wide_type min_type; // type for min(T...)
 };
 
 /** specialization for two types */
@@ -200,7 +451,7 @@ struct c2_types<T, U> {
     typedef typename std::decay<
             typename std::conditional<sizeof(T) < sizeof(U), T, U>::type>::type narrow_type;
     typedef typename std::conditional<
-            std::is_signed<T>::value, wide_type, narrow_type>::type mintype;
+            std::is_signed<T>::value, wide_type, narrow_type>::type min_type;
 };
 
 /// @}
@@ -220,7 +471,7 @@ struct c2_types<T, U, V...> {
     /** Narrowest type of the template parameter types. */
     typedef typename c2_types<typename c2_types<T, U>::narrow_type, V...>::narrow_type narrow_type;
     /** Type that accommodates the minimum value for any input for the template parameter types. */
-    typedef typename c2_types<typename c2_types<T, U>::mintype, V...>::mintype mintype;
+    typedef typename c2_types<typename c2_types<T, U>::min_type, V...>::min_type min_type;
 };
 
 /**
@@ -253,11 +504,11 @@ constexpr typename c2_types<T, U, V...>::wide_type c2_max(const T a, const U b, 
  *  \ingroup utils_internal
  * specialization for two values */
 template<typename T, typename U>
-inline constexpr typename c2_types<T, U>::mintype c2_min(const T a, const U b) {
+inline constexpr typename c2_types<T, U>::min_type c2_min(const T a, const U b) {
     typedef typename c2_types<T, U>::wide_type wide_type;
     return ({
         wide_type a_(a), b_(b);
-        static_cast<typename c2_types<T, U>::mintype>(a_ < b_ ? a_ : b_);
+        static_cast<typename c2_types<T, U>::min_type>(a_ < b_ ? a_ : b_);
     });
 }
 
@@ -273,12 +524,12 @@ inline constexpr typename c2_types<T, U>::mintype c2_min(const T a, const U b) {
  * @return the smallest of the input arguments.
  */
 template<typename T, typename U, typename... V>
-constexpr typename c2_types<T, U, V...>::mintype c2_min(const T a, const U b, const V ... c) {
-    typedef typename c2_types<U, V...>::mintype rest_type;
+constexpr typename c2_types<T, U, V...>::min_type c2_min(const T a, const U b, const V ... c) {
+    typedef typename c2_types<U, V...>::min_type rest_type;
     typedef typename c2_types<T, rest_type>::wide_type wide_type;
     return ({
         wide_type a_(a), b_(c2_min(b, c...));
-        static_cast<typename c2_types<T, rest_type>::mintype>(a_ < b_ ? a_ : b_);
+        static_cast<typename c2_types<T, rest_type>::min_type>(a_ < b_ ? a_ : b_);
     });
 }
 
@@ -287,5 +538,31 @@ constexpr typename c2_types<T, U, V...>::mintype c2_min(const T a, const U b, co
 #ifdef __ANDROID__
 } // namespace android
 #endif
+
+#include <functional>
+template<typename T>
+struct std::less<::android::c2_cntr_t<T>> {
+    constexpr bool operator()(const ::android::c2_cntr_t<T> &lh, const ::android::c2_cntr_t<T> &rh) const {
+        return lh.peeku() < rh.peeku();
+    }
+};
+template<typename T>
+struct std::less_equal<::android::c2_cntr_t<T>> {
+    constexpr bool operator()(const ::android::c2_cntr_t<T> &lh, const ::android::c2_cntr_t<T> &rh) const {
+        return lh.peeku() <= rh.peeku();
+    }
+};
+template<typename T>
+struct std::greater<::android::c2_cntr_t<T>> {
+    constexpr bool operator()(const ::android::c2_cntr_t<T> &lh, const ::android::c2_cntr_t<T> &rh) const {
+        return lh.peeku() > rh.peeku();
+    }
+};
+template<typename T>
+struct std::greater_equal<::android::c2_cntr_t<T>> {
+    constexpr bool operator()(const ::android::c2_cntr_t<T> &lh, const ::android::c2_cntr_t<T> &rh) const {
+        return lh.peeku() >= rh.peeku();
+    }
+};
 
 #endif  // C2_H_
