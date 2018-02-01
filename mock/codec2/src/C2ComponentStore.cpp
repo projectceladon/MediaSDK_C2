@@ -1,6 +1,6 @@
 #include <C2Component.h>
 
-#define C2_IMPLEMENTATION
+#define __C2_GENERATE_GLOBAL_VARS__
 
 namespace android {
 

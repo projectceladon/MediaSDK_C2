@@ -41,7 +41,7 @@ DEFINE_C2_ENUM_VALUE_AUTO_HELPER(name, type, prefix, __VA_ARGS__)
 enum name : type { __VA_ARGS__ }; \
 DEFINE_C2_ENUM_VALUE_CUSTOM_HELPER(name, type, names, __VA_ARGS__)
 
-enum C2ParamIndexKind : uint32_t {
+enum C2ParamIndexKind : C2Param::type_index_t {
     /// domain
     kParamIndexDomain,
 
@@ -61,17 +61,23 @@ enum C2ParamIndexKind : uint32_t {
     kParamIndexMime,
     kParamIndexStreamCount,
     kParamIndexFormat,
+    kParamIndexBlockPools,
+
+    kParamIndexMaxVideoSizeHint,
+    kParamIndexVideoSizeTuning,
+
+    kParamIndexCsd,
+    kParamIndexPictureTypeMask,
 
     // video info
 
     kParamIndexStructStart = 0x1,
     kParamIndexVideoSize,
-    kParamIndexMaxVideoSizeHint,
 
     kParamIndexParamStart = 0x800,
 };
 
-C2ENUM(C2DomainKind, int32_t,
+C2ENUM(C2DomainKind, uint32_t,
     C2DomainVideo,
     C2DomainAudio,
     C2DomainOther = C2DomainAudio + 1
@@ -123,6 +129,16 @@ C2ENUM(C2FormatKind, uint32_t,
 )
 
 typedef C2StreamParam<C2Tuning, C2Uint32Value, kParamIndexFormat> C2StreamFormatConfig;
+
+typedef C2PortParam<C2Tuning, C2Uint64Array, kParamIndexBlockPools> C2PortBlockPoolsTuning;
+
+typedef C2StreamParam<C2Info, C2BlobValue, kParamIndexCsd> C2StreamCsdInfo;
+
+C2ENUM(C2PictureTypeMask, uint32_t,
+    C2PictureTypeKeyFrame = (1u << 0),
+)
+
+typedef C2StreamParam<C2Info, C2Uint32Value, kParamIndexPictureTypeMask> C2StreamPictureTypeMaskInfo;
 
 /*
    Component description fields:
@@ -227,22 +243,22 @@ struct C2BaseTuning {
 //   - critical parameters? (interlaced? profile? level?)
 
 struct C2VideoSizeStruct {
-    int32_t mWidth;     ///< video width
-    int32_t mHeight;    ///< video height
+    int32_t width;     ///< video width
+    int32_t height;    ///< video height
 
-    DEFINE_AND_DESCRIBE_C2STRUCT(VideoSize)
-    C2FIELD(mWidth, "width")
-    C2FIELD(mHeight, "height")
+    DEFINE_AND_DESCRIBE_BASE_C2STRUCT(VideoSize)
+    C2FIELD(width, "width")
+    C2FIELD(height, "height")
 };
 
 // video size for video decoder [OUT]
-typedef C2StreamParam<C2Info, C2VideoSizeStruct> C2VideoSizeStreamInfo;
+typedef C2StreamParam<C2Info, C2VideoSizeStruct, kParamIndexVideoSize> C2VideoSizeStreamInfo;
 
 // max video size for video decoder [IN]
 typedef C2PortParam<C2Setting, C2VideoSizeStruct, kParamIndexMaxVideoSizeHint> C2MaxVideoSizeHintPortSetting;
 
 // video encoder size [IN]
-typedef C2StreamParam<C2Tuning, C2VideoSizeStruct> C2VideoSizeStreamTuning;
+typedef C2StreamParam<C2Tuning, C2VideoSizeStruct, kParamIndexVideoSizeTuning> C2VideoSizeStreamTuning;
 
 /// @}
 

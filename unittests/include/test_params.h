@@ -37,7 +37,7 @@ public:
     {
         expected_.push_back(std::shared_ptr<C2Param>((C2Param*)param_value));
         stack_values_.push_back(std::unique_ptr<C2Param>((C2Param*)new ParamType()));
-        indices_.push_back(ParamType::typeIndex);
+        indices_.push_back(ParamType::PARAM_TYPE);
     }
 
     std::vector<C2Param* const> GetStackPointers() const
@@ -89,8 +89,8 @@ public:
 
                 const auto& actual_item = *actual_it;
 
-                EXPECT_EQ(actual_item->type(), expected_item->type())
-                    << std::hex << actual_item->type() << " instead of " << expected_item->type();
+                EXPECT_EQ(actual_item->index(), expected_item->index())
+                    << std::hex << actual_item->index() << " instead of " << expected_item->index();
 
                 EXPECT_EQ(Valid(*actual_item), Valid(*expected_item));
 

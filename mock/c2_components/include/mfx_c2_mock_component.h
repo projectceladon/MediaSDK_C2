@@ -17,7 +17,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 namespace android {
 
 enum C2ParamIndexKindMock : uint32_t {
-    kParamIndexProducerMemoryType = C2Param::BaseIndex::kVendorStart,
+    kParamIndexProducerMemoryType = C2Param::TYPE_INDEX_VENDOR_START,
 };
 
 typedef C2PortParam<C2Setting, C2Uint64Value, kParamIndexProducerMemoryType>::output C2ProducerMemoryType;

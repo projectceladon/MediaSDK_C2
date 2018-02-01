@@ -27,9 +27,6 @@
 #include <string>
 #include <type_traits>
 
-#include <cstring>
-#include <cstddef>
-
 #define C2_PACK __attribute__((packed))
 
 namespace android {
@@ -55,6 +52,9 @@ namespace android {
  *   - must be POD struct, e.g. no vtable (no virtual destructor)
  *   - must have the same size in 64-bit and 32-bit mode (no size_t)
  *   - as such, no pointer members
+ *   - some common member field names are reserved as they are defined as methods for all
+ *     parameters:
+ *     they are: size, type, kind, index and stream
  *
  * Behavior:
  * - Params can be global (not related to input or output), related to input or output,
@@ -74,7 +74,7 @@ namespace android {
  *     an error for the specific setting, but should continue to apply other settings.
  *     TODO: this currently may result in unintended results.
  *
- * **NOTE:** unlike OMX, params are not versioned. Instead, a new struct with new base index
+ * **NOTE:** unlike OMX, params are not versioned. Instead, a new struct with new param index
  * SHALL be added as new versions are required.
  *
  * The proper subtype (Setting, Info or Param) is incorporated into the class type. Define structs
@@ -97,17 +97,21 @@ struct _C2ParamManipulator;
 struct C2Param {
     // param index encompasses the following:
     //
-    // - type (setting, tuning, info, struct)
-    // - vendor extension flag
-    // - flexible parameter flag
-    // - direction (global, input, output)
-    // - stream flag
-    // - stream ID (usually 0)
+    // - kind (setting, tuning, info, struct)
+    // - scope
+    //   - direction (global, input, output)
+    //   - stream flag
+    //   - stream ID (usually 0)
+    // - and the parameter's type (core index)
+    //   - flexible parameter flag
+    //   - vendor extension flag
+    //   - type index (this includes the vendor extension flag)
     //
     // layout:
     //
+    //        kind : <------- scope -------> : <----- core index ----->
     //      +------+-----+---+------+--------+----|------+--------------+
-    //      | kind | dir | - |stream|streamID|flex|vendor|  base index  |
+    //      | kind | dir | - |stream|streamID|flex|vendor|  type index  |
     //      +------+-----+---+------+--------+----+------+--------------+
     //  bit: 31..30 29.28       25   24 .. 17  16    15   14    ..     0
     //
@@ -115,7 +119,7 @@ public:
     /**
      * C2Param kinds, usable as bitmaps.
      */
-    enum Kind : uint32_t {
+    enum kind_t : uint32_t {
         NONE    = 0,
         STRUCT  = (1 << 0),
         INFO    = (1 << 1),
@@ -124,110 +128,141 @@ public:
     };
 
     /**
-     * base index (including the vendor extension bit) is a global index for
-     * C2 parameter structs. (e.g. the same indices cannot be reused for different
-     * structs for different components).
+     * The parameter type index specifies the underlying parameter type of a parameter as
+     * an integer value.
+     *
+     * Parameter types are divided into two groups: platform types and vendor types.
+     *
+     * Platform types are defined by the platform and are common for all implementations.
+     *
+     * Vendor types are defined by each vendors, so they may differ between implementations.
+     * It is recommended that vendor types be the same for all implementations by a specific
+     * vendor.
      */
-    struct BaseIndex {
+    typedef uint32_t type_index_t;
+    enum : uint32_t {
+            TYPE_INDEX_VENDOR_START = 0x00008000, ///< vendor indices SHALL start after this
+    };
+
+    /**
+     * Core index is the underlying parameter type for a parameter. It is used to describe the
+     * layout of the parameter structure regardless of the component or parameter kind/scope.
+     *
+     * It is used to identify and distinguish global parameters, and also parameters on a given
+     * port or stream. They must be unique for the set of global parameters, as well as for the
+     * set of parameters on each port or each stream, but the same core index can be used for
+     * parameters on different streams or ports, as well as for global parameters and port/stream
+     * parameters.
+     *
+     * Multiple parameter types can share the same layout.
+     *
+     * \note The layout for all parameters with the same core index across all components must
+     * be identical.
+     */
+    struct CoreIndex {
+    //public:
+        enum : uint32_t {
+            IS_FLEX_FLAG = 0x00010000,
+        };
+
     protected:
         enum : uint32_t {
-            kTypeMask      = 0xC0000000,
-            kTypeStruct    = 0x00000000,
-            kTypeTuning    = 0x40000000,
-            kTypeSetting   = 0x80000000,
-            kTypeInfo      = 0xC0000000,
+            KIND_MASK      = 0xC0000000,
+            KIND_STRUCT    = 0x00000000,
+            KIND_TUNING    = 0x40000000,
+            KIND_SETTING   = 0x80000000,
+            KIND_INFO      = 0xC0000000,
 
-            kDirMask       = 0x30000000,
-            kDirGlobal     = 0x20000000,
-            kDirUndefined  = 0x30000000, // MUST have all bits set
-            kDirInput      = 0x00000000,
-            kDirOutput     = 0x10000000,
+            DIR_MASK       = 0x30000000,
+            DIR_GLOBAL     = 0x20000000,
+            DIR_UNDEFINED  = DIR_MASK, // MUST have all bits set
+            DIR_INPUT      = 0x00000000,
+            DIR_OUTPUT     = 0x10000000,
 
-            kStreamFlag    = 0x02000000,
-            kStreamIdMask  = 0x01FE0000,
-            kStreamIdShift = 17,
-            kStreamIdMax   = kStreamIdMask >> kStreamIdShift,
-            kStreamMask    = kStreamFlag | kStreamIdMask,
+            IS_STREAM_FLAG  = 0x02000000,
+            STREAM_ID_MASK  = 0x01FE0000,
+            STREAM_ID_SHIFT = 17,
+            MAX_STREAM_ID   = STREAM_ID_MASK >> STREAM_ID_SHIFT,
+            STREAM_MASK     = IS_STREAM_FLAG | STREAM_ID_MASK,
 
-            kFlexibleFlag  = 0x00010000,
-            kVendorFlag    = 0x00008000,
-            kParamMask     = 0x0000FFFF,
-            kBaseMask      = kParamMask | kFlexibleFlag,
+            IS_VENDOR_FLAG  = 0x00008000,
+            TYPE_INDEX_MASK = 0x0000FFFF,
+            CORE_MASK       = TYPE_INDEX_MASK | IS_FLEX_FLAG,
         };
 
     public:
-        enum : uint32_t {
-            kVendorStart = kVendorFlag, ///< vendor structs SHALL start after this
-            _kFlexibleFlag = kFlexibleFlag, // TODO: this is only needed for testing
-        };
-
         /// constructor/conversion from uint32_t
-        inline BaseIndex(uint32_t index) : mIndex(index) { }
+        inline CoreIndex(uint32_t index) : mIndex(index) { }
 
         // no conversion from uint64_t
-        inline BaseIndex(uint64_t index) = delete;
+        inline CoreIndex(uint64_t index) = delete;
 
         /// returns true iff this is a vendor extension parameter
-        inline bool isVendor() const { return mIndex & kVendorFlag; }
+        inline bool isVendor() const { return mIndex & IS_VENDOR_FLAG; }
 
         /// returns true iff this is a flexible parameter (with variable size)
-        inline bool isFlexible() const { return mIndex & kFlexibleFlag; }
+        inline bool isFlexible() const { return mIndex & IS_FLEX_FLAG; }
 
-        /// returns the base type: the index for the underlying struct
-        inline unsigned int baseIndex() const { return mIndex & kBaseMask; }
+        /// returns the core index
+        /// This is the combination of the parameter type index and the flexible flag.
+        inline uint32_t coreIndex() const { return mIndex & CORE_MASK; }
 
-        /// returns the param index for the underlying struct
-        inline unsigned int paramIndex() const { return mIndex & kParamMask; }
+        /// returns the parameter type index
+        inline type_index_t typeIndex() const { return mIndex & TYPE_INDEX_MASK; }
 
-        DEFINE_FIELD_BASED_COMPARISON_OPERATORS(BaseIndex, mIndex)
+        DEFINE_FIELD_AND_MASK_BASED_COMPARISON_OPERATORS(CoreIndex, mIndex, CORE_MASK)
 
     protected:
         uint32_t mIndex;
     };
 
     /**
-     * type encompasses the parameter kind (tuning, setting, info), whether the
-     * parameter is global, input or output, and whether it is for a stream.
+     * Type encompasses the parameter's kind (tuning, setting, info), its scope (whether the
+     * parameter is global, input or output, and whether it is for a stream) and the its base
+     * index (which also determines its layout).
      */
-    struct Type : public BaseIndex {
+    struct Type : public CoreIndex {
+    //public:
         /// returns true iff this is a global parameter (not for input nor output)
-        inline bool isGlobal() const { return (mIndex & kDirMask) == kDirGlobal; }
+        inline bool isGlobal() const { return (mIndex & DIR_MASK) == DIR_GLOBAL; }
         /// returns true iff this is an input or input stream parameter
-        inline bool forInput() const { return (mIndex & kDirMask) == kDirInput; }
+        inline bool forInput() const { return (mIndex & DIR_MASK) == DIR_INPUT; }
         /// returns true iff this is an output or output stream parameter
-        inline bool forOutput() const { return (mIndex & kDirMask) == kDirOutput; }
+        inline bool forOutput() const { return (mIndex & DIR_MASK) == DIR_OUTPUT; }
 
         /// returns true iff this is a stream parameter
-        inline bool forStream() const { return mIndex & kStreamFlag; }
+        inline bool forStream() const { return mIndex & IS_STREAM_FLAG; }
         /// returns true iff this is a port (input or output) parameter
         inline bool forPort() const   { return !forStream() && !isGlobal(); }
 
         /// returns the parameter type: the parameter index without the stream ID
-        inline uint32_t type() const { return mIndex & (~kStreamIdMask); }
+        inline uint32_t type() const { return mIndex & (~STREAM_ID_MASK); }
 
-        /// return the kind of this param
-        inline Kind kind() const {
-            switch (mIndex & kTypeMask) {
-                case kTypeStruct: return STRUCT;
-                case kTypeInfo: return INFO;
-                case kTypeSetting: return SETTING;
-                case kTypeTuning: return TUNING;
+        /// return the kind (struct, info, setting or tuning) of this param
+        inline kind_t kind() const {
+            switch (mIndex & KIND_MASK) {
+                case KIND_STRUCT: return STRUCT;
+                case KIND_INFO: return INFO;
+                case KIND_SETTING: return SETTING;
+                case KIND_TUNING: return TUNING;
                 default: return NONE; // should not happen
             }
         }
 
         /// constructor/conversion from uint32_t
-        inline Type(uint32_t index) : BaseIndex(index) { }
+        inline Type(uint32_t index) : CoreIndex(index) { }
 
         // no conversion from uint64_t
         inline Type(uint64_t index) = delete;
 
+        DEFINE_FIELD_AND_MASK_BASED_COMPARISON_OPERATORS(Type, mIndex, ~STREAM_ID_MASK)
+
     private:
         friend struct C2Param;   // for setPort()
-        friend struct C2Tuning;  // for kTypeTuning
-        friend struct C2Setting; // for kTypeSetting
-        friend struct C2Info;    // for kTypeInfo
-        // for kDirGlobal
+        friend struct C2Tuning;  // for KIND_TUNING
+        friend struct C2Setting; // for KIND_SETTING
+        friend struct C2Info;    // for KIND_INFO
+        // for DIR_GLOBAL
         template<typename T, typename S, int I, class F> friend struct C2GlobalParam;
         template<typename T, typename S, int I, class F> friend struct C2PortParam;   // for kDir*
         template<typename T, typename S, int I, class F> friend struct C2StreamParam; // for kDir*
@@ -241,7 +276,7 @@ public:
             if (isGlobal()) {
                 return false;
             } else {
-                mIndex = (mIndex & ~kDirMask) | (output ? kDirOutput : kDirInput);
+                mIndex = (mIndex & ~DIR_MASK) | (output ? DIR_OUTPUT : DIR_INPUT);
                 return true;
             }
         }
@@ -265,6 +300,8 @@ public:
             return forStream() ? rawStream() : ~0U;
         }
 
+        DEFINE_FIELD_BASED_COMPARISON_OPERATORS(Index, mIndex)
+
     private:
         friend struct C2Param;           // for setStream, makeStreamId, isValid
         friend struct _C2ParamInspector; // for testing
@@ -276,23 +313,23 @@ public:
         inline bool isValid() const {
             // there is no Type::isValid (even though some of this check could be
             // performed on types) as this is only used on index...
-            return (forStream() ? rawStream() < kStreamIdMax : rawStream() == 0)
-                    && (mIndex & kDirMask) != kDirUndefined;
+            return (forStream() ? rawStream() < MAX_STREAM_ID : rawStream() == 0)
+                    && (mIndex & DIR_MASK) != DIR_UNDEFINED;
         }
 
         /// returns the raw stream ID field
         inline unsigned rawStream() const {
-            return (mIndex & kStreamIdMask) >> kStreamIdShift;
+            return (mIndex & STREAM_ID_MASK) >> STREAM_ID_SHIFT;
         }
 
         /// returns the streamId bitfield for a given |stream|. If stream is invalid,
         /// returns an invalid bitfield.
         inline static uint32_t makeStreamId(unsigned stream) {
             // saturate stream ID (max value is invalid)
-            if (stream > kStreamIdMax) {
-                stream = kStreamIdMax;
+            if (stream > MAX_STREAM_ID) {
+                stream = MAX_STREAM_ID;
             }
-            return (stream << kStreamIdShift) & kStreamIdMask;
+            return (stream << STREAM_ID_SHIFT) & STREAM_ID_MASK;
         }
 
         /**
@@ -301,8 +338,8 @@ public:
          */
         inline bool setStream(unsigned stream) {
             if (forStream()) {
-                mIndex = (mIndex & ~kStreamIdMask) | makeStreamId(stream);
-                return this->stream() < kStreamIdMax;
+                mIndex = (mIndex & ~STREAM_ID_MASK) | makeStreamId(stream);
+                return this->stream() < MAX_STREAM_ID;
             }
             return false;
         }
@@ -331,10 +368,17 @@ public:
     inline unsigned stream() const { return _mIndex.stream(); }
 
     /// returns the parameter type: the parameter index without the stream ID
-    inline uint32_t type() const { return _mIndex.type(); }
+    inline Type type() const { return _mIndex.type(); }
+
+    /// returns the index of this parameter
+    /// \todo: should we restrict this to C2ParamField?
+    inline uint32_t index() const { return (uint32_t)_mIndex; }
+
+    /// returns the core index of this parameter
+    inline CoreIndex coreIndex() const { return _mIndex.coreIndex(); }
 
     /// returns the kind of this parameter
-    inline Kind kind() const { return _mIndex.kind(); }
+    inline kind_t kind() const { return _mIndex.kind(); }
 
     /// returns the size of the parameter or 0 if the parameter is invalid
     inline size_t size() const { return _mSize; }
@@ -353,8 +397,8 @@ public:
 
     /// safe(r) type cast from pointer and size
     inline static C2Param* From(void *addr, size_t len) {
-        // _mSize must fit into size
-        if (len < sizeof(_mSize) + offsetof(C2Param, _mSize)) {
+        // _mSize must fit into size, but really C2Param must also to be a valid param
+        if (len < sizeof(C2Param)) {
             return nullptr;
         }
         // _mSize must match length
@@ -363,6 +407,17 @@ public:
             return nullptr;
         }
         return param;
+    }
+
+    /// Returns managed clone of |orig| at heap.
+    inline static std::unique_ptr<C2Param> Copy(const C2Param &orig) {
+        if (orig.size() == 0) {
+            return nullptr;
+        }
+        void *mem = ::operator new (orig.size());
+        C2Param *param = new (mem) C2Param(orig.size(), orig._mIndex);
+        param->updateFrom(orig);
+        return std::unique_ptr<C2Param>(param);
     }
 
 #if 0
@@ -391,7 +446,7 @@ public:
     // if other is the same kind of (valid) param as this, copy it into this and return true.
     // otherwise, do not copy anything, and return false.
     inline bool updateFrom(const C2Param &other) {
-        if (other._mSize == _mSize && other._mIndex == _mIndex && _mSize > 0) {
+        if (other._mSize <= _mSize && other._mIndex == _mIndex && _mSize > 0) {
             memcpy(this, &other, _mSize);
             return true;
         }
@@ -413,7 +468,7 @@ protected:
         } else if (o->_mIndex.isGlobal()) {
             return nullptr;
         } else {
-            return ((o->_mIndex.type() ^ type.mIndex) & ~Type::kDirMask) ? nullptr : o;
+            return ((o->_mIndex.type() ^ type.mIndex) & ~Type::DIR_MASK) ? nullptr : o;
         }
     }
 
@@ -441,10 +496,6 @@ protected:
 private:
     friend struct _C2ParamInspector; // for testing
 
-    /// returns the base type: the index for the underlying struct (for testing
-    /// as this can be gotten by the baseIndex enum)
-    inline uint32_t _baseIndex() const { return _mIndex.baseIndex(); }
-
     /// returns true iff |o| has the same size and index as this. This performs the
     /// basic check for equality.
     inline bool equals(const C2Param &o) const {
@@ -470,7 +521,7 @@ protected:
     template<typename ...Args>
     inline C2Setting(const Args(&... args)) : C2Param(args...) { }
 public: // TODO
-    enum : uint32_t { indexFlags = Type::kTypeSetting };
+    enum : uint32_t { PARAM_KIND = Type::KIND_SETTING };
 };
 
 /**
@@ -481,7 +532,7 @@ protected:
     template<typename ...Args>
     inline C2Tuning(const Args(&... args)) : C2Setting(args...) { }
 public: // TODO
-    enum : uint32_t { indexFlags = Type::kTypeTuning };
+    enum : uint32_t { PARAM_KIND = Type::KIND_TUNING };
 };
 
 /**
@@ -492,7 +543,7 @@ protected:
     template<typename ...Args>
     inline C2Info(const Args(&... args)) : C2Param(args...) { }
 public: // TODO
-    enum : uint32_t { indexFlags = Type::kTypeInfo };
+    enum : uint32_t { PARAM_KIND = Type::KIND_INFO };
 };
 
 /**
@@ -540,7 +591,6 @@ struct _C2FieldId {
     /**
      * Constructor used to identify a field in an object.
      *
-     * \param U[type] pointer to the object that contains this field
      * \param pm[im] member pointer to the field
      */
     template<typename R, typename T, typename B=typename std::remove_extent<R>::type>
@@ -570,32 +620,100 @@ struct _C2FieldId {
 #endif
 
 private:
+    friend struct _C2ParamInspector;
+
     uint32_t _mOffset; // offset of field
     uint32_t _mSize;   // size of field
 };
 
 /**
- * Structure uniquely specifying a field in a configuration
+ * Structure uniquely specifying a 'field' in a configuration. The field
+ * can be a field of a configuration, a subfield of a field of a configuration,
+ * and even the whole configuration. Moreover, if the field can point to an
+ * element in a array field, or to the entire array field.
+ *
+ * This structure is used for querying supported values for a field, as well
+ * as communicating configuration failures and conflicts when trying to change
+ * a configuration for a component/interface or a store.
  */
 struct C2ParamField {
 //public:
-    // TODO: fix what this is for T[] (for now size becomes T[1])
+    /**
+     * Create a field identifier using a configuration parameter (variable),
+     * and a pointer to member.
+     *
+     * ~~~~~~~~~~~~~ (.cpp)
+     *
+     * struct C2SomeParam {
+     *   uint32_t mField;
+     *   uint32_t mArray[2];
+     *   C2OtherStruct mStruct;
+     *   uint32_t mFlexArray[];
+     * } *mParam;
+     *
+     * C2ParamField(mParam, &mParam->mField);
+     * C2ParamField(mParam, &mParam->mArray);
+     * C2ParamField(mParam, &mParam->mArray[0]);
+     * C2ParamField(mParam, &mParam->mStruct.mSubField);
+     * C2ParamField(mParam, &mParam->mFlexArray);
+     * C2ParamField(mParam, &mParam->mFlexArray[2]);
+     *
+     * ~~~~~~~~~~~~~
+     *
+     * \todo fix what this is for T[] (for now size becomes T[1])
+     *
+     * \param param pointer to parameter
+     * \param offset member pointer
+     */
     template<typename S, typename T>
     inline C2ParamField(S* param, T* offset)
-        : _mIndex(param->type()),
+        : _mIndex(param->index()),
           _mFieldId(offset) {}
 
+    /**
+     * Create a field identifier using a configuration parameter (variable),
+     * and a member pointer. This method cannot be used to refer to an
+     * array element or a subfield.
+     *
+     * ~~~~~~~~~~~~~ (.cpp)
+     *
+     * C2SomeParam mParam;
+     * C2ParamField(&mParam, &C2SomeParam::mMemberField);
+     *
+     * ~~~~~~~~~~~~~
+     *
+     * \param p pointer to parameter
+     * \param T member pointer to the field member
+     */
     template<typename R, typename T, typename U>
-    inline C2ParamField(U *p, R T::* pm) : _mIndex(p->type()), _mFieldId(p, pm) { }
+    inline C2ParamField(U *p, R T::* pm) : _mIndex(p->index()), _mFieldId(p, pm) { }
 
-    inline explicit C2ParamField(const C2Param* param)
-        : _mIndex(param->type()),
-          _mFieldId(0, param->size()) {}
+    /**
+     * Create a field identifier to a configuration parameter (variable).
+     *
+     * ~~~~~~~~~~~~~ (.cpp)
+     *
+     * C2SomeParam mParam;
+     * C2ParamField(&mParam);
+     *
+     * ~~~~~~~~~~~~~
+     *
+     * \param param pointer to parameter
+     */
+    template<typename S>
+    inline C2ParamField(S* param)
+        : _mIndex(param->index()), _mFieldId(0u, param->size()) {}
 
+    /**
+     * Equality operator.
+     */
     inline bool operator==(const C2ParamField &other) const {
         return _mIndex == other._mIndex && _mFieldId == other._mFieldId;
     }
 
+    /**
+     * Ordering operator.
+     */
     inline bool operator<(const C2ParamField &other) const {
         return _mIndex < other._mIndex ||
             (_mIndex == other._mIndex && _mFieldId < other._mFieldId);
@@ -603,9 +721,26 @@ struct C2ParamField {
 
     DEFINE_OTHER_COMPARISON_OPERATORS(C2ParamField)
 
+protected:
+    inline C2ParamField(C2Param::Index index, uint32_t offset, uint32_t size)
+        : _mIndex(index), _mFieldId(offset, size) {}
+
 private:
-    C2Param::Index _mIndex;
-    _C2FieldId _mFieldId;
+    friend struct _C2ParamInspector;
+
+    C2Param::Index _mIndex; ///< parameter index
+    _C2FieldId _mFieldId;   ///< field identifier
+};
+
+/**
+ * Structure uniquely specifying a field, an array element of a field, or a
+ * parameter in a configuration
+ */
+struct C2ParamOrField : public C2ParamField {
+//public:
+    template<typename S>
+    inline C2ParamOrField(S* param)
+        : C2ParamField(param->index(), 0u, param->size()) {}
 };
 
 /**
@@ -615,18 +750,22 @@ class C2Value {
 public:
     /// A union of supported primitive types.
     union Primitive {
-        int32_t  i32;   ///< int32_t value
-        uint32_t u32;   ///< uint32_t value
-        int64_t  i64;   ///< int64_t value
-        uint64_t u64;   ///< uint64_t value
-        float    fp;    ///< float value
+        int32_t     i32;   ///< int32_t value
+        uint32_t    u32;   ///< uint32_t value
+        c2_cntr32_t c32;   ///< c2_cntr32_t value
+        int64_t     i64;   ///< int64_t value
+        uint64_t    u64;   ///< uint64_t value
+        c2_cntr64_t c64;   ///< c2_cntr64_t value
+        float       fp;    ///< float value
 
         // constructors - implicit
-        Primitive(int32_t value)  : i32(value) { }
-        Primitive(uint32_t value) : u32(value) { }
-        Primitive(int64_t value)  : i64(value) { }
-        Primitive(uint64_t value) : u64(value) { }
-        Primitive(float value)    : fp(value)  { }
+        Primitive(int32_t value)     : i32(value) { }
+        Primitive(uint32_t value)    : u32(value) { }
+        Primitive(c2_cntr32_t value) : c32(value) { }
+        Primitive(int64_t value)     : i64(value) { }
+        Primitive(uint64_t value)    : u64(value) { }
+        Primitive(c2_cntr64_t value) : c64(value) { }
+        Primitive(float value)       : fp(value)  { }
 
         Primitive() : u64(0) { }
 
@@ -635,54 +774,56 @@ public:
         template<typename T> const T &ref() const;
     };
 
-    enum Type {
+    enum type_t : uint32_t {
         NO_INIT,
         INT32,
         UINT32,
+        CNTR32,
         INT64,
         UINT64,
+        CNTR64,
         FLOAT,
     };
 
-    template<typename T> static constexpr Type typeFor();
+    template<typename T> static constexpr type_t typeFor();
 
     // constructors - implicit
     template<typename T>
-    C2Value(T value)  : mType(typeFor<T>()),  mValue(value) { }
+    C2Value(T value)  : _mType(typeFor<T>()), _mValue(value) { }
 
-    C2Value() : mType(NO_INIT) { }
+    C2Value() : _mType(NO_INIT) { }
 
-    inline Type type() const { return mType; }
+    inline type_t type() const { return _mType; }
 
     template<typename T>
     inline bool get(T *value) const {
-        if (mType == typeFor<T>()) {
-            *value = mValue.ref<T>();
+        if (_mType == typeFor<T>()) {
+            *value = _mValue.ref<T>();
             return true;
         }
         return false;
     }
 
 private:
-    Type mType;
-    Primitive mValue;
+    type_t _mType;
+    Primitive _mValue;
 };
 
-#ifdef C2_IMPLEMENTATION // to prevent duplicated symbols reported by linker
+template<> inline const int32_t &C2Value::Primitive::ref<int32_t>() const { return i32; }
+template<> inline const int64_t &C2Value::Primitive::ref<int64_t>() const { return i64; }
+template<> inline const uint32_t &C2Value::Primitive::ref<uint32_t>() const { return u32; }
+template<> inline const uint64_t &C2Value::Primitive::ref<uint64_t>() const { return u64; }
+template<> inline const c2_cntr32_t &C2Value::Primitive::ref<c2_cntr32_t>() const { return c32; }
+template<> inline const c2_cntr64_t &C2Value::Primitive::ref<c2_cntr64_t>() const { return c64; }
+template<> inline const float &C2Value::Primitive::ref<float>() const { return fp; }
 
-template<> const int32_t &C2Value::Primitive::ref<int32_t>() const { return i32; }
-template<> const int64_t &C2Value::Primitive::ref<int64_t>() const { return i64; }
-template<> const uint32_t &C2Value::Primitive::ref<uint32_t>() const { return u32; }
-template<> const uint64_t &C2Value::Primitive::ref<uint64_t>() const { return u64; }
-template<> const float &C2Value::Primitive::ref<float>() const { return fp; }
-
-#endif
-
-template<> constexpr C2Value::Type C2Value::typeFor<int32_t>() { return INT32; }
-template<> constexpr C2Value::Type C2Value::typeFor<int64_t>() { return INT64; }
-template<> constexpr C2Value::Type C2Value::typeFor<uint32_t>() { return UINT32; }
-template<> constexpr C2Value::Type C2Value::typeFor<uint64_t>() { return UINT64; }
-template<> constexpr C2Value::Type C2Value::typeFor<float>() { return FLOAT; }
+template<> constexpr C2Value::type_t C2Value::typeFor<int32_t>() { return INT32; }
+template<> constexpr C2Value::type_t C2Value::typeFor<int64_t>() { return INT64; }
+template<> constexpr C2Value::type_t C2Value::typeFor<uint32_t>() { return UINT32; }
+template<> constexpr C2Value::type_t C2Value::typeFor<uint64_t>() { return UINT64; }
+template<> constexpr C2Value::type_t C2Value::typeFor<c2_cntr32_t>() { return CNTR32; }
+template<> constexpr C2Value::type_t C2Value::typeFor<c2_cntr64_t>() { return CNTR64; }
+template<> constexpr C2Value::type_t C2Value::typeFor<float>() { return FLOAT; }
 
 /**
  * field descriptor. A field is uniquely defined by an index into a parameter.
@@ -697,12 +838,14 @@ struct C2FieldDescriptor {
      * \note: only 32-bit and 64-bit fields are supported (e.g. no boolean, as that
      * is represented using INT32).
      */
-    enum Type : uint32_t {
+    enum type_t : uint32_t {
         // primitive types
         INT32   = C2Value::INT32,  ///< 32-bit signed integer
         UINT32  = C2Value::UINT32, ///< 32-bit unsigned integer
+        CNTR32  = C2Value::CNTR32, ///< 32-bit counter
         INT64   = C2Value::INT64,  ///< 64-bit signed integer
         UINT64  = C2Value::UINT64, ///< 64-bit signed integer
+        CNTR64  = C2Value::CNTR64, ///< 64-bit counter
         FLOAT   = C2Value::FLOAT,  ///< 32-bit floating point
 
         // array types
@@ -711,7 +854,7 @@ struct C2FieldDescriptor {
                         ///< however, bytes cannot be individually addressed by clients.
 
         // complex types
-        STRUCT_FLAG = 0x10000, ///< structs. Marked with this flag in addition to their baseIndex.
+        STRUCT_FLAG = 0x20000, ///< structs. Marked with this flag in addition to their coreIndex.
     };
 
     typedef std::pair<C2String, C2Value::Primitive> named_value_type;
@@ -729,7 +872,7 @@ struct C2FieldDescriptor {
     static named_values_type namedValuesFor(const B &);
 
     inline C2FieldDescriptor(uint32_t type, uint32_t length, C2StringLiteral name, size_t offset, size_t size)
-        : _mType((Type)type), _mLength(length), _mName(name), _mFieldId(offset, size) { }
+        : _mType((type_t)type), _mLength(length), _mName(name), _mFieldId(offset, size) { }
 
     template<typename T, class B=typename std::remove_extent<T>::type>
     inline C2FieldDescriptor(const T* offset, const char *name)
@@ -757,7 +900,7 @@ struct C2FieldDescriptor {
           _mFieldId(&(((S*)0)->*field)) {}
 
     /// returns the type of this field
-    inline Type type() const { return _mType; }
+    inline type_t type() const { return _mType; }
     /// returns the length of the field in case it is an array. Returns 0 for
     /// T[] arrays, returns 1 for T[1] arrays as well as if the field is not an array.
     inline size_t length() const { return _mLength; }
@@ -776,7 +919,7 @@ struct C2FieldDescriptor {
 #endif
 
 private:
-    const Type _mType;
+    const type_t _mType;
     const uint32_t _mLength; // the last member can be arbitrary length if it is T[] array,
                        // extending to the end of the parameter (this is marked with
                        // 0). T[0]-s are not fields.
@@ -790,27 +933,29 @@ private:
     // 2) this is at parameter granularity.
 
     // type resolution
-    inline static Type getType(int32_t*)  { return INT32; }
-    inline static Type getType(uint32_t*) { return UINT32; }
-    inline static Type getType(int64_t*)  { return INT64; }
-    inline static Type getType(uint64_t*) { return UINT64; }
-    inline static Type getType(float*)    { return FLOAT; }
-    inline static Type getType(char*)     { return STRING; }
-    inline static Type getType(uint8_t*)  { return BLOB; }
+    inline static type_t getType(int32_t*)     { return INT32; }
+    inline static type_t getType(uint32_t*)    { return UINT32; }
+    inline static type_t getType(c2_cntr32_t*) { return CNTR32; }
+    inline static type_t getType(int64_t*)     { return INT64; }
+    inline static type_t getType(uint64_t*)    { return UINT64; }
+    inline static type_t getType(c2_cntr64_t*) { return CNTR64; }
+    inline static type_t getType(float*)       { return FLOAT; }
+    inline static type_t getType(char*)        { return STRING; }
+    inline static type_t getType(uint8_t*)     { return BLOB; }
 
     template<typename T,
              class=typename std::enable_if<std::is_enum<T>::value>::type>
-    inline static Type getType(T*) {
+    inline static type_t getType(T*) {
         typename std::underlying_type<T>::type underlying(0);
         return getType(&underlying);
     }
 
-    // verify C2Struct by having a fieldList and a baseIndex.
+    // verify C2Struct by having a FIELD_LIST and a CORE_INDEX.
     template<typename T,
-             class=decltype(T::baseIndex + 1), class=decltype(T::fieldList)>
-    inline static Type getType(T*) {
+             class=decltype(T::CORE_INDEX + 1), class=decltype(T::FIELD_LIST)>
+    inline static type_t getType(T*) {
         static_assert(!std::is_base_of<C2Param, T>::value, "cannot use C2Params as fields");
-        return (Type)(T::baseIndex | STRUCT_FLAG);
+        return (type_t)(T::CORE_INDEX | STRUCT_FLAG);
     }
 };
 
@@ -823,8 +968,10 @@ template<> inline C2FieldDescriptor::named_values_type C2FieldDescriptor::namedV
 // non-enumerated integral types.
 DEFINE_NO_NAMED_VALUES_FOR(int32_t)
 DEFINE_NO_NAMED_VALUES_FOR(uint32_t)
+DEFINE_NO_NAMED_VALUES_FOR(c2_cntr32_t)
 DEFINE_NO_NAMED_VALUES_FOR(int64_t)
 DEFINE_NO_NAMED_VALUES_FOR(uint64_t)
+DEFINE_NO_NAMED_VALUES_FOR(c2_cntr64_t)
 DEFINE_NO_NAMED_VALUES_FOR(uint8_t)
 DEFINE_NO_NAMED_VALUES_FOR(char)
 DEFINE_NO_NAMED_VALUES_FOR(float)
@@ -834,33 +981,33 @@ DEFINE_NO_NAMED_VALUES_FOR(float)
  */
 struct C2StructDescriptor {
 public:
-    /// Returns the parameter type
-    inline C2Param::BaseIndex baseIndex() const { return _mType.baseIndex(); }
+    /// Returns the core index of the struct
+    inline C2Param::CoreIndex coreIndex() const { return _mType.coreIndex(); }
 
-    // Returns the number of fields in this param (not counting any recursive fields).
-    // Must be at least 1 for valid params.
+    // Returns the number of fields in this struct (not counting any recursive fields).
+    // Must be at least 1 for valid structs.
     inline size_t numFields() const { return _mFields.size(); }
 
-    // Returns the list of immediate fields (not counting any recursive fields).
+    // Returns the list of direct fields (not counting any recursive fields).
     typedef std::vector<const C2FieldDescriptor>::const_iterator field_iterator;
     inline field_iterator cbegin() const { return _mFields.cbegin(); }
     inline field_iterator cend() const { return _mFields.cend(); }
 
-    // only supplying const iterator - but these are needed for range based loops
+    // only supplying const iterator - but these names are needed for range based loops
     inline field_iterator begin() const { return _mFields.cbegin(); }
     inline field_iterator end() const { return _mFields.cend(); }
 
     template<typename T>
     inline C2StructDescriptor(T*)
-        : C2StructDescriptor(T::baseIndex, T::fieldList) { }
+        : C2StructDescriptor(T::CORE_INDEX, T::FIELD_LIST) { }
 
     inline C2StructDescriptor(
-            C2Param::BaseIndex type,
+            C2Param::CoreIndex type,
             std::initializer_list<const C2FieldDescriptor> fields)
         : _mType(type), _mFields(fields) { }
 
 private:
-    const C2Param::BaseIndex _mType;
+    const C2Param::CoreIndex _mType;
     const std::vector<const C2FieldDescriptor> _mFields;
 };
 
@@ -900,7 +1047,7 @@ public:
         : _mIsRequired(isRequired),
           _mIsPersistent(true),
           _mName(name),
-          _mType(T::typeIndex) { }
+          _mType(T::PARAM_TYPE) { }
 
     inline C2ParamDescriptor(
             bool isRequired, C2StringLiteral name, C2Param::Type type)
@@ -917,35 +1064,48 @@ private:
 };
 
 /// \ingroup internal
-/// Define a structure without baseIndex.
-#define DEFINE_C2STRUCT_NO_BASE(name) \
+/// Define a structure without CORE_INDEX.
+#define DEFINE_BASE_C2STRUCT(name) \
 public: \
     typedef C2##name##Struct _type; /**< type name shorthand */ \
-    const static std::initializer_list<const C2FieldDescriptor> fieldList; /**< structure fields */
+    const static std::initializer_list<const C2FieldDescriptor> FIELD_LIST; /**< structure fields */
 
-/// Define a structure with matching baseIndex.
+/// Define a structure with matching CORE_INDEX.
 #define DEFINE_C2STRUCT(name) \
 public: \
-    enum : uint32_t { baseIndex = kParamIndex##name }; \
-    DEFINE_C2STRUCT_NO_BASE(name)
+    enum : uint32_t { CORE_INDEX = kParamIndex##name }; \
+    DEFINE_BASE_C2STRUCT(name)
 
-/// Define a flexible structure with matching baseIndex.
+/// Define a flexible structure without CORE_INDEX.
+#define DEFINE_BASE_FLEX_C2STRUCT(name, flexMember) \
+public: \
+    FLEX(C2##name##Struct, flexMember) \
+    DEFINE_BASE_C2STRUCT(name)
+
+/// Define a flexible structure with matching CORE_INDEX.
 #define DEFINE_FLEX_C2STRUCT(name, flexMember) \
 public: \
     FLEX(C2##name##Struct, flexMember) \
-    enum : uint32_t { baseIndex = kParamIndex##name | C2Param::BaseIndex::_kFlexibleFlag }; \
-    DEFINE_C2STRUCT_NO_BASE(name)
+    enum : uint32_t { CORE_INDEX = kParamIndex##name | C2Param::CoreIndex::IS_FLEX_FLAG }; \
+    DEFINE_BASE_C2STRUCT(name)
 
+#ifdef __C2_GENERATE_GLOBAL_VARS__
 /// \ingroup internal
 /// Describe a structure of a templated structure.
 #define DESCRIBE_TEMPLATED_C2STRUCT(strukt, list) \
     template<> \
-    const std::initializer_list<const C2FieldDescriptor> strukt::fieldList = list;
+    const std::initializer_list<const C2FieldDescriptor> strukt::FIELD_LIST = list;
 
 /// \deprecated
 /// Describe the fields of a structure using an initializer list.
 #define DESCRIBE_C2STRUCT(name, list) \
-    const std::initializer_list<const C2FieldDescriptor> C2##name##Struct::fieldList = list;
+    const std::initializer_list<const C2FieldDescriptor> C2##name##Struct::FIELD_LIST = list;
+#else
+/// \if 0
+#define DESCRIBE_TEMPLATED_C2STRUCT(strukt, list)
+#define DESCRIBE_C2STRUCT(name, list)
+/// \endif
+#endif
 
 /**
  * Describe a field of a structure.
@@ -955,26 +1115,26 @@ public: \
  *
  *  ~~~~~~~~~~~~~ (.cpp)
  *  struct C2VideoWidthStruct {
- *      int32_t mWidth;
+ *      int32_t width;
  *      C2VideoWidthStruct() {} // optional default constructor
- *      C2VideoWidthStruct(int32_t _width) : mWidth(_width) {}
+ *      C2VideoWidthStruct(int32_t _width) : width(_width) {}
  *
  *      DEFINE_AND_DESCRIBE_C2STRUCT(VideoWidth)
- *      C2FIELD(mWidth, "width")
+ *      C2FIELD(width, "width")
  *  };
  *  ~~~~~~~~~~~~~
  *
  *  ~~~~~~~~~~~~~ (.cpp)
  *  struct C2VideoWidthStruct {
- *      int32_t mWidth;
+ *      int32_t width;
  *      C2VideoWidthStruct() = default; // optional default constructor
- *      C2VideoWidthStruct(int32_t _width) : mWidth(_width) {}
+ *      C2VideoWidthStruct(int32_t _width) : width(_width) {}
  *
  *      DEFINE_C2STRUCT(VideoWidth)
  *  } C2_PACK;
  *
  *  DESCRIBE_C2STRUCT(VideoWidth, {
- *      C2FIELD(mWidth, "width")
+ *      C2FIELD(width, "width")
  *  })
  *  ~~~~~~~~~~~~~
  *
@@ -982,7 +1142,7 @@ public: \
  *
  *  ~~~~~~~~~~~~~ (.cpp)
  *  struct C2VideoFlexWidthsStruct {
- *      int32_t mWidths[];
+ *      int32_t widths[];
  *      C2VideoFlexWidthsStruct(); // must have a default constructor
  *
  *  private:
@@ -991,7 +1151,7 @@ public: \
  *      //   C2VideoFlexWidthsGlobalParam::alloc_unique(size_t, int32_t);
  *      C2VideoFlexWidthsStruct(size_t flexCount, int32_t value) {
  *          for (size_t i = 0; i < flexCount; ++i) {
- *              mWidths[i] = value;
+ *              widths[i] = value;
  *          }
  *      }
  *
@@ -1002,12 +1162,12 @@ public: \
  *      template<unsigned N>
  *      C2VideoFlexWidthsStruct(size_t flexCount, const int32_t(&init)[N]) {
  *          for (size_t i = 0; i < flexCount; ++i) {
- *              mWidths[i] = init[i];
+ *              widths[i] = init[i];
  *          }
  *      }
  *
- *      DEFINE_AND_DESCRIBE_FLEX_C2STRUCT(VideoFlexWidths, mWidths)
- *      C2FIELD(mWidths, "widths")
+ *      DEFINE_AND_DESCRIBE_FLEX_C2STRUCT(VideoFlexWidths, widths)
+ *      C2FIELD(widths, "widths")
  *  };
  *  ~~~~~~~~~~~~~
  *
@@ -1025,39 +1185,64 @@ public: \
  *  ~~~~~~~~~~~~~
  *
  */
-
-// fieldList variable defined in header, this caused multiple definiton of the symbol
-// if the header is used more than once in a project
-// to avoid that C2_IMPLEMENTATION symbol should be defined in one source file only
-// => variable will be defined once
-// otherwise no variable is defined, DoNothing inline function is used to open bracket {
-#ifdef C2_IMPLEMENTATION
+#ifdef __C2_GENERATE_GLOBAL_VARS__
 #define C2FIELD(member, name) \
   C2FieldDescriptor(&((_type*)(nullptr))->member, name),
-#else
-#define C2FIELD(member, name)
-#endif
+
 /// \deprecated
 #define C2SOLE_FIELD(member, name) \
   C2FieldDescriptor(&_type::member, name, 0)
 
-/// Define a structure with matching baseIndex and start describing its fields.
+/// Define a structure with matching CORE_INDEX and start describing its fields.
 /// This must be at the end of the structure definition.
-#ifdef C2_IMPLEMENTATION
 #define DEFINE_AND_DESCRIBE_C2STRUCT(name) \
-    DEFINE_C2STRUCT(name) }  C2_PACK; \
-    const std::initializer_list<const C2FieldDescriptor> C2##name##Struct::fieldList = {
-#else
-#define DEFINE_AND_DESCRIBE_C2STRUCT(name) \
-    DEFINE_C2STRUCT(name) }  C2_PACK; \
-    inline void name##DoNothing() {
-#endif
+    DEFINE_C2STRUCT(name) } C2_PACK; \
+    const std::initializer_list<const C2FieldDescriptor> C2##name##Struct::FIELD_LIST = {
 
-/// Define a flexible structure with matching baseIndex and start describing its fields.
+/// Define a flexible structure with matching CORE_INDEX and start describing its fields.
 /// This must be at the end of the structure definition.
 #define DEFINE_AND_DESCRIBE_FLEX_C2STRUCT(name, flexMember) \
     DEFINE_FLEX_C2STRUCT(name, flexMember) } C2_PACK; \
-    const std::initializer_list<const C2FieldDescriptor> C2##name##Struct::fieldList = {
+    const std::initializer_list<const C2FieldDescriptor> C2##name##Struct::FIELD_LIST = {
+
+/// Define a base structure (with no CORE_INDEX) and start describing its fields.
+/// This must be at the end of the structure definition.
+#define DEFINE_AND_DESCRIBE_BASE_C2STRUCT(name) \
+    DEFINE_BASE_C2STRUCT(name) } C2_PACK; \
+    const std::initializer_list<const C2FieldDescriptor> C2##name##Struct::FIELD_LIST = {
+
+/// Define a flexible base structure (with no CORE_INDEX) and start describing its fields.
+/// This must be at the end of the structure definition.
+#define DEFINE_AND_DESCRIBE_BASE_FLEX_C2STRUCT(name, flexMember) \
+    DEFINE_BASE_FLEX_C2STRUCT(name, flexMember) } C2_PACK; \
+    const std::initializer_list<const C2FieldDescriptor> C2##name##Struct::FIELD_LIST = {
+
+#else
+/// \if 0
+/* Alternate declaration of field definitions in case no field list is to be generated.
+   TRICKY: use namespace declaration to handle closing bracket that is normally after
+   these macros. */
+#define C2FIELD(member, name)
+/// \deprecated
+#define C2SOLE_FIELD(member, name)
+/// Define a structure with matching CORE_INDEX and start describing its fields.
+/// This must be at the end of the structure definition.
+#define DEFINE_AND_DESCRIBE_C2STRUCT(name) \
+    DEFINE_C2STRUCT(name) }  C2_PACK; namespace ignored {
+/// Define a flexible structure with matching CORE_INDEX and start describing its fields.
+/// This must be at the end of the structure definition.
+#define DEFINE_AND_DESCRIBE_FLEX_C2STRUCT(name, flexMember) \
+    DEFINE_FLEX_C2STRUCT(name, flexMember) } C2_PACK; namespace ignored {
+/// Define a base structure (with no CORE_INDEX) and start describing its fields.
+/// This must be at the end of the structure definition.
+#define DEFINE_AND_DESCRIBE_BASE_C2STRUCT(name) \
+    DEFINE_BASE_C2STRUCT(name) } C2_PACK; namespace ignored {
+/// Define a flexible base structure (with no CORE_INDEX) and start describing its fields.
+/// This must be at the end of the structure definition.
+#define DEFINE_AND_DESCRIBE_BASE_FLEX_C2STRUCT(name, flexMember) \
+    DEFINE_BASE_FLEX_C2STRUCT(name, flexMember) } C2_PACK; namespace ignored {
+/// \endif
+#endif
 
 /**
  * Parameter reflector class.
@@ -1072,7 +1257,8 @@ public:
     /**
      *  Describes a parameter structure.
      *
-     *  \param[in] paramIndex the base index of the parameter structure
+     *  \param[in] coreIndex the core index of the parameter structure containing at least the
+     *  core index
      *
      *  \return the description of the parameter structure
      *  \retval nullptr if the parameter is not supported by this reflector
@@ -1085,52 +1271,10 @@ public:
      *  descriptions, but we want to conserve memory if client only wants the description
      *  of a few indices.
      */
-    virtual std::unique_ptr<C2StructDescriptor> describe(C2Param::BaseIndex paramIndex) = 0;
+    virtual std::unique_ptr<C2StructDescriptor> describe(C2Param::CoreIndex coreIndex) = 0;
 
 protected:
     virtual ~C2ParamReflector() = default;
-};
-
-/**
- * A useable supported values for a field.
- *
- * This can be either a range or a set of values. The range can be linear or geometric with a
- * clear minimum and maximum value, and can have an optional step size or geometric ratio. Values
- * can optionally represent flags.
- *
- * \note Do not use flags to represent bitfields. Use individual values or separate fields instead.
- */
-template<typename T>
-struct C2TypedFieldSupportedValues {
-//public:
-    enum Type {
-        RANGE,      ///< a numeric range that can be continuous or discrete
-        VALUES,     ///< a list of values
-        FLAGS       ///< a list of flags that can be OR-ed
-    };
-
-    Type type;
-
-    struct {
-        T min;
-        T max;
-        T step;
-        T nom;
-        T denom;
-    } range;
-    std::vector<T> values;
-
-    C2TypedFieldSupportedValues(T min, T max, T step = T(std::is_floating_point<T>::value ? 0 : 1))
-        : type(RANGE),
-          range{min, max, step, (T)1, (T)1} { }
-
-    C2TypedFieldSupportedValues(T min, T max, T nom, T den) :
-        type(RANGE),
-        range{min, max, (T)0, nom, den} { }
-
-    C2TypedFieldSupportedValues(bool flags, std::initializer_list<T> list) :
-        type(flags ? FLAGS : VALUES),
-        values(list) {}
 };
 
 /**
@@ -1144,13 +1288,14 @@ struct C2TypedFieldSupportedValues {
  */
 struct C2FieldSupportedValues {
 //public:
-    enum Type {
+    enum type_t {
+        EMPTY,      ///< no supported values
         RANGE,      ///< a numeric range that can be continuous or discrete
         VALUES,     ///< a list of values
         FLAGS       ///< a list of flags that can be OR-ed
     };
 
-    Type type;
+    type_t type;
 
     typedef C2Value::Primitive Primitive;
 
@@ -1162,6 +1307,10 @@ struct C2FieldSupportedValues {
         Primitive denom;
     } range;
     std::vector<Primitive> values;
+
+    C2FieldSupportedValues()
+        : type(EMPTY) {
+    }
 
     template<typename T>
     C2FieldSupportedValues(T min, T max, T step = T(std::is_floating_point<T>::value ? 0 : 1))
@@ -1182,6 +1331,18 @@ struct C2FieldSupportedValues {
         }
     }
 
+    template<typename T>
+    C2FieldSupportedValues(bool flags, const std::vector<T>& list)
+        : type(flags ? FLAGS : VALUES),
+          range{(T)0, (T)0, (T)0, (T)0, (T)0} {
+        for(T value : list) {
+            values.emplace_back(value);
+        }
+    }
+
+    /// \internal
+    /// \todo: create separate values vs. flags initializer as for flags we want
+    /// to list both allowed and disallowed flags
     template<typename T, typename E=decltype(C2FieldDescriptor::namedValuesFor(*(T*)0))>
     C2FieldSupportedValues(bool flags, const T*)
         : type(flags ? FLAGS : VALUES),
@@ -1191,6 +1352,21 @@ struct C2FieldSupportedValues {
             values.emplace_back(item.second);
         }
     }
+};
+
+/**
+ * Spported values for a specific field.
+ *
+ * This is a pair of the field specifier together with an optional supported values object.
+ * This structure is used when reporting parameter configuration failures and conflicts.
+ */
+struct C2ParamFieldValues {
+    C2ParamField paramOrField; ///< the field or parameter
+    /// optional supported values for the field if paramOrField specifies an actual field that is
+    /// numeric (non struct, blob or string). Supported values for arrays (including string and
+    /// blobs) describe the supported values for each element (character for string, and bytes for
+    /// blobs). It is optional for read-only strings and blobs.
+    std::unique_ptr<C2FieldSupportedValues> values;
 };
 
 /// @}

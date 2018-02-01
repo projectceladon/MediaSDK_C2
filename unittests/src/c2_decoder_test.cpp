@@ -28,7 +28,7 @@ const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
 static std::vector<C2ParamDescriptor> h264_params_desc =
 {
-    { false, "MemoryType", C2MemoryTypeSetting::typeIndex },
+    { false, "MemoryType", C2MemoryTypeSetting::PARAM_TYPE },
 };
 
 namespace {
@@ -363,7 +363,7 @@ static void Decode(
     component->registerListener(validator);
 
     C2MemoryTypeSetting setting;
-    setting.mValue = graphics_memory ? C2MemoryTypeGraphics : C2MemoryTypeSystem;
+    setting.value = graphics_memory ? C2MemoryTypeGraphics : C2MemoryTypeSystem;
 
     std::vector<C2Param* const> params = { &setting };
     std::vector<std::unique_ptr<C2SettingResult>> failures;

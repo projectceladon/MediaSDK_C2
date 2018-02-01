@@ -7,7 +7,7 @@ accordance with the terms of that agreement
 Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
-#define C2_IMPLEMENTATION
+#define __C2_GENERATE_GLOBAL_VARS__
 #include "mfx_c2_params.h"
 
 #include "mfx_c2_component.h"

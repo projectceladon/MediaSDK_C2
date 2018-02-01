@@ -283,7 +283,7 @@ std::unique_ptr<C2SettingResult> FindC2Param(
     const std::vector<std::shared_ptr<C2ParamDescriptor>>& params_desc, const C2Param* param)
 {
     MFX_DEBUG_TRACE_FUNC;
-    MFX_DEBUG_TRACE_U32(param->type());
+    MFX_DEBUG_TRACE_STREAM(NAMED(param->index()));
 
     std::unique_ptr<C2SettingResult> res;
 
@@ -303,7 +303,7 @@ std::unique_ptr<C2SettingResult> FindC2Param(
 
             return typeA.kind() == typeB.kind() &&
                 typeA.forStream() == typeB.forStream() &&
-                typeA.baseIndex() == typeB.baseIndex();
+                typeA.coreIndex() == typeB.coreIndex();
         };
 
         if (std::any_of(params_desc.begin(), params_desc.end(), match_regardless_port)) {

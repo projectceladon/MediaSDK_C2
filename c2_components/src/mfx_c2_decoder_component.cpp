@@ -304,14 +304,14 @@ c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
 {
     c2_status_t res = C2_OK;
 
-    switch (type.paramIndex()) {
+    switch (type.typeIndex()) {
         case kParamIndexMemoryType: {
             if (nullptr == *dst) {
                 *dst = new C2MemoryTypeSetting();
             }
 
             C2MemoryTypeSetting* setting = static_cast<C2MemoryTypeSetting*>(*dst);
-            if (!MfxIOPatternToC2MemoryType(false, src->IOPattern, &setting->mValue)) res = C2_CORRUPTED;
+            if (!MfxIOPatternToC2MemoryType(false, src->IOPattern, &setting->value)) res = C2_CORRUPTED;
             break;
         }
         default:
@@ -411,10 +411,10 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param* const> &params,
         }
 
         // applying parameter
-        switch (C2Param::Type(param->type()).paramIndex()) {
+        switch (C2Param::Type(param->type()).typeIndex()) {
             case kParamIndexMemoryType: {
                 const C2MemoryTypeSetting* setting = static_cast<const C2MemoryTypeSetting*>(param);
-                bool set_res = C2MemoryTypeToMfxIOPattern(false, setting->mValue, &video_params_.IOPattern);
+                bool set_res = C2MemoryTypeToMfxIOPattern(false, setting->value, &video_params_.IOPattern);
                 if (!set_res) {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
                 }

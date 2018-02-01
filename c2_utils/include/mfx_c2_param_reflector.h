@@ -19,7 +19,7 @@ class MfxC2ParamReflector
 private:
     std::vector<std::shared_ptr<android::C2ParamDescriptor>> params_descriptors_;
 
-    std::map<android::C2Param::BaseIndex, android::C2StructDescriptor> params_struct_descriptors_;
+    std::map<android::C2Param::CoreIndex, android::C2StructDescriptor> params_struct_descriptors_;
 
     std::map<android::C2ParamField, android::C2FieldSupportedValues> params_supported_values_;
 
@@ -54,10 +54,10 @@ void MfxC2ParamReflector::RegisterParam(const char* param_name)
     using namespace android;
 
     params_descriptors_.push_back(
-        std::make_shared<C2ParamDescriptor>(false, param_name, ParamType::typeIndex));
+        std::make_shared<C2ParamDescriptor>(false, param_name, ParamType::PARAM_TYPE));
 
-    C2Param::BaseIndex base_index = C2Param::Type(ParamType::typeIndex).paramIndex();
-    params_struct_descriptors_.insert({ base_index, C2StructDescriptor(base_index, ParamType::fieldList) });
+    C2Param::CoreIndex base_index = C2Param::Type(ParamType::PARAM_TYPE).typeIndex();
+    params_struct_descriptors_.insert({ base_index, C2StructDescriptor(base_index, ParamType::FIELD_LIST) });
 };
 
 template<typename ParamType, typename ValueType, typename FieldType>
