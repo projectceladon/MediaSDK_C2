@@ -396,12 +396,12 @@ C2Error C2BlockAllocatorImpl::Init()
 C2BlockAllocatorImpl::CreateResult C2BlockAllocatorImpl::Create()
 {
     CreateResult res {};
-    res.status = OK;
+    res.status = C2_OK;
 
     C2BlockAllocatorImpl* alloc = new (std::nothrow)C2BlockAllocatorImpl();
     if (alloc) {
         res.status = alloc->Init();
-        if (res.status == OK) res.allocator.reset(alloc);
+        if (res.status == C2_OK) res.allocator.reset(alloc);
     } else {
         res.status = C2_NO_MEMORY;
     }
