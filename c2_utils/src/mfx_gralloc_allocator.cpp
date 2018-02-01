@@ -21,17 +21,17 @@ using namespace android;
 
 status_t MfxGrallocModule::Create(std::unique_ptr<MfxGrallocModule>* allocator)
 {
-    status_t res = OK;
+    status_t res = C2_OK;
     if (allocator) {
         std::unique_ptr<MfxGrallocModule> alloc(new (std::nothrow)MfxGrallocModule());
         if (alloc) {
             res = alloc->Init();
-            if (res == OK) *allocator = std::move(alloc);
+            if (res == C2_OK) *allocator = std::move(alloc);
         } else {
-            res = NO_MEMORY;
+            res = C2_NO_MEMORY;
         }
     } else {
-        res = UNEXPECTED_NULL;
+        res = C2_BAD_VALUE;
     }
     return res;
 }
@@ -47,16 +47,20 @@ MfxGrallocModule::~MfxGrallocModule()
 
 status_t MfxGrallocModule::Init()
 {
-    status_t res = hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &hw_module_);
+    MFX_DEBUG_TRACE_FUNC;
+
+    status_t res = C2_OK;
+    int hw_res = hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &hw_module_);
+    if (hw_res != 0) res = C2_NOT_FOUND;
 
 #ifdef MFX_C2_USE_GRALLOC_1
-    if (res == OK) {
+    if (res == C2_OK) {
         int32_t gr1_err = GRALLOC1_ERROR_NONE;
         do {
             gr1_err = gralloc1_open(hw_module_, &gralloc1_dev_);
 
             if (GRALLOC1_ERROR_NONE != gr1_err) {
-                res = UNKNOWN_ERROR;
+                res = C2_CORRUPTED;
                 break;
             }
 
@@ -66,14 +70,14 @@ status_t MfxGrallocModule::Init()
                 gr_get_stride_.Acquire(gralloc1_dev_);
 
             if (!functions_acquired) {
-                res = UNKNOWN_ERROR;
+                res = C2_CORRUPTED;
                 gralloc1_close(gralloc1_dev_);
                 gralloc1_dev_ = nullptr;
             }
         } while (false);
     }
 #else
-    if (res == OK) {
+    if (res == C2_OK) {
         gralloc_module_ = (gralloc_module_t*)hw_module_;
     }
 #endif
@@ -85,7 +89,7 @@ android::status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handl
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = OK;
+    status_t res = C2_OK;
 #ifdef MFX_C2_USE_GRALLOC_1
         int32_t errGetFormat     = (*gr_get_format_)(gralloc1_dev_, handle, &(details->format));
         int32_t errGetStride     = (*gr_get_stride_)(gralloc1_dev_, handle, &(details->pitch));
@@ -102,7 +106,7 @@ android::status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handl
         }
         else
         {
-            res = UNKNOWN_ERROR;
+            res = C2_CORRUPTED;
         }
 #else
     struct intel_ufo_buffer_details_t
@@ -130,7 +134,7 @@ android::status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handl
     int err = gralloc_module_->perform(gralloc_module_, INTEL_UFO_GRALLOC_MODULE_PERFORM_GET_BO_INFO, handle, &info);
     if (0 != err) {
         MFX_DEBUG_TRACE_MSG("Failed to get BO_INFO");
-        res = UNKNOWN_ERROR;
+        res = C2_CORRUPTED;
     } else {
         details->width = info.width;
         details->height = info.height;
@@ -145,17 +149,17 @@ android::status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handl
 
 status_t MfxGrallocAllocator::Create(std::unique_ptr<MfxGrallocAllocator>* allocator)
 {
-    status_t res = OK;
+    status_t res = C2_OK;
     if (allocator) {
         std::unique_ptr<MfxGrallocAllocator> alloc(new (std::nothrow)MfxGrallocAllocator());
         if (alloc) {
             res = alloc->Init();
-            if (res == OK) *allocator = std::move(alloc);
+            if (res == C2_OK) *allocator = std::move(alloc);
         } else {
-            res = NO_MEMORY;
+            res = C2_NO_MEMORY;
         }
     } else {
-        res = UNEXPECTED_NULL;
+        res = C2_BAD_VALUE;
     }
     return res;
 }
@@ -165,7 +169,7 @@ status_t MfxGrallocAllocator::Init()
     status_t res = MfxGrallocModule::Init();
 
 #ifdef MFX_C2_USE_GRALLOC_1
-    if (OK == res) {
+    if (C2_OK == res) {
         bool functions_acquired =
             gr_allocate_.Acquire(gralloc1_dev_) &&
             gr_release_.Acquire(gralloc1_dev_) &&
@@ -179,13 +183,13 @@ status_t MfxGrallocAllocator::Init()
             gr_destroy_descriptor_.Acquire(gralloc1_dev_);
 
         if (!functions_acquired) {
-            res = UNKNOWN_ERROR;
+            res = C2_CORRUPTED;
             // if MfxGrallocModule::Init allocated some resources
             // its destructor is responsible to free them.
         }
     }
 #else
-    if (OK == res) {
+    if (C2_OK == res) {
         res = gralloc_open(hw_module_, &alloc_dev_);
     }
 #endif
@@ -202,7 +206,7 @@ MfxGrallocAllocator::~MfxGrallocAllocator()
 status_t MfxGrallocAllocator::Alloc(const uint16_t width, const uint16_t height, buffer_handle_t* handle)
 {
     MFX_DEBUG_TRACE_FUNC;
-    status_t res = OK;
+    status_t res = C2_OK;
 
     MFX_DEBUG_TRACE_I32(width);
     MFX_DEBUG_TRACE_I32(height);
@@ -240,7 +244,7 @@ status_t MfxGrallocAllocator::Alloc(const uint16_t width, const uint16_t height,
     if (GRALLOC1_ERROR_NONE != gr1_err)
     {
         MFX_DEBUG_TRACE_I32(gr1_err);
-        res = NO_MEMORY;
+        res = C2_NO_MEMORY;
     }
 #else
     int stride;
@@ -258,7 +262,7 @@ status_t MfxGrallocAllocator::Alloc(const uint16_t width, const uint16_t height,
 status_t MfxGrallocAllocator::Free(const buffer_handle_t handle)
 {
     MFX_DEBUG_TRACE_FUNC;
-    status_t res = OK;
+    status_t res = C2_OK;
 
     MFX_DEBUG_TRACE_P(handle);
 
@@ -284,18 +288,18 @@ status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** data, 
     MFX_DEBUG_TRACE_FUNC;
     MFX_DEBUG_TRACE_P(handle);
 
-    status_t res = OK;
+    status_t res = C2_OK;
 
 
-    if (!layout) res = UNEXPECTED_NULL;
+    if (!layout) res = C2_BAD_VALUE;
 
     BufferDetails details {};
-    if (OK == res) {
+    if (C2_OK == res) {
         res = GetBufferDetails(handle, &details);
     }
 
     mfxU8 *img = NULL;
-    if (OK == res) {
+    if (C2_OK == res) {
 #ifdef MFX_C2_USE_GRALLOC_1
         gralloc1_rect_t rect;
         rect.left   = 0;
@@ -321,7 +325,7 @@ status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** data, 
 #endif
     }
 
-    if (OK == res) {
+    if (C2_OK == res) {
         InitNV12PlaneLayout(details.pitch, details.allocHeight, layout);
         *data = img;
     }
@@ -334,7 +338,7 @@ status_t MfxGrallocAllocator::UnlockFrame(buffer_handle_t handle)
 {
     MFX_DEBUG_TRACE_FUNC;
     MFX_DEBUG_TRACE_P(handle);
-    status_t res = OK;
+    status_t res = C2_OK;
 
 #ifdef MFX_C2_USE_GRALLOC_1
     int32_t releaseFence = -1;
@@ -342,7 +346,7 @@ status_t MfxGrallocAllocator::UnlockFrame(buffer_handle_t handle)
     if (GRALLOC1_ERROR_NONE != gr1_res)
     {
         MFX_DEBUG_TRACE_I32(gr1_res);
-        res = INVALID_OPERATION;
+        res = C2_BAD_STATE;
     }
 #else
     res = gralloc_module_->unlock(gralloc_module_, handle);
