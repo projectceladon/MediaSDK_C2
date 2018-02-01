@@ -28,12 +28,12 @@ MfxC2FrameIn::~MfxC2FrameIn()
     }
 }
 
-status_t MfxC2FrameIn::Create(MfxFrameConverter* frame_converter,
+c2_status_t MfxC2FrameIn::Create(MfxFrameConverter* frame_converter,
     C2BufferPack& buf_pack, nsecs_t timeout, MfxC2FrameIn* wrapper)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    C2Error res = C2_OK;
+    c2_status_t res = C2_OK;
 
     do {
         if (nullptr == wrapper) {
@@ -83,6 +83,6 @@ status_t MfxC2FrameIn::Create(MfxFrameConverter* frame_converter,
 
     } while(false);
 
-    MFX_DEBUG_TRACE__android_status_t(res);
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }

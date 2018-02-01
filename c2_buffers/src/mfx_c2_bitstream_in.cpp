@@ -31,11 +31,11 @@ MfxC2BitstreamIn::~MfxC2BitstreamIn()
     MFX_DEBUG_TRACE_FUNC;
 }
 
-status_t MfxC2BitstreamIn::LoadC2BufferPack(C2BufferPack& buf_pack, nsecs_t timeout)
+c2_status_t MfxC2BitstreamIn::LoadC2BufferPack(C2BufferPack& buf_pack, nsecs_t timeout)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    C2Error res = C2_OK;
+    c2_status_t res = C2_OK;
     const mfxU8* data = nullptr;
     mfxU32 filled_len = 0;
 
@@ -65,6 +65,6 @@ status_t MfxC2BitstreamIn::LoadC2BufferPack(C2BufferPack& buf_pack, nsecs_t time
 
     } while(false);
 
-    MFX_DEBUG_TRACE__android_status_t(res);
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }

@@ -30,21 +30,21 @@ Defined help functions:
 
 using namespace android;
 
-EXPORT status_t GetC2ComponentStore(std::shared_ptr<C2ComponentStore>* const componentStore) {
+EXPORT c2_status_t GetC2ComponentStore(std::shared_ptr<C2ComponentStore>* const componentStore) {
 
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t creationStatus = C2_OK;
+    c2_status_t creationStatus = C2_OK;
     static std::shared_ptr<MfxC2ComponentStore> g_componentStore =
         std::shared_ptr<MfxC2ComponentStore>(MfxC2ComponentStore::Create(&creationStatus));
     *componentStore = g_componentStore;
 
     MFX_DEBUG_TRACE_P(g_componentStore.get());
-    MFX_DEBUG_TRACE__android_C2Error(creationStatus);
+    MFX_DEBUG_TRACE__android_c2_status_t(creationStatus);
     return creationStatus;
 }
 
-MfxC2ComponentStore* MfxC2ComponentStore::Create(status_t* status) {
+MfxC2ComponentStore* MfxC2ComponentStore::Create(c2_status_t* status) {
 
     MFX_DEBUG_TRACE_FUNC;
 
@@ -59,16 +59,16 @@ MfxC2ComponentStore* MfxC2ComponentStore::Create(status_t* status) {
         *status = C2_NO_MEMORY;
     }
 
-    MFX_DEBUG_TRACE__android_C2Error(*status);
+    MFX_DEBUG_TRACE__android_c2_status_t(*status);
     MFX_DEBUG_TRACE_P(store);
     return store;
 }
 
-status_t MfxC2ComponentStore::createComponent(C2String name, std::shared_ptr<C2Component>* const component) {
+c2_status_t MfxC2ComponentStore::createComponent(C2String name, std::shared_ptr<C2Component>* const component) {
 
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t result = C2_OK;
+    c2_status_t result = C2_OK;
     if(component != nullptr) {
 
         auto it = components_registry_.find(name);
@@ -110,16 +110,16 @@ status_t MfxC2ComponentStore::createComponent(C2String name, std::shared_ptr<C2C
         result = C2_BAD_VALUE;
     }
 
-    MFX_DEBUG_TRACE__android_C2Error(result);
+    MFX_DEBUG_TRACE__android_c2_status_t(result);
     return result;
 }
 
-status_t MfxC2ComponentStore::createInterface(C2String name, std::shared_ptr<C2ComponentInterface>* const interface) {
+c2_status_t MfxC2ComponentStore::createInterface(C2String name, std::shared_ptr<C2ComponentInterface>* const interface) {
 
     MFX_DEBUG_TRACE_FUNC;
 
     std::shared_ptr<C2Component> component;
-    status_t result = createComponent(name, &component);
+    c2_status_t result = createComponent(name, &component);
 
     if(result == C2_OK) {
         *interface = component->intf();
@@ -148,17 +148,17 @@ std::vector<std::unique_ptr<const C2ComponentInfo>> MfxC2ComponentStore::getComp
     return result;
 }
 
-status_t MfxC2ComponentStore::copyBuffer(std::shared_ptr<C2GraphicBuffer> src, std::shared_ptr<C2GraphicBuffer> dst) {
+c2_status_t MfxC2ComponentStore::copyBuffer(std::shared_ptr<C2GraphicBuffer> src, std::shared_ptr<C2GraphicBuffer> dst) {
 
     MFX_DEBUG_TRACE_FUNC;
     MFX_DEBUG_TRACE_MSG("Unimplemented method is called");
 
     (void)src;
     (void)dst;
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
-status_t MfxC2ComponentStore::query_nb(
+c2_status_t MfxC2ComponentStore::query_nb(
         const std::vector<C2Param * const> &stackParams,
         const std::vector<C2Param::Index> &heapParamIndices,
         std::vector<std::unique_ptr<C2Param>>*const heapParams) {
@@ -169,10 +169,10 @@ status_t MfxC2ComponentStore::query_nb(
     (void)stackParams;
     (void)heapParamIndices;
     (void)heapParams;
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
-status_t MfxC2ComponentStore::config_nb(
+c2_status_t MfxC2ComponentStore::config_nb(
         const std::vector<C2Param * const> &params,
         std::list<std::unique_ptr<C2SettingResult>>*const failures) {
 
@@ -181,7 +181,7 @@ status_t MfxC2ComponentStore::config_nb(
 
     (void)params;
     (void)failures;
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
 /* Searches in the given line field which is separated from other lines by
@@ -215,10 +215,10 @@ static void mfx_c2_get_field(const char *line, char **str, size_t *str_size)
     }
 }
 
-status_t MfxC2ComponentStore::readConfigFile()
+c2_status_t MfxC2ComponentStore::readConfigFile()
 {
     MFX_DEBUG_TRACE_FUNC;
-    status_t c2_res = C2_OK;
+    c2_status_t c2_res = C2_OK;
     char config_filename[MFX_MAX_PATH] = {0};
     FILE* config_file = NULL;
 
@@ -288,7 +288,7 @@ status_t MfxC2ComponentStore::readConfigFile()
         fclose(config_file);
     }
     MFX_DEBUG_TRACE_I32(components_registry_.size());
-    MFX_DEBUG_TRACE__android_C2Error(c2_res);
+    MFX_DEBUG_TRACE__android_c2_status_t(c2_res);
     return c2_res;
 }
 

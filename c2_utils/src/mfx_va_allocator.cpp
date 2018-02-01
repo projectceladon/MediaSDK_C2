@@ -489,7 +489,7 @@ mfxStatus MfxVaFrameAllocator::MapGrallocBufferToSurface(buffer_handle_t gralloc
     do {
 
         if (!gralloc_module_) {
-            status_t sts = MfxGrallocModule::Create(&gralloc_module_);
+            c2_status_t sts = MfxGrallocModule::Create(&gralloc_module_);
             if(C2_OK != sts) {
                 mfx_res = MFX_ERR_MEMORY_ALLOC;
                 break;
@@ -497,7 +497,7 @@ mfxStatus MfxVaFrameAllocator::MapGrallocBufferToSurface(buffer_handle_t gralloc
         }
 
         MfxGrallocModule::BufferDetails buffer_details {};
-        status_t sts = gralloc_module_->GetBufferDetails(gralloc_buffer, &buffer_details);
+        c2_status_t sts = gralloc_module_->GetBufferDetails(gralloc_buffer, &buffer_details);
         if(C2_OK != sts) {
             mfx_res = MFX_ERR_INVALID_HANDLE;
             break;

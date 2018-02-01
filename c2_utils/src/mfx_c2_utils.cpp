@@ -15,7 +15,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 using namespace android;
 
-status_t MfxStatusToC2(mfxStatus mfx_status)
+c2_status_t MfxStatusToC2(mfxStatus mfx_status)
 {
     switch(mfx_status) {
         case MFX_ERR_NONE:
@@ -30,7 +30,7 @@ status_t MfxStatusToC2(mfxStatus mfx_status)
             return C2_BAD_VALUE;
 
         case MFX_ERR_UNSUPPORTED:
-            return C2_UNSUPPORTED;
+            return C2_CANNOT_DO;
 
         case MFX_ERR_NOT_FOUND:
             return C2_NOT_FOUND;
@@ -59,12 +59,12 @@ status_t MfxStatusToC2(mfxStatus mfx_status)
     }
 }
 
-status_t GetC2ConstGraphicBlock(
+c2_status_t GetC2ConstGraphicBlock(
     const C2BufferPack& buf_pack, std::unique_ptr<C2ConstGraphicBlock>* c_graph_block)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    C2Error res = C2_BAD_VALUE;
+    c2_status_t res = C2_BAD_VALUE;
 
     do {
         if(nullptr == c_graph_block) break;
@@ -86,12 +86,12 @@ status_t GetC2ConstGraphicBlock(
     return res;
 }
 
-status_t GetC2ConstLinearBlock(
+c2_status_t GetC2ConstLinearBlock(
     const C2BufferPack& buf_pack, std::unique_ptr<C2ConstLinearBlock>* c_lin_block)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    C2Error res = C2_BAD_VALUE;
+    c2_status_t res = C2_BAD_VALUE;
 
     do {
         if(nullptr == c_lin_block) break;
@@ -113,12 +113,12 @@ status_t GetC2ConstLinearBlock(
     return res;
 }
 
-status_t MapConstGraphicBlock(const C2ConstGraphicBlock& graph_block, nsecs_t timeout,
+c2_status_t MapConstGraphicBlock(const C2ConstGraphicBlock& graph_block, nsecs_t timeout,
     std::unique_ptr<const C2GraphicView>* graph_view)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    C2Error res = C2_OK;
+    c2_status_t res = C2_OK;
 
     do {
         if(nullptr == graph_view) {
@@ -140,12 +140,12 @@ status_t MapConstGraphicBlock(const C2ConstGraphicBlock& graph_block, nsecs_t ti
     return res;
 }
 
-status_t MapGraphicBlock(C2GraphicBlock& graph_block, nsecs_t timeout,
+c2_status_t MapGraphicBlock(C2GraphicBlock& graph_block, nsecs_t timeout,
     std::unique_ptr<C2GraphicView>* graph_view)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    C2Error res = C2_OK;
+    c2_status_t res = C2_OK;
 
     do {
         if(nullptr == graph_view) {
@@ -167,12 +167,12 @@ status_t MapGraphicBlock(C2GraphicBlock& graph_block, nsecs_t timeout,
     return res;
 }
 
-status_t MapConstLinearBlock(
+c2_status_t MapConstLinearBlock(
     const C2ConstLinearBlock& c_lin_block, nsecs_t timeout, const uint8_t** data)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    C2Error res = C2_OK;
+    c2_status_t res = C2_OK;
 
     do {
         if(nullptr == data) {
@@ -196,12 +196,12 @@ status_t MapConstLinearBlock(
     return res;
 }
 
-status_t MapLinearBlock(
+c2_status_t MapLinearBlock(
     C2LinearBlock& lin_block, nsecs_t timeout, uint8_t** data)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    C2Error res = C2_OK;
+    c2_status_t res = C2_OK;
 
     do {
         if(nullptr == data) {
@@ -239,11 +239,11 @@ std::unique_ptr<C2SettingResult> MakeC2SettingResult(
     return std::unique_ptr<C2SettingResult>(set_res);
 }
 
-status_t GetAggregateStatus(std::vector<std::unique_ptr<C2SettingResult>>* const failures)
+c2_status_t GetAggregateStatus(std::vector<std::unique_ptr<C2SettingResult>>* const failures)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
     if (!failures->empty()) {
 
@@ -258,7 +258,7 @@ status_t GetAggregateStatus(std::vector<std::unique_ptr<C2SettingResult>>* const
         }
     }
 
-    MFX_DEBUG_TRACE__android_status_t(res);
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 

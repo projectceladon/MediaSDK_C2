@@ -103,8 +103,12 @@ typedef const char *C2StringLiteral;
 /**
  * C2Error: status codes used.
  */
-typedef int32_t C2Error;
-enum {
+enum c2_status_t : int32_t {
+
+/*
+ * Use android status constants if available. Otherwise, define the android status constants as
+ * additional enum values using POSIX errno constants.
+ */
 #ifndef __ANDROID__
     OK                  = 0,
     BAD_VALUE           = -EINVAL,
@@ -122,9 +126,9 @@ enum {
     C2_OK               = OK,                   ///< operation completed successfully
 
     // bad input
-    C2_BAD_VALUE        = BAD_VALUE,            ///< argument has invalid value (user error)
-    C2_BAD_INDEX        = BAD_INDEX,            ///< argument uses invalid index (user error)
-    C2_UNSUPPORTED      = UNKNOWN_TRANSACTION,  ///< argument/index is value but not supported \todo is this really BAD_INDEX/VALUE?
+    C2_BAD_VALUE = BAD_VALUE,            ///< argument has invalid value (user error)
+    C2_BAD_INDEX = BAD_INDEX,            ///< argument uses invalid index (user error)
+    C2_CANNOT_DO = FAILED_TRANSACTION,   ///< argument/index is valid but not possible
 
     // bad sequencing of events
     C2_DUPLICATE        = ALREADY_EXISTS,       ///< object already exists
@@ -132,12 +136,12 @@ enum {
     C2_BAD_STATE        = INVALID_OPERATION,    ///< operation is not permitted in the current state
 
     // bad environment
-    C2_NO_MEMORY        = NO_MEMORY,            ///< not enough memory to complete operation
-    C2_NO_PERMISSION    = PERMISSION_DENIED,    ///< missing permission to complete operation
+    C2_NO_MEMORY = NO_MEMORY,            ///< not enough memory to complete operation
+    C2_REFUSED   = PERMISSION_DENIED,    ///< missing permission to complete operation
     C2_TIMED_OUT        = TIMED_OUT,            ///< operation did not complete within timeout
 
     // bad versioning
-    C2_NOT_IMPLEMENTED  = UNKNOWN_TRANSACTION,  ///< operation is not implemented (optional only) \todo for now reuse error code
+    C2_OMITTED   = UNKNOWN_TRANSACTION,  ///< operation is not implemented/supported (optional only)
 
     // unknown fatal
     C2_CORRUPTED        = UNKNOWN_ERROR,        ///< some unexpected error prevented the operation

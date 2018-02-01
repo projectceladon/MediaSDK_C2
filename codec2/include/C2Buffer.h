@@ -88,10 +88,10 @@ public:
      * \retval C2_TIMED_OUT     the fence has not been signaled within the timeout
      * \retval C2_BAD_STATE     the fence has been abandoned without being signaled (it will never
      *                          be signaled)
-     * \retval C2_NO_PERMISSION no permission to wait for the fence (unexpected - system)
+     * \retval C2_REFUSED no permission to wait for the fence (unexpected - system)
      * \retval C2_CORRUPTED     some unknown error prevented waiting for the fence (unexpected)
      */
-    C2Error wait(nsecs_t timeoutNs);
+    c2_status_t wait(nsecs_t timeoutNs);
 
     /**
      * Used to check if this fence is valid (if there is a chance for it to be signaled.)
@@ -157,10 +157,10 @@ public:
      * \retval C2_OK            the fence(s) were successfully signaled
      * \retval C2_BAD_STATE     the fence(s) have already been abandoned or merged (caller error)
      * \retval C2_ALREADY_EXISTS the fence(s) have already been signaled (caller error)
-     * \retval C2_NO_PERMISSION no permission to signal the fence (unexpected - system)
+     * \retval C2_REFUSED no permission to signal the fence (unexpected - system)
      * \retval C2_CORRUPTED     some unknown error prevented signaling the fence(s) (unexpected)
      */
-    C2Error fire();
+    c2_status_t fire();
 
     /**
      * Trigger this event from the merging of the supplied fences. This means that it will be
@@ -171,10 +171,10 @@ public:
      * \retval C2_NO_MEMORY     not enough memory to perform the merging
      * \retval C2_ALREADY_EXISTS    the fence have already been merged (caller error)
      * \retval C2_BAD_STATE     the fence have already been signaled or abandoned (caller error)
-     * \retval C2_NO_PERMISSION no permission to merge the fence (unexpected - system)
+     * \retval C2_REFUSED no permission to merge the fence (unexpected - system)
      * \retval C2_CORRUPTED     some unknown error prevented merging the fence(s) (unexpected)
      */
-    C2Error merge(std::vector<C2Fence> fences);
+    c2_status_t merge(std::vector<C2Fence> fences);
 
     /**
      * Abandons the event and any associated fence(s).
@@ -185,10 +185,10 @@ public:
      * \retval C2_OK            the fence(s) were successfully signaled
      * \retval C2_BAD_STATE     the fence(s) have already been signaled or merged (caller error)
      * \retval C2_ALREADY_EXISTS    the fence(s) have already been abandoned (caller error)
-     * \retval C2_NO_PERMISSION no permission to abandon the fence (unexpected - system)
+     * \retval C2_REFUSED no permission to abandon the fence (unexpected - system)
      * \retval C2_CORRUPTED     some unknown error prevented signaling the fence(s) (unexpected)
      */
-    C2Error abandon();
+    c2_status_t abandon();
 
 private:
     class Impl;
@@ -202,12 +202,12 @@ private:
  * Interface for objects that encapsulate an updatable error value.
  */
 struct _C2InnateError {
-    inline C2Error error() const { return mError; }
+    inline c2_status_t error() const { return mError; }
 
 protected:
-    _C2InnateError(C2Error error) : mError(error) { }
+    _C2InnateError(c2_status_t error) : mError(error) { }
 
-    C2Error mError; // this error is updatable by the object
+    c2_status_t mError; // this error is updatable by the object
 };
 
 /// @}
@@ -227,12 +227,12 @@ public:
      */
     T get() { return mT; }
 
-    C2Error GetError() const { return mInitialError; }
+    c2_status_t GetError() const { return mInitialError; }
 public:
-    C2Acquirable(C2Error error, C2Fence fence, T t) : C2Fence(fence), mInitialError(error), mT(t) { }
+    C2Acquirable(c2_status_t error, C2Fence fence, T t) : C2Fence(fence), mInitialError(error), mT(t) { }
 
 private:
-    C2Error mInitialError;
+    c2_status_t mInitialError;
     T mT; // TODO: move instead of copy
 };
 
@@ -465,7 +465,7 @@ public:
     /**
      * \return error during the creation/mapping of this view.
      */
-    C2Error error();
+    c2_status_t error();
 
 private:
     class Impl;
@@ -497,7 +497,7 @@ public:
     /**
      * \return error during the creation/mapping of this view.
      */
-    C2Error error();
+    c2_status_t error();
 
 private:
     class Impl;
@@ -637,7 +637,7 @@ public:
      * \retval C2_TIMED_OUT     the reservation timed out \todo when?
      * \retval C2_CORRUPTED     some unknown error prevented reserving space. (unexpected)
      */
-    C2Error reserve(size_t size, C2Fence *fence /* nullable */);
+    c2_status_t reserve(size_t size, C2Fence *fence /* nullable */);
 
     /**
      * Abandons a portion of this segment. This will move to the beginning of this segment.
@@ -650,7 +650,7 @@ public:
      * \retval C2_TIMED_OUT     the operation timed out (unexpected)
      * \retval C2_CORRUPTED     some unknown error prevented abandoning the data (unexpected)
      */
-    C2Error abandon(size_t size);
+    c2_status_t abandon(size_t size);
 
     /**
      * Share a portion as block(s) with consumers (these are moved to the used section).
@@ -667,7 +667,7 @@ public:
      * \retval C2_TIMED_OUT     the operation timed out (unexpected)
      * \retval C2_CORRUPTED     some unknown error prevented sharing the data (unexpected)
      */
-    C2Error share(size_t size, C2Fence fence, std::list<C2ConstLinearBlock> &blocks);
+    c2_status_t share(size_t size, C2Fence fence, std::list<C2ConstLinearBlock> &blocks);
 
     /**
      * Returns the beginning offset of this segment from the start of this circular block.
@@ -701,7 +701,7 @@ public:
     /**
      * \return error during the creation/mapping of this view.
      */
-    C2Error error();
+    c2_status_t error();
 };
 
 /**
@@ -722,7 +722,7 @@ public:
      * \param size    number of bytes to commit to the next segment
      * \param fence   fence used for the commit (the fence must signal before the data is committed)
      */
-    C2Error commit(size_t size, C2Fence fence);
+    c2_status_t commit(size_t size, C2Fence fence);
 
     /**
      * Maps this block into memory and returns a write view for it.
@@ -1012,7 +1012,7 @@ public:
     /**
      * \return error during the creation/mapping of this view.
      */
-    C2Error error() const;
+    c2_status_t error() const;
 
 private:
     class Impl;
@@ -1212,7 +1212,7 @@ public:
      * \retval C2_NO_MEMORY not enough memory to register for this callback
      * \retval C2_CORRUPTED an unknown error prevented the registration (unexpected)
      */
-    C2Error registerOnDestroyNotify(OnDestroyNotify *onDestroyNotify, void *arg = nullptr);
+    c2_status_t registerOnDestroyNotify(OnDestroyNotify *onDestroyNotify, void *arg = nullptr);
 
     /**
      * Unregisters a previously registered pre-destroy notification.
@@ -1224,7 +1224,7 @@ public:
      * \retval C2_NOT_FOUND the notification was not found
      * \retval C2_CORRUPTED an unknown error prevented the registration (unexpected)
      */
-    C2Error unregisterOnDestroyNotify(OnDestroyNotify *onDestroyNotify, void *arg = nullptr);
+    c2_status_t unregisterOnDestroyNotify(OnDestroyNotify *onDestroyNotify, void *arg = nullptr);
 
     ///@}
 
@@ -1250,7 +1250,7 @@ public:
      * \retval C2_NO_MEMORY not enough memory to attach the metadata (this return value is not
      *                      used if the same kind of metadata is already attached to the buffer).
      */
-    C2Error setInfo(const std::shared_ptr<C2Info> &info);
+    c2_status_t setInfo(const std::shared_ptr<C2Info> &info);
 
     /**
      * Checks if there is a certain type of metadata attached to this buffer.
@@ -1363,14 +1363,14 @@ public:
      * \todo Do we need to support sync operation as we could just wait for the fence?
      *
      * \retval C2_OK        the operation was successful
-     * \retval C2_NO_PERMISSION no permission to map the portion
+     * \retval C2_REFUSED no permission to map the portion
      * \retval C2_TIMED_OUT the operation timed out
      * \retval C2_NO_MEMORY not enough memory to complete the operation
      * \retval C2_BAD_VALUE the parameters (offset/size) are invalid or outside the allocation, or
      *                      the usage flags are invalid (caller error)
      * \retval C2_CORRUPTED some unknown error prevented the operation from completing (unexpected)
      */
-    virtual C2Error map(
+    virtual c2_status_t map(
             size_t offset, size_t size, C2MemoryUsage usage, int *fenceFd /* nullable */,
             void **addr /* nonnull */) = 0;
 
@@ -1391,9 +1391,9 @@ public:
      * \retval C2_BAD_VALUE the parameters (addr/size) do not correspond to previously mapped
      *                      regions (caller error)
      * \retval C2_CORRUPTED some unknown error prevented the operation from completing (unexpected)
-     * \retval C2_NO_PERMISSION no permission to unmap the portion (unexpected - system)
+     * \retval C2_REFUSED no permission to unmap the portion (unexpected - system)
      */
-    virtual C2Error unmap(void *addr, size_t size, int *fenceFd /* nullable */) = 0;
+    virtual c2_status_t unmap(void *addr, size_t size, int *fenceFd /* nullable */) = 0;
 
     /**
      * Returns true if this is a valid allocation.
@@ -1447,7 +1447,7 @@ public:
      * \todo Do we need to support sync operation as we could just wait for the fence?
      *
      * \retval C2_OK        the operation was successful
-     * \retval C2_NO_PERMISSION no permission to map the section
+     * \retval C2_REFUSED no permission to map the section
      * \retval C2_ALREADY_EXISTS there is already a mapped region (caller error)
      * \retval C2_TIMED_OUT the operation timed out
      * \retval C2_NO_MEMORY not enough memory to complete the operation
@@ -1456,7 +1456,7 @@ public:
      * \retval C2_CORRUPTED some unknown error prevented the operation from completing (unexpected)
 
      */
-    virtual C2Error map(
+    virtual c2_status_t map(
             C2Rect rect, C2MemoryUsage usage, int *fenceFd,
             // TODO: return <addr, size> buffers with plane sizes
             C2PlaneLayout *layout /* nonnull */, uint8_t **addr /* nonnull */) = 0;
@@ -1474,9 +1474,9 @@ public:
      * \retval C2_TIMED_OUT the operation timed out
      * \retval C2_NOT_FOUND there is no mapped region (caller error)
      * \retval C2_CORRUPTED some unknown error prevented the operation from completing (unexpected)
-     * \retval C2_NO_PERMISSION no permission to unmap the section (unexpected - system)
+     * \retval C2_REFUSED no permission to unmap the section (unexpected - system)
      */
-    virtual C2Error unmap(C2Fence *fenceFd /* nullable */) = 0;
+    virtual c2_status_t unmap(C2Fence *fenceFd /* nullable */) = 0;
 
     /**
      * Returns true if this is a valid allocation.
@@ -1528,16 +1528,16 @@ public:
      * \retval C2_OK        the allocation was successful
      * \retval C2_NO_MEMORY not enough memory to complete the allocation
      * \retval C2_TIMED_OUT the allocation timed out
-     * \retval C2_NO_PERMISSION     no permission to complete the allocation
+     * \retval C2_REFUSED     no permission to complete the allocation
      * \retval C2_BAD_VALUE capacity or usage are not supported (invalid) (caller error)
-     * \retval C2_UNSUPPORTED       this allocator does not support 1D allocations
+     * \retval C2_CANNOT_DO       this allocator does not support 1D allocations
      * \retval C2_CORRUPTED some unknown, unrecoverable error occured during allocation (unexpected)
      */
-    virtual C2Error allocateLinearBuffer(
+    virtual c2_status_t allocateLinearBuffer(
             uint32_t capacity __unused, C2MemoryUsage usage __unused,
             std::shared_ptr<C2LinearAllocation> *allocation /* nonnull */) {
         *allocation = nullptr;
-        return C2_UNSUPPORTED;
+        return C2_CANNOT_DO;
     }
 
     /**
@@ -1551,16 +1551,16 @@ public:
      * \retval C2_OK        the allocation was recreated successfully
      * \retval C2_NO_MEMORY not enough memory to recreate the allocation
      * \retval C2_TIMED_OUT the recreation timed out (unexpected)
-     * \retval C2_NO_PERMISSION     no permission to recreate the allocation
+     * \retval C2_REFUSED     no permission to recreate the allocation
      * \retval C2_BAD_VALUE invalid handle (caller error)
-     * \retval C2_UNSUPPORTED       this allocator does not support 1D allocations
+     * \retval C2_CANNOT_DO       this allocator does not support 1D allocations
      * \retval C2_CORRUPTED some unknown, unrecoverable error occured during allocation (unexpected)
      */
-    virtual C2Error recreateLinearBuffer(
+    virtual c2_status_t recreateLinearBuffer(
             const C2Handle *handle __unused,
             std::shared_ptr<C2LinearAllocation> *allocation /* nonnull */) {
         *allocation = nullptr;
-        return C2_UNSUPPORTED;
+        return C2_CANNOT_DO;
     }
 
     /**
@@ -1584,17 +1584,17 @@ public:
      * \retval C2_OK        the allocation was successful
      * \retval C2_NO_MEMORY not enough memory to complete the allocation
      * \retval C2_TIMED_OUT the allocation timed out
-     * \retval C2_NO_PERMISSION     no permission to complete the allocation
+     * \retval C2_REFUSED     no permission to complete the allocation
      * \retval C2_BAD_VALUE width, height, format or usage are not supported (invalid) (caller error)
-     * \retval C2_UNSUPPORTED       this allocator does not support 2D allocations
+     * \retval C2_CANNOT_DO       this allocator does not support 2D allocations
      * \retval C2_CORRUPTED some unknown, unrecoverable error occured during allocation (unexpected)
      */
-    virtual C2Error allocateGraphicBuffer(
+    virtual c2_status_t allocateGraphicBuffer(
             uint32_t width __unused, uint32_t height __unused, uint32_t format __unused,
             C2MemoryUsage usage __unused,
             std::shared_ptr<C2GraphicAllocation> *allocation /* nonnull */) {
         *allocation = nullptr;
-        return C2_UNSUPPORTED;
+        return C2_CANNOT_DO;
     }
 
     /**
@@ -1608,16 +1608,16 @@ public:
      * \retval C2_OK        the allocation was recreated successfully
      * \retval C2_NO_MEMORY not enough memory to recreate the allocation
      * \retval C2_TIMED_OUT the recreation timed out (unexpected)
-     * \retval C2_NO_PERMISSION     no permission to recreate the allocation
+     * \retval C2_REFUSED     no permission to recreate the allocation
      * \retval C2_BAD_VALUE invalid handle (caller error)
-     * \retval C2_UNSUPPORTED       this allocator does not support 2D allocations
+     * \retval C2_CANNOT_DO       this allocator does not support 2D allocations
      * \retval C2_CORRUPTED some unknown, unrecoverable error occured during recreation (unexpected)
      */
-    virtual C2Error recreateGraphicBuffer(
+    virtual c2_status_t recreateGraphicBuffer(
             const C2Handle *handle __unused,
             std::shared_ptr<C2GraphicAllocation> *allocation /* nonnull */) {
         *allocation = nullptr;
-        return C2_UNSUPPORTED;
+        return C2_CANNOT_DO;
     }
 
 protected:
@@ -1652,16 +1652,16 @@ public:
      * \retval C2_OK        the allocation was successful
      * \retval C2_NO_MEMORY not enough memory to complete the allocation
      * \retval C2_TIMED_OUT the allocation timed out
-     * \retval C2_NO_PERMISSION     no permission to complete the allocation
+     * \retval C2_REFUSED     no permission to complete the allocation
      * \retval C2_BAD_VALUE capacity or usage are not supported (invalid) (caller error)
-     * \retval C2_UNSUPPORTED       this allocator does not support linear allocations
+     * \retval C2_CANNOT_DO       this allocator does not support linear allocations
      * \retval C2_CORRUPTED some unknown, unrecoverable error occured during allocation (unexpected)
      */
-    virtual C2Error allocateLinearBlock(
+    virtual c2_status_t allocateLinearBlock(
             uint32_t capacity __unused, C2MemoryUsage usage __unused,
             std::shared_ptr<C2LinearBlock> *block /* nonnull */) {
         *block = nullptr;
-        return C2_UNSUPPORTED;
+        return C2_CANNOT_DO;
     }
 
     /**
@@ -1681,16 +1681,16 @@ public:
      * \retval C2_OK            the allocation was successful
      * \retval C2_NO_MEMORY     not enough memory to complete the allocation
      * \retval C2_TIMED_OUT     the allocation timed out
-     * \retval C2_NO_PERMISSION     no permission to complete the allocation
+     * \retval C2_REFUSED     no permission to complete the allocation
      * \retval C2_BAD_VALUE     capacity or usage are not supported (invalid) (caller error)
-     * \retval C2_UNSUPPORTED   this allocator does not support circular allocations
+     * \retval C2_CANNOT_DO   this allocator does not support circular allocations
      * \retval C2_CORRUPTED     some unknown, unrecoverable error occured during allocation (unexpected)
      */
-    virtual C2Error allocateCircularBlock(
+    virtual c2_status_t allocateCircularBlock(
             uint32_t capacity __unused, C2MemoryUsage usage __unused,
             std::shared_ptr<C2CircularBlock> *block /* nonnull */) {
         *block = nullptr;
-        return C2_UNSUPPORTED;
+        return C2_CANNOT_DO;
     }
 
     /**
@@ -1714,17 +1714,17 @@ public:
      * \retval C2_OK            the allocation was successful
      * \retval C2_NO_MEMORY     not enough memory to complete the allocation
      * \retval C2_TIMED_OUT     the allocation timed out
-     * \retval C2_NO_PERMISSION     no permission to complete the allocation
+     * \retval C2_REFUSED     no permission to complete the allocation
      * \retval C2_BAD_VALUE     width, height, format or usage are not supported (invalid) (caller error)
-     * \retval C2_UNSUPPORTED   this allocator does not support 2D allocations
+     * \retval C2_CANNOT_DO   this allocator does not support 2D allocations
      * \retval C2_CORRUPTED     some unknown, unrecoverable error occured during allocation (unexpected)
      */
-    virtual C2Error allocateGraphicBlock(
+    virtual c2_status_t allocateGraphicBlock(
             uint32_t width __unused, uint32_t height __unused, uint32_t format __unused,
             C2MemoryUsage usage __unused,
             std::shared_ptr<C2GraphicBlock> *block /* nonnull */) {
         *block = nullptr;
-        return C2_UNSUPPORTED;
+        return C2_CANNOT_DO;
     }
 
 protected:

@@ -25,28 +25,28 @@ using namespace android;
 
 class MfxC2ComponentStore : public C2ComponentStore {
 public:
-    static MfxC2ComponentStore* Create(status_t* status);
+    static MfxC2ComponentStore* Create(c2_status_t* status);
 
 private: // C2ComponentStore overrides
-    status_t createComponent(C2String name, std::shared_ptr<C2Component>* const component) override;
+    c2_status_t createComponent(C2String name, std::shared_ptr<C2Component>* const component) override;
 
-    status_t createInterface(C2String name, std::shared_ptr<C2ComponentInterface>* const interface) override;
+    c2_status_t createInterface(C2String name, std::shared_ptr<C2ComponentInterface>* const interface) override;
 
     std::vector<std::unique_ptr<const C2ComponentInfo>> getComponents() override;
 
-    status_t copyBuffer(std::shared_ptr<C2GraphicBuffer> src, std::shared_ptr<C2GraphicBuffer> dst) override;
+    c2_status_t copyBuffer(std::shared_ptr<C2GraphicBuffer> src, std::shared_ptr<C2GraphicBuffer> dst) override;
 
-    status_t query_nb(
+    c2_status_t query_nb(
             const std::vector<C2Param * const> &stackParams,
             const std::vector<C2Param::Index> &heapParamIndices,
             std::vector<std::unique_ptr<C2Param>>*const heapParams) override;
 
-    status_t config_nb(
+    c2_status_t config_nb(
             const std::vector<C2Param * const> &params,
             std::list<std::unique_ptr<C2SettingResult>>*const failures) override;
 
 private: // implementation methods
-    status_t readConfigFile();
+    c2_status_t readConfigFile();
 
     void* loadModule(const std::string& name);
 private: // data

@@ -33,55 +33,55 @@ public:
     virtual ~MfxC2Component();
 
 private:
-    virtual android::status_t Init() = 0;
+    virtual android::c2_status_t Init() = 0;
 
-    virtual android::status_t DoStart();
+    virtual android::c2_status_t DoStart();
 
-    virtual android::status_t DoStop();
+    virtual android::c2_status_t DoStop();
 
 protected: // android::C2ComponentInterface overrides
     android::C2String getName() const override;
 
     android::node_id getId() const override;
 
-    status_t query_nb(
+    android::c2_status_t query_nb(
         const std::vector<android::C2Param* const> &stackParams,
         const std::vector<android::C2Param::Index> &heapParamIndices,
         std::vector<std::unique_ptr<android::C2Param>>* const heapParams) const override;
 
-    status_t config_nb(
+    android::c2_status_t config_nb(
             const std::vector<android::C2Param* const> &params,
             std::vector<std::unique_ptr<android::C2SettingResult>>* const failures) override;
 
-    status_t commit_sm(
+    android::c2_status_t commit_sm(
             const std::vector<android::C2Param* const> &params,
             std::vector<std::unique_ptr<android::C2SettingResult>>* const failures) override;
 
-    status_t createTunnel_sm(android::node_id targetComponent) override;
+    android::c2_status_t createTunnel_sm(android::node_id targetComponent) override;
 
-    status_t releaseTunnel_sm(android::node_id targetComponent) override;
+    android::c2_status_t releaseTunnel_sm(android::node_id targetComponent) override;
 
     std::shared_ptr<android::C2ParamReflector> getParamReflector() const override;
 
-    status_t getSupportedParams(
+    android::c2_status_t getSupportedParams(
             std::vector<std::shared_ptr<android::C2ParamDescriptor>>* const params) const override;
 
-    status_t getSupportedValues(
+    android::c2_status_t getSupportedValues(
             const std::vector<const android::C2ParamField> fields,
             std::vector<android::C2FieldSupportedValues>* const values) const override;
 
 protected: // android::C2Component
-    status_t queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items) override;
+    android::c2_status_t queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items) override;
 
-    status_t announce_nb(const std::vector<android::C2WorkOutline> &items) override;
+    android::c2_status_t announce_nb(const std::vector<android::C2WorkOutline> &items) override;
 
-    status_t flush_sm(bool flushThrough, std::list<std::unique_ptr<android::C2Work>>* const flushedWork) override;
+    android::c2_status_t flush_sm(bool flushThrough, std::list<std::unique_ptr<android::C2Work>>* const flushedWork) override;
 
-    status_t drain_nb(bool drainThrough) override;
+    android::c2_status_t drain_nb(bool drainThrough) override;
 
-    status_t start() override;
+    android::c2_status_t start() override;
 
-    status_t stop() override;
+    android::c2_status_t stop() override;
 
     void reset() override;
 
@@ -89,14 +89,14 @@ protected: // android::C2Component
 
     std::shared_ptr<C2ComponentInterface> intf() override;
 
-    status_t registerListener(std::shared_ptr<android::C2ComponentListener> listener) override;
+    android::c2_status_t registerListener(std::shared_ptr<android::C2ComponentListener> listener) override;
 
-    status_t unregisterListener(std::shared_ptr<android::C2ComponentListener> listener) override;
+    android::c2_status_t unregisterListener(std::shared_ptr<android::C2ComponentListener> listener) override;
 
 protected:
     void NotifyListeners(std::function<void(std::shared_ptr<android::C2ComponentListener>)> notify);
 
-    void NotifyWorkDone(std::unique_ptr<android::C2Work>&& work, android::status_t sts);
+    void NotifyWorkDone(std::unique_ptr<android::C2Work>&& work, android::c2_status_t sts);
 
 protected:
     /* State diagram:
@@ -153,9 +153,9 @@ struct MfxC2Component::Factory
     // method to create and init instance of component
     // variadic args are passed to constructor
     template<ArgTypes... arg_values>
-    static android::status_t Create(const char* name, int flags, MfxC2Component** component)
+    static android::c2_status_t Create(const char* name, int flags, MfxC2Component** component)
     {
-        android::status_t result = android::C2_OK;
+        android::c2_status_t result = android::C2_OK;
         // class to make constructor public and get access to new operator
         struct ConstructedClass : public ComponentClass
         {

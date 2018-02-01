@@ -17,9 +17,9 @@ public:
     std::shared_future<void> future_;
 };
 
-C2Error C2Fence::wait(nsecs_t timeoutNs)
+c2_status_t C2Fence::wait(nsecs_t timeoutNs)
 {
-    C2Error res = C2_OK;
+    c2_status_t res = C2_OK;
     try {
         std::future_status sts = mImpl->future_.wait_for(std::chrono::nanoseconds(timeoutNs));
         switch(sts) {
@@ -70,9 +70,9 @@ C2Fence C2Event::fence() const
     return fence;
 }
 
-C2Error C2Event::fire()
+c2_status_t C2Event::fire()
 {
-    C2Error res = C2_OK;
+    c2_status_t res = C2_OK;
     try {
         mImpl->promise_.set_value();
     }
@@ -116,7 +116,7 @@ uint8_t *C2WriteView::data()
 
 C2Acquirable<C2ReadView> C2ConstLinearBlock::map() const
 {
-    C2Error error = C2_OK; // no error of mapping for now
+    c2_status_t error = C2_OK; // no error of mapping for now
     C2Event event;
     event.fire(); // map is always ready to read
 
@@ -129,7 +129,7 @@ C2Acquirable<C2ReadView> C2ConstLinearBlock::map() const
 
 C2Acquirable<C2WriteView> C2LinearBlock::map()
 {
-    C2Error error = C2_OK; // no error of mapping for now
+    c2_status_t error = C2_OK; // no error of mapping for now
     C2Event event;
     event.fire(); // map is always ready to read
 
@@ -159,7 +159,7 @@ private:
 public:
     uint8_t* data() { return &data_.front(); }
 
-    status_t Alloc(uint32_t width, uint32_t height)
+    c2_status_t Alloc(uint32_t width, uint32_t height)
     {
         width_ = width;
         height_ = height;
@@ -186,7 +186,7 @@ public:
         if (handle_ && gralloc_allocator_) gralloc_allocator_->Free(handle_);
     }
 
-    C2Error Map(C2Event* event, std::unique_ptr<C2GraphicView::Impl>* view_impl);
+    c2_status_t Map(C2Event* event, std::unique_ptr<C2GraphicView::Impl>* view_impl);
 
     void Unmap() {
         if (handle_ && gralloc_allocator_) gralloc_allocator_->UnlockFrame(handle_);
@@ -199,11 +199,11 @@ const C2Handle *C2Block2D::handle() const
     return mImpl->handle_;
 };
 
-C2Error C2Block2D::Impl::Map(C2Event* event, std::unique_ptr<C2GraphicView::Impl>* view_impl)
+c2_status_t C2Block2D::Impl::Map(C2Event* event, std::unique_ptr<C2GraphicView::Impl>* view_impl)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    C2Error error = C2_OK;
+    c2_status_t error = C2_OK;
     uint8_t* data = nullptr;
     C2PlaneLayout plane_layout {};
 
@@ -220,7 +220,7 @@ C2Error C2Block2D::Impl::Map(C2Event* event, std::unique_ptr<C2GraphicView::Impl
         }
     }
 
-    MFX_DEBUG_TRACE__android_C2Error(error);
+    MFX_DEBUG_TRACE__android_c2_status_t(error);
 
     if (C2_OK == error) {
         event->fire(); // map is always ready to read
@@ -269,7 +269,7 @@ C2Acquirable<const C2GraphicView> C2ConstGraphicBlock::map() const
 
     C2Event event;
     std::unique_ptr<C2GraphicView::Impl> view_impl;
-    C2Error error = mImpl->Map(&event, &view_impl);
+    c2_status_t error = mImpl->Map(&event, &view_impl);
 
     C2GraphicView graphic_view(this);
     graphic_view.mImpl = std::shared_ptr<C2GraphicView::Impl>(std::move(view_impl));
@@ -282,7 +282,7 @@ C2Acquirable<C2GraphicView> C2GraphicBlock::map()
 
     C2Event event;
     std::unique_ptr<C2GraphicView::Impl> view_impl;
-    C2Error error = mImpl->Map(&event, &view_impl);
+    c2_status_t error = mImpl->Map(&event, &view_impl);
 
     C2GraphicView graphic_view(this);
     graphic_view.mImpl = std::shared_ptr<C2GraphicView::Impl>(std::move(view_impl));
@@ -351,7 +351,7 @@ public:
     struct CreateResult
     {
         std::shared_ptr<C2BlockAllocator> allocator;
-        status_t status;
+        c2_status_t status;
     };
 
 public:
@@ -360,21 +360,21 @@ public:
     ~C2BlockAllocatorImpl() = default;
 
 public:
-    C2Error Map(const C2GraphicBlock* graphic_block, uint8_t** data);
+    c2_status_t Map(const C2GraphicBlock* graphic_block, uint8_t** data);
 
 private:
     C2BlockAllocatorImpl() = default;
 
-    C2Error Init();
+    c2_status_t Init();
 
     MFX_CLASS_NO_COPY(C2BlockAllocatorImpl)
 
 private: // C2BlockAllocator impl
-    C2Error allocateLinearBlock(
+    c2_status_t allocateLinearBlock(
             uint32_t capacity, C2MemoryUsage usage __unused,
             std::shared_ptr<C2LinearBlock> *block /* nonnull */) override;
 
-    C2Error allocateGraphicBlock(
+    c2_status_t allocateGraphicBlock(
             uint32_t width __unused, uint32_t height __unused, uint32_t format __unused,
             C2MemoryUsage usage __unused,
             std::shared_ptr<C2GraphicBlock> *block /* nonnull */) override;
@@ -383,10 +383,10 @@ private:
     std::shared_ptr<MfxGrallocAllocator> gralloc_allocator_;
 };
 
-C2Error C2BlockAllocatorImpl::Init()
+c2_status_t C2BlockAllocatorImpl::Init()
 {
     std::unique_ptr<MfxGrallocAllocator> allocator;
-    C2Error res = MfxGrallocAllocator::Create(&allocator);
+    c2_status_t res = MfxGrallocAllocator::Create(&allocator);
     if (res == C2_OK) {
         gralloc_allocator_ = std::shared_ptr<MfxGrallocAllocator>(std::move(allocator));
     }
@@ -408,11 +408,11 @@ C2BlockAllocatorImpl::CreateResult C2BlockAllocatorImpl::Create()
     return res;
 }
 
-C2Error C2BlockAllocatorImpl::allocateLinearBlock(
+c2_status_t C2BlockAllocatorImpl::allocateLinearBlock(
         uint32_t capacity, C2MemoryUsage usage __unused,
         std::shared_ptr<C2LinearBlock> *block /* nonnull */) {
 
-    C2Error res = C2_OK;
+    c2_status_t res = C2_OK;
     try {
         DataBuffer data_buffer = std::make_shared<std::vector<uint8_t>>();
         data_buffer->resize(capacity);
@@ -426,14 +426,14 @@ C2Error C2BlockAllocatorImpl::allocateLinearBlock(
     return res;
 }
 
-C2Error C2BlockAllocatorImpl::allocateGraphicBlock(
+c2_status_t C2BlockAllocatorImpl::allocateGraphicBlock(
         uint32_t width __unused, uint32_t height __unused, uint32_t format __unused,
         C2MemoryUsage usage __unused,
         std::shared_ptr<C2GraphicBlock> *block /* nonnull */) {
 
     MFX_DEBUG_TRACE_FUNC;
 
-    C2Error res = C2_OK;
+    c2_status_t res = C2_OK;
 
     if ((usage.mConsumer & C2MemoryUsage::kHardwareEncoder) ||
         (usage.mProducer & C2MemoryUsage::kHardwareDecoder)) {
@@ -460,7 +460,7 @@ C2Error C2BlockAllocatorImpl::allocateGraphicBlock(
                 res = C2_NO_MEMORY;
             }
         } else {
-            res = C2_UNSUPPORTED;
+            res = C2_CANNOT_DO;
         }
     }
     return res;
@@ -470,7 +470,7 @@ C2Error C2BlockAllocatorImpl::allocateGraphicBlock(
 
 using namespace android;
 
-status_t GetC2BlockAllocator(std::shared_ptr<C2BlockAllocator>* allocator)
+c2_status_t GetC2BlockAllocator(std::shared_ptr<C2BlockAllocator>* allocator)
 {
     static C2BlockAllocatorImpl::CreateResult g_create_result =
         C2BlockAllocatorImpl::Create();

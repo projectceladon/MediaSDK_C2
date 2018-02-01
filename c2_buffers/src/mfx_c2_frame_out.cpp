@@ -18,14 +18,14 @@ using namespace android;
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_frame_out"
 
-status_t MfxC2FrameOut::Create(MfxFrameConverter* frame_converter,
+c2_status_t MfxC2FrameOut::Create(MfxFrameConverter* frame_converter,
                                std::shared_ptr<android::C2GraphicBlock> block,
                                nsecs_t timeout,
                                MfxC2FrameOut* wrapper)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    C2Error res = C2_OK;
+    c2_status_t res = C2_OK;
 
     do {
         if (nullptr == wrapper) {
@@ -74,7 +74,7 @@ status_t MfxC2FrameOut::Create(MfxFrameConverter* frame_converter,
 
     } while(false);
 
-    MFX_DEBUG_TRACE__android_status_t(res);
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 

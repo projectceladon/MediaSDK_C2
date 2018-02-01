@@ -2215,28 +2215,28 @@ public:
         return 0;
     }
 
-    virtual status_t commit_sm(
+    virtual c2_status_t commit_sm(
             const std::vector<C2Param* const> &params,
             std::vector<std::unique_ptr<C2SettingResult>>* const failures) {
         (void)params;
         (void)failures;
-        return C2_UNSUPPORTED;
+        return C2_CANNOT_DO;
     }
 
-    virtual status_t config_nb(
+    virtual c2_status_t config_nb(
             const std::vector<C2Param* const> &params,
             std::vector<std::unique_ptr<C2SettingResult>>* const failures) {
         (void)params;
         (void)failures;
-        return C2_UNSUPPORTED;
+        return C2_CANNOT_DO;
     }
 
-    virtual status_t createTunnel_sm(node_id targetComponent) {
+    virtual c2_status_t createTunnel_sm(node_id targetComponent) {
         (void)targetComponent;
-        return C2_UNSUPPORTED;
+        return C2_CANNOT_DO;
     }
 
-    virtual status_t query_nb(
+    virtual c2_status_t query_nb(
             const std::vector<C2Param* const> &stackParams,
             const std::vector<C2Param::Index> &heapParamIndices,
             std::vector<std::unique_ptr<C2Param>>* const heapParams) const {
@@ -2278,9 +2278,9 @@ public:
         mMyParams.insert({mDomainInfo.type(), mDomainInfo});
     }
 
-    virtual status_t releaseTunnel_sm(node_id targetComponent) {
+    virtual c2_status_t releaseTunnel_sm(node_id targetComponent) {
         (void)targetComponent;
-        return C2_UNSUPPORTED;
+        return C2_CANNOT_DO;
     }
 
     class MyParamReflector : public C2ParamReflector {
@@ -2302,7 +2302,7 @@ public:
         }
     };
 
-    virtual status_t getSupportedValues(
+    virtual c2_status_t getSupportedValues(
             const std::vector<const C2ParamField> fields,
             std::vector<C2FieldSupportedValues>* const values) const {
         for (const C2ParamField &field : fields) {
@@ -2322,13 +2322,13 @@ public:
         return std::shared_ptr<C2ParamReflector>(new MyParamReflector(this));
     }
 
-    virtual status_t getSupportedParams(std::vector<std::shared_ptr<C2ParamDescriptor>> * const params) const {
+    virtual c2_status_t getSupportedParams(std::vector<std::shared_ptr<C2ParamDescriptor>> * const params) const {
         params->push_back(std::make_shared<C2ParamDescriptor>(
                 true /* required */, "_domain", &mDomainInfo));
         return C2_OK;
     }
 
-    status_t getSupportedParams2(std::vector<std::shared_ptr<C2ParamDescriptor>> * const params) {
+    c2_status_t getSupportedParams2(std::vector<std::shared_ptr<C2ParamDescriptor>> * const params) {
         params->push_back(std::shared_ptr<C2ParamDescriptor>(
                 new C2ParamDescriptor(true /* required */, "_domain", &mDomainInfo)));
         return C2_OK;

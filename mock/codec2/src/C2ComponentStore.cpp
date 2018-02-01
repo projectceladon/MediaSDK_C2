@@ -4,14 +4,14 @@
 
 namespace android {
 
-status_t C2ComponentStore::createComponent(C2String, std::shared_ptr<C2Component>* const) {
+c2_status_t C2ComponentStore::createComponent(C2String, std::shared_ptr<C2Component>* const) {
 
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
-status_t C2ComponentStore::createInterface(C2String, std::shared_ptr<C2ComponentInterface>* const) {
+c2_status_t C2ComponentStore::createInterface(C2String, std::shared_ptr<C2ComponentInterface>* const) {
 
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
 std::vector<std::unique_ptr<const C2ComponentInfo>> C2ComponentStore::getComponents() {
@@ -19,9 +19,9 @@ std::vector<std::unique_ptr<const C2ComponentInfo>> C2ComponentStore::getCompone
     return std::vector<std::unique_ptr<const C2ComponentInfo>>();
 }
 
-status_t C2ComponentStore::copyBuffer(std::shared_ptr<C2GraphicBuffer>, std::shared_ptr<C2GraphicBuffer>) {
+c2_status_t C2ComponentStore::copyBuffer(std::shared_ptr<C2GraphicBuffer>, std::shared_ptr<C2GraphicBuffer>) {
 
-    return C2_NOT_IMPLEMENTED;
+    return C2_OMITTED;
 }
 
 }

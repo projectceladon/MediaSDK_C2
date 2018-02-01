@@ -36,7 +36,7 @@ namespace {
     {
         const char* component_name;
         int flags;
-        status_t creation_status;
+        c2_status_t creation_status;
         std::vector<C2ParamDescriptor> params_desc;
         std::vector<std::vector<const StreamDescription*>> streams;
     };
@@ -87,7 +87,7 @@ static std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name)
         ASSERT_NE(desc, nullptr);
 
         MfxC2Component* mfx_component;
-        status_t status = MfxCreateC2Component(name, desc->flags, &mfx_component);
+        c2_status_t status = MfxCreateC2Component(name, desc->flags, &mfx_component);
         EXPECT_EQ(status, desc->creation_status);
         if(desc->creation_status == C2_OK) {
             EXPECT_NE(mfx_component, nullptr);
@@ -131,7 +131,7 @@ TEST(MfxDecoderComponent, getSupportedParams)
         [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         std::vector<std::shared_ptr<C2ParamDescriptor>> params_actual;
-        status_t sts = comp_intf->getSupportedParams(&params_actual);
+        c2_status_t sts = comp_intf->getSupportedParams(&params_actual);
         EXPECT_EQ(sts, C2_OK);
 
         EXPECT_EQ(desc.params_desc.size(), params_actual.size());
@@ -174,7 +174,7 @@ static void PrepareWork(uint32_t frame_index,
     do {
 
         std::shared_ptr<android::C2BlockAllocator> allocator;
-        android::status_t sts = GetC2BlockAllocator(&allocator);
+        android::c2_status_t sts = GetC2BlockAllocator(&allocator);
 
         EXPECT_EQ(sts, C2_OK);
         EXPECT_NE(allocator, nullptr);
@@ -284,7 +284,7 @@ protected:
             ++frame_decoded_;
 
             std::unique_ptr<C2ConstGraphicBlock> graphic_block;
-            C2Error sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
+            c2_status_t sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
             EXPECT_EQ(sts, C2_OK);
 
             if(nullptr != graphic_block) {
@@ -369,7 +369,7 @@ static void Decode(
     std::vector<std::unique_ptr<C2SettingResult>> failures;
     std::shared_ptr<C2ComponentInterface> comp_intf = component->intf();
 
-    status_t sts = comp_intf->config_nb(params, &failures);
+    c2_status_t sts = comp_intf->config_nb(params, &failures);
     EXPECT_EQ(sts, C2_OK);
 
     sts = component->start();
@@ -483,7 +483,7 @@ TEST(MfxDecoderComponent, State)
     ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr) {
 
-        status_t sts = C2_OK;
+        c2_status_t sts = C2_OK;
 
         sts = comp->start();
         EXPECT_EQ(sts, C2_OK);

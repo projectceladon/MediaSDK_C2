@@ -19,9 +19,9 @@ using namespace android;
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_gralloc_allocator"
 
-status_t MfxGrallocModule::Create(std::unique_ptr<MfxGrallocModule>* allocator)
+c2_status_t MfxGrallocModule::Create(std::unique_ptr<MfxGrallocModule>* allocator)
 {
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
     if (allocator) {
         std::unique_ptr<MfxGrallocModule> alloc(new (std::nothrow)MfxGrallocModule());
         if (alloc) {
@@ -45,11 +45,11 @@ MfxGrallocModule::~MfxGrallocModule()
 #endif
 }
 
-status_t MfxGrallocModule::Init()
+c2_status_t MfxGrallocModule::Init()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
     int hw_res = hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &hw_module_);
     if (hw_res != 0) res = C2_NOT_FOUND;
 
@@ -84,12 +84,12 @@ status_t MfxGrallocModule::Init()
     return res;
 }
 
-android::status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handle,
+android::c2_status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handle,
     MfxGrallocModule::BufferDetails* details)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 #ifdef MFX_C2_USE_GRALLOC_1
         int32_t errGetFormat     = (*gr_get_format_)(gralloc1_dev_, handle, &(details->format));
         int32_t errGetStride     = (*gr_get_stride_)(gralloc1_dev_, handle, &(details->pitch));
@@ -147,9 +147,9 @@ android::status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handl
     return res;
 }
 
-status_t MfxGrallocAllocator::Create(std::unique_ptr<MfxGrallocAllocator>* allocator)
+c2_status_t MfxGrallocAllocator::Create(std::unique_ptr<MfxGrallocAllocator>* allocator)
 {
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
     if (allocator) {
         std::unique_ptr<MfxGrallocAllocator> alloc(new (std::nothrow)MfxGrallocAllocator());
         if (alloc) {
@@ -164,9 +164,9 @@ status_t MfxGrallocAllocator::Create(std::unique_ptr<MfxGrallocAllocator>* alloc
     return res;
 }
 
-status_t MfxGrallocAllocator::Init()
+c2_status_t MfxGrallocAllocator::Init()
 {
-    status_t res = MfxGrallocModule::Init();
+    c2_status_t res = MfxGrallocModule::Init();
 
 #ifdef MFX_C2_USE_GRALLOC_1
     if (C2_OK == res) {
@@ -203,10 +203,10 @@ MfxGrallocAllocator::~MfxGrallocAllocator()
 #endif
 }
 
-status_t MfxGrallocAllocator::Alloc(const uint16_t width, const uint16_t height, buffer_handle_t* handle)
+c2_status_t MfxGrallocAllocator::Alloc(const uint16_t width, const uint16_t height, buffer_handle_t* handle)
 {
     MFX_DEBUG_TRACE_FUNC;
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
     MFX_DEBUG_TRACE_I32(width);
     MFX_DEBUG_TRACE_I32(height);
@@ -255,14 +255,14 @@ status_t MfxGrallocAllocator::Alloc(const uint16_t width, const uint16_t height,
 #endif
 
     MFX_DEBUG_TRACE_P(*handle);
-    MFX_DEBUG_TRACE__android_status_t(res);
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 
-status_t MfxGrallocAllocator::Free(const buffer_handle_t handle)
+c2_status_t MfxGrallocAllocator::Free(const buffer_handle_t handle)
 {
     MFX_DEBUG_TRACE_FUNC;
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
     MFX_DEBUG_TRACE_P(handle);
 
@@ -272,23 +272,23 @@ status_t MfxGrallocAllocator::Free(const buffer_handle_t handle)
         if (GRALLOC1_ERROR_NONE != gr1_err)
         {
             MFX_DEBUG_TRACE_I32(gr1_err);
-            res = BAD_VALUE;
+            res = C2_BAD_VALUE;
         }
 #else
         res = alloc_dev_->free(alloc_dev_, handle);
 #endif
     }
 
-    MFX_DEBUG_TRACE__android_status_t(res);
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 
-status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** data, C2PlaneLayout *layout)
+c2_status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** data, C2PlaneLayout *layout)
 {
     MFX_DEBUG_TRACE_FUNC;
     MFX_DEBUG_TRACE_P(handle);
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
 
     if (!layout) res = C2_BAD_VALUE;
@@ -330,15 +330,15 @@ status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** data, 
         *data = img;
     }
 
-    MFX_DEBUG_TRACE__android_status_t(res);
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 
-status_t MfxGrallocAllocator::UnlockFrame(buffer_handle_t handle)
+c2_status_t MfxGrallocAllocator::UnlockFrame(buffer_handle_t handle)
 {
     MFX_DEBUG_TRACE_FUNC;
     MFX_DEBUG_TRACE_P(handle);
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
 #ifdef MFX_C2_USE_GRALLOC_1
     int32_t releaseFence = -1;
@@ -351,6 +351,6 @@ status_t MfxGrallocAllocator::UnlockFrame(buffer_handle_t handle)
 #else
     res = gralloc_module_->unlock(gralloc_module_, handle);
 #endif
-    MFX_DEBUG_TRACE__android_status_t(res);
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }

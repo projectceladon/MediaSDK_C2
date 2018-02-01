@@ -129,7 +129,7 @@ public:
      * \retval C2_CORRUPTED some unknown error prevented the querying of the parameters
      *                      (unexpected)
      */
-    virtual status_t query_nb(
+    virtual c2_status_t query_nb(
         const std::vector<C2Param* const> &stackParams,
         const std::vector<C2Param::Index> &heapParamIndices,
         std::vector<std::unique_ptr<C2Param>>* const heapParams) const = 0;
@@ -166,7 +166,7 @@ public:
      * \retval C2_CORRUPTED some unknown error prevented the update of the parameters
      *                      (unexpected)
      */
-    virtual status_t config_nb(
+    virtual c2_status_t config_nb(
             const std::vector<C2Param* const> &params,
             std::vector<std::unique_ptr<C2SettingResult>>* const failures) = 0;
 
@@ -205,7 +205,7 @@ public:
      * \retval C2_CORRUPTED some unknown error prevented the update of the parameters
      *                      (unexpected)
      */
-    virtual status_t commit_sm(
+    virtual c2_status_t commit_sm(
             const std::vector<C2Param* const> &params,
             std::vector<std::unique_ptr<C2SettingResult>>* const failures) = 0;
 
@@ -225,12 +225,12 @@ public:
      * \retval C2_OK        the tunnel was successfully created
      * \retval C2_BAD_INDEX the target component does not exist
      * \retval C2_ALREADY_EXIST the tunnel already exists
-     * \retval C2_UNSUPPORTED  the tunnel is not supported
+     * \retval C2_CANNOT_DO  the tunnel is not supported
      *
      * \retval C2_TIMED_OUT could not create the tunnel within the time limit (unexpected)
      * \retval C2_CORRUPTED some unknown error prevented the creation of the tunnel (unexpected)
      */
-    virtual status_t createTunnel_sm(node_id targetComponent) = 0;
+    virtual c2_status_t createTunnel_sm(node_id targetComponent) = 0;
 
     /**
      * Releases a tunnel from this component to the target component.
@@ -250,7 +250,7 @@ public:
      * \retval C2_TIMED_OUT could not mark the tunnel for release within the time limit (unexpected)
      * \retval C2_CORRUPTED some unknown error prevented the release of the tunnel (unexpected)
      */
-    virtual status_t releaseTunnel_sm(node_id targetComponent) = 0;
+    virtual c2_status_t releaseTunnel_sm(node_id targetComponent) = 0;
 
 
     // REFLECTION MECHANISM (USED FOR EXTENSION)
@@ -273,7 +273,7 @@ public:
      * \retval C2_OK        the operation completed successfully.
      * \retval C2_NO_MEMORY not enough memory to complete this method.
      */
-    virtual status_t getSupportedParams(
+    virtual c2_status_t getSupportedParams(
             std::vector<std::shared_ptr<C2ParamDescriptor>> * const params) const = 0;
 
     /**
@@ -281,7 +281,7 @@ public:
      * \todo should this take a list considering that setting some fields may further limit other
      * fields in the same list?
      */
-    virtual status_t getSupportedValues(
+    virtual c2_status_t getSupportedValues(
             const std::vector<const C2ParamField> fields,
             std::vector<C2FieldSupportedValues>* const values) const = 0;
 
@@ -305,12 +305,12 @@ public:
      *
      * \retval C2_OK        the work was successfully queued
      * \retval C2_BAD_INDEX some component(s) in the work do(es) not exist
-     * \retval C2_UNSUPPORTED  the components are not tunneled
+     * \retval C2_CANNOT_DO  the components are not tunneled
      *
      * \retval C2_NO_MEMORY not enough memory to queue the work
      * \retval C2_CORRUPTED some unknown error prevented queuing the work (unexpected)
      */
-    virtual status_t queue_nb(std::list<std::unique_ptr<C2Work>>* const items) = 0;
+    virtual c2_status_t queue_nb(std::list<std::unique_ptr<C2Work>>* const items) = 0;
 
     /**
      * Announces a work to be queued later for the component. This reserves a slot for the queue
@@ -322,14 +322,14 @@ public:
      *
      * \retval C2_OK        the work announcement has been successfully recorded
      * \retval C2_BAD_INDEX some component(s) in the work outline do(es) not exist
-     * \retval C2_UNSUPPORTED  the componentes are not tunneled
+     * \retval C2_CANNOT_DO  the componentes are not tunneled
      *
      * \retval C2_NO_MEMORY not enough memory to record the work announcement
      * \retval C2_CORRUPTED some unknown error prevented recording the announcement (unexpected)
      *
      * \todo Can this be rolled into queue_nb?
      */
-    virtual status_t announce_nb(const std::vector<C2WorkOutline> &items) = 0;
+    virtual c2_status_t announce_nb(const std::vector<C2WorkOutline> &items) = 0;
 
     /**
      * Discards and abandons any pending work for the component, and optionally any component
@@ -361,7 +361,7 @@ public:
      * \retval C2_TIMED_OUT the flush could not be completed within the time limit (unexpected)
      * \retval C2_CORRUPTED some unknown error prevented flushing from completion (unexpected)
      */
-    virtual status_t flush_sm(bool flushThrough, std::list<std::unique_ptr<C2Work>>* const flushedWork) = 0;
+    virtual c2_status_t flush_sm(bool flushThrough, std::list<std::unique_ptr<C2Work>>* const flushedWork) = 0;
 
     /**
      * Drains the component, and optionally downstream components
@@ -390,7 +390,7 @@ public:
      * \retval C2_TIMED_OUT the flush could not be completed within the time limit (unexpected)
      * \retval C2_CORRUPTED some unknown error prevented flushing from completion (unexpected)
      */
-    virtual status_t drain_nb(bool drainThrough) = 0;
+    virtual c2_status_t drain_nb(bool drainThrough) = 0;
 
     // STATE CHANGE METHODS
     // =============================================================================================
@@ -411,7 +411,7 @@ public:
      * \retval C2_TIMED_OUT the component could not be started within the time limit (unexpected)
      * \retval C2_CORRUPTED some unknown error prevented starting the component (unexpected)
      */
-    virtual status_t start() = 0;
+    virtual c2_status_t start() = 0;
 
     /**
      * Stops the component.
@@ -428,7 +428,7 @@ public:
      * This does not alter any settings and tunings that may have resulted in a tripped state.
      * (Is this material given the definition? Perhaps in case we want to start again.)
      */
-    virtual status_t stop() = 0;
+    virtual c2_status_t stop() = 0;
 
     /**
      * Resets the component.
@@ -473,9 +473,9 @@ public:
      */
     virtual std::shared_ptr<C2ComponentInterface> intf() = 0;
 
-    virtual status_t registerListener(std::shared_ptr<C2ComponentListener>) = 0;
+    virtual c2_status_t registerListener(std::shared_ptr<C2ComponentListener>) = 0;
 
-    virtual status_t unregisterListener(std::shared_ptr<C2ComponentListener>) = 0;
+    virtual c2_status_t unregisterListener(std::shared_ptr<C2ComponentListener>) = 0;
 
 protected:
     virtual ~C2Component() = default;
@@ -506,9 +506,9 @@ public:
      * \retval C2_TIMED_OUT could not reset the parser within the time limit (unexpected)
      * \retval C2_CORRUPTED some unknown error prevented the resetting of the parser (unexpected)
      */
-    virtual status_t reset() { return C2_OK; }
+    virtual c2_status_t reset() { return C2_OK; }
 
-    virtual status_t parseFrame(C2BufferPack &frame);
+    virtual c2_status_t parseFrame(C2BufferPack &frame);
 
     virtual ~C2FrameInfoParser() = default;
 };
@@ -541,7 +541,7 @@ public:
      * \retval C2_NOT_FOUND no such allocator
      * \retval C2_NO_MEMORY not enough memory to create the allocator
      */
-    virtual status_t createAllocator(Type type, std::shared_ptr<C2Allocator>* const allocator) = 0;
+    virtual c2_status_t createAllocator(Type type, std::shared_ptr<C2Allocator>* const allocator) = 0;
 
     virtual ~C2AllocatorStore() = default;
 };
@@ -564,7 +564,7 @@ public:
      * \retval C2_NOT_FOUND no such component
      * \retval C2_NO_MEMORY not enough memory to create the component
      */
-    virtual status_t createComponent(C2String name, std::shared_ptr<C2Component>* const component);
+    virtual c2_status_t createComponent(C2String name, std::shared_ptr<C2Component>* const component);
 
     /**
      * Creates a component interface.
@@ -585,7 +585,7 @@ public:
      *
      * \todo Do we need an interface, or could this just be a component that is never started?
      */
-    virtual status_t createInterface(C2String name, std::shared_ptr<C2ComponentInterface>* const interface);
+    virtual c2_status_t createInterface(C2String name, std::shared_ptr<C2ComponentInterface>* const interface);
 
     /**
      * Returns the list of components supported by this component store.
@@ -599,9 +599,9 @@ public:
     // -------------------------------------- UTILITY METHODS --------------------------------------
 
     // on-demand buffer layout conversion (swizzling)
-    virtual status_t copyBuffer(std::shared_ptr<C2GraphicBuffer> src, std::shared_ptr<C2GraphicBuffer> dst);
+    virtual c2_status_t copyBuffer(std::shared_ptr<C2GraphicBuffer> src, std::shared_ptr<C2GraphicBuffer> dst);
 
-    // status_t selectPreferredColor(formats<A>, formats<B>);
+    // c2_status_t selectPreferredColor(formats<A>, formats<B>);
 
     // GLOBAL SETTINGS
     // system-wide stride & slice-height (???)
@@ -635,7 +635,7 @@ public:
      * \retval C2_CORRUPTED some unknown error prevented the querying of the parameters
      *                      (unexpected)
      */
-    virtual status_t query_nb(
+    virtual c2_status_t query_nb(
         const std::vector<C2Param* const> &stackParams,
         const std::vector<C2Param::Index> &heapParamIndices,
         std::vector<std::unique_ptr<C2Param>>* const heapParams) = 0;
@@ -674,7 +674,7 @@ public:
      * \retval C2_CORRUPTED some unknown error prevented the update of the parameters
      *                      (unexpected)
      */
-    virtual status_t config_nb(
+    virtual c2_status_t config_nb(
             const std::vector<C2Param* const> &params,
             std::list<std::unique_ptr<C2SettingResult>>* const failures) = 0;
 

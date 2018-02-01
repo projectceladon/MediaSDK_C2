@@ -61,7 +61,7 @@ void MfxC2DecoderComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
         &MfxC2Component::Factory<MfxC2DecoderComponent, DecoderType>::Create<DECODER_H264>);
 }
 
-android::status_t MfxC2DecoderComponent::Init()
+android::c2_status_t MfxC2DecoderComponent::Init()
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -89,7 +89,7 @@ android::status_t MfxC2DecoderComponent::Init()
     return MfxStatusToC2(mfx_res);
 }
 
-status_t MfxC2DecoderComponent::DoStart()
+c2_status_t MfxC2DecoderComponent::DoStart()
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -131,7 +131,7 @@ status_t MfxC2DecoderComponent::DoStart()
     return C2_OK;
 }
 
-status_t MfxC2DecoderComponent::DoStop()
+c2_status_t MfxC2DecoderComponent::DoStop()
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -300,9 +300,9 @@ void MfxC2DecoderComponent::FreeDecoder()
     }
 }
 
-status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Type type, C2Param** dst) const
+c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Type type, C2Param** dst) const
 {
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
     switch (type.paramIndex()) {
         case kParamIndexMemoryType: {
@@ -321,7 +321,7 @@ status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Ty
     return res;
 }
 
-status_t MfxC2DecoderComponent::query_nb(
+c2_status_t MfxC2DecoderComponent::query_nb(
     const std::vector<C2Param* const> &stackParams,
     const std::vector<C2Param::Index> &heapParamIndices,
     std::vector<std::unique_ptr<C2Param>>* const heapParams) const
@@ -330,14 +330,14 @@ status_t MfxC2DecoderComponent::query_nb(
 
     std::lock_guard<std::mutex> lock(init_decoder_mutex_);
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
     // determine source, update it if needed
     const mfxVideoParam* params_view = &video_params_;
     if (nullptr != params_view) {
         // 1st cycle on stack params
         for (C2Param* param : stackParams) {
-            status_t param_res = C2_OK;
+            c2_status_t param_res = C2_OK;
             if (param_reflector_.FindParam(param->type())) {
                 param_res = QueryParam(params_view, param->type(), &param);
             } else {
@@ -353,7 +353,7 @@ status_t MfxC2DecoderComponent::query_nb(
             // allocate in QueryParam
             C2Param* param = nullptr;
             // check on presence
-            status_t param_res = C2_OK;
+            c2_status_t param_res = C2_OK;
             if (param_reflector_.FindParam(param_index.type())) {
                 param_res = QueryParam(params_view, param_index.type(), &param);
             } else {
@@ -379,7 +379,7 @@ status_t MfxC2DecoderComponent::query_nb(
         res = C2_CORRUPTED;
     }
 
-    MFX_DEBUG_TRACE__android_status_t(res);
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 
@@ -427,12 +427,12 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param* const> &params,
     }
 }
 
-status_t MfxC2DecoderComponent::config_nb(const std::vector<C2Param* const> &params,
+c2_status_t MfxC2DecoderComponent::config_nb(const std::vector<C2Param* const> &params,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures) {
 
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
     do {
         if (nullptr == failures) {
@@ -567,11 +567,11 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
     return mfx_sts;
 }
 
-status_t MfxC2DecoderComponent::AllocateC2Block(std::shared_ptr<C2GraphicBlock>* out_block)
+c2_status_t MfxC2DecoderComponent::AllocateC2Block(std::shared_ptr<C2GraphicBlock>* out_block)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
     do {
 
@@ -608,11 +608,11 @@ status_t MfxC2DecoderComponent::AllocateC2Block(std::shared_ptr<C2GraphicBlock>*
     return res;
 }
 
-status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
+c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
     MfxFrameConverter* converter = nullptr;
     if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
@@ -650,7 +650,7 @@ status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
         }
     } while (C2_TIMED_OUT == res);
 
-    MFX_DEBUG_TRACE__android_status_t(res);
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 
@@ -660,7 +660,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
 
     MFX_DEBUG_TRACE_P(work.get());
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
     mfxStatus mfx_sts = MFX_ERR_NONE;
 
     std::shared_ptr<C2BlockAllocator> work_allocator = work->worklets.front()->allocators.front();
@@ -758,7 +758,7 @@ void MfxC2DecoderComponent::Drain()
     do {
 
         MfxC2FrameOut frame_out;
-        status_t c2_sts = AllocateFrame(&frame_out);
+        c2_status_t c2_sts = AllocateFrame(&frame_out);
         if (C2_OK != c2_sts) break; // no output allocated, no sense in calling DecodeFrame
 
         mfx_sts = DecodeFrame(nullptr, std::move(frame_out));
@@ -819,11 +819,11 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
     dev_busy_cond_.notify_one();
 }
 
-status_t MfxC2DecoderComponent::ValidateWork(const std::unique_ptr<android::C2Work>& work)
+c2_status_t MfxC2DecoderComponent::ValidateWork(const std::unique_ptr<android::C2Work>& work)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    status_t res = C2_OK;
+    c2_status_t res = C2_OK;
 
     do {
 
@@ -847,7 +847,7 @@ status_t MfxC2DecoderComponent::ValidateWork(const std::unique_ptr<android::C2Wo
     return res;
 }
 
-status_t MfxC2DecoderComponent::queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items)
+c2_status_t MfxC2DecoderComponent::queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -855,7 +855,7 @@ status_t MfxC2DecoderComponent::queue_nb(std::list<std::unique_ptr<android::C2Wo
 
         bool eos = (item->input.flags & BUFFERFLAG_END_OF_STREAM);
 
-        status_t sts = ValidateWork(item);
+        c2_status_t sts = ValidateWork(item);
 
         if (C2_OK == sts) {
             working_queue_.Push( [ work = std::move(item), this ] () mutable {

@@ -40,27 +40,27 @@ public:
     static void RegisterClass(MfxC2ComponentsRegistry& registry);
 
 protected: // android::C2ComponentInterface
-    status_t config_nb(
+    android::c2_status_t config_nb(
             const std::vector<android::C2Param* const> &params,
             std::vector<std::unique_ptr<android::C2SettingResult>>* const failures) override;
 
 protected: // android::C2Component
-    status_t queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items) override;
+    android::c2_status_t queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items) override;
 
 protected:
-    android::status_t Init() override;
+    android::c2_status_t Init() override;
 
-    android::status_t DoStart() override;
+    android::c2_status_t DoStart() override;
 
-    android::status_t DoStop() override;
+    android::c2_status_t DoStop() override;
 
 private:
     // Allocates linear block of the length as input and copies input there.
-    status_t CopyGraphicToLinear(const android::C2BufferPack& input,
+    android::c2_status_t CopyGraphicToLinear(const android::C2BufferPack& input,
         const std::shared_ptr<android::C2BlockAllocator>& allocator,
         std::shared_ptr<android::C2Buffer>* out_buffer);
     // Allocates graphic block of the length as input and copies input there.
-    status_t CopyLinearToGraphic(const android::C2BufferPack& input,
+    android::c2_status_t CopyLinearToGraphic(const android::C2BufferPack& input,
         const std::shared_ptr<android::C2BlockAllocator>& allocator,
         std::shared_ptr<android::C2Buffer>* out_buffer);
 

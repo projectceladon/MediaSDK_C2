@@ -24,7 +24,7 @@ public:
 
     virtual std::shared_ptr<IMfxC2FrameConstructor> GetFrameConstructor() { return frame_constructor_; }
 
-    virtual status_t LoadC2BufferPack(android::C2BufferPack& buf_pack, nsecs_t timeout);
+    virtual android::c2_status_t LoadC2BufferPack(android::C2BufferPack& buf_pack, nsecs_t timeout);
 
 protected: // variables
     std::shared_ptr<IMfxC2FrameConstructor> frame_constructor_;

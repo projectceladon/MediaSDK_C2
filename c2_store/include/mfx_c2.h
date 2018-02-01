@@ -21,4 +21,4 @@ Defined help functions:
 #include <C2Component.h>
 
 // TODO: Codec 2.0 doc is still unclear about acquiring component store - use this for now
-status_t GetC2ComponentStore(std::shared_ptr<android::C2ComponentStore>* const componentStore);
+android::c2_status_t GetC2ComponentStore(std::shared_ptr<android::C2ComponentStore>* const componentStore);

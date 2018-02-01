@@ -15,29 +15,29 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <C2Buffer.h>
 #include <C2Param.h>
 
-android::status_t MfxStatusToC2(mfxStatus mfx_status);
+android::c2_status_t MfxStatusToC2(mfxStatus mfx_status);
 
 inline mfxU64 TimestampC2ToMfx(uint64_t timestamp)
 {
     return timestamp * 90000 / MFX_SECOND_NS;
 }
 
-android::status_t GetC2ConstGraphicBlock(
+android::c2_status_t GetC2ConstGraphicBlock(
     const android::C2BufferPack& buf_pack, std::unique_ptr<android::C2ConstGraphicBlock>* c_graph_block);
 
-android::status_t GetC2ConstLinearBlock(
+android::c2_status_t GetC2ConstLinearBlock(
     const android::C2BufferPack& buf_pack, std::unique_ptr<android::C2ConstLinearBlock>* c_lin_block);
 
-android::status_t MapConstGraphicBlock(const android::C2ConstGraphicBlock& graph_block, nsecs_t timeout,
+android::c2_status_t MapConstGraphicBlock(const android::C2ConstGraphicBlock& graph_block, nsecs_t timeout,
     std::unique_ptr<const android::C2GraphicView>* graph_view);
 
-android::status_t MapGraphicBlock(android::C2GraphicBlock& graph_block, nsecs_t timeout,
+android::c2_status_t MapGraphicBlock(android::C2GraphicBlock& graph_block, nsecs_t timeout,
     std::unique_ptr<android::C2GraphicView>* graph_view);
 
-android::status_t MapConstLinearBlock(
+android::c2_status_t MapConstLinearBlock(
     const android::C2ConstLinearBlock& block, nsecs_t timeout, const uint8_t** data);
 
-android::status_t MapLinearBlock(
+android::c2_status_t MapLinearBlock(
     android::C2LinearBlock& block, nsecs_t timeout, uint8_t** data);
 
 template<typename ParamType>
@@ -53,7 +53,7 @@ std::unique_ptr<android::C2SettingResult> MakeC2SettingResult(
     std::initializer_list<android::C2ParamField> conflicting_fields = {},
     const android::C2FieldSupportedValues* supported_values = nullptr);
 
-status_t GetAggregateStatus(std::vector<std::unique_ptr<android::C2SettingResult>>* const failures);
+android::c2_status_t GetAggregateStatus(std::vector<std::unique_ptr<android::C2SettingResult>>* const failures);
 
 bool FindC2Param(
     const std::vector<std::shared_ptr<android::C2ParamDescriptor>>& params_desc,

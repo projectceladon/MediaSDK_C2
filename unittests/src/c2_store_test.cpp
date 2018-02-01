@@ -26,7 +26,7 @@ struct ComponentDesc
     const char* component_name;
     const char* module_name;
     int flags;
-    status_t creation_status;
+    c2_status_t creation_status;
 };
 
 ComponentDesc g_components[] = {
@@ -66,11 +66,11 @@ static bool PrepareConfFile()
 }
 
 // this function creates component store and keeps for subsequent usage
-static status_t GetCachedC2ComponentStore(std::shared_ptr<android::C2ComponentStore>* store)
+static c2_status_t GetCachedC2ComponentStore(std::shared_ptr<android::C2ComponentStore>* store)
 {
     static bool conf_file_ready = PrepareConfFile();
     static std::shared_ptr<android::C2ComponentStore> g_store;
-    static status_t g_creation_status = GetC2ComponentStore(&g_store);
+    static c2_status_t g_creation_status = GetC2ComponentStore(&g_store);
 
     ASSERT_NE(g_store, nullptr);
     *store = g_store;
@@ -81,7 +81,7 @@ static status_t GetCachedC2ComponentStore(std::shared_ptr<android::C2ComponentSt
 TEST(MfxComponentStore, Create)
 {
     std::shared_ptr<android::C2ComponentStore> componentStore;
-    status_t status = GetCachedC2ComponentStore(&componentStore);
+    c2_status_t status = GetCachedC2ComponentStore(&componentStore);
 
     EXPECT_EQ(status, C2_OK);
 }
@@ -124,7 +124,7 @@ TEST(MfxComponentStore, createComponent)
 
     for(const auto& component_desc : g_components) {
         std::shared_ptr<C2Component> component;
-        status_t status = componentStore->createComponent(component_desc.component_name, &component);
+        c2_status_t status = componentStore->createComponent(component_desc.component_name, &component);
         EXPECT_EQ(status, component_desc.creation_status);
         if(component_desc.creation_status == C2_OK) {
             EXPECT_NE(component, nullptr);
@@ -159,7 +159,7 @@ TEST(MfxComponentStore, createInterface)
 
     for(const auto& component_desc : g_components) {
         std::shared_ptr<C2ComponentInterface> component_itf;
-        status_t status = componentStore->createInterface(component_desc.component_name, &component_itf);
+        c2_status_t status = componentStore->createInterface(component_desc.component_name, &component_itf);
         EXPECT_EQ(status, component_desc.creation_status);
 
         if(component_desc.creation_status == C2_OK) {
@@ -177,7 +177,7 @@ TEST(MfxComponentStore, createInterface)
     }
 }
 
-// Checks C2ComponentStore::copyBuffer returns C2_NOT_IMPLEMENTED for now.
+// Checks C2ComponentStore::copyBuffer returns C2_OMITTED for now.
 TEST(MfxComponentStore, copyBuffer)
 {
     std::shared_ptr<android::C2ComponentStore> componentStore;
@@ -186,12 +186,12 @@ TEST(MfxComponentStore, copyBuffer)
     std::shared_ptr<C2GraphicBuffer> src;
     std::shared_ptr<C2GraphicBuffer> dst;
 
-    status_t status = componentStore->copyBuffer(src, dst);
-    EXPECT_EQ(status, C2_NOT_IMPLEMENTED);
+    c2_status_t status = componentStore->copyBuffer(src, dst);
+    EXPECT_EQ(status, C2_OMITTED);
 }
 
 // Checks C2ComponentStore::query_nb (query global store parameter)
-// returns C2_NOT_IMPLEMENTED for now.
+// returns C2_OMITTED for now.
 TEST(MfxComponentStore, query_nb)
 {
     std::shared_ptr<android::C2ComponentStore> componentStore;
@@ -201,12 +201,12 @@ TEST(MfxComponentStore, query_nb)
     std::vector<C2Param::Index> heapParamIndices;
     std::vector<std::unique_ptr<C2Param>> heapParams;
 
-    status_t status = componentStore->query_nb(stackParams, heapParamIndices, &heapParams);
-    EXPECT_EQ(status, C2_NOT_IMPLEMENTED);
+    c2_status_t status = componentStore->query_nb(stackParams, heapParamIndices, &heapParams);
+    EXPECT_EQ(status, C2_OMITTED);
 }
 
 // Checks C2ComponentStore::config_nb (set global store parameter)
-// returns C2_NOT_IMPLEMENTED for now.
+// returns C2_OMITTED for now.
 TEST(MfxComponentStore, config_nb)
 {
     std::shared_ptr<android::C2ComponentStore> componentStore;
@@ -215,6 +215,6 @@ TEST(MfxComponentStore, config_nb)
     std::vector<C2Param* const> params;
     std::list<std::unique_ptr<C2SettingResult>> failures;
 
-    status_t status = componentStore->config_nb(params, &failures);
-    EXPECT_EQ(status, C2_NOT_IMPLEMENTED);
+    c2_status_t status = componentStore->config_nb(params, &failures);
+    EXPECT_EQ(status, C2_OMITTED);
 }

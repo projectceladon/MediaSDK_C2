@@ -20,7 +20,7 @@ class MfxC2BitstreamOut
 public:
     MfxC2BitstreamOut() = default;
 
-    static android::status_t Create(
+    static android::c2_status_t Create(
         std::shared_ptr<android::C2LinearBlock> block, nsecs_t timeout,
         MfxC2BitstreamOut* wrapper);
 
