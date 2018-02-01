@@ -313,7 +313,7 @@ status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** data, 
 
         if (GRALLOC1_ERROR_NONE != err || !img)
         {
-            res = MFX_ERR_LOCK_MEMORY;
+            res = C2_BAD_STATE;
         }
 #else
         res = gralloc_module_->lock(gralloc_module_, handle, GRALLOC_USAGE_SW_READ_MASK | GRALLOC_USAGE_SW_WRITE_MASK,
