@@ -232,9 +232,9 @@ static void PrepareWork(uint32_t frame_index, bool last_frame, bool graphics_mem
                 uint8_t* data = graph_view->data();
                 EXPECT_NE(data, nullptr);
 
-                const C2PlanarLayout* layout = graph_view->layout();
-                const uint32_t stride = layout->planes[C2PlanarLayout::PLANE_Y].rowInc;
-                const uint32_t alloc_height = layout->planes[C2PlanarLayout::PLANE_U].mOffset / stride;
+                const C2PlanarLayout layout = graph_view->layout();
+                const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_Y].rowInc;
+                const uint32_t alloc_height = layout.planes[C2PlanarLayout::PLANE_U].mOffset / stride;
 
                 for(FrameGenerator* generator : generators) {
                     generator->Apply(frame_index, data, FRAME_WIDTH, stride, alloc_height);
