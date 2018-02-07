@@ -865,6 +865,32 @@ struct C2PlaneInfo {
 
     uint32_t allocatedDepth; ///< size of each sample (must be a multiple of 8)
     uint32_t bitDepth;       ///< significant bits per sample
+    /**
+     * the right shift of the significant bits in the sample. E.g. if a 10-bit significant
+     * value is laid out in a 16-bit allocation aligned to LSB (values 0-1023), rightShift
+     * would be 0 as the 16-bit value read from the sample does not need to be right shifted
+     * and can be used as is (after applying a 10-bit mask of 0x3FF).
+     *
+     * +--------+--------+
+     * |      VV|VVVVVVVV|
+     * +--------+--------+
+     *  15     8 7      0
+     *
+     * If the value is laid out aligned to MSB, rightShift would be 6, as the value read
+     * from the allocated sample must be right-shifted by 6 to get the actual sample value.
+     *
+     * +--------+--------+
+     * |VVVVVVVV|VV      |
+     * +--------+--------+
+     *  15     8 7      0
+     */
+    uint32_t rightShift;
+
+    enum endianness_t : uint32_t {
+        NATIVE,
+        LITTLE_END, // LITTLE_ENDIAN is reserved macro
+        BIG_END,    // BIG_ENDIAN is a reserved macro
+    } endianness; ///< endianness of the samples
 
     uint32_t mOffset;
 
