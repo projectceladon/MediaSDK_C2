@@ -76,14 +76,14 @@ TEST(MfxMockComponent, intf)
 // Allocates c2 graphic block of FRAME_WIDTH x FRAME_HEIGHT size and fills it with
 // specified byte value.
 static std::unique_ptr<C2ConstGraphicBlock> CreateFilledGraphicBlock(
-    std::shared_ptr<android::C2BlockAllocator> allocator, uint8_t fill, C2MemoryUsage::Consumer memory_type)
+    std::shared_ptr<android::C2BlockPool> allocator, uint8_t fill, C2MemoryUsage::Consumer memory_type)
 {
     std::unique_ptr<C2ConstGraphicBlock> res;
 
     do {
-        C2MemoryUsage mem_usage = { memory_type, C2MemoryUsage::kSoftwareWrite };
+        C2MemoryUsage mem_usage = { memory_type, C2MemoryUsage::CPU_WRITE };
         std::shared_ptr<C2GraphicBlock> block;
-        c2_status_t sts = allocator->allocateGraphicBlock(FRAME_WIDTH, FRAME_HEIGHT, FRAME_FORMAT,
+        c2_status_t sts = allocator->fetchGraphicBlock(FRAME_WIDTH, FRAME_HEIGHT, FRAME_FORMAT,
             mem_usage, &block);
 
         EXPECT_EQ(sts, C2_OK);
@@ -112,14 +112,14 @@ static std::unique_ptr<C2ConstGraphicBlock> CreateFilledGraphicBlock(
 // Allocates c2 linear block of FRAME_BUF_SIZE length and fills it with
 // specified byte value.
 static std::unique_ptr<C2ConstLinearBlock> CreateFilledLinearBlock(
-    std::shared_ptr<android::C2BlockAllocator> allocator, uint8_t fill)
+    std::shared_ptr<android::C2BlockPool> allocator, uint8_t fill)
 {
     std::unique_ptr<C2ConstLinearBlock> res;
 
     do {
-        C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
+        C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
         std::shared_ptr<C2LinearBlock> block;
-        c2_status_t sts = allocator->allocateLinearBlock(FRAME_BUF_SIZE, mem_usage, &block);
+        c2_status_t sts = allocator->fetchLinearBlock(FRAME_BUF_SIZE, mem_usage, &block);
 
         EXPECT_EQ(sts, C2_OK);
         EXPECT_NE(block, nullptr);
@@ -168,7 +168,7 @@ static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work,
     buffer_pack->ordinal.custom_ordinal = 0;
 
     do {
-        std::shared_ptr<android::C2BlockAllocator> allocator;
+        std::shared_ptr<android::C2BlockPool> allocator;
         android::c2_status_t sts = GetC2BlockAllocator(&allocator);
 
         EXPECT_EQ(sts, C2_OK);
@@ -339,7 +339,7 @@ TEST(MfxMockComponent, Encode)
     if(nullptr != component) {
 
         for (C2MemoryUsage::Consumer memory_type :
-            { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kHardwareEncoder } ) {
+            { C2MemoryUsage::CPU_READ, C2MemoryUsage::HW_CODEC_READ } ) {
 
             std::shared_ptr<MockOutputValidator> validator =
                 std::make_unique<MockOutputValidator>(C2BufferData::LINEAR);
@@ -391,7 +391,7 @@ TEST(MfxMockComponent, Decode)
     if(nullptr != component) {
 
         for (C2MemoryUsage::Producer memory_type :
-            { C2MemoryUsage::kSoftwareWrite, C2MemoryUsage::kHardwareDecoder } ) {
+            { C2MemoryUsage::CPU_WRITE, C2MemoryUsage::HW_CODEC_WRITE } ) {
 
             std::shared_ptr<MockOutputValidator> validator =
                 std::make_unique<MockOutputValidator>(C2BufferData::GRAPHIC);
@@ -416,7 +416,7 @@ TEST(MfxMockComponent, Decode)
                     std::unique_ptr<C2Work> work;
 
                     // insert input data
-                    PrepareWork(frame_index, &work, C2BufferData::LINEAR, C2MemoryUsage::kSoftwareRead);
+                    PrepareWork(frame_index, &work, C2BufferData::LINEAR, C2MemoryUsage::CPU_READ);
                     std::list<std::unique_ptr<C2Work>> works;
                     works.push_back(std::move(work));
 

@@ -768,25 +768,25 @@ private:
  */
 struct C2Rect {
 // public:
-    uint32_t mLeft;
-    uint32_t mTop;
-    uint32_t mWidth;
-    uint32_t mHeight;
+    uint32_t left;
+    uint32_t top;
+    uint32_t width;
+    uint32_t height;
 
-    inline C2Rect(uint32_t width, uint32_t height)
-        : C2Rect(width, height, 0, 0) { }
+    constexpr inline C2Rect(uint32_t width_, uint32_t height_)
+        : C2Rect(width_, height_, 0, 0) { }
 
-    inline C2Rect(uint32_t width, uint32_t height, uint32_t left, uint32_t top)
-        : mLeft(left), mTop(top), mWidth(width), mHeight(height) { }
+    constexpr inline C2Rect(uint32_t width_, uint32_t height_, uint32_t left_, uint32_t top_)
+        : left(left_), top(top_), width(width_), height(height_) { }
 
     // utility methods
 
     inline bool isEmpty() const {
-        return mWidth == 0 || mHeight == 0;
+        return width == 0 || height == 0;
     }
 
     inline bool isValid() const {
-        return mLeft <= ~mWidth && mTop <= ~mHeight;
+        return left <= ~width && top <= ~height;
     }
 
     inline operator bool() const {
@@ -803,9 +803,9 @@ struct C2Rect {
         } else if (other.isEmpty()) {
             return true;
         } else {
-            return mLeft <= other.mLeft && mTop <= other.mTop
-                    && mLeft + mWidth >= other.mLeft + other.mWidth
-                    && mTop + mHeight >= other.mTop + other.mHeight;
+            return left <= other.left && top <= other.top
+                    && left + width >= other.left + other.width
+                    && top + height >= other.top + other.height;
         }
     }
 
@@ -815,8 +815,8 @@ struct C2Rect {
         } else if (isEmpty()) {
             return other.isEmpty();
         } else {
-            return mLeft == other.mLeft && mTop == other.mTop
-                    && mWidth == other.mWidth && mHeight == other.mHeight;
+            return left == other.left && top == other.top
+                    && width == other.width && height == other.height;
         }
     }
 
@@ -842,80 +842,80 @@ struct C2Rect {
 };
 
 /**
- * C2PlaneInfo: information on the layout of flexible planes.
+ * C2PlaneInfo: information on the layout of a singe flexible plane.
  *
  * Public fields without getters/setters.
  */
 struct C2PlaneInfo {
-// public:
-    enum Channel : uint32_t {
-        Y,
-        R,
-        G,
-        B,
-        A,
-        Cr,
-        Cb,
-    } mChannel;
+//public:
+    enum channel_t : uint32_t {
+        CHANNEL_Y,  ///< luma
+        CHANNEL_R,  ///< red
+        CHANNEL_G,  ///< green
+        CHANNEL_B,  ///< blue
+        CHANNEL_A,  ///< alpha
+        CHANNEL_CR, ///< Cr
+        CHANNEL_CB, ///< Cb
+    } channel;
 
-    int32_t mColInc;               // column increment in bytes. may be negative
-    int32_t mRowInc;               // row increment in bytes. may be negative
-    uint32_t mHorizSubsampling;    // subsampling compared to width
-    uint32_t mVertSubsampling;     // subsampling compared to height
+    int32_t colInc;       ///< column increment in bytes. may be negative
+    int32_t rowInc;       ///< row increment in bytes. may be negative
+    uint32_t colSampling; ///< subsampling compared to width (must be a power of 2)
+    uint32_t rowSampling; ///< subsampling compared to height (must be a power of 2)
 
-    uint32_t mBitDepth;
-    uint32_t mAllocatedDepth;
+    uint32_t allocatedDepth; ///< size of each sample (must be a multiple of 8)
+    uint32_t bitDepth;       ///< significant bits per sample
 
     uint32_t mOffset;
 
     inline ssize_t minOffset(uint32_t width, uint32_t height) {
         ssize_t offs = 0;
-        if (width > 0 && mColInc < 0) {
-            offs += mColInc * (ssize_t)(width - 1);
+        if (width > 0 && colInc < 0) {
+            offs += colInc * (ssize_t)(width - 1);
         }
-        if (height > 0 && mRowInc < 0) {
-            offs += mRowInc * (ssize_t)(height - 1);
+        if (height > 0 && rowInc < 0) {
+            offs += rowInc * (ssize_t)(height - 1);
         }
         return offs;
     }
 
     inline ssize_t maxOffset(uint32_t width, uint32_t height, uint32_t allocatedDepth) {
         ssize_t offs = (allocatedDepth + 7) >> 3;
-        if (width > 0 && mColInc > 0) {
-            offs += mColInc * (ssize_t)(width - 1);
+        if (width > 0 && colInc > 0) {
+            offs += colInc * (ssize_t)(width - 1);
         }
-        if (height > 0 && mRowInc > 0) {
-            offs += mRowInc * (ssize_t)(height - 1);
+        if (height > 0 && rowInc > 0) {
+            offs += rowInc * (ssize_t)(height - 1);
         }
         return offs;
     }
 };
 
-struct C2PlaneLayout {
-public:
-    enum Type : uint32_t {
-        MEDIA_IMAGE_TYPE_UNKNOWN = 0,
-        MEDIA_IMAGE_TYPE_YUV = 0x100,
-        MEDIA_IMAGE_TYPE_YUVA,
-        MEDIA_IMAGE_TYPE_RGB,
-        MEDIA_IMAGE_TYPE_RGBA,
+struct C2PlanarLayout {
+//public:
+    enum type_t : uint32_t {
+        TYPE_UNKNOWN = 0,
+        TYPE_YUV = 0x100,
+        TYPE_YUVA,
+        TYPE_RGB,
+        TYPE_RGBA,
     };
 
-    Type mType;
-    uint32_t mNumPlanes;               // number of planes
+    type_t type;
+    uint32_t numPlanes;               // number of planes
 
-    enum PlaneIndex : uint32_t {
-        Y = 0,
-        U = 1,
-        V = 2,
-        R = 0,
-        G = 1,
-        B = 2,
-        A = 3,
+    enum plane_index_t : uint32_t {
+        PLANE_Y = 0,
+        PLANE_U = 1,
+        PLANE_V = 2,
+        PLANE_R = 0,
+        PLANE_G = 1,
+        PLANE_B = 2,
+        PLANE_A = 3,
         MAX_NUM_PLANES = 4,
     };
 
-    C2PlaneInfo mPlanes[MAX_NUM_PLANES];
+    C2PlaneInfo planes[MAX_NUM_PLANES];
 };
 
 /**
@@ -997,7 +997,7 @@ public:
      */
     uint8_t *data();
 
-    const C2PlaneLayout* planeLayout() const;
+    const C2PlanarLayout* layout() const;
 
     /**
      * Returns a section of this view.
@@ -1313,25 +1313,25 @@ struct C2MemoryUsage {
 // public:
     // TODO: match these to gralloc1.h
     enum Consumer : uint64_t {
-        kSoftwareRead        = GRALLOC_USAGE_SW_READ_OFTEN,
-        kRenderScriptRead    = GRALLOC_USAGE_RENDERSCRIPT,
-        kTextureRead         = GRALLOC_USAGE_HW_TEXTURE,
-        kHardwareComposer    = GRALLOC_USAGE_HW_COMPOSER,
-        kHardwareEncoder     = GRALLOC_USAGE_HW_VIDEO_ENCODER,
-        kProtectedRead       = GRALLOC_USAGE_PROTECTED,
+        CPU_READ          = GRALLOC_USAGE_SW_READ_OFTEN,
+        RENDERSCRIPT_READ = GRALLOC_USAGE_RENDERSCRIPT,
+        HW_TEXTURE_READ   = GRALLOC_USAGE_HW_TEXTURE,
+        HW_COMPOSER_READ  = GRALLOC_USAGE_HW_COMPOSER,
+        HW_CODEC_READ     = GRALLOC_USAGE_HW_VIDEO_ENCODER,
+        READ_PROTECTED    = GRALLOC_USAGE_PROTECTED,
     };
 
     enum Producer : uint64_t {
-        kSoftwareWrite       = GRALLOC_USAGE_SW_WRITE_OFTEN,
-        kRenderScriptWrite   = GRALLOC_USAGE_RENDERSCRIPT,
-        kTextureWrite        = GRALLOC_USAGE_HW_RENDER,
-        kCompositionTarget   = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_RENDER,
-        kHardwareDecoder     = GRALLOC_USAGE_HW_VIDEO_ENCODER,
-        kProtectedWrite      = GRALLOC_USAGE_PROTECTED,
+        CPU_WRITE          = GRALLOC_USAGE_SW_WRITE_OFTEN,
+        RENDERSCRIPT_WRITE = GRALLOC_USAGE_RENDERSCRIPT,
+        HW_TEXTURE_WRITE   = GRALLOC_USAGE_HW_RENDER,
+        HW_COMPOSER_WRITE  = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_RENDER,
+        HW_CODEC_WRITE     = GRALLOC_USAGE_HW_VIDEO_ENCODER,
+        WRITE_PROTECTED    = GRALLOC_USAGE_PROTECTED,
     };
 
-    uint64_t mConsumer; // e.g. input
-    uint64_t mProducer; // e.g. output
+    uint64_t consumer; // e.g. input
+    uint64_t producer; // e.g. output
 };
 
 /**
@@ -1459,7 +1459,7 @@ public:
     virtual c2_status_t map(
             C2Rect rect, C2MemoryUsage usage, int *fenceFd,
             // TODO: return <addr, size> buffers with plane sizes
-            C2PlaneLayout *layout /* nonnull */, uint8_t **addr /* nonnull */) = 0;
+            C2PlanarLayout *layout /* nonnull */, uint8_t **addr /* nonnull */) = 0;
 
     /**
      * Unmaps the last mapped rectangular section.
@@ -1634,7 +1634,7 @@ protected:
  *
  *  Block allocators are provided by the framework.
  */
-class C2BlockAllocator {
+class C2BlockPool {
 public:
     /**
      * Allocates a linear writeable block of given |capacity| and |usage|. If successful, the
@@ -1657,11 +1657,11 @@ public:
      * \retval C2_CANNOT_DO       this allocator does not support linear allocations
      * \retval C2_CORRUPTED some unknown, unrecoverable error occured during allocation (unexpected)
      */
-    virtual c2_status_t allocateLinearBlock(
+    virtual c2_status_t fetchLinearBlock(
             uint32_t capacity __unused, C2MemoryUsage usage __unused,
             std::shared_ptr<C2LinearBlock> *block /* nonnull */) {
         *block = nullptr;
-        return C2_CANNOT_DO;
+        return C2_OMITTED;
     }
 
     /**
@@ -1686,11 +1686,11 @@ public:
      * \retval C2_CANNOT_DO   this allocator does not support circular allocations
      * \retval C2_CORRUPTED     some unknown, unrecoverable error occured during allocation (unexpected)
      */
-    virtual c2_status_t allocateCircularBlock(
+    virtual c2_status_t fetchCircularBlock(
             uint32_t capacity __unused, C2MemoryUsage usage __unused,
             std::shared_ptr<C2CircularBlock> *block /* nonnull */) {
         *block = nullptr;
-        return C2_CANNOT_DO;
+        return C2_OMITTED;
     }
 
     /**
@@ -1719,18 +1719,18 @@ public:
      * \retval C2_CANNOT_DO   this allocator does not support 2D allocations
      * \retval C2_CORRUPTED     some unknown, unrecoverable error occured during allocation (unexpected)
      */
-    virtual c2_status_t allocateGraphicBlock(
+    virtual c2_status_t fetchGraphicBlock(
             uint32_t width __unused, uint32_t height __unused, uint32_t format __unused,
             C2MemoryUsage usage __unused,
             std::shared_ptr<C2GraphicBlock> *block /* nonnull */) {
         *block = nullptr;
-        return C2_CANNOT_DO;
+        return C2_OMITTED;
     }
 
 protected:
-    C2BlockAllocator() = default;
+    C2BlockPool() = default;
 
-    virtual ~C2BlockAllocator() = default;
+    virtual ~C2BlockPool() = default;
 };
 
 /// @}

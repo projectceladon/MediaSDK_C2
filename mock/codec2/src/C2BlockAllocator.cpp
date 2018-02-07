@@ -167,7 +167,7 @@ public:
         return C2_OK;
     }
 
-    void InitNV12PlaneLayout(C2PlaneLayout* plane_layout)
+    void InitNV12PlaneLayout(C2PlanarLayout* plane_layout)
     {
         ::InitNV12PlaneLayout(width_, height_, plane_layout);
     }
@@ -205,7 +205,7 @@ c2_status_t C2Block2D::Impl::Map(C2Event* event, std::unique_ptr<C2GraphicView::
 
     c2_status_t error = C2_OK;
     uint8_t* data = nullptr;
-    C2PlaneLayout plane_layout {};
+    C2PlanarLayout plane_layout {};
 
     bool locked = locked_.exchange(true);
     if (locked) {
@@ -235,12 +235,12 @@ class C2GraphicView::Impl
 {
 public:
     uint8_t* data_ {};
-    C2PlaneLayout plane_layout_ {};
+    C2PlanarLayout plane_layout_ {};
     // shared_ptr to prevent C2Block::Impl destruction before this destruction
     std::shared_ptr<C2Block2D::Impl> block_impl_ {};
 
 public:
-    Impl(uint8_t* data, const C2PlaneLayout& plane_layout, const std::shared_ptr<C2Block2D::Impl>& block_impl)
+    Impl(uint8_t* data, const C2PlanarLayout& plane_layout, const std::shared_ptr<C2Block2D::Impl>& block_impl)
         : data_(data), plane_layout_(plane_layout), block_impl_(block_impl) { }
 
     ~Impl() {
@@ -258,7 +258,7 @@ const uint8_t *C2GraphicView::data() const
     return mImpl->data_;
 }
 
-const C2PlaneLayout* C2GraphicView::planeLayout() const
+const C2PlanarLayout* C2GraphicView::layout() const
 {
     return &(mImpl->plane_layout_);
 }
@@ -345,12 +345,12 @@ const C2BufferData C2Buffer::data() const
     return buffer_data_;
 }
 
-class C2BlockAllocatorImpl : public C2BlockAllocator
+class C2BlockAllocatorImpl : public C2BlockPool
 {
 public:
     struct CreateResult
     {
-        std::shared_ptr<C2BlockAllocator> allocator;
+        std::shared_ptr<C2BlockPool> allocator;
         c2_status_t status;
     };
 
@@ -369,12 +369,12 @@ private:
 
     MFX_CLASS_NO_COPY(C2BlockAllocatorImpl)
 
-private: // C2BlockAllocator impl
-    c2_status_t allocateLinearBlock(
+private: // C2BlockPool impl
+    c2_status_t fetchLinearBlock(
             uint32_t capacity, C2MemoryUsage usage __unused,
             std::shared_ptr<C2LinearBlock> *block /* nonnull */) override;
 
-    c2_status_t allocateGraphicBlock(
+    c2_status_t fetchGraphicBlock(
             uint32_t width __unused, uint32_t height __unused, uint32_t format __unused,
             C2MemoryUsage usage __unused,
             std::shared_ptr<C2GraphicBlock> *block /* nonnull */) override;
@@ -408,7 +408,7 @@ C2BlockAllocatorImpl::CreateResult C2BlockAllocatorImpl::Create()
     return res;
 }
 
-c2_status_t C2BlockAllocatorImpl::allocateLinearBlock(
+c2_status_t C2BlockAllocatorImpl::fetchLinearBlock(
         uint32_t capacity, C2MemoryUsage usage __unused,
         std::shared_ptr<C2LinearBlock> *block /* nonnull */) {
 
@@ -426,7 +426,7 @@ c2_status_t C2BlockAllocatorImpl::allocateLinearBlock(
     return res;
 }
 
-c2_status_t C2BlockAllocatorImpl::allocateGraphicBlock(
+c2_status_t C2BlockAllocatorImpl::fetchGraphicBlock(
         uint32_t width __unused, uint32_t height __unused, uint32_t format __unused,
         C2MemoryUsage usage __unused,
         std::shared_ptr<C2GraphicBlock> *block /* nonnull */) {
@@ -435,8 +435,8 @@ c2_status_t C2BlockAllocatorImpl::allocateGraphicBlock(
 
     c2_status_t res = C2_OK;
 
-    if ((usage.mConsumer & C2MemoryUsage::kHardwareEncoder) ||
-        (usage.mProducer & C2MemoryUsage::kHardwareDecoder)) {
+    if ((usage.consumer & C2MemoryUsage::HW_CODEC_READ) ||
+        (usage.producer & C2MemoryUsage::HW_CODEC_WRITE)) {
 
         buffer_handle_t handle {};
 
@@ -470,7 +470,7 @@ c2_status_t C2BlockAllocatorImpl::allocateGraphicBlock(
 
 using namespace android;
 
-c2_status_t GetC2BlockAllocator(std::shared_ptr<C2BlockAllocator>* allocator)
+c2_status_t GetC2BlockAllocator(std::shared_ptr<C2BlockPool>* allocator)
 {
     static C2BlockAllocatorImpl::CreateResult g_create_result =
         C2BlockAllocatorImpl::Create();

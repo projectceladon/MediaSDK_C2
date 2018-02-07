@@ -368,37 +368,36 @@ bool AvcLevelMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value)
     return SecondToFirst(g_h264_levels, mfx_value, android_value);
 }
 
-void InitNV12PlaneLayout(int32_t pitch, int32_t alloc_height, C2PlaneLayout* layout)
+void InitNV12PlaneLayout(int32_t pitch, int32_t alloc_height, C2PlanarLayout* layout)
 {
-    layout->mType = android::C2PlaneLayout::MEDIA_IMAGE_TYPE_YUV;
-    layout->mNumPlanes = 3;
+    layout->type = android::C2PlanarLayout::TYPE_YUV;
+    layout->numPlanes = 3;
 
-    C2PlaneInfo& y_plane = layout->mPlanes[C2PlaneLayout::Y];
-    y_plane.mChannel = C2PlaneInfo::Y;
-    y_plane.mColInc = 1;
-    y_plane.mRowInc = pitch;
-    y_plane.mHorizSubsampling = 1;
-    y_plane.mVertSubsampling = 1;
-    y_plane.mBitDepth = 8;
-    y_plane.mAllocatedDepth = 8;
-    y_plane.mOffset = 0;
+    C2PlaneInfo& y_plane = layout->planes[C2PlanarLayout::PLANE_Y];
+    y_plane.channel = C2PlaneInfo::CHANNEL_Y;
+    y_plane.colInc = 1;
+    y_plane.rowInc = pitch;
+    y_plane.colSampling = 1;
+    y_plane.rowSampling = 1;
+    y_plane.bitDepth = 8;
+    y_plane.allocatedDepth = 8;
 
-    C2PlaneInfo& u_plane = layout->mPlanes[C2PlaneLayout::U];
-    u_plane.mChannel = C2PlaneInfo::Cb;
+    C2PlaneInfo& u_plane = layout->planes[C2PlanarLayout::PLANE_U];
+    u_plane.channel = C2PlaneInfo::CHANNEL_CB;
     u_plane.mOffset = alloc_height * pitch;
 
-    C2PlaneInfo& v_plane = layout->mPlanes[C2PlaneLayout::V];
-    v_plane.mChannel = C2PlaneInfo::Cr;
+    C2PlaneInfo& v_plane = layout->planes[C2PlanarLayout::PLANE_V];
+    v_plane.channel = C2PlaneInfo::CHANNEL_CR;
     v_plane.mOffset = alloc_height * pitch + 1;
 
-    for (C2PlaneLayout::PlaneIndex plane_index : { C2PlaneLayout::U, C2PlaneLayout::V }) {
-        C2PlaneInfo& plane = layout->mPlanes[plane_index];
-        plane.mColInc = 2;
-        plane.mRowInc = pitch;
-        plane.mHorizSubsampling = 2;
-        plane.mVertSubsampling = 2;
-        plane.mBitDepth = 8;
-        plane.mAllocatedDepth = 8;
+    for (C2PlanarLayout::plane_index_t plane_index : { C2PlanarLayout::PLANE_U, C2PlanarLayout::PLANE_V }) {
+        C2PlaneInfo& plane = layout->planes[plane_index];
+        plane.colInc = 2;
+        plane.rowInc = pitch;
+        plane.colSampling = 2;
+        plane.rowSampling = 2;
+        plane.bitDepth = 8;
+        plane.allocatedDepth = 8;
     }
 }
 

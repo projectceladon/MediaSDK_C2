@@ -34,7 +34,7 @@ public:
     }
     virtual ~MfxVaFramePoolAllocator() = default;
 private:
-    virtual void SetC2Allocator(std::shared_ptr<android::C2BlockAllocator> c2_allocator) override
+    virtual void SetC2Allocator(std::shared_ptr<android::C2BlockPool> c2_allocator) override
     {
         std::lock_guard<std::mutex> lock(mutex_);
         c2_allocator_ = c2_allocator;
@@ -60,7 +60,7 @@ private:
 private:
     std::mutex mutex_;
 
-    std::shared_ptr<android::C2BlockAllocator> c2_allocator_;
+    std::shared_ptr<android::C2BlockPool> c2_allocator_;
 
     std::unique_ptr<MfxPool<android::C2GraphicBlock>> pool_;
 

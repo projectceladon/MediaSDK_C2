@@ -49,10 +49,10 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
 
                 std::shared_ptr<C2GraphicBlock> new_block;
 
-                c2_status_t err = c2_allocator_->allocateGraphicBlock(
+                c2_status_t err = c2_allocator_->fetchGraphicBlock(
                     request->Info.Width, request->Info.Height,
                     MfxFourCCToGralloc(request->Info.FourCC),
-                    { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kHardwareDecoder },
+                    { C2MemoryUsage::CPU_READ, C2MemoryUsage::HW_CODEC_WRITE },
                     &new_block);
 
                 if (C2_OK != err) {

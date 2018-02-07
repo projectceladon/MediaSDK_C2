@@ -205,7 +205,7 @@ mfxU16 MfxC2DecoderComponent::GetAsyncDepth(void)
     return asyncDepth;
 }
 
-mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockAllocator> c2_allocator)
+mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_allocator)
 {
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
@@ -583,8 +583,8 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(std::shared_ptr<C2GraphicBloc
             }
 
             C2Rect required_rect(video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height);
-            if (block->width() > required_rect.mWidth || block->height() > required_rect.mHeight) {
-                MFX_DEBUG_TRACE_STREAM(NAMED(required_rect.mWidth) << NAMED(required_rect.mHeight));
+            if (block->width() > required_rect.width || block->height() > required_rect.height) {
+                MFX_DEBUG_TRACE_STREAM(NAMED(required_rect.width) << NAMED(required_rect.height));
                 block->setCrop(required_rect);
             }
 
@@ -597,9 +597,9 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(std::shared_ptr<C2GraphicBloc
                 break;
             }
 
-            C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
+            C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
 
-            res = last_work_allocator_->allocateGraphicBlock(
+            res = last_work_allocator_->fetchGraphicBlock(
                 video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height,
                 0/*format*/, mem_usage, out_block);
         }
@@ -663,7 +663,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
     c2_status_t res = C2_OK;
     mfxStatus mfx_sts = MFX_ERR_NONE;
 
-    std::shared_ptr<C2BlockAllocator> work_allocator = work->worklets.front()->allocators.front();
+    std::shared_ptr<C2BlockPool> work_allocator = work->worklets.front()->allocators.front();
     if (work_allocator) {
         last_work_allocator_ = work_allocator;
     }
