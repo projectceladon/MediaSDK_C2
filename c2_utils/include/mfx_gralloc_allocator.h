@@ -83,7 +83,7 @@ public:
 
     virtual android::c2_status_t Alloc(const uint16_t width, const uint16_t height, buffer_handle_t* handle);
     virtual android::c2_status_t Free(const buffer_handle_t handle);
-    virtual android::c2_status_t LockFrame(buffer_handle_t handle, uint8_t** data, android::C2PlaneLayout *layout);
+    virtual android::c2_status_t LockFrame(buffer_handle_t handle, uint8_t** data, android::C2PlanarLayout *layout);
     virtual android::c2_status_t UnlockFrame(buffer_handle_t handle);
 
 private:

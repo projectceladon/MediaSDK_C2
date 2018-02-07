@@ -75,7 +75,7 @@ private:
 
     mfxStatus Reset();
 
-    mfxStatus InitDecoder(std::shared_ptr<android::C2BlockAllocator> c2_allocator);
+    mfxStatus InitDecoder(std::shared_ptr<android::C2BlockPool> c2_allocator);
 
     void FreeDecoder();
 
@@ -144,5 +144,5 @@ private:
 
     MfxFramePoolAllocator* allocator_; // used when Video memory output
 
-    std::shared_ptr<android::C2BlockAllocator> last_work_allocator_; // used when System memory output
+    std::shared_ptr<android::C2BlockPool> last_work_allocator_; // used when System memory output
 };

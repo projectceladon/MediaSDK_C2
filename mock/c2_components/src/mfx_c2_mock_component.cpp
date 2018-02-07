@@ -33,7 +33,7 @@ void MfxC2MockComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
 }
 
 c2_status_t MfxC2MockComponent::CopyGraphicToLinear(const C2BufferPack& input,
-    const std::shared_ptr<C2BlockAllocator>& allocator, std::shared_ptr<C2Buffer>* out_buffer)
+    const std::shared_ptr<C2BlockPool>& allocator, std::shared_ptr<C2Buffer>* out_buffer)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -58,10 +58,10 @@ c2_status_t MfxC2MockComponent::CopyGraphicToLinear(const C2BufferPack& input,
         const uint8_t* in_raw = c_graph_view->data();
 
         const size_t MEM_SIZE = width * height * 3 / 2;
-        C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
+        C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
         std::shared_ptr<C2LinearBlock> out_block;
 
-        res = allocator->allocateLinearBlock(MEM_SIZE, mem_usage, &out_block);
+        res = allocator->fetchLinearBlock(MEM_SIZE, mem_usage, &out_block);
         if(C2_OK != res) break;
 
         uint8_t* out_raw = nullptr;
@@ -103,7 +103,7 @@ static c2_status_t GuessFrameSize(uint32_t buffer_size, uint32_t* width, uint32_
 }
 
 c2_status_t MfxC2MockComponent::CopyLinearToGraphic(const C2BufferPack& input,
-    const std::shared_ptr<C2BlockAllocator>& allocator, std::shared_ptr<C2Buffer>* out_buffer)
+    const std::shared_ptr<C2BlockPool>& allocator, std::shared_ptr<C2Buffer>* out_buffer)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -133,10 +133,10 @@ c2_status_t MfxC2MockComponent::CopyLinearToGraphic(const C2BufferPack& input,
         if(C2_OK != res) break;
 
         const size_t MEM_SIZE = width * height * 3 / 2;
-        C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, producer_memory_type_ };
+        C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, producer_memory_type_ };
         std::shared_ptr<C2GraphicBlock> out_block;
 
-        res = allocator->allocateGraphicBlock(width, height, 0/*format*/, mem_usage, &out_block);
+        res = allocator->fetchGraphicBlock(width, height, 0/*format*/, mem_usage, &out_block);
         if(C2_OK != res) break;
         {
             std::unique_ptr<C2GraphicView> out_view;
@@ -186,7 +186,7 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
             res = C2_BAD_VALUE;
             break;
         }
-        const std::shared_ptr<C2BlockAllocator>& allocator = worklet->allocators.front();
+        const std::shared_ptr<C2BlockPool>& allocator = worklet->allocators.front();
         //  form header of output data, copy input timestamps, etc. to identify data in test
         output.ordinal.timestamp = input.ordinal.timestamp;
         output.ordinal.frame_index = input.ordinal.frame_index;

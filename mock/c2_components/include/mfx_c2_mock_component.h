@@ -57,11 +57,11 @@ protected:
 private:
     // Allocates linear block of the length as input and copies input there.
     android::c2_status_t CopyGraphicToLinear(const android::C2BufferPack& input,
-        const std::shared_ptr<android::C2BlockAllocator>& allocator,
+        const std::shared_ptr<android::C2BlockPool>& allocator,
         std::shared_ptr<android::C2Buffer>* out_buffer);
     // Allocates graphic block of the length as input and copies input there.
     android::c2_status_t CopyLinearToGraphic(const android::C2BufferPack& input,
-        const std::shared_ptr<android::C2BlockAllocator>& allocator,
+        const std::shared_ptr<android::C2BlockPool>& allocator,
         std::shared_ptr<android::C2Buffer>* out_buffer);
 
     void DoWork(std::unique_ptr<android::C2Work>&& work);
@@ -71,5 +71,5 @@ private:
 
     MfxCmdQueue cmd_queue_;
 
-    android::C2MemoryUsage::Producer producer_memory_type_ { android::C2MemoryUsage::kSoftwareWrite };
+    android::C2MemoryUsage::Producer producer_memory_type_ { android::C2MemoryUsage::CPU_WRITE };
 };

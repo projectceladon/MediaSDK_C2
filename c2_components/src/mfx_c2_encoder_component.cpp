@@ -341,11 +341,11 @@ c2_status_t MfxC2EncoderComponent::AllocateBitstream(const std::unique_ptr<andro
             break;
         }
 
-        std::shared_ptr<C2BlockAllocator> allocator = worklet->allocators.front();
-        C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
+        std::shared_ptr<C2BlockPool> allocator = worklet->allocators.front();
+        C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
         std::shared_ptr<C2LinearBlock> out_block;
 
-        res = allocator->allocateLinearBlock(required_size, mem_usage, &out_block);
+        res = allocator->fetchLinearBlock(required_size, mem_usage, &out_block);
         if(C2_OK != res) break;
 
         res = MfxC2BitstreamOut::Create(out_block, TIMEOUT_NS, mfx_bitstream);

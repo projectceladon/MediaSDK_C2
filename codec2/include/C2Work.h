@@ -99,7 +99,7 @@ struct C2Worklet {
     std::list<std::unique_ptr<C2Param>> tunings; //< tunings to be applied before processing this
                                                  // worklet
     std::list<C2Param::Type> requestedInfos;
-    std::vector<std::shared_ptr<C2BlockAllocator>> allocators; //< This vector shall be the same size as
+    std::vector<std::shared_ptr<C2BlockPool>> allocators; //< This vector shall be the same size as
                                                           //< output.buffers.
 
     // OUT

@@ -283,7 +283,7 @@ c2_status_t MfxGrallocAllocator::Free(const buffer_handle_t handle)
     return res;
 }
 
-c2_status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** data, C2PlaneLayout *layout)
+c2_status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** data, C2PlanarLayout *layout)
 {
     MFX_DEBUG_TRACE_FUNC;
     MFX_DEBUG_TRACE_P(handle);

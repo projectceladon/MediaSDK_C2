@@ -173,7 +173,7 @@ static void PrepareWork(uint32_t frame_index,
 
     do {
 
-        std::shared_ptr<android::C2BlockAllocator> allocator;
+        std::shared_ptr<android::C2BlockPool> allocator;
         android::c2_status_t sts = GetC2BlockAllocator(&allocator);
 
         EXPECT_EQ(sts, C2_OK);
@@ -181,9 +181,9 @@ static void PrepareWork(uint32_t frame_index,
 
         if(nullptr == allocator) break;
 
-        C2MemoryUsage mem_usage = { C2MemoryUsage::kSoftwareRead, C2MemoryUsage::kSoftwareWrite };
+        C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
         std::shared_ptr<C2LinearBlock> block;
-        sts = allocator->allocateLinearBlock(bitstream.size(),
+        sts = allocator->fetchLinearBlock(bitstream.size(),
             mem_usage, &block);
 
         EXPECT_EQ(sts, C2_OK);
@@ -290,13 +290,13 @@ protected:
             if(nullptr != graphic_block) {
 
                 C2Rect crop = graphic_block->crop();
-                EXPECT_NE(crop.mWidth, 0);
-                EXPECT_NE(crop.mHeight, 0);
+                EXPECT_NE(crop.width, 0);
+                EXPECT_NE(crop.height, 0);
 
                 std::unique_ptr<const C2GraphicView> c_graph_view;
                 sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &c_graph_view);
 
-                const C2PlaneLayout* layout = c_graph_view->planeLayout();
+                const C2PlanarLayout* layout = c_graph_view->layout();
 
                 const uint8_t* raw  = c_graph_view->data();
 
@@ -304,23 +304,23 @@ protected:
                 EXPECT_NE(raw, nullptr);
 
                 std::shared_ptr<std::vector<uint8_t>> data_buffer = std::make_shared<std::vector<uint8_t>>();
-                data_buffer->resize(crop.mWidth * crop.mHeight * 3 / 2);
+                data_buffer->resize(crop.width * crop.height * 3 / 2);
                 uint8_t* raw_cropped = &(data_buffer->front());
-                uint8_t* raw_cropped_chroma = raw_cropped + crop.mWidth * crop.mHeight;
-                const uint8_t* raw_chroma = raw + layout->mPlanes[C2PlaneLayout::U].mOffset;
+                uint8_t* raw_cropped_chroma = raw_cropped + crop.width * crop.height;
+                const uint8_t* raw_chroma = raw + layout->planes[C2PlanarLayout::PLANE_U].mOffset;
 
-                for (uint32_t i = 0; i < crop.mHeight; i++) {
-                    const uint32_t stride = layout->mPlanes[C2PlaneLayout::Y].mRowInc;
-                    memcpy(raw_cropped + i * crop.mWidth, raw + (i + crop.mTop) * stride + crop.mLeft, crop.mWidth);
+                for (uint32_t i = 0; i < crop.height; i++) {
+                    const uint32_t stride = layout->planes[C2PlanarLayout::PLANE_Y].rowInc;
+                    memcpy(raw_cropped + i * crop.width, raw + (i + crop.top) * stride + crop.left, crop.width);
                 }
-                for (uint32_t i = 0; i < (crop.mHeight >> 1); i++) {
-                    const uint32_t stride = layout->mPlanes[C2PlaneLayout::U].mRowInc;
-                    memcpy(raw_cropped_chroma + i * crop.mWidth, raw_chroma + (i + (crop.mTop >> 1)) * stride + crop.mLeft, crop.mWidth);
+                for (uint32_t i = 0; i < (crop.height >> 1); i++) {
+                    const uint32_t stride = layout->planes[C2PlanarLayout::PLANE_U].rowInc;
+                    memcpy(raw_cropped_chroma + i * crop.width, raw_chroma + (i + (crop.top >> 1)) * stride + crop.left, crop.width);
                 }
 
                 if(nullptr != raw_cropped) {
-                    on_frame_(crop.mWidth, crop.mHeight,
-                        raw_cropped, crop.mWidth * crop.mHeight * 3 / 2);
+                    on_frame_(crop.width, crop.height,
+                        raw_cropped, crop.width * crop.height * 3 / 2);
                 }
             }
         }

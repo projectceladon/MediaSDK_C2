@@ -16,7 +16,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 class MfxFramePoolAllocator
 {
 public:
-    virtual void SetC2Allocator(std::shared_ptr<android::C2BlockAllocator> c2_allocator) = 0;
+    virtual void SetC2Allocator(std::shared_ptr<android::C2BlockPool> c2_allocator) = 0;
     virtual std::shared_ptr<android::C2GraphicBlock> Alloc() = 0;
     virtual void Reset() = 0;
 

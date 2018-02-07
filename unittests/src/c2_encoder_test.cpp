@@ -201,7 +201,7 @@ static void PrepareWork(uint32_t frame_index, bool last_frame, bool graphics_mem
 
     do {
 
-        std::shared_ptr<android::C2BlockAllocator> allocator;
+        std::shared_ptr<android::C2BlockPool> allocator;
         android::c2_status_t sts = GetC2BlockAllocator(&allocator);
 
         EXPECT_EQ(sts, C2_OK);
@@ -210,11 +210,11 @@ static void PrepareWork(uint32_t frame_index, bool last_frame, bool graphics_mem
         if(nullptr == allocator) break;
 
         C2MemoryUsage mem_usage = {
-            graphics_memory ? C2MemoryUsage::kHardwareEncoder : C2MemoryUsage::kSoftwareRead,
-            C2MemoryUsage::kSoftwareWrite
+            graphics_memory ? C2MemoryUsage::HW_CODEC_READ : C2MemoryUsage::CPU_READ,
+            C2MemoryUsage::CPU_WRITE
         };
         std::shared_ptr<C2GraphicBlock> block;
-        sts = allocator->allocateGraphicBlock(FRAME_WIDTH, FRAME_HEIGHT, FRAME_FORMAT,
+        sts = allocator->fetchGraphicBlock(FRAME_WIDTH, FRAME_HEIGHT, FRAME_FORMAT,
             mem_usage, &block);
 
         EXPECT_EQ(sts, C2_OK);
@@ -232,9 +232,9 @@ static void PrepareWork(uint32_t frame_index, bool last_frame, bool graphics_mem
                 uint8_t* data = graph_view->data();
                 EXPECT_NE(data, nullptr);
 
-                const C2PlaneLayout* layout = graph_view->planeLayout();
-                const uint32_t stride = layout->mPlanes[C2PlaneLayout::Y].mRowInc;
-                const uint32_t alloc_height = layout->mPlanes[C2PlaneLayout::U].mOffset / stride;
+                const C2PlanarLayout* layout = graph_view->layout();
+                const uint32_t stride = layout->planes[C2PlanarLayout::PLANE_Y].rowInc;
+                const uint32_t alloc_height = layout->planes[C2PlanarLayout::PLANE_U].mOffset / stride;
 
                 for(FrameGenerator* generator : generators) {
                     generator->Apply(frame_index, data, FRAME_WIDTH, stride, alloc_height);
