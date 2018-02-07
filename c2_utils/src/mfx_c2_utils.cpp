@@ -381,6 +381,8 @@ void InitNV12PlaneLayout(int32_t pitch, int32_t alloc_height, C2PlanarLayout* la
     y_plane.rowSampling = 1;
     y_plane.bitDepth = 8;
     y_plane.allocatedDepth = 8;
+    y_plane.rightShift = 0;
+    y_plane.endianness = C2PlaneInfo::NATIVE;
 
     C2PlaneInfo& u_plane = layout->planes[C2PlanarLayout::PLANE_U];
     u_plane.channel = C2PlaneInfo::CHANNEL_CB;
@@ -398,6 +400,8 @@ void InitNV12PlaneLayout(int32_t pitch, int32_t alloc_height, C2PlanarLayout* la
         plane.rowSampling = 2;
         plane.bitDepth = 8;
         plane.allocatedDepth = 8;
+        plane.rightShift = 0;
+        plane.endianness = C2PlaneInfo::NATIVE;
     }
 }
 
