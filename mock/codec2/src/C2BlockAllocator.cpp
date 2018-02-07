@@ -258,9 +258,9 @@ const uint8_t *C2GraphicView::data() const
     return mImpl->data_;
 }
 
-const C2PlanarLayout* C2GraphicView::layout() const
+const C2PlanarLayout C2GraphicView::layout() const
 {
-    return &(mImpl->plane_layout_);
+    return mImpl->plane_layout_;
 }
 
 C2Acquirable<const C2GraphicView> C2ConstGraphicBlock::map() const

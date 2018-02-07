@@ -997,7 +997,7 @@ public:
      */
     uint8_t *data();
 
-    const C2PlanarLayout* layout() const;
+    const C2PlanarLayout layout() const;
 
     /**
      * Returns a section of this view.
