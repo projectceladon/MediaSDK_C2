@@ -169,7 +169,12 @@ public:
 
     void InitNV12PlaneLayout(C2PlanarLayout* plane_layout)
     {
-        ::InitNV12PlaneLayout(width_, height_, plane_layout);
+        ::InitNV12PlaneLayout(width_, plane_layout);
+    }
+
+    void InitNV12PlaneData(uint8_t** plane_data)
+    {
+        ::InitNV12PlaneData(width_, height_, data(), plane_data);
     }
 };
 
@@ -204,7 +209,7 @@ c2_status_t C2Block2D::Impl::Map(C2Event* event, std::unique_ptr<C2GraphicView::
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t error = C2_OK;
-    uint8_t* data = nullptr;
+    std::vector<uint8_t*> data(C2PlanarLayout::MAX_NUM_PLANES);
     C2PlanarLayout plane_layout {};
 
     bool locked = locked_.exchange(true);
@@ -213,11 +218,12 @@ c2_status_t C2Block2D::Impl::Map(C2Event* event, std::unique_ptr<C2GraphicView::
     } else {
         if (nullptr == handle_) { // system memory block
             sw_buffer_.InitNV12PlaneLayout(&plane_layout);
-            data = sw_buffer_.data();
+            sw_buffer_.InitNV12PlaneData(data.data());
         } else {
             MFX_DEBUG_TRACE_P(handle_);
-            error = gralloc_allocator_->LockFrame(handle_, &data, &plane_layout);
+            error = gralloc_allocator_->LockFrame(handle_, &data.front(), &plane_layout);
         }
+        data.resize(plane_layout.numPlanes);
     }
 
     MFX_DEBUG_TRACE__android_c2_status_t(error);
@@ -234,13 +240,13 @@ c2_status_t C2Block2D::Impl::Map(C2Event* event, std::unique_ptr<C2GraphicView::
 class C2GraphicView::Impl
 {
 public:
-    uint8_t* data_ {};
+    std::vector<uint8_t*> data_ {};
     C2PlanarLayout plane_layout_ {};
     // shared_ptr to prevent C2Block::Impl destruction before this destruction
     std::shared_ptr<C2Block2D::Impl> block_impl_ {};
 
 public:
-    Impl(uint8_t* data, const C2PlanarLayout& plane_layout, const std::shared_ptr<C2Block2D::Impl>& block_impl)
+    Impl(std::vector<uint8_t*> data, const C2PlanarLayout& plane_layout, const std::shared_ptr<C2Block2D::Impl>& block_impl)
         : data_(data), plane_layout_(plane_layout), block_impl_(block_impl) { }
 
     ~Impl() {
@@ -248,14 +254,14 @@ public:
     }
 };
 
-uint8_t *C2GraphicView::data()
+uint8_t *const *C2GraphicView::data()
 {
-    return mImpl->data_;
+    return &mImpl->data_.front();
 }
 
-const uint8_t *C2GraphicView::data() const
+const uint8_t *const *C2GraphicView::data() const
 {
-    return mImpl->data_;
+    return &mImpl->data_.front();
 }
 
 const C2PlanarLayout C2GraphicView::layout() const

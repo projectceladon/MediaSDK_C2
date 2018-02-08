@@ -98,7 +98,7 @@ static std::unique_ptr<C2ConstGraphicBlock> CreateFilledGraphicBlock(
 
             if(nullptr == graph_view) break;
 
-            memset(graph_view->data(), fill, FRAME_BUF_SIZE);
+            memset(graph_view->data()[0], fill, FRAME_BUF_SIZE);
         }
         C2Event event;
         event.fire(); // pre-fire as buffer is already ready to use
@@ -286,9 +286,9 @@ protected:
                     std::unique_ptr<const C2GraphicView> c_graph_view;
                     sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &c_graph_view);
                     EXPECT_EQ(sts, C2_OK);
-                    const uint8_t* raw = c_graph_view->data();
+                    const uint8_t* const* raw = c_graph_view->data();
                     EXPECT_NE(raw, nullptr);
-                    CheckFilledBuffer(raw, frame_index);
+                    CheckFilledBuffer(raw[0], frame_index);
                 }
             }
         }

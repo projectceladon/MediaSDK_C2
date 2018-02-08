@@ -368,7 +368,15 @@ bool AvcLevelMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value)
     return SecondToFirst(g_h264_levels, mfx_value, android_value);
 }
 
-void InitNV12PlaneLayout(int32_t pitch, int32_t alloc_height, C2PlanarLayout* layout)
+// Returns pointers to NV12 planes.
+void InitNV12PlaneData(int32_t pitch, int32_t alloc_height, uint8_t* base, uint8_t** plane_data)
+{
+    plane_data[C2PlanarLayout::PLANE_Y] = base;
+    plane_data[C2PlanarLayout::PLANE_U] = base + alloc_height * pitch;
+    plane_data[C2PlanarLayout::PLANE_V] = base + alloc_height * pitch + 1;
+}
+
+void InitNV12PlaneLayout(int32_t pitch, C2PlanarLayout* layout)
 {
     layout->type = android::C2PlanarLayout::TYPE_YUV;
     layout->numPlanes = 3;
@@ -386,11 +394,9 @@ void InitNV12PlaneLayout(int32_t pitch, int32_t alloc_height, C2PlanarLayout* la
 
     C2PlaneInfo& u_plane = layout->planes[C2PlanarLayout::PLANE_U];
     u_plane.channel = C2PlaneInfo::CHANNEL_CB;
-    u_plane.mOffset = alloc_height * pitch;
 
     C2PlaneInfo& v_plane = layout->planes[C2PlanarLayout::PLANE_V];
     v_plane.channel = C2PlaneInfo::CHANNEL_CR;
-    v_plane.mOffset = alloc_height * pitch + 1;
 
     for (C2PlanarLayout::plane_index_t plane_index : { C2PlanarLayout::PLANE_U, C2PlanarLayout::PLANE_V }) {
         C2PlaneInfo& plane = layout->planes[plane_index];

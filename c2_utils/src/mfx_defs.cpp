@@ -41,7 +41,7 @@ static void InitMfxNV12FrameHeader(
 
 void InitMfxNV12FrameSW(
     uint64_t timestamp, uint64_t frame_index,
-    const uint8_t* data,
+    const uint8_t *const *data,
     uint32_t width, uint32_t height, mfxFrameSurface1* mfx_frame)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -57,9 +57,9 @@ void InitMfxNV12FrameSW(
     mfx_frame->Data.PitchHigh = stride / (std::numeric_limits<mfxU16>::max() + 1ul);
     mfx_frame->Data.PitchLow = stride % (std::numeric_limits<mfxU16>::max() + 1ul);
     // TODO: 16-byte align requirement is not fulfilled - copy might be needed
-    mfx_frame->Data.Y = const_cast<uint8_t*>(data);
-    mfx_frame->Data.UV = mfx_frame->Data.Y + stride * height;
-    mfx_frame->Data.V = mfx_frame->Data.UV;
+    mfx_frame->Data.Y = const_cast<uint8_t*>(data[0]);
+    mfx_frame->Data.UV = const_cast<uint8_t*>(data[1]);
+    mfx_frame->Data.V = const_cast<uint8_t*>(data[2]);
 }
 
 void InitMfxNV12FrameHW(

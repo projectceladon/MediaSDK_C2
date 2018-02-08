@@ -297,20 +297,23 @@ protected:
 
                 C2PlanarLayout layout = c_graph_view->layout();
 
-                const uint8_t* raw  = c_graph_view->data();
+                const uint8_t* const* raw  = c_graph_view->data();
 
                 EXPECT_EQ(sts, C2_OK);
                 EXPECT_NE(raw, nullptr);
+                for (uint32_t i = 0; i < layout.numPlanes; ++i) {
+                    EXPECT_NE(raw[i], nullptr);
+                }
 
                 std::shared_ptr<std::vector<uint8_t>> data_buffer = std::make_shared<std::vector<uint8_t>>();
                 data_buffer->resize(crop.width * crop.height * 3 / 2);
                 uint8_t* raw_cropped = &(data_buffer->front());
                 uint8_t* raw_cropped_chroma = raw_cropped + crop.width * crop.height;
-                const uint8_t* raw_chroma = raw + layout.planes[C2PlanarLayout::PLANE_U].mOffset;
+                const uint8_t* raw_chroma = raw[C2PlanarLayout::PLANE_U];
 
                 for (uint32_t i = 0; i < crop.height; i++) {
                     const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_Y].rowInc;
-                    memcpy(raw_cropped + i * crop.width, raw + (i + crop.top) * stride + crop.left, crop.width);
+                    memcpy(raw_cropped + i * crop.width, raw[C2PlanarLayout::PLANE_Y] + (i + crop.top) * stride + crop.left, crop.width);
                 }
                 for (uint32_t i = 0; i < (crop.height >> 1); i++) {
                     const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_U].rowInc;
