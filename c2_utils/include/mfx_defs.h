@@ -136,7 +136,7 @@ typename std::iterator_traits<typename Collection::iterator>::value_type Extract
 
 void InitMfxNV12FrameSW(
     uint64_t timestamp, uint64_t frame_index,
-    const uint8_t* data,
+    const uint8_t *const *data,
     uint32_t width, uint32_t height, mfxFrameSurface1* mfx_frame);
 
 void InitMfxNV12FrameHW(

@@ -55,7 +55,7 @@ c2_status_t MfxC2MockComponent::CopyGraphicToLinear(const C2BufferPack& input,
         std::unique_ptr<const C2GraphicView> c_graph_view;
         res = MapConstGraphicBlock(*const_graphic_block, TIMEOUT_NS, &c_graph_view);
         if(C2_OK != res) break;
-        const uint8_t* in_raw = c_graph_view->data();
+        const uint8_t* const* in_raw = c_graph_view->data();
 
         const size_t MEM_SIZE = width * height * 3 / 2;
         C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
@@ -70,7 +70,7 @@ c2_status_t MfxC2MockComponent::CopyGraphicToLinear(const C2BufferPack& input,
         if(C2_OK != res) break;
 
         //  copy input buffer to output as is to identify data in test
-        memcpy(out_raw, in_raw, MEM_SIZE);
+        memcpy(out_raw, in_raw[0], MEM_SIZE);
 
         C2Event event;
         event.fire(); // pre-fire event as output buffer is ready to use
@@ -143,7 +143,7 @@ c2_status_t MfxC2MockComponent::CopyLinearToGraphic(const C2BufferPack& input,
             if(C2_OK != res) break;
 
             //  copy input buffer to output as is to identify data in test
-            memcpy(out_view->data(), in_raw, MEM_SIZE);
+            memcpy(out_view->data()[0], in_raw, MEM_SIZE);
         }
         C2Event event;
         event.fire(); // pre-fire event as output buffer is ready to use

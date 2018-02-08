@@ -71,7 +71,9 @@ bool AvcLevelAndroidToMfx(uint32_t android_value, mfxU16* mfx_value);
 
 bool AvcLevelMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value);
 
-void InitNV12PlaneLayout(int32_t pitch, int32_t alloc_height, android::C2PlanarLayout* layout);
+void InitNV12PlaneLayout(int32_t pitch, android::C2PlanarLayout* layout);
+
+void InitNV12PlaneData(int32_t pitch, int32_t alloc_height, uint8_t* base, uint8_t** plane_data);
 
 bool C2MemoryTypeToMfxIOPattern(bool input, android::C2MemoryType memory_type, mfxU16* io_pattern);
 

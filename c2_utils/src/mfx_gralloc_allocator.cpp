@@ -326,8 +326,8 @@ c2_status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** dat
     }
 
     if (C2_OK == res) {
-        InitNV12PlaneLayout(details.pitch, details.allocHeight, layout);
-        *data = img;
+        InitNV12PlaneLayout(details.pitch, layout);
+        InitNV12PlaneData(details.pitch, details.allocHeight, img, data);
     }
 
     MFX_DEBUG_TRACE__android_c2_status_t(res);

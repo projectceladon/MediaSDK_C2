@@ -229,15 +229,20 @@ static void PrepareWork(uint32_t frame_index, bool last_frame, bool graphics_mem
             EXPECT_TRUE(graph_view);
 
             if (graph_view) {
-                uint8_t* data = graph_view->data();
-                EXPECT_NE(data, nullptr);
+                uint8_t* const* data = graph_view->data();
 
                 const C2PlanarLayout layout = graph_view->layout();
+                EXPECT_NE(data, nullptr);
+                for (uint32_t i = 0; i < layout.numPlanes; ++i) {
+                    EXPECT_NE(data[i], nullptr);
+                }
+
                 const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_Y].rowInc;
-                const uint32_t alloc_height = layout.planes[C2PlanarLayout::PLANE_U].mOffset / stride;
+                const uint32_t alloc_height =
+                    (data[C2PlanarLayout::PLANE_U] - data[C2PlanarLayout::PLANE_Y]) / stride;
 
                 for(FrameGenerator* generator : generators) {
-                    generator->Apply(frame_index, data, FRAME_WIDTH, stride, alloc_height);
+                    generator->Apply(frame_index, data[C2PlanarLayout::PLANE_Y], FRAME_WIDTH, stride, alloc_height);
                 }
             }
         }

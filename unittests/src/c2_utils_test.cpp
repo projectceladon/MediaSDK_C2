@@ -285,7 +285,8 @@ TEST(MfxDev, InitCloseNoLeaks)
     }
 }
 
-static void CheckNV12PlaneLayout(uint16_t width, uint16_t height, const C2PlanarLayout& layout)
+static void CheckNV12PlaneLayout(uint16_t width, uint16_t height, const C2PlanarLayout& layout,
+    const uint8_t* const* data)
 {
     using Layout = C2PlanarLayout;
     using Info = C2PlaneInfo;
@@ -307,11 +308,15 @@ static void CheckNV12PlaneLayout(uint16_t width, uint16_t height, const C2Planar
         EXPECT_EQ(layout.planes[index].rowSampling, index == Layout::PLANE_Y ? 1 : 2);
         EXPECT_EQ(layout.planes[index].bitDepth, 8);
         EXPECT_EQ(layout.planes[index].allocatedDepth, 8);
+        EXPECT_EQ(layout.planes[index].rightShift, 0);
+        EXPECT_EQ(layout.planes[index].endianness, C2PlaneInfo::NATIVE);
 
-        if (index != Layout::PLANE_Y) EXPECT_TRUE(layout.planes[index].mOffset >= width * height);
+        EXPECT_NE(data[index], nullptr);
+        if (index != Layout::PLANE_Y) {
+            EXPECT_TRUE(data[index] - data[0] >= layout.planes[Layout::PLANE_Y].rowInc * height);
+        }
     }
-    EXPECT_EQ(layout.planes[Layout::PLANE_Y].mOffset, 0);
-    EXPECT_EQ(layout.planes[Layout::PLANE_U].mOffset + 1, layout.planes[Layout::PLANE_V].mOffset);
+    EXPECT_EQ(data[Layout::PLANE_U] + 1, data[Layout::PLANE_V]);
 }
 
 static void CheckMfxFrameData(mfxU32 fourcc, uint16_t width, uint16_t height,
@@ -347,12 +352,12 @@ static uint8_t PlanePixelValue(uint16_t x, uint16_t y, uint32_t plane_index, int
 typedef std::function<void(uint16_t x, uint16_t y, uint32_t plane_index, uint8_t* plane_pixel)> ProcessPlanePixel;
 
 static void ForEveryPlanePixel(uint16_t width, uint16_t height, const C2PlanarLayout& layout,
-    const ProcessPlanePixel& process_function, uint8_t* data)
+    const ProcessPlanePixel& process_function, uint8_t* const* data)
 {
     for (uint32_t i = 0; i < layout.numPlanes; ++i) {
         const C2PlaneInfo& plane = layout.planes[i];
 
-        uint8_t* row = data + plane.mOffset;
+        uint8_t* row = data[i];
         for (uint16_t y = 0; y < height; y += plane.rowSampling) {
             uint8_t* pixel = row;
             for (uint16_t x = 0; x < width; x += plane.colSampling) {
@@ -465,13 +470,12 @@ TEST(MfxGrallocAllocator, BufferKeepsContents)
         }
 
         for (int i = 0; i < FRAME_COUNT; ++i) {
-            uint8_t* data {};
+            uint8_t* data[C2PlanarLayout::MAX_NUM_PLANES] {};
             android::C2PlanarLayout layout {};
-            res = allocator->LockFrame(handle[i], &data, &layout);
+            res = allocator->LockFrame(handle[i], data, &layout);
             EXPECT_EQ(res, C2_OK);
-            EXPECT_NE(data, nullptr);
 
-            CheckNV12PlaneLayout(WIDTH, HEIGHT, layout);
+            CheckNV12PlaneLayout(WIDTH, HEIGHT, layout, data);
 
             FillFrameContents(WIDTH, HEIGHT, i, layout, data);
 
@@ -480,13 +484,12 @@ TEST(MfxGrallocAllocator, BufferKeepsContents)
         }
 
         for (int i = 0; i < FRAME_COUNT; ++i) {
-            uint8_t* data {};
+            uint8_t* data[C2PlanarLayout::MAX_NUM_PLANES] {};
             android::C2PlanarLayout layout {};
-            res = allocator->LockFrame(handle[i], &data, &layout);
+            res = allocator->LockFrame(handle[i], data, &layout);
             EXPECT_EQ(res, C2_OK);
-            EXPECT_NE(data, nullptr);
 
-            CheckNV12PlaneLayout(WIDTH, HEIGHT, layout);
+            CheckNV12PlaneLayout(WIDTH, HEIGHT, layout, data);
 
             CheckFrameContents(WIDTH, HEIGHT, i, layout, data);
 
@@ -812,19 +815,18 @@ TEST(MfxFrameConverter, GrallocContentsMappedToVa)
     };
 
     // operation on frame mapped from gralloc to system memory
-    typedef std::function<void (int frame_index, const C2PlanarLayout& layout, uint8_t* data)> GrMemOperation;
+    typedef std::function<void (int frame_index, const C2PlanarLayout& layout, uint8_t* const* data)> GrMemOperation;
     // lambda constructing test step doing: gralloc Lock, some specific work on locked memory, gralloc unlock
     auto do_gr_mem_operation = [&] (GrMemOperation gr_mem_operation) {
         return [&] (MfxGrallocAllocator* gr_allocator, MfxFrameAllocator*, MfxFrameConverter*) {
 
             for (int i = 0; i < FRAME_COUNT; ++i) {
-                uint8_t* data {};
+                uint8_t* data[C2PlanarLayout::MAX_NUM_PLANES] {};
                 android::C2PlanarLayout layout {};
-                res = gr_allocator->LockFrame(handles[i], &data, &layout);
+                res = gr_allocator->LockFrame(handles[i], data, &layout);
                 EXPECT_EQ(res, C2_OK);
-                EXPECT_NE(data, nullptr);
 
-                CheckNV12PlaneLayout(WIDTH, HEIGHT, layout);
+                CheckNV12PlaneLayout(WIDTH, HEIGHT, layout, data);
 
                 gr_mem_operation(i, layout, data);
 
@@ -876,7 +878,7 @@ TEST(MfxFrameConverter, GrallocContentsMappedToVa)
     // all test steps together
     MfxFrameConverterTest( {
         gr_alloc,
-        do_gr_mem_operation([&] (int frame_index, const C2PlanarLayout& layout, uint8_t* data) {
+        do_gr_mem_operation([&] (int frame_index, const C2PlanarLayout& layout, uint8_t* const* data) {
             FillFrameContents(WIDTH, HEIGHT, frame_index, layout, data); // fill gralloc with pattern #1
         }),
         gr_convert_to_va,
@@ -887,7 +889,7 @@ TEST(MfxFrameConverter, GrallocContentsMappedToVa)
             // fill va with pattern #2
             FillFrameContents(WIDTH, HEIGHT, FRAME_COUNT - frame_index, frame_info, frame_data);
         }),
-        do_gr_mem_operation([&] (int frame_index, const C2PlanarLayout& layout, uint8_t* data) {
+        do_gr_mem_operation([&] (int frame_index, const C2PlanarLayout& layout, uint8_t* const* data) {
             // check pattern #2 in gralloc
             CheckFrameContents(WIDTH, HEIGHT, FRAME_COUNT - frame_index, layout, data);
         }),

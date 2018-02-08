@@ -892,8 +892,6 @@ struct C2PlaneInfo {
         BIG_END,    // BIG_ENDIAN is a reserved macro
     } endianness; ///< endianness of the samples
 
-    uint32_t mOffset;
-
     inline ssize_t minOffset(uint32_t width, uint32_t height) {
         ssize_t offs = 0;
         if (width > 0 && colInc < 0) {
@@ -1014,14 +1012,20 @@ public:
     C2GraphicView(const _C2PlanarCapacityAspect *parent) :
         _C2PlanarSection(parent) {}
     /**
-     * \return pointer to the start of the block or nullptr on error.
+     * \return array of pointers to the start of the planes or nullptr on error.
+     * Regardless of crop rect, they always point to the top-left corner of
+     * each plane.  Access outside of the crop rect results in an undefined
+     * behavior.
      */
-    const uint8_t *data() const;
+    const uint8_t *const *data() const;
 
     /**
-     * \return pointer to the start of the block or nullptr on error.
+     * \return array of pointers to the start of the planes or nullptr on error.
+     * Regardless of crop rect, they always point to the top-left corner of
+     * each plane.  Access outside of the crop rect results in an undefined
+     * behavior.
      */
-    uint8_t *data();
+    uint8_t *const *data();
 
     const C2PlanarLayout layout() const;
 
