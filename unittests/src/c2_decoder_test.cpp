@@ -202,8 +202,7 @@ static void PrepareWork(uint32_t frame_index,
         event.fire(); // pre-fire as buffer is already ready to use
         C2ConstLinearBlock const_block = block->share(0, bitstream.size(), event.fence());
         // make buffer of linear block
-        C2BufferData buffer_data = const_block;
-        std::shared_ptr<C2Buffer> buffer = std::make_shared<C2Buffer>(buffer_data);
+        std::shared_ptr<C2Buffer> buffer = std::make_shared<C2Buffer>(MakeC2Buffer( { const_block } ));
 
         buffer_pack->buffers.push_back(buffer);
 

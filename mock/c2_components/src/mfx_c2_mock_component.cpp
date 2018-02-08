@@ -75,9 +75,8 @@ c2_status_t MfxC2MockComponent::CopyGraphicToLinear(const C2BufferPack& input,
         C2Event event;
         event.fire(); // pre-fire event as output buffer is ready to use
         C2ConstLinearBlock const_linear = out_block->share(0, out_block->capacity(), event.fence());
-        C2BufferData out_buffer_data = const_linear;
 
-        *out_buffer = std::make_shared<C2Buffer>(out_buffer_data);
+        *out_buffer = std::make_shared<C2Buffer>(MakeC2Buffer( { const_linear } ));
     } while(false);
 
     return res;
@@ -149,9 +148,9 @@ c2_status_t MfxC2MockComponent::CopyLinearToGraphic(const C2BufferPack& input,
         C2Event event;
         event.fire(); // pre-fire event as output buffer is ready to use
         C2ConstGraphicBlock const_graphic = out_block->share(out_block->crop(), event.fence());
-        C2BufferData out_buffer_data = const_graphic;
+        C2Buffer out_gr_buffer = MakeC2Buffer( { const_graphic } );
 
-        *out_buffer = std::make_shared<C2Buffer>(out_buffer_data);
+        *out_buffer = std::make_shared<C2Buffer>(out_gr_buffer);
     } while(false);
 
     return res;

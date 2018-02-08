@@ -183,14 +183,12 @@ static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work,
                 CreateFilledGraphicBlock(allocator, (uint8_t)frame_index, memory_type);
             if(nullptr == const_block) break;
             // make buffer of graphic block
-            C2BufferData buffer_data = *const_block;
-            buffer = std::make_shared<C2Buffer>(buffer_data);
+            buffer = std::make_shared<C2Buffer>(MakeC2Buffer( { *const_block } ));
         } else {
             std::unique_ptr<C2ConstLinearBlock> const_block = CreateFilledLinearBlock(allocator, (uint8_t)frame_index);
             if(nullptr == const_block) break;
             // make buffer of linear block
-            C2BufferData buffer_data = *const_block;
-            buffer = std::make_shared<C2Buffer>(buffer_data);
+            buffer = std::make_shared<C2Buffer>(MakeC2Buffer( { *const_block } ));
         }
 
         buffer_pack->buffers.push_back(buffer);

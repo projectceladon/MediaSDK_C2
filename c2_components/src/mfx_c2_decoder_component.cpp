@@ -798,7 +798,7 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
                 C2Rect crop = work_output.frame_.GetC2GraphicBlock()->crop();
 
                 C2ConstGraphicBlock const_graphic = work_output.frame_.GetC2GraphicBlock()->share(work_output.frame_.GetC2GraphicBlock()->crop(), event.fence());
-                C2BufferData out_buffer_data = const_graphic;
+                C2Buffer out_buffer = MakeC2Buffer( { const_graphic } );
 
                 std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
 
@@ -806,7 +806,7 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
                 worklet->output.ordinal.frame_index = work->input.ordinal.frame_index;
                 worklet->output.ordinal.custom_ordinal = work->input.ordinal.custom_ordinal;
 
-                worklet->output.buffers.front() = std::make_shared<C2Buffer>(out_buffer_data);
+                worklet->output.buffers.front() = std::make_shared<C2Buffer>(out_buffer);
             }
         }
         NotifyWorkDone(std::move(work), MfxStatusToC2(mfx_res));
