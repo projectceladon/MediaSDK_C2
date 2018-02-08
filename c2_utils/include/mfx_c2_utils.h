@@ -78,3 +78,13 @@ bool C2MemoryTypeToMfxIOPattern(bool input, android::C2MemoryType memory_type, m
 bool MfxIOPatternToC2MemoryType(bool input, mfxU16 io_pattern, android::C2MemoryType* memory_type);
 
 int MfxFourCCToGralloc(mfxU32 fourcc);
+
+inline android::C2Buffer MakeC2Buffer(const std::vector<android::C2ConstLinearBlock>& blocks)
+{
+    return android::C2Buffer(android::C2BufferData(blocks.front()));
+}
+
+inline android::C2Buffer MakeC2Buffer(const std::vector<android::C2ConstGraphicBlock>& blocks)
+{
+    return android::C2Buffer(android::C2BufferData(blocks.front()));
+}

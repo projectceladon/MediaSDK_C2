@@ -564,7 +564,7 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
             C2ConstLinearBlock const_linear = bit_stream.GetC2LinearBlock()->share(
                 mfx_bitstream->DataOffset,
                 mfx_bitstream->DataLength, event.fence());
-            C2BufferData out_buffer_data = const_linear;
+            C2Buffer out_buffer = MakeC2Buffer( { const_linear } );
 
             std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
 
@@ -572,7 +572,7 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
             worklet->output.ordinal.frame_index = work->input.ordinal.frame_index;
             worklet->output.ordinal.custom_ordinal = work->input.ordinal.custom_ordinal;
 
-            worklet->output.buffers.front() = std::make_shared<C2Buffer>(out_buffer_data);
+            worklet->output.buffers.front() = std::make_shared<C2Buffer>(out_buffer);
         }
     }
 
