@@ -14,6 +14,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <mfxvp8.h>
 #include <limits>
 #include <algorithm>
+#include <list>
 
 // includes below are to get Intel color formats
 #ifdef MFX_C2_USE_GRALLOC_1
@@ -132,6 +133,14 @@ typename std::iterator_traits<typename Collection::iterator>::value_type Extract
         collection.erase(it);
     }
     return result;
+}
+
+template<typename T>
+std::list<T> MakeList(T&& item)
+{
+    std::list<T> res;
+    res.push_back(std::move(item));
+    return res;
 }
 
 void InitMfxNV12FrameSW(

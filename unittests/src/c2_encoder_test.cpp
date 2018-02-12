@@ -543,10 +543,10 @@ TEST(MfxEncoderComponent, UnsupportedParam)
             // if a setting totally unknown for the component
             // it doesn't have info about its value of other fields
             // so return C2ParamField about whole parameter
-            EXPECT_EQ(set_res->field, C2ParamField(&setting));
+            EXPECT_EQ(set_res->field.paramOrField, C2ParamField(&setting) );
+            EXPECT_EQ(set_res->field.values, nullptr );
             EXPECT_EQ(set_res->failure, C2SettingResult::BAD_TYPE);
-            EXPECT_EQ(set_res->supportedValues, nullptr);
-            EXPECT_TRUE(set_res->conflictingFields.empty());
+            EXPECT_TRUE(set_res->conflicts.empty());
         }
     } ); // ForEveryComponent
 }
@@ -730,22 +730,22 @@ TEST(MfxEncoderComponent, StaticFrameQP)
                 EXPECT_EQ(failures.size(), 0);
             } else {
                 EXPECT_EQ(failures.size(), 3);
-                EXPECT_TRUE(failures.size() > 0 && failures[0]->field == C2ParamField(&param_qp, &C2FrameQPSetting::qp_i));
-                EXPECT_TRUE(failures.size() > 1 && failures[1]->field == C2ParamField(&param_qp, &C2FrameQPSetting::qp_p));
-                EXPECT_TRUE(failures.size() > 2 && failures[2]->field == C2ParamField(&param_qp, &C2FrameQPSetting::qp_b));
+                EXPECT_TRUE(failures.size() > 0 && failures[0]->field.paramOrField == C2ParamField(&param_qp, &C2FrameQPSetting::qp_i));
+                EXPECT_TRUE(failures.size() > 1 && failures[1]->field.paramOrField == C2ParamField(&param_qp, &C2FrameQPSetting::qp_p));
+                EXPECT_TRUE(failures.size() > 2 && failures[2]->field.paramOrField == C2ParamField(&param_qp, &C2FrameQPSetting::qp_b));
 
                 for(const std::unique_ptr<C2SettingResult>& set_res : failures) {
                     EXPECT_EQ(set_res->failure, C2SettingResult::BAD_VALUE);
-                    EXPECT_NE(set_res->supportedValues, nullptr);
-                    if(nullptr != set_res->supportedValues) {
-                        EXPECT_EQ(set_res->supportedValues->type, C2FieldSupportedValues::RANGE);
-                        EXPECT_EQ(set_res->supportedValues->range.min.u32, 1);
-                        EXPECT_EQ(set_res->supportedValues->range.max.u32, 51);
-                        EXPECT_EQ(set_res->supportedValues->range.step.u32, 1);
-                        EXPECT_EQ(set_res->supportedValues->range.nom.u32, 1);
-                        EXPECT_EQ(set_res->supportedValues->range.denom.u32, 1);
+                    EXPECT_NE(set_res->field.values, nullptr);
+                    if(nullptr != set_res->field.values) {
+                        EXPECT_EQ(set_res->field.values->type, C2FieldSupportedValues::RANGE);
+                        EXPECT_EQ(set_res->field.values->range.min.u32, 1);
+                        EXPECT_EQ(set_res->field.values->range.max.u32, 51);
+                        EXPECT_EQ(set_res->field.values->range.step.u32, 1);
+                        EXPECT_EQ(set_res->field.values->range.nom.u32, 1);
+                        EXPECT_EQ(set_res->field.values->range.denom.u32, 1);
                     }
-                    EXPECT_TRUE(set_res->conflictingFields.empty());
+                    EXPECT_TRUE(set_res->conflicts.empty());
                 }
             }
 
