@@ -744,15 +744,28 @@ c2_status_t C2BlockAllocatorImpl::fetchGraphicBlock(
     return res;
 }
 
-} //namespace android;
+c2_status_t GetCodec2BlockPool(
+        C2BlockPool::local_id_t id, std::shared_ptr<const C2Component> component,
+        std::shared_ptr<C2BlockPool> *pool) {
+    pool->reset();
 
-using namespace android;
+    c2_status_t res = C2_OK;
 
-c2_status_t GetC2BlockAllocator(std::shared_ptr<C2BlockPool>* allocator)
-{
-    static C2BlockAllocatorImpl::CreateResult g_create_result =
-        C2BlockAllocatorImpl::Create();
+    switch (id) {
+        case C2BlockPool::BASIC_LINEAR:
+        case C2BlockPool::BASIC_GRAPHIC:
+            static C2BlockAllocatorImpl::CreateResult g_create_result =
+                C2BlockAllocatorImpl::Create();
 
-    *allocator = g_create_result.allocator;
-    return g_create_result.status;
+            *pool = g_create_result.allocator;
+            res = g_create_result.status;
+
+            break;
+        default:
+            res = C2_NOT_FOUND;
+            break;
+    }
+    return res;
 }
+
+} //namespace android;

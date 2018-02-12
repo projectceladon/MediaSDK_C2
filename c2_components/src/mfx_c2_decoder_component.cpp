@@ -16,6 +16,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_components_registry.h"
 #include "mfx_c2_utils.h"
 #include "mfx_defaults.h"
+#include "C2BlockAllocator.h"
 
 using namespace android;
 
@@ -138,7 +139,7 @@ c2_status_t MfxC2DecoderComponent::DoStop()
     waiting_queue_.Stop();
     working_queue_.Stop();
 
-    last_work_allocator_ = nullptr;
+    c2_allocator_ = nullptr;
 
     FreeDecoder();
 
@@ -592,14 +593,14 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(std::shared_ptr<C2GraphicBloc
 
         } else {
 
-            if (!last_work_allocator_) {
+            if (!c2_allocator_) {
                 res = C2_NOT_FOUND;
                 break;
             }
 
             C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
 
-            res = last_work_allocator_->fetchGraphicBlock(
+            res = c2_allocator_->fetchGraphicBlock(
                 video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height,
                 0/*format*/, mem_usage, out_block);
         }
@@ -663,12 +664,13 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
     c2_status_t res = C2_OK;
     mfxStatus mfx_sts = MFX_ERR_NONE;
 
-    std::shared_ptr<C2BlockPool> work_allocator = work->worklets.front()->allocators.front();
-    if (work_allocator) {
-        last_work_allocator_ = work_allocator;
-    }
-
     do {
+        if (!c2_allocator_) {
+            res = GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC,
+                shared_from_this(), &c2_allocator_);
+            if (res != C2_OK) break;
+        }
+
         res = c2_bitstream_->LoadC2BufferPack(work->input, TIMEOUT_NS);
         if (C2_OK != res) break;
 
@@ -679,7 +681,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
         bool resolution_change = false;
         do {
             if (!initialized_) {
-                mfx_sts = InitDecoder(work_allocator);
+                mfx_sts = InitDecoder(c2_allocator_);
                 if(MFX_ERR_NONE != mfx_sts) {
                     MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
                     res = MfxStatusToC2(mfx_sts);
@@ -836,7 +838,7 @@ c2_status_t MfxC2DecoderComponent::ValidateWork(const std::unique_ptr<android::C
         const std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
         C2FrameData& output = worklet->output;
 
-        if(worklet->allocators.size() != 1 || worklet->output.buffers.size() != 1) {
+        if(worklet->output.buffers.size() != 1) {
             MFX_DEBUG_TRACE_MSG("Cannot handle multiple outputs");
             res = C2_BAD_VALUE;
             break;

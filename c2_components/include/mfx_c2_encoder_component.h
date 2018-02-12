@@ -153,4 +153,6 @@ private:
     std::list<MfxC2FrameIn> locked_frames_;
 
     EncoderControl encoder_control_;
+
+    std::shared_ptr<android::C2BlockPool> c2_allocator_;
 };

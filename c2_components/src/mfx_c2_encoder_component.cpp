@@ -18,6 +18,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_legacy_defs.h"
 #include "mfx_c2_params.h"
 #include "mfx_defaults.h"
+#include "C2BlockAllocator.h"
 
 #include <limits>
 #include <thread>
@@ -335,17 +336,16 @@ c2_status_t MfxC2EncoderComponent::AllocateBitstream(const std::unique_ptr<andro
         std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
         C2FrameData& output = worklet->output;
 
-        if(worklet->allocators.size() != 1 || worklet->output.buffers.size() != 1) {
+        if(worklet->output.buffers.size() != 1) {
             MFX_DEBUG_TRACE_MSG("Cannot handle multiple outputs");
             res = C2_BAD_VALUE;
             break;
         }
 
-        std::shared_ptr<C2BlockPool> allocator = worklet->allocators.front();
         C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
         std::shared_ptr<C2LinearBlock> out_block;
 
-        res = allocator->fetchLinearBlock(required_size, mem_usage, &out_block);
+        res = c2_allocator_->fetchLinearBlock(required_size, mem_usage, &out_block);
         if(C2_OK != res) break;
 
         res = MfxC2BitstreamOut::Create(out_block, TIMEOUT_NS, mfx_bitstream);
@@ -400,6 +400,12 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
     c2_status_t res = C2_OK;
 
     do {
+        if (!c2_allocator_) {
+            res = GetCodec2BlockPool(C2BlockPool::BASIC_LINEAR,
+                shared_from_this(), &c2_allocator_);
+            if (res != C2_OK) break;
+        }
+
         C2FrameData& input = work->input;
 
         MfxFrameConverter* frame_converter = nullptr;

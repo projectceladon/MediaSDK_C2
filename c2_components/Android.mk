@@ -14,7 +14,8 @@ define build_components
       $$(MFX_C_INCLUDES) \
       $$(MFX_C_INCLUDES_C2) \
       $$(MFX_C2_HOME)/c2_utils/include \
-      $$(MFX_C2_HOME)/c2_buffers/include
+      $$(MFX_C2_HOME)/c2_buffers/include \
+      $$(MFX_C2_HOME)/mock/codec2/include
 
   LOCAL_CFLAGS := \
       $$(MFX_CFLAGS) \

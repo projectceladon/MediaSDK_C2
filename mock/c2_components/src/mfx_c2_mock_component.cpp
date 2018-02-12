@@ -15,6 +15,8 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_components_registry.h"
 #include "mfx_c2_utils.h"
 
+#include "C2BlockAllocator.h"
+
 using namespace android;
 
 MfxC2MockComponent::MfxC2MockComponent(const android::C2String name, int flags, Type type) :
@@ -180,12 +182,21 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
         const C2FrameData& input = work->input;
         C2FrameData& output = worklet->output;
 
-        if(worklet->allocators.size() != 1 || worklet->output.buffers.size() != 1) {
+        if(worklet->output.buffers.size() != 1) {
             MFX_DEBUG_TRACE_MSG("Cannot handle multiple outputs");
             res = C2_BAD_VALUE;
             break;
         }
-        const std::shared_ptr<C2BlockPool>& allocator = worklet->allocators.front();
+
+        if (!c2_allocator_) {
+            auto block_pool_id = (type_ == Encoder) ?
+                C2BlockPool::BASIC_LINEAR : C2BlockPool::BASIC_GRAPHIC;
+
+            res = GetCodec2BlockPool(block_pool_id,
+                shared_from_this(), &c2_allocator_);
+            if (res != C2_OK) break;
+        }
+
         //  form header of output data, copy input timestamps, etc. to identify data in test
         output.ordinal.timestamp = input.ordinal.timestamp;
         output.ordinal.frameIndex = input.ordinal.frameIndex;
@@ -194,7 +205,7 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
         auto process_method = (type_ == Encoder) ?
             &MfxC2MockComponent::CopyGraphicToLinear : &MfxC2MockComponent::CopyLinearToGraphic;
 
-        res = (this->*process_method)(input, allocator, &worklet->output.buffers.front());
+        res = (this->*process_method)(input, c2_allocator_, &worklet->output.buffers.front());
 
     } while(false); // fake loop to have a cleanup point there
 

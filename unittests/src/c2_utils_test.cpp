@@ -992,7 +992,7 @@ typedef std::function<void (MfxFrameAllocator* allocator, MfxFramePoolAllocator*
 static void MfxFramePoolAllocatorTest(const std::vector<MfxFramePoolAllocatorTestStep>& steps, int repeat_count = 1)
 {
     std::shared_ptr<C2BlockPool> c2_allocator;
-    c2_status_t res = GetC2BlockAllocator(&c2_allocator);
+    c2_status_t res = GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC, nullptr, &c2_allocator);
     EXPECT_EQ(res, C2_OK);
     EXPECT_NE(c2_allocator, nullptr);
 

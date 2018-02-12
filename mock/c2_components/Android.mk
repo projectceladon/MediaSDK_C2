@@ -14,6 +14,7 @@ LOCAL_SRC_FILES := \
 LOCAL_C_INCLUDES += \
     $(MFX_C2_HOME)/c2_components/include/ \
     $(MFX_C2_HOME)/c2_utils/include/ \
+    $(MFX_C2_HOME)/mock/codec2/include \
     $(MFX_C_INCLUDES) \
     $(MFX_C_INCLUDES_C2)
 
