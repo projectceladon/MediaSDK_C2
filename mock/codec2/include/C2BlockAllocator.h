@@ -1,5 +1,12 @@
 #pragma once
 
 #include <C2Buffer.h>
+#include <C2Component.h>
 
-android::c2_status_t GetC2BlockAllocator(std::shared_ptr<android::C2BlockPool>* allocator);
+namespace android {
+
+c2_status_t GetCodec2BlockPool(
+        C2BlockPool::local_id_t id, std::shared_ptr<const C2Component> component,
+        std::shared_ptr<C2BlockPool> *pool);
+
+} // namespace android

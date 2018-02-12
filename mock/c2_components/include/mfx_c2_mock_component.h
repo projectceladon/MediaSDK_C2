@@ -72,4 +72,6 @@ private:
     MfxCmdQueue cmd_queue_;
 
     android::C2MemoryUsage::Producer producer_memory_type_ { android::C2MemoryUsage::CPU_WRITE };
+
+    std::shared_ptr<android::C2BlockPool> c2_allocator_;
 };

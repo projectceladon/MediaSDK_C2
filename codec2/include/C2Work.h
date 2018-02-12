@@ -129,8 +129,6 @@ struct C2Worklet {
     /** Configuration changes to be applied before processing this worklet. */
     std::vector<std::unique_ptr<C2Tuning>> tunings;
     std::list<C2Param::Type> requestedInfos;
-    std::vector<std::shared_ptr<C2BlockPool>> allocators; //< This vector shall be the same size as
-                                                          //< output.buffers.
 
     // OUT
     C2FrameData output;

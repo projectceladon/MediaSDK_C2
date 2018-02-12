@@ -202,7 +202,8 @@ static void PrepareWork(uint32_t frame_index, bool last_frame, bool graphics_mem
     do {
 
         std::shared_ptr<android::C2BlockPool> allocator;
-        android::c2_status_t sts = GetC2BlockAllocator(&allocator);
+        android::c2_status_t sts = GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC,
+            nullptr, &allocator);
 
         EXPECT_EQ(sts, C2_OK);
         EXPECT_NE(allocator, nullptr);
@@ -256,8 +257,6 @@ static void PrepareWork(uint32_t frame_index, bool last_frame, bool graphics_mem
         buffer_pack->buffers.push_back(buffer);
 
         std::unique_ptr<C2Worklet> worklet = std::make_unique<C2Worklet>();
-        // C2 requires 1 allocator per required output item
-        worklet->allocators.push_back(allocator);
         // C2 requires output items be allocated in buffers list and set to nulls
         worklet->output.buffers.push_back(nullptr);
         // work of 1 worklet

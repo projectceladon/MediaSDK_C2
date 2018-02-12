@@ -143,6 +143,6 @@ private:
     std::queue<std::unique_ptr<android::C2Work>> works_queue_;
 
     MfxFramePoolAllocator* allocator_; // used when Video memory output
-
-    std::shared_ptr<android::C2BlockPool> last_work_allocator_; // used when System memory output
+    // for pre-allocation when Video memory is chosen and always when System memory output
+    std::shared_ptr<android::C2BlockPool> c2_allocator_;
 };
