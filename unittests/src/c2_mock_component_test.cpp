@@ -153,19 +153,19 @@ static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work,
     C2BufferData::Type buffer_type, C2MemoryUsage::Consumer memory_type)
 {
     *work = std::make_unique<C2Work>();
-    C2BufferPack* buffer_pack = &((*work)->input);
+    C2FrameData* buffer_pack = &((*work)->input);
 
     if(frame_index < FRAME_COUNT - 1) {
-        buffer_pack->flags = flags_t(0);
+        buffer_pack->flags = C2FrameData::flags_t(0);
     } else {
-        buffer_pack->flags = BUFFERFLAG_END_OF_STREAM;
+        buffer_pack->flags = C2FrameData::FLAG_END_OF_STREAM;
     }
 
     // Set up frame header properties:
     // timestamp is set to correspond to 30 fps stream.
     buffer_pack->ordinal.timestamp = FRAME_DURATION_US * frame_index;
-    buffer_pack->ordinal.frame_index = frame_index;
-    buffer_pack->ordinal.custom_ordinal = 0;
+    buffer_pack->ordinal.frameIndex = frame_index;
+    buffer_pack->ordinal.customOrdinal = 0;
 
     do {
         std::shared_ptr<android::C2BlockPool> allocator;
@@ -243,13 +243,13 @@ protected:
         (void)component;
 
         for(std::unique_ptr<C2Work>& work : workItems) {
-            EXPECT_EQ(work->worklets_processed, 1);
+            EXPECT_EQ(work->workletsProcessed, 1);
             EXPECT_EQ(work->result, C2_OK);
 
             std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
-            C2BufferPack& buffer_pack = worklet->output;
+            C2FrameData& buffer_pack = worklet->output;
 
-            uint64_t frame_index = buffer_pack.ordinal.frame_index;
+            uint64_t frame_index = buffer_pack.ordinal.frameIndex.peeku();
 
             EXPECT_EQ(buffer_pack.ordinal.timestamp, frame_index * FRAME_DURATION_US); // 30 fps
 

@@ -29,7 +29,7 @@ MfxC2FrameIn::~MfxC2FrameIn()
 }
 
 c2_status_t MfxC2FrameIn::Create(MfxFrameConverter* frame_converter,
-    C2BufferPack& buf_pack, nsecs_t timeout, MfxC2FrameIn* wrapper)
+    C2FrameData& buf_pack, nsecs_t timeout, MfxC2FrameIn* wrapper)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -64,7 +64,7 @@ c2_status_t MfxC2FrameIn::Create(MfxFrameConverter* frame_converter,
                 break;
             }
 
-            InitMfxNV12FrameHW(buf_pack.ordinal.timestamp, buf_pack.ordinal.frame_index,
+            InitMfxNV12FrameHW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
                 mem_id, c_graph_block->width(), c_graph_block->height(),
                 unique_mfx_frame.get());
         } else {
@@ -72,7 +72,7 @@ c2_status_t MfxC2FrameIn::Create(MfxFrameConverter* frame_converter,
             res = MapConstGraphicBlock(*c_graph_block, timeout, &c_graph_view);
             if(C2_OK != res) break;
 
-            InitMfxNV12FrameSW(buf_pack.ordinal.timestamp, buf_pack.ordinal.frame_index,
+            InitMfxNV12FrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
                 c_graph_view->data(), c_graph_block->width(), c_graph_block->height(),
                 unique_mfx_frame.get());
         }

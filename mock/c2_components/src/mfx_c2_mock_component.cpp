@@ -32,7 +32,7 @@ void MfxC2MockComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
         &MfxC2Component::Factory<MfxC2MockComponent, Type>::Create<Decoder>);
 }
 
-c2_status_t MfxC2MockComponent::CopyGraphicToLinear(const C2BufferPack& input,
+c2_status_t MfxC2MockComponent::CopyGraphicToLinear(const C2FrameData& input,
     const std::shared_ptr<C2BlockPool>& allocator, std::shared_ptr<C2Buffer>* out_buffer)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -101,7 +101,7 @@ static c2_status_t GuessFrameSize(uint32_t buffer_size, uint32_t* width, uint32_
     return res;
 }
 
-c2_status_t MfxC2MockComponent::CopyLinearToGraphic(const C2BufferPack& input,
+c2_status_t MfxC2MockComponent::CopyLinearToGraphic(const C2FrameData& input,
     const std::shared_ptr<C2BlockPool>& allocator, std::shared_ptr<C2Buffer>* out_buffer)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -177,8 +177,8 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
         }
 
         std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
-        const C2BufferPack& input = work->input;
-        C2BufferPack& output = worklet->output;
+        const C2FrameData& input = work->input;
+        C2FrameData& output = worklet->output;
 
         if(worklet->allocators.size() != 1 || worklet->output.buffers.size() != 1) {
             MFX_DEBUG_TRACE_MSG("Cannot handle multiple outputs");
@@ -188,8 +188,8 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
         const std::shared_ptr<C2BlockPool>& allocator = worklet->allocators.front();
         //  form header of output data, copy input timestamps, etc. to identify data in test
         output.ordinal.timestamp = input.ordinal.timestamp;
-        output.ordinal.frame_index = input.ordinal.frame_index;
-        output.ordinal.custom_ordinal = input.ordinal.custom_ordinal;
+        output.ordinal.frameIndex = input.ordinal.frameIndex;
+        output.ordinal.customOrdinal = input.ordinal.customOrdinal;
 
         auto process_method = (type_ == Encoder) ?
             &MfxC2MockComponent::CopyGraphicToLinear : &MfxC2MockComponent::CopyLinearToGraphic;

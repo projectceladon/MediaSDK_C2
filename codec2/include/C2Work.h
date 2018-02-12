@@ -56,32 +56,55 @@ struct C2SettingResult {
 //  WORK
 // ================================================================================================
 
-// node_id-s
-typedef uint32_t node_id;
-
-enum flags_t : uint32_t {
-    BUFFERFLAG_CODEC_CONFIG,
-    BUFFERFLAG_DROP_FRAME,
-    BUFFERFLAG_END_OF_STREAM,
-};
+// c2_node_id_t-s
+typedef uint32_t c2_node_id_t;
 
 enum {
     kParamIndexWorkOrdinal,
 };
 
 struct C2WorkOrdinalStruct {
-    uint64_t timestamp;
-    uint64_t frame_index;    // submission ordinal on the initial component
-    uint64_t custom_ordinal; // can be given by the component, e.g. decode order
+//public:
+    c2_cntr64_t timestamp;     /** frame timestamp in microseconds */
+    c2_cntr64_t frameIndex;    /** submission ordinal on the initial component */
+    c2_cntr64_t customOrdinal; /** can be given by the component, e.g. decode order */
 
     DEFINE_AND_DESCRIBE_C2STRUCT(WorkOrdinal)
     C2FIELD(timestamp, "timestamp")
-    C2FIELD(frame_index, "frame-index")
-    C2FIELD(custom_ordinal, "custom-ordinal")
+    C2FIELD(frameIndex, "frame-index")
+    C2FIELD(customOrdinal, "custom-ordinal")
 };
 
-struct C2BufferPack {
+struct C2FrameData {
 //public:
+    enum flags_t : uint32_t {
+        /**
+         * For input frames: no output frame shall be generated when processing this frame, but
+         * metadata shall still be processed.
+         * For output frames: this frame shall be discarded and but metadata is still valid.
+         */
+        FLAG_DROP_FRAME    = (1 << 0),
+        /**
+         * This frame is the last frame of the current stream. Further frames are part of a new
+         * stream.
+         */
+        FLAG_END_OF_STREAM = (1 << 1),
+        /**
+         * This frame shall be discarded with its metadata.
+         * This flag is only set by components - e.g. as a response to the flush command.
+         */
+        FLAG_DISCARD_FRAME = (1 << 2),
+        /**
+         * This frame contains only codec-specific configuration data, and no actual access unit.
+         *
+         * \deprecated pass codec configuration with using the \todo codec-specific configuration
+         * info together with the access unit.
+         */
+        FLAG_CODEC_CONFIG  = (1u << 31),
+    };
+
+    /**
+     * Frame flags */
     flags_t  flags;
     C2WorkOrdinalStruct ordinal;
     std::vector<std::shared_ptr<C2Buffer>> buffers;
@@ -94,7 +117,7 @@ struct C2BufferPack {
 struct C2Worklet {
 //public:
     // IN
-    node_id component;
+    c2_node_id_t component;
 
     std::list<std::unique_ptr<C2Param>> tunings; //< tunings to be applied before processing this
                                                  // worklet
@@ -103,7 +126,7 @@ struct C2Worklet {
                                                           //< output.buffers.
 
     // OUT
-    C2BufferPack output;
+    C2FrameData output;
     std::list<std::unique_ptr<C2SettingResult>> failures;
 };
 
@@ -142,17 +165,17 @@ struct C2Work {
     std::list<std::pair<std::unique_ptr<C2PortMimeConfig>, std::unique_ptr<C2Info>>> preChainInfos;
     std::list<std::pair<std::unique_ptr<C2PortMimeConfig>, std::unique_ptr<C2Buffer>>> preChainInfoBlobs;
 
-    C2BufferPack input;
+    C2FrameData input;
     std::list<std::unique_ptr<C2Worklet>> worklets;
 
-    uint32_t worklets_processed;
+    uint32_t workletsProcessed;
     c2_status_t result;
 };
 
 struct C2WorkOutline {
 //public:
     C2WorkOrdinalStruct ordinal;
-    std::list<node_id> chain;
+    std::list<c2_node_id_t> chain;
 };
 
 /// @}

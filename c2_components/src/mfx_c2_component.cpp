@@ -51,7 +51,7 @@ C2String MfxC2Component::getName() const
     return name_;
 }
 
-node_id MfxC2Component::getId() const
+c2_node_id_t MfxC2Component::getId() const
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -96,7 +96,7 @@ c2_status_t MfxC2Component::commit_sm(
     return C2_OMITTED;
 }
 
-c2_status_t MfxC2Component::createTunnel_sm(node_id targetComponent)
+c2_status_t MfxC2Component::createTunnel_sm(c2_node_id_t targetComponent)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -105,7 +105,7 @@ c2_status_t MfxC2Component::createTunnel_sm(node_id targetComponent)
     return C2_OMITTED;
 }
 
-c2_status_t MfxC2Component::releaseTunnel_sm(node_id targetComponent)
+c2_status_t MfxC2Component::releaseTunnel_sm(c2_node_id_t targetComponent)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -282,7 +282,7 @@ void MfxC2Component::NotifyWorkDone(std::unique_ptr<android::C2Work>&& work, and
     MFX_DEBUG_TRACE__android_c2_status_t(sts);
 
     if(C2_OK == sts) {
-        work->worklets_processed = 1;
+        work->workletsProcessed = 1;
     }
 
     work->result = sts;

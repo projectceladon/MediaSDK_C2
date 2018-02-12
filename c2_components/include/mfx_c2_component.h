@@ -42,7 +42,7 @@ private:
 protected: // android::C2ComponentInterface overrides
     android::C2String getName() const override;
 
-    android::node_id getId() const override;
+    android::c2_node_id_t getId() const override;
 
     android::c2_status_t query_nb(
         const std::vector<android::C2Param* const> &stackParams,
@@ -57,9 +57,9 @@ protected: // android::C2ComponentInterface overrides
             const std::vector<android::C2Param* const> &params,
             std::vector<std::unique_ptr<android::C2SettingResult>>* const failures) override;
 
-    android::c2_status_t createTunnel_sm(android::node_id targetComponent) override;
+    android::c2_status_t createTunnel_sm(android::c2_node_id_t targetComponent) override;
 
-    android::c2_status_t releaseTunnel_sm(android::node_id targetComponent) override;
+    android::c2_status_t releaseTunnel_sm(android::c2_node_id_t targetComponent) override;
 
     std::shared_ptr<android::C2ParamReflector> getParamReflector() const override;
 
