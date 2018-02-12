@@ -225,7 +225,7 @@ c2_status_t MapLinearBlock(
 std::unique_ptr<C2SettingResult> MakeC2SettingResult(
     const C2ParamField& param_field,
     C2SettingResult::Failure failure,
-    std::initializer_list<C2ParamField> conflicting_fields,
+    std::list<C2ParamFieldValues>&& conflicting_fields,
     const C2FieldSupportedValues* supported_values)
 {
     std::unique_ptr<C2FieldSupportedValues> supported_values_unique;
@@ -234,8 +234,8 @@ std::unique_ptr<C2SettingResult> MakeC2SettingResult(
             std::make_unique<C2FieldSupportedValues>(*supported_values);
     }
 
-    C2SettingResult* set_res = new C2SettingResult { param_field, failure,
-        std::move(supported_values_unique), conflicting_fields };
+    C2SettingResult* set_res = new C2SettingResult { failure, { param_field,
+        std::move(supported_values_unique) }, std::move(conflicting_fields) };
     return std::unique_ptr<C2SettingResult>(set_res);
 }
 

@@ -46,10 +46,17 @@ struct C2SettingResult {
         CONFLICT,   ///< parameter is in conflict with another setting
     };
 
-    C2ParamField field;
-    Failure failure;
-    std::unique_ptr<C2FieldSupportedValues> supportedValues; //< if different from normal (e.g. in conflict w/another param or input data)
-    std::list<C2ParamField> conflictingFields;
+    Failure failure;    ///< failure code
+
+    /// Failing (or corrected) field. Currently supported values for the field. This is set if
+    /// different from the globally supported values (e.g. due to restrictions by another param or
+    /// input data)
+    /// \todo need to define suggestions for masks to be set and unset.
+    C2ParamFieldValues field;
+
+    /// Conflicting parameters or fields with optional suggestions with (optional) suggested values
+    /// for any conflicting fields to avoid the conflict.
+    std::list<C2ParamFieldValues> conflicts;
 };
 
 // ================================================================================================
@@ -119,8 +126,8 @@ struct C2Worklet {
     // IN
     c2_node_id_t component;
 
-    std::list<std::unique_ptr<C2Param>> tunings; //< tunings to be applied before processing this
-                                                 // worklet
+    /** Configuration changes to be applied before processing this worklet. */
+    std::vector<std::unique_ptr<C2Tuning>> tunings;
     std::list<C2Param::Type> requestedInfos;
     std::vector<std::shared_ptr<C2BlockPool>> allocators; //< This vector shall be the same size as
                                                           //< output.buffers.

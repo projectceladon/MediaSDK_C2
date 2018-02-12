@@ -41,16 +41,16 @@ android::c2_status_t MapLinearBlock(
     android::C2LinearBlock& block, nsecs_t timeout, uint8_t** data);
 
 template<typename ParamType>
-android::C2ParamField MakeC2ParamField()
+android::C2ParamFieldValues MakeC2ParamField()
 {
     ParamType p; // have to instantiate param here as C2ParamField constructor demands this
-    return android::C2ParamField(&p, &p.value);
+    return android::C2ParamFieldValues { android::C2ParamField(&p, &p.value), nullptr };
 }
 
 std::unique_ptr<android::C2SettingResult> MakeC2SettingResult(
     const android::C2ParamField& param_field,
     android::C2SettingResult::Failure failure,
-    std::initializer_list<android::C2ParamField> conflicting_fields = {},
+    std::list<android::C2ParamFieldValues>&& conflicting_fields = {},
     const android::C2FieldSupportedValues* supported_values = nullptr);
 
 android::c2_status_t GetAggregateStatus(std::vector<std::unique_ptr<android::C2SettingResult>>* const failures);
