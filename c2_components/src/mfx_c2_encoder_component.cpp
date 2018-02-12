@@ -333,7 +333,7 @@ c2_status_t MfxC2EncoderComponent::AllocateBitstream(const std::unique_ptr<andro
         }
 
         std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
-        C2BufferPack& output = worklet->output;
+        C2FrameData& output = worklet->output;
 
         if(worklet->allocators.size() != 1 || worklet->output.buffers.size() != 1) {
             MFX_DEBUG_TRACE_MSG("Cannot handle multiple outputs");
@@ -400,7 +400,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
     c2_status_t res = C2_OK;
 
     do {
-        C2BufferPack& input = work->input;
+        C2FrameData& input = work->input;
 
         MfxFrameConverter* frame_converter = nullptr;
         if (video_params_config_.IOPattern == MFX_IOPATTERN_IN_VIDEO_MEMORY) {
@@ -569,8 +569,8 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
             std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
 
             worklet->output.ordinal.timestamp = work->input.ordinal.timestamp;
-            worklet->output.ordinal.frame_index = work->input.ordinal.frame_index;
-            worklet->output.ordinal.custom_ordinal = work->input.ordinal.custom_ordinal;
+            worklet->output.ordinal.frameIndex = work->input.ordinal.frameIndex;
+            worklet->output.ordinal.customOrdinal = work->input.ordinal.customOrdinal;
 
             worklet->output.buffers.front() = std::make_shared<C2Buffer>(out_buffer);
         }
@@ -998,7 +998,7 @@ c2_status_t MfxC2EncoderComponent::queue_nb(std::list<std::unique_ptr<android::C
 
     for(auto& item : *items) {
 
-        bool eos = (item->input.flags & BUFFERFLAG_END_OF_STREAM);
+        bool eos = (item->input.flags & C2FrameData::FLAG_END_OF_STREAM);
 
         working_queue_.Push( [ work = std::move(item), this ] () mutable {
 

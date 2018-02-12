@@ -31,7 +31,7 @@ MfxC2BitstreamIn::~MfxC2BitstreamIn()
     MFX_DEBUG_TRACE_FUNC;
 }
 
-c2_status_t MfxC2BitstreamIn::LoadC2BufferPack(C2BufferPack& buf_pack, nsecs_t timeout)
+c2_status_t MfxC2BitstreamIn::LoadC2BufferPack(C2FrameData& buf_pack, nsecs_t timeout)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -48,17 +48,17 @@ c2_status_t MfxC2BitstreamIn::LoadC2BufferPack(C2BufferPack& buf_pack, nsecs_t t
         res = MapConstLinearBlock(*c_linear_block, timeout, &raw);
         if(C2_OK != res) break;
 
-        MFX_DEBUG_TRACE_I64(buf_pack.ordinal.timestamp);
+        MFX_DEBUG_TRACE_I64(buf_pack.ordinal.timestamp.peeku());
 
         data = raw + c_linear_block->offset();
         filled_len = c_linear_block->size();
 
-        frame_constructor_->SetEosMode(buf_pack.flags & BUFFERFLAG_END_OF_STREAM);
+        frame_constructor_->SetEosMode(buf_pack.flags & C2FrameData::FLAG_END_OF_STREAM);
 
         mfxStatus mfx_res = frame_constructor_->Load(data,
                                                      filled_len,
-                                                     buf_pack.ordinal.timestamp,
-                                                     buf_pack.flags & BUFFERFLAG_CODEC_CONFIG,
+                                                     buf_pack.ordinal.timestamp.peeku(),
+                                                     buf_pack.flags & C2FrameData::FLAG_CODEC_CONFIG,
                                                      true);
         res = MfxStatusToC2(mfx_res);
         if(C2_OK != res) break;

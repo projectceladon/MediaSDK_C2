@@ -93,7 +93,7 @@ public:
      *
      * \return a unique node ID for this component or component interface instance.
      */
-    virtual node_id getId() const = 0;
+    virtual c2_node_id_t getId() const = 0;
 
     /**
      * Queries a set of parameters from the component or interface object.
@@ -230,7 +230,7 @@ public:
      * \retval C2_TIMED_OUT could not create the tunnel within the time limit (unexpected)
      * \retval C2_CORRUPTED some unknown error prevented the creation of the tunnel (unexpected)
      */
-    virtual c2_status_t createTunnel_sm(node_id targetComponent) = 0;
+    virtual c2_status_t createTunnel_sm(c2_node_id_t targetComponent) = 0;
 
     /**
      * Releases a tunnel from this component to the target component.
@@ -250,7 +250,7 @@ public:
      * \retval C2_TIMED_OUT could not mark the tunnel for release within the time limit (unexpected)
      * \retval C2_CORRUPTED some unknown error prevented the release of the tunnel (unexpected)
      */
-    virtual c2_status_t releaseTunnel_sm(node_id targetComponent) = 0;
+    virtual c2_status_t releaseTunnel_sm(c2_node_id_t targetComponent) = 0;
 
 
     // REFLECTION MECHANISM (USED FOR EXTENSION)
@@ -508,7 +508,7 @@ public:
      */
     virtual c2_status_t reset() { return C2_OK; }
 
-    virtual c2_status_t parseFrame(C2BufferPack &frame);
+    virtual c2_status_t parseFrame(C2FrameData &frame);
 
     virtual ~C2FrameInfoParser() = default;
 };

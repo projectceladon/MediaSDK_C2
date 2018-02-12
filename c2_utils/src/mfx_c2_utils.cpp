@@ -60,7 +60,7 @@ c2_status_t MfxStatusToC2(mfxStatus mfx_status)
 }
 
 c2_status_t GetC2ConstGraphicBlock(
-    const C2BufferPack& buf_pack, std::unique_ptr<C2ConstGraphicBlock>* c_graph_block)
+    const C2FrameData& buf_pack, std::unique_ptr<C2ConstGraphicBlock>* c_graph_block)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -87,7 +87,7 @@ c2_status_t GetC2ConstGraphicBlock(
 }
 
 c2_status_t GetC2ConstLinearBlock(
-    const C2BufferPack& buf_pack, std::unique_ptr<C2ConstLinearBlock>* c_lin_block)
+    const C2FrameData& buf_pack, std::unique_ptr<C2ConstLinearBlock>* c_lin_block)
 {
     MFX_DEBUG_TRACE_FUNC;
 

@@ -23,10 +23,10 @@ inline mfxU64 TimestampC2ToMfx(uint64_t timestamp)
 }
 
 android::c2_status_t GetC2ConstGraphicBlock(
-    const android::C2BufferPack& buf_pack, std::unique_ptr<android::C2ConstGraphicBlock>* c_graph_block);
+    const android::C2FrameData& buf_pack, std::unique_ptr<android::C2ConstGraphicBlock>* c_graph_block);
 
 android::c2_status_t GetC2ConstLinearBlock(
-    const android::C2BufferPack& buf_pack, std::unique_ptr<android::C2ConstLinearBlock>* c_lin_block);
+    const android::C2FrameData& buf_pack, std::unique_ptr<android::C2ConstLinearBlock>* c_lin_block);
 
 android::c2_status_t MapConstGraphicBlock(const android::C2ConstGraphicBlock& graph_block, nsecs_t timeout,
     std::unique_ptr<const android::C2GraphicView>* graph_view);
