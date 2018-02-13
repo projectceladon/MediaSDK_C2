@@ -81,12 +81,20 @@ bool MfxIOPatternToC2MemoryType(bool input, mfxU16 io_pattern, android::C2Memory
 
 int MfxFourCCToGralloc(mfxU32 fourcc);
 
+// Gives access to prorected constructors of C2Buffer.
+class C2BufferAccessor : public android::C2Buffer
+{
+    using C2Buffer::C2Buffer;
+    friend android::C2Buffer MakeC2Buffer(const std::vector<android::C2ConstLinearBlock>& blocks);
+    friend android::C2Buffer MakeC2Buffer(const std::vector<android::C2ConstGraphicBlock>& blocks);
+};
+
 inline android::C2Buffer MakeC2Buffer(const std::vector<android::C2ConstLinearBlock>& blocks)
 {
-    return android::C2Buffer(android::C2BufferData(blocks.front()));
+    return C2BufferAccessor(blocks);
 }
 
 inline android::C2Buffer MakeC2Buffer(const std::vector<android::C2ConstGraphicBlock>& blocks)
 {
-    return android::C2Buffer(android::C2BufferData(blocks.front()));
+    return C2BufferAccessor(blocks);
 }
