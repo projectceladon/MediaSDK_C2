@@ -36,25 +36,6 @@ namespace android {
 
 class C2Component;
 
-class C2ComponentListener {
-public:
-    virtual void onWorkDone(std::weak_ptr<C2Component> component,
-                            std::vector<std::unique_ptr<C2Work>> workItems) = 0;
-
-    virtual void onTripped(std::weak_ptr<C2Component> component,
-                           std::vector<std::shared_ptr<C2SettingResult>> settingResult) = 0;
-
-    virtual void onError(std::weak_ptr<C2Component> component,
-                         uint32_t errorCode) = 0;
-
-    // virtual void onTunnelReleased(<from>, <to>) = 0;
-
-    // virtual void onComponentReleased(<id>) = 0;
-
-protected:
-    virtual ~C2ComponentListener();
-};
-
 /**
  * Component interface object. This object contains all of the configuration of a potential or
  * actual component. It can be created and used independently of an actual C2Component instance to
@@ -290,6 +271,60 @@ public:
 
 class C2Component {
 public:
+    class Listener {
+    public:
+        virtual void onWorkDone_nb(std::weak_ptr<C2Component> component,
+                                std::vector<std::unique_ptr<C2Work>> workItems) = 0;
+
+        virtual void onTripped_nb(std::weak_ptr<C2Component> component,
+                               std::vector<std::shared_ptr<C2SettingResult>> settingResult) = 0;
+
+        virtual void onError_nb(std::weak_ptr<C2Component> component,
+                             uint32_t errorCode) = 0;
+
+        // virtual void onTunnelReleased(<from>, <to>) = 0;
+
+        // virtual void onComponentReleased(<id>) = 0;
+
+        virtual ~Listener() = default;
+    };
+
+    /**
+     * Sets the listener for this component
+     *
+     * This method MUST be supported in all states except released.
+     * The listener can only be set to non-null value in stopped state (that does not include
+     * tripped or error). It can be set to nullptr in both stopped and running states.
+     * Components only use the listener in running state.
+     *
+     * If listener is nullptr, the component SHALL guarantee that no more listener callbacks are
+     * done to the original listener once this method returns. (Any pending listener callbacks will
+     * need to be completed during this call - hence this call may be temporarily blocking.)
+     *
+     * This method has a variable blocking behavior based on state.
+     * In the stopped state this method MUST be "non-blocking" and return within 1ms.
+     * In the running states this method may be momentarily blocking, but MUST return within 5ms.
+     *
+     * Component SHALL handle listener notifications from the same thread (the thread used is
+     * at the component's discretion.)
+     *
+     * \note This could also be accomplished by passing a weak_ptr to a component-specific listener
+     * here and requiring the client to always promote the weak_ptr before any callback. This would
+     * put the burden on the client to clear the listener - wait for its deletion - at which point
+     * it is guaranteed that no more listener callbacks will occur.
+     *
+     * \param[in] listener the component listener object
+     * \param[in] mayBlock if true (C2_MAY_BLOCK), implementation may momentarily block.
+     *                     Otherwise (C2_DONT_BLOCK), it must be "non-blocking".
+     *
+     * \retval C2_BAD_STATE attempting to change the listener in the running state to a non-null
+     *                      value (user error), or called in the released state
+     * \retval C2_BLOCKING  the operation must block to complete but mayBlock is false
+     * \retval C2_OK        listener was updated successfully.
+     */
+    virtual c2_status_t setListener_vb(
+            const std::shared_ptr<Listener> &listener, c2_blocking_t mayBlock) = 0;
+
     // METHODS AVAILABLE WHEN RUNNING
     // =============================================================================================
 
@@ -473,11 +508,6 @@ public:
      */
     virtual std::shared_ptr<C2ComponentInterface> intf() = 0;
 
-    virtual c2_status_t registerListener(std::shared_ptr<C2ComponentListener>) = 0;
-
-    virtual c2_status_t unregisterListener(std::shared_ptr<C2ComponentListener>) = 0;
-
-protected:
     virtual ~C2Component() = default;
 };
 

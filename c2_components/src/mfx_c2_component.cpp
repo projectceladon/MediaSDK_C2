@@ -244,33 +244,28 @@ std::shared_ptr<C2ComponentInterface> MfxC2Component::intf()
     return result;
 }
 
-c2_status_t MfxC2Component::registerListener(std::shared_ptr<C2ComponentListener> listener)
+c2_status_t MfxC2Component::setListener_vb(
+    const std::shared_ptr<Listener> &listener, android::c2_blocking_t mayBlock)
 {
+    (void)mayBlock;
+
     std::lock_guard<std::mutex> lock(listeners_mutex_);
-    listeners_.push_back(listener);
+
+    listeners_.clear(); // only one listener is allowed by documentation
+    if (listener) {
+        listeners_.push_back(listener);
+    }
     return C2_OK;
 }
 
-c2_status_t MfxC2Component::unregisterListener(std::shared_ptr<C2ComponentListener> listener)
+void MfxC2Component::NotifyListeners(std::function<void(std::shared_ptr<Listener>)> notify)
 {
-    std::lock_guard<std::mutex> lock(listeners_mutex_);
-    auto found = std::find(listeners_.begin(), listeners_.end(), listener);
-
-    if(found != listeners_.end()) {
-        listeners_.erase(found);
-    }
-
-    return (found != listeners_.end()) ? C2_OK : C2_NOT_FOUND;
-}
-
-void MfxC2Component::NotifyListeners(std::function<void(std::shared_ptr<C2ComponentListener>)> notify)
-{
-    std::list<std::shared_ptr<C2ComponentListener>> listeners_copy;
+    std::list<std::shared_ptr<Listener>> listeners_copy;
     {
         std::lock_guard<std::mutex> lock(listeners_mutex_);
         listeners_copy = listeners_;
     }
-    for(std::shared_ptr<C2ComponentListener> listener : listeners_copy) {
+    for(std::shared_ptr<Listener> listener : listeners_copy) {
         notify(listener);
     }
 }
@@ -289,10 +284,10 @@ void MfxC2Component::NotifyWorkDone(std::unique_ptr<android::C2Work>&& work, and
 
     std::weak_ptr<C2Component> weak_this = shared_from_this();
 
-    NotifyListeners([weak_this, &work] (std::shared_ptr<android::C2ComponentListener> listener)
+    NotifyListeners([weak_this, &work] (std::shared_ptr<Listener> listener)
     {
         std::vector<std::unique_ptr<C2Work>> work_items;
         work_items.push_back(std::move(work));
-        listener->onWorkDone(weak_this, std::move(work_items));
+        listener->onWorkDone_nb(weak_this, std::move(work_items));
     });
 }
