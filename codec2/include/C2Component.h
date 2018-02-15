@@ -36,6 +36,31 @@ namespace android {
 
 class C2Component;
 
+struct C2FieldSupportedValuesQuery {
+    enum type_t : uint32_t {
+        POSSIBLE, ///< query all possible values regardless of other settings
+        CURRENT,  ///< query currently possible values given dependent settings
+    };
+
+    const C2ParamField field;
+    const type_t type;
+    c2_status_t status;
+    C2FieldSupportedValues values;
+
+    C2FieldSupportedValuesQuery(const C2ParamField &field_, type_t type_)
+        : field(field_), type(type_), status(C2_NO_INIT) { }
+
+    static C2FieldSupportedValuesQuery&&
+    Current(const C2ParamField &field_) {
+        return std::move(C2FieldSupportedValuesQuery(field_, CURRENT));
+    }
+
+    static C2FieldSupportedValuesQuery&&
+    Possible(const C2ParamField &field_) {
+        return std::move(C2FieldSupportedValuesQuery(field_, POSSIBLE));
+    }
+};
+
 /**
  * Component interface object. This object contains all of the configuration of a potential or
  * actual component. It can be created and used independently of an actual C2Component instance to
@@ -110,9 +135,10 @@ public:
      * \retval C2_CORRUPTED some unknown error prevented the querying of the parameters
      *                      (unexpected)
      */
-    virtual c2_status_t query_nb(
-        const std::vector<C2Param* const> &stackParams,
+    virtual c2_status_t query_vb(
+        const std::vector<C2Param*> &stackParams,
         const std::vector<C2Param::Index> &heapParamIndices,
+        c2_blocking_t mayBlock,
         std::vector<std::unique_ptr<C2Param>>* const heapParams) const = 0;
 
     /**
@@ -147,47 +173,9 @@ public:
      * \retval C2_CORRUPTED some unknown error prevented the update of the parameters
      *                      (unexpected)
      */
-    virtual c2_status_t config_nb(
-            const std::vector<C2Param* const> &params,
-            std::vector<std::unique_ptr<C2SettingResult>>* const failures) = 0;
-
-    /**
-     * Atomically sets a set of parameters for the component or interface object.
-     *
-     * \note This method is used mainly for reserving resources for a component.
-     *
-     * The component SHALL update all supported configuration at
-     * best effort(TBD) (unless configured otherwise) and skip unsupported ones. Any errors are
-     * communicated in the return value and in |failures|.
-     *
-     * \note Parameter tuning DOES depend on the order of the tuning parameters. E.g. some parameter
-     * update may allow some subsequent parameter update.
-     *
-     * This method MUST be supported in any state.
-     *
-     * This method may be momentarily blocking, but MUST return within 5ms.
-     *
-     * \param params[in,out]          a list of parameter updates. These will be updated to the actual
-     *                      parameter values after the updates (this is because tuning is performed
-     *                      at best effort).
-     *                      \todo params that could not be updated are not marked here, so are
-     *                      confusing - are they "existing" values or intended to be configured
-     *                      values?
-     * \param failures[out]        a list of parameter failures
-     *
-     * \retval C2_OK        all parameters could be updated successfully
-     * \retval C2_BAD_INDEX all supported parameters could be updated successfully, but some
-     *                      parameters were not supported
-     * \retval C2_BAD_VALUE some supported parameters could not be updated successfully because
-     *                      they contained unsupported values. These are returned in |failures|.
-     * \retval C2_NO_MEMORY some supported parameters could not be updated successfully because
-     *                      they contained unsupported values, but could not allocate a failure
-     *                      object for them.
-     * \retval C2_CORRUPTED some unknown error prevented the update of the parameters
-     *                      (unexpected)
-     */
-    virtual c2_status_t commit_sm(
-            const std::vector<C2Param* const> &params,
+    virtual c2_status_t config_vb(
+            const std::vector<C2Param*> &params,
+            c2_blocking_t mayBlock,
             std::vector<std::unique_ptr<C2SettingResult>>* const failures) = 0;
 
     // TUNNELING
@@ -238,15 +226,6 @@ public:
     // =============================================================================================
 
     /**
-     * Returns the parameter reflector.
-     *
-     * This is used to describe parameter fields.
-     *
-     * \return a shared parameter reflector object.
-     */
-    virtual std::shared_ptr<C2ParamReflector> getParamReflector() const = 0;
-
-    /**
      * Returns the set of supported parameters.
      *
      * \param[out] params a vector of supported parameters will be appended to this vector.
@@ -254,7 +233,7 @@ public:
      * \retval C2_OK        the operation completed successfully.
      * \retval C2_NO_MEMORY not enough memory to complete this method.
      */
-    virtual c2_status_t getSupportedParams(
+    virtual c2_status_t querySupportedParams_nb(
             std::vector<std::shared_ptr<C2ParamDescriptor>> * const params) const = 0;
 
     /**
@@ -262,9 +241,8 @@ public:
      * \todo should this take a list considering that setting some fields may further limit other
      * fields in the same list?
      */
-    virtual c2_status_t getSupportedValues(
-            const std::vector<const C2ParamField> fields,
-            std::vector<C2FieldSupportedValues>* const values) const = 0;
+    virtual c2_status_t querySupportedValues_vb(
+            std::vector<C2FieldSupportedValuesQuery> &fields, c2_blocking_t mayBlock) const = 0;
 
     virtual ~C2ComponentInterface() = default;
 };

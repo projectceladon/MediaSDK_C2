@@ -378,7 +378,7 @@ c2_status_t MfxC2EncoderComponent::ApplyWorkTunings(C2Work& work)
         std::transform(worklet->tunings.begin(), worklet->tunings.end(), std::back_inserter(temp),
             [] (const std::unique_ptr<C2Tuning>& p) { return p.get(); } );
 
-        std::vector<C2Param* const> params(temp.begin(), temp.end());
+        std::vector<C2Param*> params(temp.begin(), temp.end());
 
         std::vector<std::unique_ptr<C2SettingResult>> failures;
         DoConfig(params, &failures, false);
@@ -738,11 +738,14 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
     return res;
 }
 
-c2_status_t MfxC2EncoderComponent::query_nb(
-    const std::vector<C2Param* const> &stackParams,
+c2_status_t MfxC2EncoderComponent::query_vb(
+    const std::vector<C2Param*> &stackParams,
     const std::vector<C2Param::Index> &heapParamIndices,
+    android::c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2Param>>* const heapParams) const
 {
+    (void)mayBlock;
+
     MFX_DEBUG_TRACE_FUNC;
 
     std::lock_guard<std::mutex> lock(init_encoder_mutex_);
@@ -800,7 +803,7 @@ c2_status_t MfxC2EncoderComponent::query_nb(
     return res;
 }
 
-void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param* const> &params,
+void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures,
     bool queue_update)
 {
@@ -971,8 +974,11 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param* const> &params,
     }
 }
 
-c2_status_t MfxC2EncoderComponent::config_nb(const std::vector<C2Param* const> &params,
+c2_status_t MfxC2EncoderComponent::config_vb(const std::vector<C2Param*> &params,
+    c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures) {
+
+    (void)mayBlock;
 
     MFX_DEBUG_TRACE_FUNC;
 

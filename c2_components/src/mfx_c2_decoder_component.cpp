@@ -322,11 +322,14 @@ c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
     return res;
 }
 
-c2_status_t MfxC2DecoderComponent::query_nb(
-    const std::vector<C2Param* const> &stackParams,
+c2_status_t MfxC2DecoderComponent::query_vb(
+    const std::vector<C2Param*> &stackParams,
     const std::vector<C2Param::Index> &heapParamIndices,
+    android::c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2Param>>* const heapParams) const
 {
+    (void)mayBlock;
+
     MFX_DEBUG_TRACE_FUNC;
 
     std::lock_guard<std::mutex> lock(init_decoder_mutex_);
@@ -384,7 +387,7 @@ c2_status_t MfxC2DecoderComponent::query_nb(
     return res;
 }
 
-void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param* const> &params,
+void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures,
     bool /*queue_update*/)
 {
@@ -428,8 +431,11 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param* const> &params,
     }
 }
 
-c2_status_t MfxC2DecoderComponent::config_nb(const std::vector<C2Param* const> &params,
+c2_status_t MfxC2DecoderComponent::config_vb(const std::vector<C2Param*> &params,
+    c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures) {
+
+    (void)mayBlock;
 
     MFX_DEBUG_TRACE_FUNC;
 

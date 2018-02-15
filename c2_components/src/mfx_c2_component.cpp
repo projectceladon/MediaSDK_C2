@@ -58,39 +58,31 @@ c2_node_id_t MfxC2Component::getId() const
     return C2_OMITTED;
 }
 
-c2_status_t MfxC2Component::query_nb(
-    const std::vector<C2Param* const> &stackParams,
+c2_status_t MfxC2Component::query_vb(
+    const std::vector<C2Param*> &stackParams,
     const std::vector<C2Param::Index> &heapParamIndices,
+    android::c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2Param>>* const heapParams) const
 {
     MFX_DEBUG_TRACE_FUNC;
 
     (void)stackParams;
     (void)heapParamIndices;
+    (void)mayBlock;
     (void)heapParams;
 
     return C2_OMITTED;
 }
 
-c2_status_t MfxC2Component::config_nb(
-        const std::vector<C2Param* const> &params,
-        std::vector<std::unique_ptr<C2SettingResult>>* const failures)
+c2_status_t MfxC2Component::config_vb(
+    const std::vector<C2Param*> &params,
+    c2_blocking_t mayBlock,
+    std::vector<std::unique_ptr<C2SettingResult>>* const failures)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     (void)params;
-    (void)failures;
-
-    return C2_OMITTED;
-}
-
-c2_status_t MfxC2Component::commit_sm(
-        const std::vector<C2Param* const> &params,
-        std::vector<std::unique_ptr<C2SettingResult>>* const failures)
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    (void)params;
+    (void)mayBlock;
     (void)failures;
 
     return C2_OMITTED;
@@ -114,14 +106,7 @@ c2_status_t MfxC2Component::releaseTunnel_sm(c2_node_id_t targetComponent)
     return C2_OMITTED;
 }
 
-std::shared_ptr<C2ParamReflector> MfxC2Component::getParamReflector() const
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    return nullptr;
-}
-
-c2_status_t MfxC2Component::getSupportedParams(
+c2_status_t MfxC2Component::querySupportedParams_nb(
     std::vector<std::shared_ptr<C2ParamDescriptor>>* const params) const
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -129,14 +114,13 @@ c2_status_t MfxC2Component::getSupportedParams(
     return param_reflector_.getSupportedParams(params);
 }
 
-c2_status_t MfxC2Component::getSupportedValues(
-        const std::vector<const C2ParamField> fields,
-        std::vector<C2FieldSupportedValues>* const values) const
+c2_status_t MfxC2Component::querySupportedValues_vb(
+    std::vector<C2FieldSupportedValuesQuery> &fields, c2_blocking_t mayBlock) const
 {
     MFX_DEBUG_TRACE_FUNC;
 
     (void)fields;
-    (void)values;
+    (void)mayBlock;
 
     return C2_OMITTED;
 }
