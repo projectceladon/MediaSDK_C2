@@ -747,6 +747,9 @@ c2_status_t C2BlockAllocatorImpl::fetchGraphicBlock(
 c2_status_t GetCodec2BlockPool(
         C2BlockPool::local_id_t id, std::shared_ptr<const C2Component> component,
         std::shared_ptr<C2BlockPool> *pool) {
+
+    (void)component;
+
     pool->reset();
 
     c2_status_t res = C2_OK;
