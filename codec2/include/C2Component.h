@@ -366,6 +366,15 @@ public:
      */
     virtual c2_status_t announce_nb(const std::vector<C2WorkOutline> &items) = 0;
 
+    enum flush_mode_t : uint32_t {
+        /// flush work from this component only
+        FLUSH_COMPONENT,
+
+        /// flush work from this component and all components connected downstream from it via
+        /// tunneling
+        FLUSH_CHAIN = (1 << 16),
+    };
+
     /**
      * Discards and abandons any pending work for the component, and optionally any component
      * downstream.
@@ -396,14 +405,32 @@ public:
      * \retval C2_TIMED_OUT the flush could not be completed within the time limit (unexpected)
      * \retval C2_CORRUPTED some unknown error prevented flushing from completion (unexpected)
      */
-    virtual c2_status_t flush_sm(bool flushThrough, std::list<std::unique_ptr<C2Work>>* const flushedWork) = 0;
+    virtual c2_status_t flush_sm(flush_mode_t mode, std::list<std::unique_ptr<C2Work>>* const flushedWork) = 0;
+
+    enum drain_mode_t : uint32_t {
+        /// drain component only and add an "end-of-stream" marker. Component shall process all
+        /// queued work and complete the current stream. If new input is received, it shall start
+        /// a new stream. \todo define what a stream is.
+        DRAIN_COMPONENT_WITH_EOS,
+        /// drain component without setting "end-of-stream" marker. Component shall process all
+        /// queued work but shall expect more work items for the same stream.
+        DRAIN_COMPONENT_NO_EOS = (1 << 0),
+
+        /// marks the last work item with a persistent "end-of-stream" marker that will drain
+        /// downstream components
+        /// \todo this may confuse work-ordering downstream
+        DRAIN_CHAIN = (1 << 16),
 
     /**
-     * Drains the component, and optionally downstream components
-     *
      * \todo define this; we could place EOS to all upstream components, just this component, or
      *       all upstream and downstream component.
      * \todo should EOS carry over to downstream components?
+         */
+    };
+
+    /**
+     * Drains the component, and optionally downstream components. This is a signalling method;
+     * as such it does not wait for any work completion.
      *
      * Marks last work item as "end-of-stream", so component is notified not to wait for further
      * work before it processes work already queued. This method is called to set the end-of-stream
@@ -425,7 +452,7 @@ public:
      * \retval C2_TIMED_OUT the flush could not be completed within the time limit (unexpected)
      * \retval C2_CORRUPTED some unknown error prevented flushing from completion (unexpected)
      */
-    virtual c2_status_t drain_nb(bool drainThrough) = 0;
+    virtual c2_status_t drain_nb(drain_mode_t mode) = 0;
 
     // STATE CHANGE METHODS
     // =============================================================================================
@@ -483,7 +510,7 @@ public:
      *
      * \todo reclaim support - it seems that since ownership is passed, this will allow reclaiming stuff.
      */
-    virtual void reset() = 0;
+    virtual c2_status_t reset() = 0;
 
     /**
      * Releases the component.
@@ -499,7 +526,7 @@ public:
      * TODO: does it matter if this call has a short time limit? Yes, as upon return all references
      * shall be abandoned.
      */
-    virtual void release() = 0;
+    virtual c2_status_t release() = 0;
 
     /**
      * Returns the interface for this component.

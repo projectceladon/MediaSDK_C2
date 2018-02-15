@@ -159,21 +159,21 @@ c2_status_t MfxC2Component::announce_nb(const std::vector<C2WorkOutline> &items)
     return C2_OMITTED;
 }
 
-c2_status_t MfxC2Component::flush_sm(bool flushThrough, std::list<std::unique_ptr<C2Work>>* const flushedWork)
+c2_status_t MfxC2Component::flush_sm(flush_mode_t mode, std::list<std::unique_ptr<C2Work>>* const flushedWork)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    (void)flushThrough;
+    (void)mode;
     (void)flushedWork;
 
     return C2_OMITTED;
 }
 
-c2_status_t MfxC2Component::drain_nb(bool drainThrough)
+c2_status_t MfxC2Component::drain_nb(drain_mode_t mode)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    (void)drainThrough;
+    (void)mode;
 
     return C2_OMITTED;
 }
@@ -224,14 +224,16 @@ c2_status_t MfxC2Component::stop()
     return res;
 }
 
-void MfxC2Component::reset()
+c2_status_t MfxC2Component::reset()
 {
     MFX_DEBUG_TRACE_FUNC;
+    return C2_OMITTED;
 }
 
-void MfxC2Component::release()
+c2_status_t MfxC2Component::release()
 {
     MFX_DEBUG_TRACE_FUNC;
+    return C2_OMITTED;
 }
 
 std::shared_ptr<C2ComponentInterface> MfxC2Component::intf()

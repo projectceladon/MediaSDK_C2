@@ -75,17 +75,17 @@ protected: // android::C2Component
 
     android::c2_status_t announce_nb(const std::vector<android::C2WorkOutline> &items) override;
 
-    android::c2_status_t flush_sm(bool flushThrough, std::list<std::unique_ptr<android::C2Work>>* const flushedWork) override;
+    android::c2_status_t flush_sm(flush_mode_t mode, std::list<std::unique_ptr<android::C2Work>>* const flushedWork) override;
 
-    android::c2_status_t drain_nb(bool drainThrough) override;
+    android::c2_status_t drain_nb(drain_mode_t mode) override;
 
     android::c2_status_t start() override;
 
     android::c2_status_t stop() override;
 
-    void reset() override;
+    android::c2_status_t reset() override;
 
-    void release() override;
+    android::c2_status_t release() override;
 
     std::shared_ptr<C2ComponentInterface> intf() override;
 
