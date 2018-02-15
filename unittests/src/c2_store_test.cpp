@@ -94,7 +94,7 @@ TEST(MfxComponentStore, getComponents)
     std::shared_ptr<android::C2ComponentStore> componentStore;
     GetCachedC2ComponentStore(&componentStore);
 
-    auto components = componentStore->getComponents();
+    auto components = componentStore->listComponents();
 
     EXPECT_EQ(components.size(), MFX_GET_ARRAY_SIZE(g_components));
 
@@ -190,31 +190,31 @@ TEST(MfxComponentStore, copyBuffer)
     EXPECT_EQ(status, C2_OMITTED);
 }
 
-// Checks C2ComponentStore::query_nb (query global store parameter)
+// Checks C2ComponentStore::query_sm (query global store parameter)
 // returns C2_OMITTED for now.
-TEST(MfxComponentStore, query_nb)
+TEST(MfxComponentStore, query_sm)
 {
     std::shared_ptr<android::C2ComponentStore> componentStore;
     GetCachedC2ComponentStore(&componentStore);
 
-    std::vector<C2Param* const> stackParams;
+    std::vector<C2Param*> stackParams;
     std::vector<C2Param::Index> heapParamIndices;
     std::vector<std::unique_ptr<C2Param>> heapParams;
 
-    c2_status_t status = componentStore->query_nb(stackParams, heapParamIndices, &heapParams);
+    c2_status_t status = componentStore->query_sm(stackParams, heapParamIndices, &heapParams);
     EXPECT_EQ(status, C2_OMITTED);
 }
 
-// Checks C2ComponentStore::config_nb (set global store parameter)
+// Checks C2ComponentStore::config_sm (set global store parameter)
 // returns C2_OMITTED for now.
-TEST(MfxComponentStore, config_nb)
+TEST(MfxComponentStore, config_sm)
 {
     std::shared_ptr<android::C2ComponentStore> componentStore;
     GetCachedC2ComponentStore(&componentStore);
 
-    std::vector<C2Param* const> params;
-    std::list<std::unique_ptr<C2SettingResult>> failures;
+    std::vector<C2Param*> params;
+    std::vector<std::unique_ptr<C2SettingResult>> failures;
 
-    c2_status_t status = componentStore->config_nb(params, &failures);
+    c2_status_t status = componentStore->config_sm(params, &failures);
     EXPECT_EQ(status, C2_OMITTED);
 }

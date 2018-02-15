@@ -28,22 +28,33 @@ public:
     static MfxC2ComponentStore* Create(c2_status_t* status);
 
 private: // C2ComponentStore overrides
+    C2String getName() const override;
+
     c2_status_t createComponent(C2String name, std::shared_ptr<C2Component>* const component) override;
 
     c2_status_t createInterface(C2String name, std::shared_ptr<C2ComponentInterface>* const interface) override;
 
-    std::vector<std::unique_ptr<const C2ComponentInfo>> getComponents() override;
+    std::vector<std::shared_ptr<const C2Component::Traits>> listComponents() override;
 
     c2_status_t copyBuffer(std::shared_ptr<C2GraphicBuffer> src, std::shared_ptr<C2GraphicBuffer> dst) override;
 
-    c2_status_t query_nb(
-            const std::vector<C2Param * const> &stackParams,
-            const std::vector<C2Param::Index> &heapParamIndices,
-            std::vector<std::unique_ptr<C2Param>>*const heapParams) override;
+    c2_status_t query_sm(
+        const std::vector<C2Param*> &stackParams,
+        const std::vector<C2Param::Index> &heapParamIndices,
+        std::vector<std::unique_ptr<C2Param>>*const heapParams) const override;
 
-    c2_status_t config_nb(
-            const std::vector<C2Param * const> &params,
-            std::list<std::unique_ptr<C2SettingResult>>*const failures) override;
+    c2_status_t config_sm(
+        const std::vector<C2Param*> &params,
+        std::vector<std::unique_ptr<C2SettingResult>>*const failures) override;
+
+    std::shared_ptr<C2ParamReflector> getParamReflector() const override;
+
+    c2_status_t querySupportedParams_nb(
+            std::vector<std::shared_ptr<C2ParamDescriptor>> * const params) const override;
+
+    c2_status_t querySupportedValues_sm(
+            std::vector<C2FieldSupportedValuesQuery> &fields) const override;
+
 
 private: // implementation methods
     c2_status_t readConfigFile();
