@@ -18,6 +18,8 @@ class MfxC2Component;
 typedef android::c2_status_t (CreateMfxC2ComponentFunc)(const char* name, int flags,
     MfxC2Component** component);
 
+#define MFX_C2_COMPONENT_STORE_NAME "MfxC2ComponentStore"
+
 #define CREATE_MFX_C2_COMPONENT_FUNC_NAME "MfxCreateC2Component"
 
 #define MFX_C2_CONFIG_FILE_NAME "mfx_c2_store.conf"

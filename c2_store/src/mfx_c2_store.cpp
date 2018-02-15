@@ -64,6 +64,14 @@ MfxC2ComponentStore* MfxC2ComponentStore::Create(c2_status_t* status) {
     return store;
 }
 
+C2String MfxC2ComponentStore::getName() const
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    return MFX_C2_COMPONENT_STORE_NAME;
+}
+
+
 c2_status_t MfxC2ComponentStore::createComponent(C2String name, std::shared_ptr<C2Component>* const component) {
 
     MFX_DEBUG_TRACE_FUNC;
@@ -127,14 +135,14 @@ c2_status_t MfxC2ComponentStore::createInterface(C2String name, std::shared_ptr<
     return result;
 }
 
-std::vector<std::unique_ptr<const C2ComponentInfo>> MfxC2ComponentStore::getComponents() {
+std::vector<std::shared_ptr<const C2Component::Traits>> MfxC2ComponentStore::listComponents() {
 
     MFX_DEBUG_TRACE_FUNC;
-    std::vector<std::unique_ptr<const C2ComponentInfo>> result;
+    std::vector<std::shared_ptr<const C2Component::Traits>> result;
 
     try {
         for(const auto& it_pair : components_registry_ ) {
-            std::unique_ptr<C2ComponentInfo> info = std::make_unique<C2ComponentInfo>();
+            std::unique_ptr<C2Component::Traits> info = std::make_unique<C2Component::Traits>();
             info->name = it_pair.first;
             MFX_DEBUG_TRACE_S(info->name.c_str());
             result.push_back(std::move(info));
@@ -158,10 +166,10 @@ c2_status_t MfxC2ComponentStore::copyBuffer(std::shared_ptr<C2GraphicBuffer> src
     return C2_OMITTED;
 }
 
-c2_status_t MfxC2ComponentStore::query_nb(
-        const std::vector<C2Param * const> &stackParams,
+c2_status_t MfxC2ComponentStore::query_sm(
+        const std::vector<C2Param*> &stackParams,
         const std::vector<C2Param::Index> &heapParamIndices,
-        std::vector<std::unique_ptr<C2Param>>*const heapParams) {
+        std::vector<std::unique_ptr<C2Param>>*const heapParams) const {
 
     MFX_DEBUG_TRACE_FUNC;
     MFX_DEBUG_TRACE_MSG("Unimplemented method is called");
@@ -172,9 +180,9 @@ c2_status_t MfxC2ComponentStore::query_nb(
     return C2_OMITTED;
 }
 
-c2_status_t MfxC2ComponentStore::config_nb(
-        const std::vector<C2Param * const> &params,
-        std::list<std::unique_ptr<C2SettingResult>>*const failures) {
+c2_status_t MfxC2ComponentStore::config_sm(
+        const std::vector<C2Param*> &params,
+        std::vector<std::unique_ptr<C2SettingResult>>*const failures) {
 
     MFX_DEBUG_TRACE_FUNC;
     MFX_DEBUG_TRACE_MSG("Unimplemented method is called");
@@ -183,6 +191,35 @@ c2_status_t MfxC2ComponentStore::config_nb(
     (void)failures;
     return C2_OMITTED;
 }
+
+std::shared_ptr<C2ParamReflector> MfxC2ComponentStore::getParamReflector() const
+{
+    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_MSG("Unimplemented method is called");
+
+    return nullptr;
+}
+
+c2_status_t MfxC2ComponentStore::querySupportedParams_nb(
+        std::vector<std::shared_ptr<C2ParamDescriptor>> * const params) const
+{
+    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_MSG("Unimplemented method is called");
+
+    (void)params;
+    return C2_OMITTED;
+}
+
+c2_status_t MfxC2ComponentStore::querySupportedValues_sm(
+        std::vector<C2FieldSupportedValuesQuery> &fields) const
+{
+    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_MSG("Unimplemented method is called");
+
+    (void)fields;
+    return C2_OMITTED;
+}
+
 
 /* Searches in the given line field which is separated from other lines by
  * FILED_SEP characters, Returns pointer to the beginning of the field and

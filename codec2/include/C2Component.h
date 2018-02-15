@@ -303,6 +303,28 @@ public:
     virtual c2_status_t setListener_vb(
             const std::shared_ptr<Listener> &listener, c2_blocking_t mayBlock) = 0;
 
+    enum domain_t : uint32_t;
+    enum kind_t : uint32_t;
+    typedef uint32_t rank_t;
+
+    /**
+     * Information about a component.
+     */
+    struct Traits {
+    // public:
+        C2String name; ///< name of the component
+        domain_t domain; ///< component domain (e.g. audio or video)
+        kind_t kind; ///< component kind (e.g. encoder, decoder or filter)
+        rank_t rank; ///< rank used to determine component ordering (the lower the sooner)
+        C2StringLiteral mediaType; ///< media type supported by the component
+
+        /**
+         * name alias(es) for backward compatibility.
+         * \note Multiple components can have the same alias as long as their media-type differs.
+         */
+        std::vector<C2StringLiteral> aliases; ///< name aliases for backward compatibility
+    };
+
     // METHODS AVAILABLE WHEN RUNNING
     // =============================================================================================
 
@@ -548,11 +570,6 @@ public:
     virtual ~C2FrameInfoParser() = default;
 };
 
-struct C2ComponentInfo {
-    // TBD
-    C2String name; // to start with
-};
-
 class C2AllocatorStore {
 public:
     // TBD
@@ -583,6 +600,21 @@ public:
 
 class C2ComponentStore {
 public:
+    /**
+     * Returns the name of this component or component interface object.
+     * This is a unique name for this component or component interface 'class'; however, multiple
+     * instances of this component SHALL have the same name.
+     *
+     * This method MUST be supported in any state. This call does not change the state nor the
+     * internal states of the component.
+     *
+     * This method MUST be "non-blocking" and return within 1ms.
+     *
+     * \return the name of this component or component interface object.
+     * \retval an empty string if there was not enough memory to allocate the actual name.
+     */
+    virtual C2String getName() const = 0;
+
     /**
      * Creates a component.
      *
@@ -629,7 +661,7 @@ public:
      *
      * \retval vector of component information.
      */
-    virtual std::vector<std::unique_ptr<const C2ComponentInfo>> getComponents();
+    virtual std::vector<std::shared_ptr<const C2Component::Traits>> listComponents() = 0;
 
     // -------------------------------------- UTILITY METHODS --------------------------------------
 
@@ -670,10 +702,10 @@ public:
      * \retval C2_CORRUPTED some unknown error prevented the querying of the parameters
      *                      (unexpected)
      */
-    virtual c2_status_t query_nb(
-        const std::vector<C2Param* const> &stackParams,
+    virtual c2_status_t query_sm(
+        const std::vector<C2Param*> &stackParams,
         const std::vector<C2Param::Index> &heapParamIndices,
-        std::vector<std::unique_ptr<C2Param>>* const heapParams) = 0;
+        std::vector<std::unique_ptr<C2Param>>* const heapParams) const = 0;
 
     /**
      * Sets a set of system-wide parameters.
@@ -709,9 +741,56 @@ public:
      * \retval C2_CORRUPTED some unknown error prevented the update of the parameters
      *                      (unexpected)
      */
-    virtual c2_status_t config_nb(
-            const std::vector<C2Param* const> &params,
-            std::list<std::unique_ptr<C2SettingResult>>* const failures) = 0;
+    virtual c2_status_t config_sm(
+            const std::vector<C2Param*> &params,
+            std::vector<std::unique_ptr<C2SettingResult>>* const failures) = 0;
+
+    // REFLECTION MECHANISM (USED FOR EXTENSION)
+    // =============================================================================================
+
+    /**
+     * Returns the parameter reflector.
+     *
+     * This is used to describe parameter fields. This is shared for all components created by
+     * this component store.
+     *
+     * This method MUST be "non-blocking" and return within 1ms.
+     *
+     * \return a shared parameter reflector object.
+     */
+    virtual std::shared_ptr<C2ParamReflector> getParamReflector() const = 0;
+
+    /**
+     * Returns the set of supported parameters.
+     *
+     * This method MUST be "non-blocking" and return within 1ms.
+     *
+     * \param[out] params a vector of supported parameters will be appended to this vector.
+     *
+     * \retval C2_OK        the operation completed successfully.
+     * \retval C2_NO_MEMORY not enough memory to complete this method.
+     */
+    virtual c2_status_t querySupportedParams_nb(
+            std::vector<std::shared_ptr<C2ParamDescriptor>> * const params) const = 0;
+
+    /**
+     * Retrieves the supported values for the queried fields.
+     *
+     * Client SHALL set the parameter-field specifier and the type of supported values query (e.g.
+     * currently supported values, or potential supported values) in fields.
+     * Upon return the store SHALL fill in the supported values for the fields listed as well
+     * as a status for each field. Store shall process all fields queried even if some queries
+     * fail.
+     *
+     * This method may be momentarily blocking, but MUST return within 5ms.
+     *
+     * \param[in out] fields a vector of fields descriptor structures.
+     *
+     * \retval C2_OK        the operation completed successfully.
+     * \retval C2_BAD_INDEX at least one field was not recognized as a component store field
+     */
+    virtual c2_status_t querySupportedValues_sm(
+            std::vector<C2FieldSupportedValuesQuery> &fields) const = 0;
 
     virtual ~C2ComponentStore() = default;
 };
