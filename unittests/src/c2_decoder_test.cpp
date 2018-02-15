@@ -215,7 +215,7 @@ static void PrepareWork(uint32_t frame_index,
     } while(false);
 }
 
-class DecoderConsumer : public C2ComponentListener
+class DecoderConsumer : public C2Component::Listener
 {
 public:
     typedef std::function<void(uint32_t width, uint32_t height,
@@ -257,7 +257,7 @@ public:
     }
 
 protected:
-    void onWorkDone(
+    void onWorkDone_nb(
         std::weak_ptr<C2Component> component,
         std::vector<std::unique_ptr<C2Work>> workItems) override
     {
@@ -331,20 +331,20 @@ protected:
         }
     }
 
-    void onTripped(std::weak_ptr<C2Component> component,
+    void onTripped_nb(std::weak_ptr<C2Component> component,
                            std::vector<std::shared_ptr<C2SettingResult>> settingResult) override
     {
         (void)component;
         (void)settingResult;
-        EXPECT_EQ(true, false) << "onTripped callback shouldn't come";
+        EXPECT_EQ(true, false) << "onTripped_nb callback shouldn't come";
     }
 
-    void onError(std::weak_ptr<C2Component> component,
+    void onError_nb(std::weak_ptr<C2Component> component,
                          uint32_t errorCode) override
     {
         (void)component;
         (void)errorCode;
-        EXPECT_EQ(true, false) << "onError callback shouldn't come";
+        EXPECT_EQ(true, false) << "onError_nb callback shouldn't come";
     }
 
 private:
@@ -361,7 +361,8 @@ static void Decode(
     std::shared_ptr<DecoderConsumer> validator,
     const std::vector<const StreamDescription*>& streams)
 {
-    component->registerListener(validator);
+    c2_blocking_t may_block {};
+    component->setListener_vb(validator, may_block);
 
     C2MemoryTypeSetting setting;
     setting.value = graphics_memory ? C2MemoryTypeGraphics : C2MemoryTypeSystem;
@@ -410,7 +411,7 @@ static void Decode(
     EXPECT_EQ(future_sts, std::future_status::ready) << " decoded less frames than expected, missing: "
         << validator->GetMissingFramesList();
 
-    component->unregisterListener(validator);
+    component->setListener_vb(nullptr, may_block);
     sts = component->stop();
     EXPECT_EQ(sts, C2_OK);
 }

@@ -89,12 +89,11 @@ protected: // android::C2Component
 
     std::shared_ptr<C2ComponentInterface> intf() override;
 
-    android::c2_status_t registerListener(std::shared_ptr<android::C2ComponentListener> listener) override;
-
-    android::c2_status_t unregisterListener(std::shared_ptr<android::C2ComponentListener> listener) override;
+    android::c2_status_t setListener_vb(
+        const std::shared_ptr<Listener> &listener, android::c2_blocking_t mayBlock) override;
 
 protected:
-    void NotifyListeners(std::function<void(std::shared_ptr<android::C2ComponentListener>)> notify);
+    void NotifyListeners(std::function<void(std::shared_ptr<Listener>)> notify);
 
     void NotifyWorkDone(std::unique_ptr<android::C2Work>&& work, android::c2_status_t sts);
 
@@ -142,7 +141,7 @@ protected: // variables
     mfxIMPL mfx_implementation_;
 
 private:
-    std::list<std::shared_ptr<android::C2ComponentListener>> listeners_;
+    std::list<std::shared_ptr<Listener>> listeners_;
 
     std::mutex listeners_mutex_;
 };
