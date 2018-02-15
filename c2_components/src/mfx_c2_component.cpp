@@ -55,7 +55,7 @@ c2_node_id_t MfxC2Component::getId() const
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    return C2_OMITTED;
+    return {};
 }
 
 c2_status_t MfxC2Component::query_vb(
