@@ -40,14 +40,14 @@ public:
         indices_.push_back(ParamType::PARAM_TYPE);
     }
 
-    std::vector<C2Param* const> GetStackPointers() const
+    std::vector<C2Param*> GetStackPointers() const
     {
         // need this temp vector as cannot init vector<smth const> in one step
         std::vector<C2Param*> params;
         std::transform(stack_values_.begin(), stack_values_.end(), std::back_inserter(params),
             [] (const std::unique_ptr<C2Param>& p) { return p.get(); } );
 
-        std::vector<C2Param* const> res(params.begin(), params.end());
+        std::vector<C2Param*> res(params.begin(), params.end());
         return res;
     }
 

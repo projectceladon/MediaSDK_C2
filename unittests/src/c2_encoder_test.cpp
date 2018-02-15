@@ -373,11 +373,11 @@ static void Encode(
     C2MemoryTypeSetting setting;
     setting.value = graphics_memory ? C2MemoryTypeGraphics : C2MemoryTypeSystem;
 
-    std::vector<C2Param* const> params = { &setting };
+    std::vector<C2Param*> params = { &setting };
     std::vector<std::unique_ptr<C2SettingResult>> failures;
     std::shared_ptr<C2ComponentInterface> comp_intf = component->intf();
 
-    c2_status_t sts = comp_intf->config_nb(params, &failures);
+    c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
     EXPECT_EQ(sts, C2_OK);
 
     sts = component->start();
@@ -494,7 +494,7 @@ TEST(MfxEncoderComponent, getSupportedParams)
         [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         std::vector<std::shared_ptr<C2ParamDescriptor>> params_actual;
-        c2_status_t sts = comp_intf->getSupportedParams(&params_actual);
+        c2_status_t sts = comp_intf->querySupportedParams_nb(&params_actual);
         EXPECT_EQ(sts, C2_OK);
 
         EXPECT_EQ(desc.params_desc.size(), params_actual.size());
@@ -515,7 +515,7 @@ TEST(MfxEncoderComponent, getSupportedParams)
     } );
 }
 
-// Tests if all encoding components handle config_nb with not existing parameter correctly.
+// Tests if all encoding components handle config_vb with not existing parameter correctly.
 // It should return individual C2SettingResult failure structure with
 // initialized fields and aggregate status value.
 TEST(MfxEncoderComponent, UnsupportedParam)
@@ -529,10 +529,11 @@ TEST(MfxEncoderComponent, UnsupportedParam)
 
         C2UnsupportedSetting setting;
 
-        std::vector<C2Param* const> params = { &setting };
+        std::vector<C2Param*> params = { &setting };
         std::vector<std::unique_ptr<C2SettingResult>> failures;
+        c2_blocking_t may_block {};
 
-        c2_status_t sts = comp_intf->config_nb(params, &failures);
+        c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
         EXPECT_EQ(sts, C2_BAD_INDEX);
 
         EXPECT_EQ(failures.size(), 1);
@@ -577,10 +578,11 @@ TEST(MfxEncoderComponent, StaticBitrate)
 
             param_bitrate.value = bitrates[test_index];
 
-            std::vector<C2Param* const> params = { &param_rate_control, &param_bitrate };
+            std::vector<C2Param*> params = { &param_rate_control, &param_bitrate };
             std::vector<std::unique_ptr<C2SettingResult>> failures;
+            c2_blocking_t may_block {};
 
-            c2_status_t sts = comp_intf->config_nb(params, &failures);
+            c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
             EXPECT_EQ(sts, C2_OK);
 
             GTestBinaryWriter writer(std::ostringstream() << comp_intf->getName()
@@ -635,10 +637,11 @@ TEST(MfxEncoderComponent, StaticRateControlMethod)
             GTestBinaryWriter writer(std::ostringstream() <<
                 comp_intf->getName() << "-" << param_rate_control.value << ".out");
 
-            std::vector<C2Param* const> params = { &param_rate_control };
+            std::vector<C2Param*> params = { &param_rate_control };
             std::vector<std::unique_ptr<C2SettingResult>> failures;
+            c2_blocking_t may_block {};
 
-            c2_status_t sts = comp_intf->config_nb(params, &failures);
+            c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
             EXPECT_EQ(sts, C2_OK);
 
             EncoderConsumer::OnFrame on_frame =
@@ -668,7 +671,7 @@ TEST(MfxEncoderComponent, StaticRateControlMethod)
 // The test sets them to the same value,
 // if qp value is set in valid range [1..51] it expects C2_OK status and
 // output bitstream smaller size when QP grows.
-// If qp value is invalid, then config_nb error is expected,
+// If qp value is invalid, then config_vb error is expected,
 // bitstream must be bit exact with previous run.
 TEST(MfxEncoderComponent, StaticFrameQP)
 {
@@ -684,8 +687,9 @@ TEST(MfxEncoderComponent, StaticFrameQP)
         // if set together with QP value -> QP is reset to default value (30)
         // and test runs where qp is set to invalid values don't work
         std::vector<std::unique_ptr<C2SettingResult>> failures;
-        std::vector<C2Param* const> params = { &param_rate_control };
-        c2_status_t sts = comp_intf->config_nb(params, &failures);
+        std::vector<C2Param*> params = { &param_rate_control };
+        c2_blocking_t may_block {};
+        c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
         EXPECT_EQ(sts, C2_OK);
         EXPECT_EQ(failures.size(), 0);
 
@@ -723,8 +727,9 @@ TEST(MfxEncoderComponent, StaticFrameQP)
             param_qp.qp_p = test_run.qp;
             param_qp.qp_b = test_run.qp;
 
-            std::vector<C2Param* const> params = { &param_qp };
-            c2_status_t sts = comp_intf->config_nb(params, &failures);
+            std::vector<C2Param*> params = { &param_qp };
+            c2_blocking_t may_block {};
+            c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
             EXPECT_EQ(sts, test_run.expected_result);
             if(test_run.expected_result == C2_OK) {
                 EXPECT_EQ(failures.size(), 0);
@@ -785,7 +790,7 @@ TEST(MfxEncoderComponent, StaticFrameQP)
 // Queries param values and verify correct defaults.
 // Does check before encoding (STOPPED state), during encoding on every frame,
 // and after encoding.
-TEST(MfxEncoderComponent, query_nb)
+TEST(MfxEncoderComponent, query_vb)
 {
     GetComponentsCache().clear(); // reset cache to re-create components and have default params there
 
@@ -798,8 +803,9 @@ TEST(MfxEncoderComponent, query_nb)
             // check query through stack placeholders and the same with heap allocated
             std::vector<std::unique_ptr<C2Param>> heap_params;
             const C2ParamValues& default_values = comp_desc.default_values;
-            c2_status_t res = comp_intf->query_nb(default_values.GetStackPointers(),
-                default_values.GetIndices(), &heap_params);
+            c2_blocking_t may_block {};
+            c2_status_t res = comp_intf->query_vb(default_values.GetStackPointers(),
+                default_values.GetIndices(), may_block, &heap_params);
             EXPECT_EQ(res, comp_desc.query_status);
 
             default_values.CheckStackValues();
@@ -861,7 +867,7 @@ uint32_t CountIdrSlices(std::vector<char>&& contents)
 // Tests dynamic parameter enforcing IDR frame to be inserted into encoded bitstream.
 // Encodes the same frames multiple times, inserting IDR every N frames.
 // Checks that output bitstream contains idr frames exactly as expected.
-// It tries to request IDR frame with config_nb and with C2Work structure.
+// It tries to request IDR frame with config_vb and with C2Work structure.
 TEST(MfxEncoderComponent, IntraRefresh)
 {
     ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
@@ -871,7 +877,7 @@ TEST(MfxEncoderComponent, IntraRefresh)
 
         for(bool use_config_nb : { true, false }) {
 
-            SCOPED_TRACE((use_config_nb ? "config_nb" : "C2Work"));
+            SCOPED_TRACE((use_config_nb ? "config_vb" : "C2Work"));
 
             std::vector<int> idr_distances { 2, 3, 7, 10, 15 };
 
@@ -892,9 +898,10 @@ TEST(MfxEncoderComponent, IntraRefresh)
                             std::make_unique<C2IntraRefreshTuning>();
                         intra_refresh->value = true;
                         if (use_config_nb) {
-                            std::vector<android::C2Param* const> params { intra_refresh.get() };
+                            std::vector<android::C2Param*> params { intra_refresh.get() };
                             std::vector<std::unique_ptr<android::C2SettingResult>> failures;
-                            c2_status_t sts = comp_intf->config_nb(params, &failures);
+                            c2_blocking_t may_block {};
+                            c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
 
                             EXPECT_EQ(sts, C2_OK);
                             EXPECT_EQ(failures.size(), 0);
@@ -934,7 +941,7 @@ TEST(MfxEncoderComponent, IntraRefresh)
 
 // First half of video is encoded with one bitrate, second with another.
 // Checks that output bitrate is changed accordingly.
-// Bitrate is changed with config_nb and with C2Work structure on separate passes.
+// Bitrate is changed with config_vb and with C2Work structure on separate passes.
 // The bitrate tuning is done in VBR mode, as it is the only mode media SDK supports
 // dynamic bitrate change.
 TEST(MfxEncoderComponent, DynamicBitrate)
@@ -946,9 +953,10 @@ TEST(MfxEncoderComponent, DynamicBitrate)
 
         C2RateControlSetting param_rate_control;
         param_rate_control.value = C2RateControlVBR;
-        std::vector<android::C2Param* const> static_params { &param_rate_control };
+        std::vector<android::C2Param*> static_params { &param_rate_control };
         std::vector<std::unique_ptr<C2SettingResult>> failures;
-        c2_status_t sts = comp_intf->config_nb(static_params, &failures);
+        c2_blocking_t may_block {};
+        c2_status_t sts = comp_intf->config_vb(static_params, may_block, &failures);
         EXPECT_EQ(sts, C2_OK);
         EXPECT_EQ(failures.size(), 0);
 
@@ -956,7 +964,7 @@ TEST(MfxEncoderComponent, DynamicBitrate)
 
         for(bool use_config_nb : { true, false }) {
 
-            SCOPED_TRACE((use_config_nb ? "config_nb" : "C2Work"));
+            SCOPED_TRACE((use_config_nb ? "config_vb" : "C2Work"));
 
             std::unique_ptr<C2BitrateTuning> param_bitrate = std::make_unique<C2BitrateTuning>();
 
@@ -975,9 +983,10 @@ TEST(MfxEncoderComponent, DynamicBitrate)
 
             param_bitrate->value = BITRATE_1;
 
-            std::vector<C2Param* const> dynamic_params = { param_bitrate.get() };
+            std::vector<C2Param*> dynamic_params = { param_bitrate.get() };
+            c2_blocking_t may_block {};
 
-            c2_status_t sts = comp_intf->config_nb(dynamic_params, &failures);
+            c2_status_t sts = comp_intf->config_vb(dynamic_params, may_block, &failures);
             EXPECT_EQ(sts, C2_OK);
             EXPECT_EQ(failures.size(), 0);
 
@@ -988,7 +997,7 @@ TEST(MfxEncoderComponent, DynamicBitrate)
                     param_bitrate->value = BITRATE_2;
 
                     if (use_config_nb) {
-                        c2_status_t sts = comp_intf->config_nb(dynamic_params, &failures);
+                        c2_status_t sts = comp_intf->config_vb(dynamic_params, may_block, &failures);
 
                         EXPECT_EQ(sts, C2_OK);
                         EXPECT_EQ(failures.size(), 0);
@@ -1035,7 +1044,9 @@ TEST(MfxEncoderComponent, ProfileLevelInfo)
         (void)comp;
 
         std::vector<std::unique_ptr<C2Param>> heap_params;
-        c2_status_t res = comp_intf->query_nb({} , { C2ProfileLevelInfo::output::PARAM_TYPE }, &heap_params);
+        c2_blocking_t may_block {};
+        c2_status_t res = comp_intf->query_vb(
+            {} , { C2ProfileLevelInfo::output::PARAM_TYPE }, may_block, &heap_params);
         EXPECT_EQ(res, C2_OK);
         EXPECT_EQ(heap_params.size(), 1);
 
@@ -1082,18 +1093,19 @@ TEST(MfxEncoderComponent, CodecProfileAndLevel)
 
             C2ProfileSetting param_profile(test_run.profile);
             C2LevelSetting param_level(test_run.level);
-            std::vector<C2Param* const> params = { &param_profile, &param_level };
+            std::vector<C2Param*> params = { &param_profile, &param_level };
             std::vector<std::unique_ptr<C2SettingResult>> failures;
 
-            c2_status_t sts = comp_intf->config_nb(params, &failures);
+            c2_blocking_t may_block {};
+            c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
             EXPECT_EQ(sts, C2_OK);
             EXPECT_EQ(failures.size(), 0);
 
             C2ParamValues query_expected;
             query_expected.Append(new C2ProfileSetting(test_run.profile));
             query_expected.Append(new C2LevelSetting(test_run.level));
-            sts = comp_intf->query_nb(query_expected.GetStackPointers(),
-                {}, nullptr);
+            sts = comp_intf->query_vb(query_expected.GetStackPointers(),
+                {}, may_block, nullptr);
             EXPECT_EQ(sts, C2_OK);
             query_expected.CheckStackValues();
 

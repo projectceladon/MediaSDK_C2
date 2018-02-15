@@ -406,7 +406,7 @@ TEST(MfxMockComponent, Decode)
                 if (!component_intf) continue;
 
                 C2ProducerMemoryType memory_type_setting(memory_type);
-                sts = component_intf->config_nb( { &memory_type_setting }, nullptr );
+                sts = component_intf->config_vb( { &memory_type_setting }, may_block, nullptr );
                 EXPECT_EQ(sts, C2_OK);
 
                 sts = component->start();

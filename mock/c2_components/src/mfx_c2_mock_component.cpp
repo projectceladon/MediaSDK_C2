@@ -212,10 +212,13 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
     NotifyWorkDone(std::move(work), res);
 }
 
-c2_status_t MfxC2MockComponent::config_nb(
-        const std::vector<android::C2Param* const> &params,
+c2_status_t MfxC2MockComponent::config_vb(
+        const std::vector<android::C2Param*> &params,
+        android::c2_blocking_t mayBlock,
         std::vector<std::unique_ptr<android::C2SettingResult>>* const)
 {
+    (void)mayBlock;
+
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;

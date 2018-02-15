@@ -131,7 +131,7 @@ TEST(MfxDecoderComponent, getSupportedParams)
         [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         std::vector<std::shared_ptr<C2ParamDescriptor>> params_actual;
-        c2_status_t sts = comp_intf->getSupportedParams(&params_actual);
+        c2_status_t sts = comp_intf->querySupportedParams_nb(&params_actual);
         EXPECT_EQ(sts, C2_OK);
 
         EXPECT_EQ(desc.params_desc.size(), params_actual.size());
@@ -367,11 +367,11 @@ static void Decode(
     C2MemoryTypeSetting setting;
     setting.value = graphics_memory ? C2MemoryTypeGraphics : C2MemoryTypeSystem;
 
-    std::vector<C2Param* const> params = { &setting };
+    std::vector<C2Param*> params = { &setting };
     std::vector<std::unique_ptr<C2SettingResult>> failures;
     std::shared_ptr<C2ComponentInterface> comp_intf = component->intf();
 
-    c2_status_t sts = comp_intf->config_nb(params, &failures);
+    c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
     EXPECT_EQ(sts, C2_OK);
 
     sts = component->start();

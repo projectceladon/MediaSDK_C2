@@ -55,14 +55,16 @@ public:
     static void RegisterClass(MfxC2ComponentsRegistry& registry);
 
 protected: // android::C2ComponentInterface
-    android::c2_status_t query_nb(
-        const std::vector<android::C2Param* const> &stackParams,
+    android::c2_status_t query_vb(
+        const std::vector<android::C2Param*> &stackParams,
         const std::vector<android::C2Param::Index> &heapParamIndices,
+        android::c2_blocking_t mayBlock,
         std::vector<std::unique_ptr<android::C2Param>>* const heapParams) const override;
 
-    android::c2_status_t config_nb(
-            const std::vector<android::C2Param* const> &params,
-            std::vector<std::unique_ptr<android::C2SettingResult>>* const failures) override;
+    android::c2_status_t config_vb(
+        const std::vector<android::C2Param*> &params,
+        android::c2_blocking_t mayBlock,
+        std::vector<std::unique_ptr<android::C2SettingResult>>* const failures) override;
 
 protected: // android::C2Component
     android::c2_status_t queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items) override;
@@ -97,7 +99,7 @@ private:
     android::c2_status_t AllocateBitstream(const std::unique_ptr<android::C2Work>& work,
         MfxC2BitstreamOut* mfx_bitstream);
 
-    void DoConfig(const std::vector<android::C2Param* const> &params,
+    void DoConfig(const std::vector<android::C2Param*> &params,
         std::vector<std::unique_ptr<android::C2SettingResult>>* const failures,
         bool queue_update);
 
@@ -126,7 +128,7 @@ private:
     MfxCmdQueue waiting_queue_;
     MFX_TRACEABLE(waiting_queue_);
 
-    // Video params configured through config_nb, retained between Start/Stop
+    // Video params configured through config_vb, retained between Start/Stop
     // sessions, used for init encoder,
     // can have zero (default) fields.
     mfxVideoParam video_params_config_;

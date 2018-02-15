@@ -40,9 +40,10 @@ public:
     static void RegisterClass(MfxC2ComponentsRegistry& registry);
 
 protected: // android::C2ComponentInterface
-    android::c2_status_t config_nb(
-            const std::vector<android::C2Param* const> &params,
-            std::vector<std::unique_ptr<android::C2SettingResult>>* const failures) override;
+    android::c2_status_t config_vb(
+        const std::vector<android::C2Param*> &params,
+        android::c2_blocking_t mayBlock,
+        std::vector<std::unique_ptr<android::C2SettingResult>>* const failures) override;
 
 protected: // android::C2Component
     android::c2_status_t queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items) override;
