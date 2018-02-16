@@ -540,7 +540,7 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
 
     mfxStatus mfx_res = MFX_ERR_NONE;
 
-    mfx_res = session_.SyncOperation(sync_point, MFX_C2_INFINITE);
+    mfx_res = session_.SyncOperation(sync_point, MFX_TIMEOUT_INFINITE);
 
     if (MFX_ERR_NONE != mfx_res) {
         MFX_DEBUG_TRACE_MSG("SyncOperation failed");
