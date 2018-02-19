@@ -59,6 +59,7 @@ private:
 
 /// \endcond
 
+#undef DEFINE_C2_ENUM_VALUE_AUTO_HELPER
 #define DEFINE_C2_ENUM_VALUE_AUTO_HELPER(name, type, prefix, ...) \
 template<> C2FieldDescriptor::named_values_type C2FieldDescriptor::namedValuesFor(const name &r __unused) { \
     return C2ParamUtils::sanitizeEnumValues( \
@@ -67,6 +68,7 @@ template<> C2FieldDescriptor::named_values_type C2FieldDescriptor::namedValuesFo
             prefix); \
 }
 
+#undef DEFINE_C2_ENUM_VALUE_CUSTOM_HELPER
 #define DEFINE_C2_ENUM_VALUE_CUSTOM_HELPER(name, type, names, ...) \
 template<> C2FieldDescriptor::named_values_type C2FieldDescriptor::namedValuesFor(const name &r __unused) { \
     return C2ParamUtils::customEnumValues( \
@@ -222,7 +224,7 @@ private:
     friend class C2ParamTest_ParamUtilsTest_Test;
 
 public:
-    static std::vector<C2String> getEnumValuesFromString(C2StringLiteral value) {
+    static std::vector<C2String> parseEnumValuesFromString(C2StringLiteral value) {
         std::vector<C2String> foundNames;
         size_t pos = 0, len = strlen(value);
         do {
@@ -260,6 +262,21 @@ public:
         }
         return namedValues;
     }
+
+    /// safe(r) parsing from parameter blob
+    static
+    C2Param *ParseFirst(const uint8_t *blob, size_t size) {
+        // _mSize must fit into size, but really C2Param must also to be a valid param
+        if (size < sizeof(C2Param)) {
+            return nullptr;
+        }
+        // _mSize must match length
+        C2Param *param = (C2Param*)blob;
+        if (param->size() > size) {
+            return nullptr;
+        }
+        return param;
+    }
 };
 
 /* ---------------------------- UTILITIES FOR PARAMETER REFLECTION ---------------------------- */
@@ -278,9 +295,9 @@ template<typename T, typename... Params>
 C2_HIDE
 void addC2Params(std::list<const C2FieldDescriptor> &fields, _C2Tuple<T, Params...> *)
 {
-    //C2Param::index_t index = T::baseIndex;
+    //C2Param::CodeIndex index = T::CORE_INDEX;
     //(void)index;
-    fields.insert(fields.end(), T::fieldList);
+    fields.insert(fields.end(), T::FIELD_LIST);
     addC2Params(fields, (_C2Tuple<Params...> *)nullptr);
 }
 
