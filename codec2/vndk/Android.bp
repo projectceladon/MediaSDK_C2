@@ -1,0 +1,42 @@
+cc_library {
+    name: "libstagefright_codec2_vndk",
+
+    srcs: [
+        "C2AllocatorIon.cpp",
+        "C2AllocatorGralloc.cpp",
+        "C2Buffer.cpp",
+        "C2Config.cpp",
+        "C2Store.cpp",
+    ],
+
+    export_include_dirs: [
+        "include",
+    ],
+
+    include_dirs: [
+        "frameworks/av/media/libstagefright/codec2/include",
+        "frameworks/native/include/media/hardware",
+    ],
+
+    shared_libs: [
+        "android.hardware.graphics.allocator@2.0",
+        "android.hardware.graphics.mapper@2.0",
+        "libbinder",
+        "libcutils",
+        "libdl",
+        "libhardware",
+        "libhidlbase",
+        "libion",
+        "liblog",
+        "libmedia",
+        "libstagefright_foundation",
+        "libui",
+        "libutils",
+    ],
+
+    cflags: [
+        "-Werror",
+        "-Wall",
+        "-std=c++14",
+    ],
+}
