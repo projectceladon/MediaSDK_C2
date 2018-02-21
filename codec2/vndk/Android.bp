@@ -1,5 +1,5 @@
 cc_library {
-    name: "libstagefright_codec2_vndk",
+    name: "libstagefright_codec2_vndk_mfx",
 
     srcs: [
         "C2AllocatorIon.cpp",
@@ -14,8 +14,11 @@ cc_library {
     ],
 
     include_dirs: [
-        "frameworks/av/media/libstagefright/codec2/include",
         "frameworks/native/include/media/hardware",
+    ],
+
+    header_libs: [
+        "codec2_headers",
     ],
 
     shared_libs: [
@@ -28,10 +31,13 @@ cc_library {
         "libhidlbase",
         "libion",
         "liblog",
-        "libmedia",
         "libstagefright_foundation",
         "libui",
         "libutils",
+    ],
+
+    whole_static_libs: [
+        "libmfx_mock_codec2_event",
     ],
 
     cflags: [
@@ -39,4 +45,6 @@ cc_library {
         "-Wall",
         "-std=c++14",
     ],
+
+    vendor_available: true,
 }
