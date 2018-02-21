@@ -1,0 +1,4 @@
+subdirs = [
+    "codec2",
+    "mock/codec2",
+]

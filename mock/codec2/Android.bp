@@ -1,0 +1,25 @@
+cc_library_static {
+    name: "libmfx_mock_codec2_event",
+
+    srcs: [
+        "src/C2Event.cpp",
+    ],
+
+    header_libs: [
+        "codec2_headers",
+    ],
+
+    shared_libs: [
+        "libutils",
+        "libhardware",
+    ],
+
+    cflags: [
+        "-Werror",
+        "-Wall",
+        "-std=c++14",
+        "-fexceptions",
+    ],
+
+    vendor_available: true,
+}
