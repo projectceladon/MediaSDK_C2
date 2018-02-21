@@ -14,8 +14,7 @@ define build_components
       $$(MFX_C_INCLUDES) \
       $$(MFX_C_INCLUDES_C2) \
       $$(MFX_C2_HOME)/c2_utils/include \
-      $$(MFX_C2_HOME)/c2_buffers/include \
-      $$(MFX_C2_HOME)/mock/codec2/include
+      $$(MFX_C2_HOME)/c2_buffers/include
 
   LOCAL_CFLAGS := \
       $$(MFX_CFLAGS) \
@@ -26,9 +25,10 @@ define build_components
 
   LOCAL_SHARED_LIBRARIES := \
     libhardware \
-    libdl liblog
+    libdl liblog \
+    $(MFX_SHARED_LIBS_C2)
 
-  LOCAL_STATIC_LIBRARIES := libmfx_mock_codec2 libmfx_c2_buffers
+  LOCAL_STATIC_LIBRARIES := libmfx_c2_buffers $(MFX_STATIC_LIBS_C2)
 
   ifneq ($(1),pure)
     MODULE_SUFFIX := _$(1)

@@ -71,7 +71,6 @@ LOCAL_C_INCLUDES := \
     $(MFX_C2_HOME)/c2_components/include \
     $(MFX_C2_HOME)/c2_streams/include \
     $(MFX_C2_HOME)/unittests/include \
-    $(MFX_C2_HOME)/mock/codec2/include \
     $(MFX_C2_HOME)/c2_utils/include
 
 LOCAL_C_INCLUDES_32 := $(IPP_ROOT_32)/include
@@ -84,9 +83,17 @@ LOCAL_CFLAGS += \
 LOCAL_LDFLAGS += \
     $(MFX_LDFLAGS)
 
-LOCAL_STATIC_LIBRARIES := libmfx_c2_utils libmfx_mock_codec2 libippdc_l libippcore_l
+LOCAL_STATIC_LIBRARIES := \
+    libmfx_c2_utils \
+    libippdc_l \
+    libippcore_l \
+    $(MFX_STATIC_LIBS_C2)
 
-LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_components_hw
+LOCAL_SHARED_LIBRARIES := \
+    libdl \
+    liblog \
+    libmfx_c2_components_hw \
+    $(MFX_SHARED_LIBS_C2)
 
 LOCAL_HEADER_LIBRARIES := \
     $(MFX_HEADER_LIBRARIES) \
@@ -127,7 +134,6 @@ define build_mock_unittests
       $$(MFX_C2_HOME)/mock/c2_components/include \
       $$(MFX_C2_HOME)/c2_components/include \
       $$(MFX_C2_HOME)/unittests/include \
-      $$(MFX_C2_HOME)/mock/codec2/include \
       $$(MFX_C2_HOME)/c2_utils/include
 
   LOCAL_C_INCLUDES_32 := $$(IPP_ROOT_32)/include
@@ -140,10 +146,17 @@ define build_mock_unittests
   LOCAL_LDFLAGS += \
       $$(MFX_LDFLAGS)
 
-  LOCAL_STATIC_LIBRARIES := libmfx_mock_codec2 libippdc_l libippcore_l
+  LOCAL_STATIC_LIBRARIES := \
+    libippdc_l \
+    libippcore_l \
+    $(MFX_STATIC_LIBS_C2)
 
-  LOCAL_SHARED_LIBRARIES := libmfx_mock_c2_components \
-      libdl liblog libhardware
+  LOCAL_SHARED_LIBRARIES := \
+    libmfx_mock_c2_components \
+    libdl \
+    liblog \
+    libhardware \
+    $(MFX_SHARED_LIBS_C2)
 
   ifneq ($(1),pure)
     MODULE_SUFFIX :=
