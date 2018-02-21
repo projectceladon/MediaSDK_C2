@@ -77,4 +77,4 @@ fi
 
 /c/tools/platform-tools/adb.exe shell 'cd '${device_dir}'; \
 for exec_name in ./*unittests*; do chmod a+x $exec_name; \
-LD_LIBRARY_PATH=. ./$exec_name --gtest_filter='$gtest_filter' --dump-output; done'
+LD_LIBRARY_PATH=.:/system/'$remote_lib'/vndk-sp ./$exec_name --gtest_filter='$gtest_filter' --dump-output; done'
