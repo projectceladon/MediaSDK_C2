@@ -1,5 +1,5 @@
 #include "C2Buffer.h"
-#include "C2BlockAllocator.h"
+#include "C2PlatformSupport.h"
 #include "mfx_defs.h"
 #include "mfx_debug.h"
 #include "mfx_c2_debug.h"

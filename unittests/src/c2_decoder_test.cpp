@@ -14,7 +14,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_utils.h"
 #include "mfx_c2_component.h"
 #include "mfx_c2_components_registry.h"
-#include "C2BlockAllocator.h"
+#include "C2PlatformSupport.h"
 #include "streams/h264/aud_mw_e.264.h"
 #include "streams/h264/freh9.264.h"
 
