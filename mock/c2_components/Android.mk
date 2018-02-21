@@ -14,7 +14,6 @@ LOCAL_SRC_FILES := \
 LOCAL_C_INCLUDES += \
     $(MFX_C2_HOME)/c2_components/include/ \
     $(MFX_C2_HOME)/c2_utils/include/ \
-    $(MFX_C2_HOME)/mock/codec2/include \
     $(MFX_C_INCLUDES) \
     $(MFX_C_INCLUDES_C2)
 
@@ -27,10 +26,13 @@ LOCAL_LDFLAGS += \
     $(MFX_LDFLAGS)
 
 LOCAL_SHARED_LIBRARIES := \
-  libhardware \
-  libdl liblog
+    libhardware \
+    libdl liblog \
+    $(MFX_SHARED_LIBS_C2)
 
-LOCAL_STATIC_LIBRARIES += libmfx_mock_codec2 libmfx_c2_utils
+LOCAL_STATIC_LIBRARIES := \
+    $(MFX_STATIC_LIBS_C2) \
+    libmfx_c2_utils
 
 LOCAL_HEADER_LIBRARIES := \
     $(MFX_HEADER_LIBRARIES)
