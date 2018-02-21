@@ -18,7 +18,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_legacy_defs.h"
 #include "mfx_c2_params.h"
 #include "mfx_defaults.h"
-#include "C2BlockAllocator.h"
+#include "C2PlatformSupport.h"
 
 #include <limits>
 #include <thread>

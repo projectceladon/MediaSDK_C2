@@ -15,7 +15,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_components_registry.h"
 #include "mfx_c2_utils.h"
 
-#include "C2BlockAllocator.h"
+#include "C2PlatformSupport.h"
 
 using namespace android;
 
