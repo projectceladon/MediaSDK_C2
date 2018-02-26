@@ -1077,11 +1077,6 @@ protected:
     C2GraphicView(
             const _C2PlanarCapacityAspect *parent,
             uint8_t *const *data,
-            const C2PlanarLayout& layout);
-
-    C2GraphicView(
-            const _C2PlanarCapacityAspect *parent,
-            uint8_t *const *data,
             const C2PlanarLayout& layout,
             const std::shared_ptr<C2GraphicAllocation> &alloc);
     explicit C2GraphicView(c2_status_t error);

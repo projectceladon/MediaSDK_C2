@@ -791,52 +791,82 @@ static void MfxFrameConverterTest(const std::vector<MfxFrameConverterTestStep>& 
     dev->Close();
 }
 
-// Allocates some gralloc frames, fills them with pattern,
-// wires them up with mfxMemID (VA surface inside),
-// locks mfxFrames and checks a pattern is the same.
-// Then locks mfxFrames again, fills them with different pattern
-// and checks original gralloc buffers get updated pattern.
-// These steps prove modifications go from gralloc to VA and back.
-TEST(MfxFrameConverter, GrallocContentsMappedToVa)
+// Class implementing variety of steps for MfxFrameConverter tests.
+class MfxFrameConverterTestSteps
 {
-    const int WIDTH = 600;
-    const int HEIGHT = 400;
-    const int FRAME_COUNT = 3;
-
-    buffer_handle_t handles[FRAME_COUNT] {};
-    mfxMemId mfx_mem_ids[FRAME_COUNT] {};
-    c2_status_t res = C2_OK;
-    mfxStatus sts = MFX_ERR_NONE;
-
-    // gralloc allocation step
-    auto gr_alloc = [&] (MfxGrallocAllocator* gr_allocator, MfxFrameAllocator*, MfxFrameConverter*) {
-
-        for (int i = 0; i < FRAME_COUNT; ++i) {
-            res = gr_allocator->Alloc(WIDTH, HEIGHT, &handles[i]);
-            EXPECT_EQ(res, C2_OK);
-            EXPECT_NE(handles, nullptr);
-        }
-    };
-
-    // gralloc allocation step
-    auto gr_free = [&] (MfxGrallocAllocator* gr_allocator, MfxFrameAllocator*, MfxFrameConverter*) {
-
-        for (int i = 0; i < FRAME_COUNT; ++i) {
-            res = gr_allocator->Free(handles[i]);
-            EXPECT_EQ(res, C2_OK);
-        }
-    };
-
+public:
+    using Step = MfxFrameConverterTestStep;
     // operation on frame mapped from gralloc to system memory
     typedef std::function<void (int frame_index, const C2PlanarLayout& layout, uint8_t* const* data)> GrMemOperation;
+    // operation on frame mapped from va to system memory
+    typedef std::function<void (int frame_index,
+        const mfxFrameInfo& frame_info, mfxFrameData& frame_data)> VaMemOperation;
+
+public:
+    // gralloc allocation step
+    Step gr_alloc = [this] (MfxGrallocAllocator* gr_allocator, MfxFrameAllocator*, MfxFrameConverter*) {
+        for (int i = 0; i < FRAME_COUNT; ++i) {
+            c2_status_t res = gr_allocator->Alloc(WIDTH, HEIGHT, &handles[i]);
+            EXPECT_EQ(res, C2_OK);
+            EXPECT_NE(handles[i], nullptr);
+        }
+    };
+
+    // c2 graphic allocation step
+    Step c2_alloc = [this] (MfxGrallocAllocator*, MfxFrameAllocator*, MfxFrameConverter*) {
+
+        std::shared_ptr<C2BlockPool> c2_allocator;
+        MfxC2Component* c_mfx_component {};
+        c2_status_t res = C2_OK;
+
+        std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, &res));
+        EXPECT_EQ(res, C2_OK);
+
+        res = GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC, component, &c2_allocator);
+        EXPECT_EQ(res, C2_OK);
+        EXPECT_NE(c2_allocator, nullptr);
+
+        if (c2_allocator) {
+            for (int i = 0; i < FRAME_COUNT; ++i) {
+                res = c2_allocator->fetchGraphicBlock(
+                    WIDTH, HEIGHT,
+                    HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL,
+                    { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE },
+                    &gr_blocks[i]);
+
+                handles[i] = gr_blocks[i]->handle();
+
+                EXPECT_EQ(res, C2_OK);
+                EXPECT_NE(handles[i], nullptr);
+            }
+        }
+    };
+
+    // gralloc deallocation step
+    Step gr_free = [this] (MfxGrallocAllocator* gr_allocator, MfxFrameAllocator*, MfxFrameConverter*) {
+
+        for (int i = 0; i < FRAME_COUNT; ++i) {
+            c2_status_t res = gr_allocator->Free(handles[i]);
+            EXPECT_EQ(res, C2_OK);
+        }
+    };
+
+    // c2 deallocation step
+    Step c2_free = [this] (MfxGrallocAllocator*, MfxFrameAllocator*, MfxFrameConverter*) {
+
+        for (int i = 0; i < FRAME_COUNT; ++i) {
+            gr_blocks[i] = nullptr;
+        }
+    };
+
     // lambda constructing test step doing: gralloc Lock, some specific work on locked memory, gralloc unlock
-    auto do_gr_mem_operation = [&] (GrMemOperation gr_mem_operation) {
+    Step do_gr_mem_operation(GrMemOperation gr_mem_operation) {
         return [&] (MfxGrallocAllocator* gr_allocator, MfxFrameAllocator*, MfxFrameConverter*) {
 
             for (int i = 0; i < FRAME_COUNT; ++i) {
                 uint8_t* data[C2PlanarLayout::MAX_NUM_PLANES] {};
                 android::C2PlanarLayout layout {};
-                res = gr_allocator->LockFrame(handles[i], data, &layout);
+                c2_status_t res = gr_allocator->LockFrame(handles[i], data, &layout);
                 EXPECT_EQ(res, C2_OK);
 
                 CheckNV12PlaneLayout(WIDTH, HEIGHT, layout, data);
@@ -849,8 +879,25 @@ TEST(MfxFrameConverter, GrallocContentsMappedToVa)
         };
     };
 
+    // lambda constructing test step doing: c2 Lock, some specific work on locked memory, c2 unlock
+    Step do_c2_mem_operation(GrMemOperation gr_mem_operation) {
+        return [&] (MfxGrallocAllocator*, MfxFrameAllocator*, MfxFrameConverter*) {
+
+            for (int i = 0; i < FRAME_COUNT; ++i) {
+                C2Acquirable<C2GraphicView> acquirable = gr_blocks[i]->map();
+                EXPECT_EQ(acquirable.GetError(), C2_OK);
+                C2GraphicView view = acquirable.get();
+                EXPECT_EQ(view.error(), C2_OK);
+
+                CheckNV12PlaneLayout(WIDTH, HEIGHT, view.layout(), view.data());
+
+                gr_mem_operation(i, view.layout(), view.data());
+            };
+        };
+    };
+
     // gralloc to va wiring step
-    auto gr_convert_to_va = [&] (MfxGrallocAllocator*, MfxFrameAllocator*, MfxFrameConverter* converter) {
+    Step gr_convert_to_va = [this] (MfxGrallocAllocator*, MfxFrameAllocator*, MfxFrameConverter* converter) {
 
         for (int i = 0; i < FRAME_COUNT; ++i) {
             bool decode_target { false };
@@ -860,11 +907,8 @@ TEST(MfxFrameConverter, GrallocContentsMappedToVa)
         }
     };
 
-    // operation on frame mapped from va to system memory
-    typedef std::function<void (int frame_index,
-        const mfxFrameInfo& frame_info, mfxFrameData& frame_data)> VaMemOperation;
     // lambda constructing test step doing: va Lock, some specific work on locked memory, va unlock
-    auto do_va_mem_operation = [&] (VaMemOperation va_mem_operation) {
+    Step do_va_mem_operation(VaMemOperation va_mem_operation) {
         return [&] (MfxGrallocAllocator*, MfxFrameAllocator* allocator, MfxFrameConverter*) {
 
             const bool hw_memory = true;
@@ -875,7 +919,7 @@ TEST(MfxFrameConverter, GrallocContentsMappedToVa)
 
             for (int i = 0; i < FRAME_COUNT; ++i) {
                 mfxFrameData frame_data {};
-                sts = allocator->LockFrame(mfx_mem_ids[i], &frame_data);
+                mfxStatus sts = allocator->LockFrame(mfx_mem_ids[i], &frame_data);
                 EXPECT_EQ(MFX_ERR_NONE, sts);
 
                 CheckMfxFrameData(MFX_FOURCC_NV12, WIDTH, HEIGHT, hw_memory, locked, frame_data);
@@ -888,28 +932,82 @@ TEST(MfxFrameConverter, GrallocContentsMappedToVa)
         };
     };
 
-    // all test steps together
+    GrMemOperation fill_gr_frame = [this] (int frame_index, const C2PlanarLayout& layout, uint8_t* const* data) {
+        FillFrameContents(WIDTH, HEIGHT, frame_index, layout, data); // fill gralloc with pattern #1
+    };
+
+    VaMemOperation check_va_frame = [this] (int frame_index, const mfxFrameInfo& frame_info, mfxFrameData& frame_data) {
+        CheckFrameContents(WIDTH, HEIGHT, frame_index, frame_info, frame_data); // check pattern #1 in va
+    };
+
+    VaMemOperation fill_va_frame = [this] (int frame_index, const mfxFrameInfo& frame_info, mfxFrameData& frame_data) {
+        // fill va with pattern #2
+        FillFrameContents(WIDTH, HEIGHT, FRAME_COUNT - frame_index, frame_info, frame_data);
+    };
+
+    GrMemOperation check_gr_frame = [this] (int frame_index, const C2PlanarLayout& layout, uint8_t* const* data) {
+        // check pattern #2 in gralloc
+        CheckFrameContents(WIDTH, HEIGHT, FRAME_COUNT - frame_index, layout, data);
+    };
+
+    Step free_mappings = [] (MfxGrallocAllocator*, MfxFrameAllocator*, MfxFrameConverter* converter) {
+        converter->FreeAllMappings();
+    };
+
+private:
+    const int WIDTH = 600;
+    const int HEIGHT = 400;
+    static constexpr int FRAME_COUNT = 3;
+
+private:
+    std::shared_ptr<C2GraphicBlock> gr_blocks[FRAME_COUNT];
+    buffer_handle_t handles[FRAME_COUNT] {};
+    mfxMemId mfx_mem_ids[FRAME_COUNT] {};
+};
+
+// Allocates some gralloc frames with MfxGrallocAllocator,
+// fills them with pattern,
+// wires them up with mfxMemID (VA surface inside),
+// locks mfxFrames and checks a pattern is the same.
+// Then locks mfxFrames again, fills them with different pattern
+// and checks original gralloc buffers get updated pattern.
+// These steps prove modifications go from gralloc to VA and back.
+TEST(MfxFrameConverter, GrallocContentsMappedToVa)
+{
+    MfxFrameConverterTestSteps steps;
+    // test direct gralloc allocation wiring to va
     MfxFrameConverterTest( {
-        gr_alloc,
-        do_gr_mem_operation([&] (int frame_index, const C2PlanarLayout& layout, uint8_t* const* data) {
-            FillFrameContents(WIDTH, HEIGHT, frame_index, layout, data); // fill gralloc with pattern #1
-        }),
-        gr_convert_to_va,
-        do_va_mem_operation([&] (int frame_index, const mfxFrameInfo& frame_info, mfxFrameData& frame_data) {
-            CheckFrameContents(WIDTH, HEIGHT, frame_index, frame_info, frame_data); // check pattern #1 in va
-        }),
-        do_va_mem_operation([&] (int frame_index, const mfxFrameInfo& frame_info, mfxFrameData& frame_data) {
-            // fill va with pattern #2
-            FillFrameContents(WIDTH, HEIGHT, FRAME_COUNT - frame_index, frame_info, frame_data);
-        }),
-        do_gr_mem_operation([&] (int frame_index, const C2PlanarLayout& layout, uint8_t* const* data) {
-            // check pattern #2 in gralloc
-            CheckFrameContents(WIDTH, HEIGHT, FRAME_COUNT - frame_index, layout, data);
-        }),
-        [] (MfxGrallocAllocator*, MfxFrameAllocator*, MfxFrameConverter* converter) {
-            converter->FreeAllMappings();
-        },
-        gr_free
+        steps.gr_alloc,
+        steps.do_gr_mem_operation(steps.fill_gr_frame),
+        steps.gr_convert_to_va,
+        steps.do_va_mem_operation(steps.check_va_frame),
+        steps.do_va_mem_operation(steps.fill_va_frame),
+        steps.do_gr_mem_operation(steps.check_gr_frame),
+        steps.free_mappings,
+        steps.gr_free
+    } );
+}
+
+// Allocates some C2GraphicBlock instances with C2 vndk GrallocAllocator,
+// fills them with pattern,
+// wires them up with mfxMemID (VA surface inside),
+// locks mfxFrames and checks a pattern is the same.
+// Then locks mfxFrames again, fills them with different pattern
+// and checks original gralloc buffers get updated pattern.
+// These steps prove modifications go from C2GraphicBlock to VA and back.
+TEST(MfxFrameConverter, C2GraphicBlockContentsMappedToVa)
+{
+    MfxFrameConverterTestSteps steps;
+    // test c2 vndk allocation wiring to va
+    MfxFrameConverterTest( {
+        steps.c2_alloc,
+        steps.do_c2_mem_operation(steps.fill_gr_frame),
+        steps.gr_convert_to_va,
+        steps.do_va_mem_operation(steps.check_va_frame),
+        steps.do_va_mem_operation(steps.fill_va_frame),
+        steps.do_c2_mem_operation(steps.check_gr_frame),
+        steps.free_mappings,
+        steps.c2_free
     } );
 }
 

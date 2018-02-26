@@ -390,25 +390,29 @@ const C2Handle *C2Block2D::handle() const {
 
 class C2GraphicView::Impl {
 public:
-    Impl(uint8_t *const *data, const C2PlanarLayout &layout)
-        : mData(data), mLayout(layout), mError(C2_OK) {}
+    Impl(uint8_t *const *data, const C2PlanarLayout &layout, const std::shared_ptr<C2GraphicAllocation> &alloc)
+        : mData(data), mLayout(layout), mAlloc(alloc), mError(C2_OK) {}
     explicit Impl(c2_status_t error) : mData(nullptr), mError(error) {}
+    ~Impl() { mAlloc->unmap(nullptr); }
 
     uint8_t *const *data() const { return mData; }
     const C2PlanarLayout &layout() const { return mLayout; }
+    std::shared_ptr<C2GraphicAllocation> alloc() const { return mAlloc; }
     c2_status_t error() const { return mError; }
 
 private:
     uint8_t *const *mData;
     C2PlanarLayout mLayout;
+    std::shared_ptr<C2GraphicAllocation> mAlloc;
     c2_status_t mError;
 };
 
 C2GraphicView::C2GraphicView(
         const _C2PlanarCapacityAspect *parent,
         uint8_t *const *data,
-        const C2PlanarLayout& layout)
-    : _C2PlanarSection(parent), mImpl(new Impl(data, layout)) {}
+        const C2PlanarLayout& layout,
+        const std::shared_ptr<C2GraphicAllocation> &alloc)
+    : _C2PlanarSection(parent), mImpl(new Impl(data, layout, alloc)) {}
 
 C2GraphicView::C2GraphicView(c2_status_t error)
     : _C2PlanarSection(nullptr), mImpl(new Impl(error)) {}
@@ -426,13 +430,13 @@ const C2PlanarLayout C2GraphicView::layout() const {
 }
 
 const C2GraphicView C2GraphicView::subView(const C2Rect &rect) const {
-    C2GraphicView view(this, mImpl->data(), mImpl->layout());
+    C2GraphicView view(this, mImpl->data(), mImpl->layout(), mImpl->alloc());
     view.setCrop_be(rect);
     return view;
 }
 
 C2GraphicView C2GraphicView::subView(const C2Rect &rect) {
-    C2GraphicView view(this, mImpl->data(), mImpl->layout());
+    C2GraphicView view(this, mImpl->data(), mImpl->layout(), mImpl->alloc());
     view.setCrop_be(rect);
     return view;
 }
@@ -482,6 +486,8 @@ public:
 
     const C2PlanarLayout &layout() const { return mLayout; }
 
+    std::shared_ptr<C2GraphicAllocation> alloc() const { return mAllocation; }
+
 private:
     std::shared_ptr<C2GraphicAllocation> mAllocation;
     C2PlanarLayout mLayout;
@@ -498,7 +504,7 @@ C2Acquirable<const C2GraphicView> C2ConstGraphicBlock::map() const {
         C2DefaultGraphicView view(err);
         return C2AcquirableConstGraphicView(err, mFence, view);
     }
-    C2DefaultGraphicView view(this, mImpl->data(), mImpl->layout());
+    C2DefaultGraphicView view(this, mImpl->data(), mImpl->layout(), mImpl->alloc());
     return C2AcquirableConstGraphicView(err, mFence, view);
 }
 
@@ -519,10 +525,6 @@ public:
     }
 
     c2_status_t map(C2Rect rect) {
-        if (mData[0] != nullptr) {
-            // Already mapped.
-            return C2_OK;
-        }
         uint8_t *data[C2PlanarLayout::MAX_NUM_PLANES];
         c2_status_t err = mAllocation->map(
                 rect,
@@ -550,6 +552,8 @@ public:
 
     const C2PlanarLayout &layout() const { return mLayout; }
 
+    std::shared_ptr<C2GraphicAllocation> alloc() const { return mAllocation; }
+
 private:
     std::shared_ptr<C2GraphicAllocation> mAllocation;
     C2PlanarLayout mLayout;
@@ -566,7 +570,7 @@ C2Acquirable<C2GraphicView> C2GraphicBlock::map() {
         // TODO: fence
         return C2AcquirableGraphicView(err, C2Fence(), view);
     }
-    C2DefaultGraphicView view(this, mImpl->data(), mImpl->layout());
+    C2DefaultGraphicView view(this, mImpl->data(), mImpl->layout(), mImpl->alloc());
     // TODO: fence
     return C2AcquirableGraphicView(err, C2Fence(), view);
 }
