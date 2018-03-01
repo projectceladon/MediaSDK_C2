@@ -1,7 +1,7 @@
 # Purpose:
 #   Defines include paths, compilation flags, etc. to build C2 plug-ins.
 
-ifndef $(USE_MOCK_CODEC2)
+ifeq ($(USE_MOCK_CODEC2),)
     USE_MOCK_CODEC2 = true
 endif
 
