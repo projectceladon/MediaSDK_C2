@@ -142,8 +142,8 @@ TEST(MfxComponentStore, createComponent)
 
                 component_itf = nullptr;
                 component = nullptr;
-                EXPECT_EQ(ModuleInMemory(component_desc.module_name), false)
-                    << " module:" << component_desc.module_name;
+                // It might be useful to check that component_desc.module_name is unloaded from memory
+                // but system can keep it for various reasons.
             }
        }
     }
@@ -170,8 +170,8 @@ TEST(MfxComponentStore, createInterface)
                 EXPECT_EQ(component_itf->getName(), component_desc.component_name);
 
                 component_itf = nullptr;
-                EXPECT_EQ(ModuleInMemory(component_desc.module_name), false)
-                    << " module:" << component_desc.module_name;
+                // It might be useful to check that component_desc.module_name is unloaded from memory
+                // but system can keep it for various reasons.
             }
         }
     }
