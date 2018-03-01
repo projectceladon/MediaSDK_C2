@@ -46,6 +46,7 @@ mkdir -p $local_dir
 rm --force $local_dir/*
 
 libs=\
+libstagefright_codec2_vndk_mfx.so,\
 libmfx_c2_store.so,\
 libmfx_mock_c2_components.so,\
 libmfx_c2_components_pure.so,\
