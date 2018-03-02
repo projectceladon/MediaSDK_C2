@@ -147,7 +147,7 @@ struct MfxC2Component::Factory
     // method to create and init instance of component
     // variadic args are passed to constructor
     template<ArgTypes... arg_values>
-    static android::c2_status_t Create(const char* name, int flags, MfxC2Component** component)
+    static MfxC2Component* Create(const char* name, int flags, android::c2_status_t* status)
     {
         android::c2_status_t result = android::C2_OK;
         // class to make constructor public and get access to new operator
@@ -158,19 +158,19 @@ struct MfxC2Component::Factory
                ComponentClass(name, flags, constructor_args...) { }
         };
 
-        MfxC2Component* component_created = new (std::nothrow) ConstructedClass(name, flags, arg_values...);
-        if(component_created != nullptr) {
-            result = component_created->Init();
-            if(result == android::C2_OK) {
-                *component = component_created;
-            }
-            else {
-                delete component_created;
+        MfxC2Component* component = new (std::nothrow) ConstructedClass(name, flags, arg_values...);
+        if(component != nullptr) {
+            result = component->Init();
+            if(result != android::C2_OK) {
+                delete component;
+                component = nullptr;
             }
         }
         else {
             result = android::C2_NO_MEMORY;
         }
-        return result;
+
+        if (nullptr != status) *status = result;
+        return component;
     }
 };

@@ -15,8 +15,8 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 class MfxC2Component;
 
-typedef android::c2_status_t (CreateMfxC2ComponentFunc)(const char* name, int flags,
-    MfxC2Component** component);
+typedef MfxC2Component* (CreateMfxC2ComponentFunc)(const char* name, int flags,
+    android::c2_status_t* status);
 
 #define MFX_C2_COMPONENT_STORE_NAME "MfxC2ComponentStore"
 
