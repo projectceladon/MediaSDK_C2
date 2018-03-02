@@ -86,8 +86,9 @@ static std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name)
         const ComponentDesc* desc = GetComponentDesc(name);
         ASSERT_NE(desc, nullptr);
 
-        MfxC2Component* mfx_component;
-        c2_status_t status = MfxCreateC2Component(name, desc->flags, &mfx_component);
+        c2_status_t status = C2_OK;
+        MfxC2Component* mfx_component = MfxCreateC2Component(name, desc->flags, &status);
+
         EXPECT_EQ(status, desc->creation_status);
         if(desc->creation_status == C2_OK) {
             EXPECT_NE(mfx_component, nullptr);

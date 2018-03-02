@@ -45,10 +45,10 @@ const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 TEST(MfxMockComponent, Create)
 {
     int flags = 0;
-    MfxC2Component* c_mfx_component;
-    c2_status_t result = MfxCreateC2Component(MOCK_COMPONENT, flags, &c_mfx_component);
-    std::shared_ptr<MfxC2Component> mfx_component(c_mfx_component);
-    EXPECT_EQ(result, C2_OK);
+    c2_status_t sts = C2_OK;
+    std::shared_ptr<MfxC2Component> mfx_component(MfxCreateC2Component(MOCK_COMPONENT, flags, &sts));
+
+    EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(mfx_component, nullptr);
 }
 
@@ -57,10 +57,10 @@ TEST(MfxMockComponent, Create)
 TEST(MfxMockComponent, intf)
 {
     int flags = 0;
-    MfxC2Component* c_mfx_component;
-    c2_status_t result = MfxCreateC2Component(MOCK_COMPONENT, flags, &c_mfx_component);
-    std::shared_ptr<MfxC2Component> mfx_component(c_mfx_component);
+    c2_status_t sts = C2_OK;
+    std::shared_ptr<MfxC2Component> mfx_component(MfxCreateC2Component(MOCK_COMPONENT, flags, &sts));
 
+    EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(mfx_component, nullptr);
     if(mfx_component != nullptr) {
         std::shared_ptr<C2Component> c2_component = mfx_component;
@@ -330,10 +330,11 @@ public:
 // All supplementary entities (c2 buffers and command queues) are tested by this test.
 TEST(MfxMockComponent, Encode)
 {
+    int flags = 0;
     c2_status_t sts = C2_OK;
-    MfxC2Component* c_mfx_component;
-    c2_status_t result = MfxCreateC2Component(MOCK_COMPONENT, 0/*flags*/, &c_mfx_component);
-    std::shared_ptr<C2Component> component(c_mfx_component);
+    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT_ENC, flags, &sts));
+
+    EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(component, nullptr);
     if(nullptr != component) {
 
@@ -383,10 +384,11 @@ TEST(MfxMockComponent, Encode)
 // All supplementary entities (c2 buffers and command queues) are tested by this test.
 TEST(MfxMockComponent, Decode)
 {
+    int flags = 0;
     c2_status_t sts = C2_OK;
-    MfxC2Component* c_mfx_component;
-    c2_status_t result = MfxCreateC2Component(MOCK_COMPONENT_DEC, 0/*flags*/, &c_mfx_component);
-    std::shared_ptr<C2Component> component(c_mfx_component);
+    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT_DEC, flags, &sts));
+
+    EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(component, nullptr);
     if(nullptr != component) {
 
@@ -443,10 +445,11 @@ TEST(MfxMockComponent, Decode)
 // stop from RUNNING state. Otherwise, C2_BAD_STATE should be returned.
 TEST(MfxMockComponent, State)
 {
+    int flags = 0;
     c2_status_t sts = C2_OK;
-    MfxC2Component* c_mfx_component;
-    c2_status_t result = MfxCreateC2Component(MOCK_COMPONENT, 0/*flags*/, &c_mfx_component);
-    std::shared_ptr<C2Component> component(c_mfx_component);
+    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, flags, &sts));
+
+    EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(component, nullptr);
     if(nullptr != component) {
 
