@@ -31,7 +31,6 @@ const uint64_t FRAME_DURATION_US = 33333; // 30 fps
 // Low res is chosen to speed up the tests.
 const uint32_t FRAME_WIDTH = 320;
 const uint32_t FRAME_HEIGHT = 240;
-const uint32_t FRAME_BUF_SIZE = FRAME_WIDTH * FRAME_HEIGHT * 3 / 2;
 
 const uint32_t FRAME_FORMAT = 0; // nv12
 // This frame count is required by StaticBitrate test, the encoder cannot follow
