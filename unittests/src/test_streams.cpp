@@ -75,7 +75,6 @@ std::vector<char> CombinedStreamReader::GetRegionContents(StreamDescription::Reg
 {
     std::vector<char> res;
 
-    size_t offset = 0;
     for (const auto& reader : readers_) {
         if (region.size == 0) break;
 

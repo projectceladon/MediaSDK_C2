@@ -69,6 +69,8 @@ static bool PrepareConfFile()
 static c2_status_t GetCachedC2ComponentStore(std::shared_ptr<android::C2ComponentStore>* store)
 {
     static bool conf_file_ready = PrepareConfFile();
+    ASSERT_TRUE(conf_file_ready);
+
     static std::shared_ptr<android::C2ComponentStore> g_store;
     static c2_status_t g_creation_status = GetC2ComponentStore(&g_store);
 

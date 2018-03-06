@@ -334,7 +334,6 @@ c2_status_t MfxC2EncoderComponent::AllocateBitstream(const std::unique_ptr<andro
         }
 
         std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
-        C2FrameData& output = worklet->output;
 
         if(worklet->output.buffers.size() != 1) {
             MFX_DEBUG_TRACE_MSG("Cannot handle multiple outputs");

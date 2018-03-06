@@ -84,7 +84,13 @@ public:
     // returns EOS status
     virtual bool WasEosReached() { return eos_; }
     // save current SPS/PPS
-    virtual mfxStatus SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset) { sps; pps; is_reset; return MFX_ERR_NONE; }
+    virtual mfxStatus SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset)
+    {
+        (void)sps;
+        (void)pps;
+        (void)is_reset;
+        return MFX_ERR_NONE;
+    }
 
 protected: // functions
     virtual mfxStatus LoadHeader(const mfxU8* data, mfxU32 size, bool header);

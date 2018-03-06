@@ -803,7 +803,6 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
 
                 const C2Rect rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH,
                                 mfx_surface->Info.CropX, mfx_surface->Info.CropY);
-                C2Rect crop = work_output.frame_.GetC2GraphicBlock()->crop();
 
                 C2ConstGraphicBlock const_graphic = work_output.frame_.GetC2GraphicBlock()->share(work_output.frame_.GetC2GraphicBlock()->crop(), event.fence());
                 C2Buffer out_buffer = MakeC2Buffer( { const_graphic } );
@@ -842,7 +841,6 @@ c2_status_t MfxC2DecoderComponent::ValidateWork(const std::unique_ptr<android::C
         }
 
         const std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
-        C2FrameData& output = worklet->output;
 
         if(worklet->output.buffers.size() != 1) {
             MFX_DEBUG_TRACE_MSG("Cannot handle multiple outputs");
