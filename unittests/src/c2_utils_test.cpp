@@ -319,6 +319,8 @@ static void CheckNV12PlaneLayout(uint16_t width, uint16_t height, const C2Planar
     EXPECT_EQ(data[Layout::PLANE_U] + 1, data[Layout::PLANE_V]);
 }
 
+#ifdef LIBVA_SUPPORT
+
 static void CheckMfxFrameData(mfxU32 fourcc, uint16_t width, uint16_t height,
     bool hw_memory, bool locked, const mfxFrameData& frame_data)
 {
@@ -344,6 +346,8 @@ static void CheckMfxFrameData(mfxU32 fourcc, uint16_t width, uint16_t height,
     EXPECT_EQ(frame_data.A, nullptr);
 }
 
+#endif
+
 static uint8_t PlanePixelValue(uint16_t x, uint16_t y, uint32_t plane_index, int frame_index)
 {
     return (uint8_t)(x + y + plane_index + frame_index);
@@ -368,6 +372,8 @@ static void ForEveryPlanePixel(uint16_t width, uint16_t height, const C2PlanarLa
         }
     }
 }
+
+#ifdef LIBVA_SUPPORT
 
 static void ForEveryPlanePixel(uint16_t width, uint16_t height, const mfxFrameInfo& frame_info,
     const ProcessPlanePixel& process_function, const mfxFrameData& frame_data)
@@ -411,6 +417,8 @@ static void ForEveryPlanePixel(uint16_t width, uint16_t height, const mfxFrameIn
         }
     }
 }
+
+#endif
 
 // Fills frame planes with PlanePixelValue pattern.
 // Value should depend on plane index, frame index, x and y.
