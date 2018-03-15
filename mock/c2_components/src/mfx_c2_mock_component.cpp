@@ -137,7 +137,7 @@ c2_status_t MfxC2MockComponent::CopyLinearToGraphic(const C2FrameData& input,
         C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, producer_memory_type_ };
         std::shared_ptr<C2GraphicBlock> out_block;
 
-        res = allocator->fetchGraphicBlock(width, height, 0/*format*/, mem_usage, &out_block);
+        res = allocator->fetchGraphicBlock(width, height, HAL_PIXEL_FORMAT_NV12_TILED_INTEL, mem_usage, &out_block);
         if(C2_OK != res) break;
         {
             std::unique_ptr<C2GraphicView> out_view;
