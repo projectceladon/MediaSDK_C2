@@ -149,7 +149,9 @@ static std::unique_ptr<C2ConstLinearBlock> CreateFilledLinearBlock(
 // Frame buffer size is (FRAME_WIDTH * FRAME_HEIGHT * 3 / 2).
 // Each byte in NV12 frame is set to frame_index.
 // Frame header index and timestamp are set based on passed frame_index value.
-static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work,
+static void PrepareWork(uint32_t frame_index,
+    std::shared_ptr<const C2Component> component,
+    std::unique_ptr<C2Work>* work,
     C2BufferData::Type buffer_type, C2MemoryUsage::Consumer memory_type)
 {
     *work = std::make_unique<C2Work>();
@@ -172,7 +174,7 @@ static void PrepareWork(uint32_t frame_index, std::unique_ptr<C2Work>* work,
         auto block_pool_id = (buffer_type == C2BufferData::LINEAR) ?
             C2BlockPool::BASIC_LINEAR : C2BlockPool::BASIC_GRAPHIC;
         android::c2_status_t sts = GetCodec2BlockPool(block_pool_id,
-            nullptr, &allocator);
+            component, &allocator);
 
         EXPECT_EQ(sts, C2_OK);
         EXPECT_NE(allocator, nullptr);
@@ -357,7 +359,7 @@ TEST(MfxMockComponent, Encode)
                 std::unique_ptr<C2Work> work;
 
                 // insert input data
-                PrepareWork(frame_index, &work, C2BufferData::GRAPHIC, memory_type);
+                PrepareWork(frame_index, component, &work, C2BufferData::GRAPHIC, memory_type);
                 std::list<std::unique_ptr<C2Work>> works;
                 works.push_back(std::move(work));
 
@@ -422,7 +424,7 @@ TEST(MfxMockComponent, Decode)
                     std::unique_ptr<C2Work> work;
 
                     // insert input data
-                    PrepareWork(frame_index, &work, C2BufferData::LINEAR, C2MemoryUsage::CPU_READ);
+                    PrepareWork(frame_index, component, &work, C2BufferData::LINEAR, C2MemoryUsage::CPU_READ);
                     std::list<std::unique_ptr<C2Work>> works;
                     works.push_back(std::move(work));
 
