@@ -246,50 +246,53 @@ protected:
         for(std::unique_ptr<C2Work>& work : workItems) {
             EXPECT_EQ(work->workletsProcessed, 1);
             EXPECT_EQ(work->result, C2_OK);
+            EXPECT_EQ(work->worklets.size(), 1);
+            if (work->worklets.size() >= 1) {
 
-            std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
-            C2FrameData& buffer_pack = worklet->output;
+                std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
+                C2FrameData& buffer_pack = worklet->output;
 
-            uint64_t frame_index = buffer_pack.ordinal.frameIndex.peeku();
+                uint64_t frame_index = buffer_pack.ordinal.frameIndex.peeku();
 
-            EXPECT_EQ(buffer_pack.ordinal.timestamp, frame_index * FRAME_DURATION_US); // 30 fps
+                EXPECT_EQ(buffer_pack.ordinal.timestamp, frame_index * FRAME_DURATION_US); // 30 fps
 
-            EXPECT_EQ(frame_index < FRAME_COUNT, true)
-                << "unexpected frame_index value" << frame_index;
-            EXPECT_EQ(frame_index, frame_expected_)
-                << " frame " << frame_index << " is out of order";
+                EXPECT_EQ(frame_index < FRAME_COUNT, true)
+                    << "unexpected frame_index value" << frame_index;
+                EXPECT_EQ(frame_index, frame_expected_)
+                    << " frame " << frame_index << " is out of order";
 
-            ++frame_expected_;
+                ++frame_expected_;
 
-            std::unique_ptr<C2ConstLinearBlock> linear_block;
-            std::unique_ptr<C2ConstGraphicBlock> graphic_block;
+                std::unique_ptr<C2ConstLinearBlock> linear_block;
+                std::unique_ptr<C2ConstGraphicBlock> graphic_block;
 
-            if(output_type_ == C2BufferData::LINEAR) {
-                c2_status_t sts = GetC2ConstLinearBlock(buffer_pack, &linear_block);
-                EXPECT_EQ(sts, C2_OK);
-                if(nullptr != linear_block) {
-                    EXPECT_EQ(linear_block->capacity(), FRAME_BUF_SIZE);
-
-                    const uint8_t* raw {};
-                    sts = MapConstLinearBlock(*linear_block, TIMEOUT_NS, &raw);
+                if(output_type_ == C2BufferData::LINEAR) {
+                    c2_status_t sts = GetC2ConstLinearBlock(buffer_pack, &linear_block);
                     EXPECT_EQ(sts, C2_OK);
-                    EXPECT_NE(raw, nullptr);
+                    if(nullptr != linear_block) {
+                        EXPECT_EQ(linear_block->capacity(), FRAME_BUF_SIZE);
 
-                    CheckFilledBuffer(raw, frame_index);
-                }
-            } else {
-                c2_status_t sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
-                EXPECT_EQ(sts, C2_OK);
-                if(nullptr != graphic_block) {
-                    EXPECT_EQ(graphic_block->width(), FRAME_WIDTH);
-                    EXPECT_EQ(graphic_block->height(), FRAME_HEIGHT);
+                        const uint8_t* raw {};
+                        sts = MapConstLinearBlock(*linear_block, TIMEOUT_NS, &raw);
+                        EXPECT_EQ(sts, C2_OK);
+                        EXPECT_NE(raw, nullptr);
 
-                    std::unique_ptr<const C2GraphicView> c_graph_view;
-                    sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &c_graph_view);
+                        CheckFilledBuffer(raw, frame_index);
+                    }
+                } else {
+                    c2_status_t sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
                     EXPECT_EQ(sts, C2_OK);
-                    const uint8_t* const* raw = c_graph_view->data();
-                    EXPECT_NE(raw, nullptr);
-                    CheckFilledBuffer(raw[0], frame_index);
+                    if(nullptr != graphic_block) {
+                        EXPECT_EQ(graphic_block->width(), FRAME_WIDTH);
+                        EXPECT_EQ(graphic_block->height(), FRAME_HEIGHT);
+
+                        std::unique_ptr<const C2GraphicView> c_graph_view;
+                        sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &c_graph_view);
+                        EXPECT_EQ(sts, C2_OK);
+                        const uint8_t* const* raw = c_graph_view->data();
+                        EXPECT_NE(raw, nullptr);
+                        CheckFilledBuffer(raw[0], frame_index);
+                    }
                 }
             }
         }

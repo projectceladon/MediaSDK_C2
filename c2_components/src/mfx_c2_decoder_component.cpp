@@ -763,14 +763,16 @@ void MfxC2DecoderComponent::Drain()
 
     mfxStatus mfx_sts = MFX_ERR_NONE;
 
-    do {
+    if (initialized_) {
+        do {
 
-        MfxC2FrameOut frame_out;
-        c2_status_t c2_sts = AllocateFrame(&frame_out);
-        if (C2_OK != c2_sts) break; // no output allocated, no sense in calling DecodeFrame
+            MfxC2FrameOut frame_out;
+            c2_status_t c2_sts = AllocateFrame(&frame_out);
+            if (C2_OK != c2_sts) break; // no output allocated, no sense in calling DecodeFrame
 
-        mfx_sts = DecodeFrame(nullptr, std::move(frame_out));
-    } while (MFX_ERR_NONE == mfx_sts);
+            mfx_sts = DecodeFrame(nullptr, std::move(frame_out));
+        } while (MFX_ERR_NONE == mfx_sts);
+    }
 }
 
 void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sync_point)
