@@ -21,6 +21,8 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "test_streams.h"
 #include "streams/h264/aud_mw_e.264.h"
 #include "streams/h264/freh9.264.h"
+#include "mfx_c2_component.h"
+#include "mfx_c2_components_registry.h"
 
 #ifdef LIBVA_SUPPORT
 #include "mfx_dev_va.h"
@@ -32,6 +34,9 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 using namespace android;
 
 static const size_t CMD_COUNT = 10;
+
+#define MOCK_COMPONENT_ENC "C2.MockComponent.Enc"
+#define MOCK_COMPONENT MOCK_COMPONENT_ENC // use encoder for common tests
 
 static std::vector<const StreamDescription*> g_streams { &aud_mw_e_264, &freh9_264 };
 
@@ -1000,7 +1005,13 @@ typedef std::function<void (MfxFrameAllocator* allocator, MfxFramePoolAllocator*
 static void MfxFramePoolAllocatorTest(const std::vector<MfxFramePoolAllocatorTestStep>& steps, int repeat_count = 1)
 {
     std::shared_ptr<C2BlockPool> c2_allocator;
-    c2_status_t res = GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC, nullptr, &c2_allocator);
+    MfxC2Component* c_mfx_component {};
+    c2_status_t res = C2_OK;
+    std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, &res));
+    EXPECT_EQ(res, C2_OK);
+
+    res = GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC,
+        component, &c2_allocator);
     EXPECT_EQ(res, C2_OK);
     EXPECT_NE(c2_allocator, nullptr);
 

@@ -154,6 +154,7 @@ TEST(MfxDecoderComponent, getSupportedParams)
 }
 
 static void PrepareWork(uint32_t frame_index,
+    std::shared_ptr<const C2Component> component,
     std::unique_ptr<C2Work>* work,
     const std::vector<char>& bitstream, bool end_stream, bool header)
 {
@@ -176,7 +177,7 @@ static void PrepareWork(uint32_t frame_index,
 
         std::shared_ptr<android::C2BlockPool> allocator;
         android::c2_status_t sts = GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC,
-            nullptr, &allocator);
+            component, &allocator);
 
         EXPECT_EQ(sts, C2_OK);
         EXPECT_NE(allocator, nullptr);
@@ -393,7 +394,7 @@ static void Decode(
         std::unique_ptr<C2Work> work;
 
         // insert input data
-        PrepareWork(frame_index, &work, reader->GetRegionContents(region),
+        PrepareWork(frame_index, component, &work, reader->GetRegionContents(region),
             reader->EndOfStream(), header);
         std::list<std::unique_ptr<C2Work>> works;
         works.push_back(std::move(work));
