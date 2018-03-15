@@ -608,7 +608,7 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(std::shared_ptr<C2GraphicBloc
 
             res = c2_allocator_->fetchGraphicBlock(
                 video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height,
-                0/*format*/, mem_usage, out_block);
+                HAL_PIXEL_FORMAT_NV12_TILED_INTEL, mem_usage, out_block);
         }
     } while (false);
 

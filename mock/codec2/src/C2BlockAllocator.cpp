@@ -652,7 +652,7 @@ c2_status_t C2BlockAllocatorImpl::fetchGraphicBlock(
                 allocation->gralloc_allocator_ = gralloc_allocator_;
             }
         } else {
-            if (format == 0/*nv12*/) {
+            if (format == HAL_PIXEL_FORMAT_NV12_TILED_INTEL) {
                 allocation = new C2GraphicAllocationMock(width, height);
                 allocation->sw_buffer_.Alloc(width, height);
             } else {

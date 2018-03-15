@@ -37,7 +37,7 @@ const uint32_t FRAME_WIDTH = 640;
 const uint32_t FRAME_HEIGHT = 480;
 const uint32_t FRAME_BUF_SIZE = FRAME_WIDTH * FRAME_HEIGHT * 3 / 2;
 
-const uint32_t FRAME_FORMAT = 0; // nv12
+const uint32_t FRAME_FORMAT = HAL_PIXEL_FORMAT_NV12_TILED_INTEL; // nv12
 const uint32_t FRAME_COUNT = 10;
 const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 

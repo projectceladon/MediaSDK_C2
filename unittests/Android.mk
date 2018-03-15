@@ -122,6 +122,7 @@ define build_mock_unittests
       $$(STREAM_CPP_FILES:$(LOCAL_PATH)/%=%) \
       src/c2_mock_component_test.cpp \
       src/c2_utils_test.cpp \
+      src/c2_vndk_test.cpp \
       src/gtest_emulation.cpp \
       src/test_components.cpp \
       src/test_streams.cpp \

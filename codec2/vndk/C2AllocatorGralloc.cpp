@@ -26,6 +26,8 @@
 #include <C2AllocatorGralloc.h>
 #include <C2Buffer.h>
 
+const uint32_t HAL_PIXEL_FORMAT_NV12_TILED_INTEL = 0x100;
+
 namespace android {
 
 using ::android::hardware::graphics::allocator::V2_0::IAllocator;
@@ -266,9 +268,10 @@ c2_status_t C2AllocationGralloc::map(
                 (uint32_t)mInfo.mapperInfo.format, mInfo.mapperInfo.usage, mInfo.stride);
     }
 
-    switch (mInfo.mapperInfo.format) {
-        case PixelFormat::YCBCR_420_888:
-        case PixelFormat::YV12: {
+    switch ((uint32_t)mInfo.mapperInfo.format) {
+        case HAL_PIXEL_FORMAT_NV12_TILED_INTEL:
+        case (uint32_t)PixelFormat::YCBCR_420_888:
+        case (uint32_t)PixelFormat::YV12: {
             YCbCrLayout ycbcrLayout;
             mMapper->lockYCbCr(
                     const_cast<native_handle_t *>(mBuffer),
@@ -326,10 +329,10 @@ c2_status_t C2AllocationGralloc::map(
             break;
         }
 
-        case PixelFormat::RGBA_8888:
+        case (uint32_t)PixelFormat::RGBA_8888:
             // TODO: alpha channel
             // fall-through
-        case PixelFormat::RGBX_8888: {
+        case (uint32_t)PixelFormat::RGBX_8888: {
             void *pointer = nullptr;
             mMapper->lock(
                     const_cast<native_handle_t *>(mBuffer),
