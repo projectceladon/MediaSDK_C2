@@ -169,6 +169,7 @@ private:
             }
             // C2_CHECK(bufferFd < 0);
             // C2_CHECK(buffer < 0);
+            mVector.resize(capacity);
         }
     }
 
@@ -219,6 +220,12 @@ public:
     c2_status_t map(size_t offset, size_t size, C2MemoryUsage usage, int *fenceFd, void **addr) {
         (void)fenceFd; // TODO: wait for fence
         *addr = nullptr;
+
+        if (mIonFd < 0) {
+            *addr = mVector.data() + offset;
+            return C2_OK;
+        }
+
         if (mMapSize > 0) {
             // TODO: technically we should return DUPLICATE here, but our block views don't
             // actually unmap, so we end up remapping an ion buffer multiple times.
@@ -271,6 +278,9 @@ public:
     }
 
     c2_status_t unmap(void *addr, size_t size, int *fenceFd) {
+        if (mIonFd < 0) {
+            return C2_OK;
+        }
         if (mMapFd < 0 || mMapSize == 0) {
             return C2_NOT_FOUND;
         }
@@ -304,7 +314,7 @@ public:
     }
 
     c2_status_t status() const {
-        return mInit;
+        return C2_OK/*mInit*/;
     }
 
     const C2Handle *handle() const {
@@ -320,6 +330,7 @@ private:
     void *mMapAddr;
     size_t mMapAlignmentBytes;
     size_t mMapSize;
+    std::vector<uint8_t> mVector;
 };
 
 c2_status_t C2AllocationIon::map(
@@ -391,9 +402,9 @@ c2_status_t C2AllocatorIon::newLinearAllocation(
     }
 
     allocation->reset();
-    if (mInit != C2_OK) {
-        return mInit;
-    }
+    // if (mInit != C2_OK) {
+    //     return mInit;
+    // }
 
     // get align, heapMask and flags
     //size_t align = 1;

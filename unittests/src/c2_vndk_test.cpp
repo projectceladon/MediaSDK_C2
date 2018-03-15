@@ -147,6 +147,60 @@ private:
     std::shared_ptr<C2GraphicAllocation> mGraphicAllocation;
 };
 
+TEST(C2BufferTest, BlockPoolTest) {
+    constexpr size_t kCapacity = 1024u * 1024u;
+
+    C2BufferTest test;
+    std::shared_ptr<C2BlockPool> blockPool(test.makeLinearBlockPool());
+
+    std::shared_ptr<C2LinearBlock> block;
+    ASSERT_EQ(C2_OK, blockPool->fetchLinearBlock(
+            kCapacity,
+            { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE },
+            &block));
+    ASSERT_TRUE(block);
+
+    C2Acquirable<C2WriteView> writeViewHolder = block->map();
+    C2WriteView writeView = writeViewHolder.get();
+    ASSERT_EQ(C2_OK, writeView.error());
+    ASSERT_EQ(kCapacity, writeView.capacity());
+    ASSERT_EQ(0u, writeView.offset());
+    ASSERT_EQ(kCapacity, writeView.size());
+
+    uint8_t *data = writeView.data();
+    ASSERT_NE(nullptr, data);
+    for (size_t i = 0; i < writeView.size(); ++i) {
+        data[i] = i % 100u;
+    }
+
+    C2Fence fence;
+    C2ConstLinearBlock constBlock = block->share(
+            kCapacity / 3, kCapacity / 3, fence);
+
+    C2Acquirable<C2ReadView> readViewHolder = constBlock.map();
+    C2ReadView readView = readViewHolder.get();
+    ASSERT_EQ(C2_OK, readView.error());
+    ASSERT_EQ(kCapacity / 3, readView.capacity());
+
+    // TODO: fence
+    const uint8_t *constData = readView.data();
+    ASSERT_NE(nullptr, constData);
+    for (size_t i = 0; i < readView.capacity(); ++i) {
+        ASSERT_EQ((i + kCapacity / 3) % 100u, constData[i]) << " at i = " << i
+                << "; data = " << static_cast<void *>(data)
+                << "; constData = " << static_cast<const void *>(constData);
+    }
+
+    readView = readView.subView(333u, 100u);
+    ASSERT_EQ(C2_OK, readView.error());
+    ASSERT_EQ(100u, readView.capacity());
+
+    constData = readView.data();
+    ASSERT_NE(nullptr, constData);
+    for (size_t i = 0; i < readView.capacity(); ++i) {
+        ASSERT_EQ((i + 333u + kCapacity / 3) % 100u, constData[i]) << " at i = " << i;
+    }
+}
 
 void fillPlane(const C2Rect rect, const C2PlaneInfo info, uint8_t *addr, uint8_t value) {
     for (uint32_t row = 0; row < rect.height / info.rowSampling; ++row) {
