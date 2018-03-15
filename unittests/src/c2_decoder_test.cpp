@@ -267,62 +267,65 @@ protected:
         for(std::unique_ptr<C2Work>& work : workItems) {
             EXPECT_EQ(work->workletsProcessed, 1);
             EXPECT_EQ(work->result, C2_OK);
+            EXPECT_EQ(work->worklets.size(), 1);
+            if (work->worklets.size() >= 1) {
 
-            std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
-            C2FrameData& buffer_pack = worklet->output;
+                std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
+                C2FrameData& buffer_pack = worklet->output;
 
-            uint64_t frame_index = buffer_pack.ordinal.frameIndex.peeku();
+                uint64_t frame_index = buffer_pack.ordinal.frameIndex.peeku();
 
-            frame_submitted_set_.erase(frame_index);
+                frame_submitted_set_.erase(frame_index);
 
-            EXPECT_EQ(buffer_pack.ordinal.timestamp, frame_index * FRAME_DURATION_US); // 30 fps
+                EXPECT_EQ(buffer_pack.ordinal.timestamp, frame_index * FRAME_DURATION_US); // 30 fps
 
-            EXPECT_EQ(!frame_submitted_ || (frame_index < frame_submitted_), true)
-                << "unexpected frame_index value" << frame_index;
+                EXPECT_EQ(!frame_submitted_ || (frame_index < frame_submitted_), true)
+                    << "unexpected frame_index value" << frame_index;
 
-            ++frame_decoded_;
+                ++frame_decoded_;
 
-            std::unique_ptr<C2ConstGraphicBlock> graphic_block;
-            c2_status_t sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
-            EXPECT_EQ(sts, C2_OK);
-
-            if(nullptr != graphic_block) {
-
-                C2Rect crop = graphic_block->crop();
-                EXPECT_NE(crop.width, 0);
-                EXPECT_NE(crop.height, 0);
-
-                std::unique_ptr<const C2GraphicView> c_graph_view;
-                sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &c_graph_view);
-
-                C2PlanarLayout layout = c_graph_view->layout();
-
-                const uint8_t* const* raw  = c_graph_view->data();
-
+                std::unique_ptr<C2ConstGraphicBlock> graphic_block;
+                c2_status_t sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
                 EXPECT_EQ(sts, C2_OK);
-                EXPECT_NE(raw, nullptr);
-                for (uint32_t i = 0; i < layout.numPlanes; ++i) {
-                    EXPECT_NE(raw[i], nullptr);
-                }
 
-                std::shared_ptr<std::vector<uint8_t>> data_buffer = std::make_shared<std::vector<uint8_t>>();
-                data_buffer->resize(crop.width * crop.height * 3 / 2);
-                uint8_t* raw_cropped = &(data_buffer->front());
-                uint8_t* raw_cropped_chroma = raw_cropped + crop.width * crop.height;
-                const uint8_t* raw_chroma = raw[C2PlanarLayout::PLANE_U];
+                if(nullptr != graphic_block) {
 
-                for (uint32_t i = 0; i < crop.height; i++) {
-                    const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_Y].rowInc;
-                    memcpy(raw_cropped + i * crop.width, raw[C2PlanarLayout::PLANE_Y] + (i + crop.top) * stride + crop.left, crop.width);
-                }
-                for (uint32_t i = 0; i < (crop.height >> 1); i++) {
-                    const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_U].rowInc;
-                    memcpy(raw_cropped_chroma + i * crop.width, raw_chroma + (i + (crop.top >> 1)) * stride + crop.left, crop.width);
-                }
+                    C2Rect crop = graphic_block->crop();
+                    EXPECT_NE(crop.width, 0);
+                    EXPECT_NE(crop.height, 0);
 
-                if(nullptr != raw_cropped) {
-                    on_frame_(crop.width, crop.height,
-                        raw_cropped, crop.width * crop.height * 3 / 2);
+                    std::unique_ptr<const C2GraphicView> c_graph_view;
+                    sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &c_graph_view);
+
+                    C2PlanarLayout layout = c_graph_view->layout();
+
+                    const uint8_t* const* raw  = c_graph_view->data();
+
+                    EXPECT_EQ(sts, C2_OK);
+                    EXPECT_NE(raw, nullptr);
+                    for (uint32_t i = 0; i < layout.numPlanes; ++i) {
+                        EXPECT_NE(raw[i], nullptr);
+                    }
+
+                    std::shared_ptr<std::vector<uint8_t>> data_buffer = std::make_shared<std::vector<uint8_t>>();
+                    data_buffer->resize(crop.width * crop.height * 3 / 2);
+                    uint8_t* raw_cropped = &(data_buffer->front());
+                    uint8_t* raw_cropped_chroma = raw_cropped + crop.width * crop.height;
+                    const uint8_t* raw_chroma = raw[C2PlanarLayout::PLANE_U];
+
+                    for (uint32_t i = 0; i < crop.height; i++) {
+                        const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_Y].rowInc;
+                        memcpy(raw_cropped + i * crop.width, raw[C2PlanarLayout::PLANE_Y] + (i + crop.top) * stride + crop.left, crop.width);
+                    }
+                    for (uint32_t i = 0; i < (crop.height >> 1); i++) {
+                        const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_U].rowInc;
+                        memcpy(raw_cropped_chroma + i * crop.width, raw_chroma + (i + (crop.top >> 1)) * stride + crop.left, crop.width);
+                    }
+
+                    if(nullptr != raw_cropped) {
+                        on_frame_(crop.width, crop.height,
+                            raw_cropped, crop.width * crop.height * 3 / 2);
+                    }
                 }
             }
         }
