@@ -72,8 +72,9 @@ c2_status_t MfxC2FrameIn::Create(MfxFrameConverter* frame_converter,
             res = MapConstGraphicBlock(*c_graph_block, timeout, &c_graph_view);
             if(C2_OK != res) break;
 
+            const uint32_t stride = c_graph_view->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
             InitMfxNV12FrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
-                c_graph_view->data(), c_graph_block->width(), c_graph_block->height(),
+                c_graph_view->data(), c_graph_block->width(), c_graph_block->height(), stride,
                 unique_mfx_frame.get());
         }
 

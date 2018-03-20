@@ -42,7 +42,7 @@ static void InitMfxNV12FrameHeader(
 void InitMfxNV12FrameSW(
     uint64_t timestamp, uint64_t frame_index,
     const uint8_t *const *data,
-    uint32_t width, uint32_t height, mfxFrameSurface1* mfx_frame)
+    uint32_t width, uint32_t height, uint32_t stride, mfxFrameSurface1* mfx_frame)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -51,8 +51,6 @@ void InitMfxNV12FrameSW(
     InitMfxNV12FrameHeader(timestamp, frame_index, width, height, mfx_frame);
 
     mfx_frame->Data.MemType = MFX_MEMTYPE_SYSTEM_MEMORY;
-
-    uint32_t stride = width;
 
     mfx_frame->Data.PitchHigh = stride / (std::numeric_limits<mfxU16>::max() + 1ul);
     mfx_frame->Data.PitchLow = stride % (std::numeric_limits<mfxU16>::max() + 1ul);
