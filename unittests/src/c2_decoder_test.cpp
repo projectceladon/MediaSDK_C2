@@ -176,7 +176,7 @@ static void PrepareWork(uint32_t frame_index,
     do {
 
         std::shared_ptr<android::C2BlockPool> allocator;
-        android::c2_status_t sts = GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC,
+        android::c2_status_t sts = GetCodec2BlockPool(C2BlockPool::BASIC_LINEAR,
             component, &allocator);
 
         EXPECT_EQ(sts, C2_OK);

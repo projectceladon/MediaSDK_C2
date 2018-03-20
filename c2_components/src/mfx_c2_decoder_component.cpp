@@ -818,6 +818,8 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
                 worklet->output.buffers.front() = std::make_shared<C2Buffer>(out_buffer);
             }
         }
+        // Release output frame before onWorkDone is called, release causes unmap for system memory.
+        work_output.frame_ = MfxC2FrameOut();
         NotifyWorkDone(std::move(work), MfxStatusToC2(mfx_res));
     }
 

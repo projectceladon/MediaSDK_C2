@@ -60,12 +60,13 @@ c2_status_t MfxC2FrameOut::Create(MfxFrameConverter* frame_converter,
                 mem_id, block->width(), block->height(),
                 mfx_frame.get());
         } else {
-            std::unique_ptr<C2GraphicView> graph_view;
-            res = MapGraphicBlock(*block, timeout, &graph_view);
+            res = MapGraphicBlock(*block, timeout, &wrapper->c2_graphic_view_);
             if(C2_OK != res) break;
 
+            const uint32_t stride = wrapper->c2_graphic_view_->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
             InitMfxNV12FrameSW(timestamp, frame_index,
-                graph_view->data(), block->width(), block->height(),
+                wrapper->c2_graphic_view_->data(),
+                block->width(), block->height(), stride,
                 mfx_frame.get());
         }
 
