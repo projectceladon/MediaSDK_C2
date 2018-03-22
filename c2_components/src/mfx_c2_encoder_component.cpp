@@ -581,6 +581,8 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
         }
     }
 
+    // By resetting bit_stream we dispose of the bitrstream mapping here.
+    bit_stream = MfxC2BitstreamOut();
     NotifyWorkDone(std::move(work), MfxStatusToC2(mfx_res));
 
     {

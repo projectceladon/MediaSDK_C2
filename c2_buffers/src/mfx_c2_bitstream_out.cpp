@@ -44,14 +44,13 @@ c2_status_t MfxC2BitstreamOut::Create(
             break;
         }
 
-        std::unique_ptr<C2WriteView> write_view;
-        res = MapLinearBlock(*block, timeout, &write_view);
+        res = MapLinearBlock(*block, timeout, &wrapper->c2_linear_view_);
         if (C2_OK != res) break;
 
         wrapper->mfx_bitstream_ = std::make_unique<mfxBitstream>();
         wrapper->c2_linear_block_ = block;
 
-        InitMfxBitstream(write_view->data(), block->capacity(), wrapper->mfx_bitstream_.get());
+        InitMfxBitstream(wrapper->c2_linear_view_->data(), block->capacity(), wrapper->mfx_bitstream_.get());
 
     } while(false);
 
