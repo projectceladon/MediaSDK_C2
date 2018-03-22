@@ -35,5 +35,6 @@ public:
     }
 private:
     std::shared_ptr<android::C2LinearBlock> c2_linear_block_;
+    std::unique_ptr<android::C2WriteView> c2_linear_view_;
     std::unique_ptr<mfxBitstream> mfx_bitstream_;
 };

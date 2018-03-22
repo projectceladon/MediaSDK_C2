@@ -32,6 +32,7 @@ public:
     }
 private:
     std::shared_ptr<android::C2Buffer> c2_buffer_;
+    std::unique_ptr<const android::C2GraphicView> c2_graphic_view_;
     std::unique_ptr<mfxFrameSurface1> mfx_frame_;
     MfxFrameConverter* frame_converter_ {};
 };
