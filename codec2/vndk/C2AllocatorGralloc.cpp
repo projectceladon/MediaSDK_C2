@@ -188,7 +188,7 @@ public:
             C2PlanarLayout *layout /* nonnull */, uint8_t **addr /* nonnull */) override;
     virtual c2_status_t unmap(C2Fence *fenceFd /* nullable */) override;
     virtual bool isValid() const override { return true; }
-    virtual const C2Handle *handle() const override { return mLockedHandle ? : mHandle; }
+    virtual const C2Handle *handle() const override { return /*mLockedHandle ? :*/ mHandle; }
     virtual bool equals(const std::shared_ptr<const C2GraphicAllocation> &other) const override;
 
     // internal methods
@@ -207,7 +207,7 @@ private:
     const hidl_handle mHidlHandle;
     const C2HandleGralloc *mHandle;
     buffer_handle_t mBuffer;
-    const C2HandleGralloc *mLockedHandle;
+    const C2HandleGralloc *mLockedHandle {};
     bool mLocked;
 };
 
