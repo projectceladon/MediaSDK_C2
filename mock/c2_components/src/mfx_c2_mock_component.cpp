@@ -66,13 +66,12 @@ c2_status_t MfxC2MockComponent::CopyGraphicToLinear(const C2FrameData& input,
         res = allocator->fetchLinearBlock(MEM_SIZE, mem_usage, &out_block);
         if(C2_OK != res) break;
 
-        uint8_t* out_raw = nullptr;
-
-        res = MapLinearBlock(*out_block, TIMEOUT_NS, &out_raw);
+        std::unique_ptr<C2WriteView> write_view;
+        res = MapLinearBlock(*out_block, TIMEOUT_NS, &write_view);
         if(C2_OK != res) break;
 
         //  copy input buffer to output as is to identify data in test
-        memcpy(out_raw, in_raw[0], MEM_SIZE);
+        memcpy(write_view->data(), in_raw[0], MEM_SIZE);
 
         C2Event event;
         event.fire(); // pre-fire event as output buffer is ready to use
@@ -127,11 +126,11 @@ c2_status_t MfxC2MockComponent::CopyLinearToGraphic(const C2FrameData& input,
         MFX_DEBUG_TRACE_U32(width);
         MFX_DEBUG_TRACE_U32(height);
 
-        const uint8_t* in_raw = nullptr;
         const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
-
-        res = MapConstLinearBlock(*const_linear_block, TIMEOUT_NS, &in_raw);
+        std::unique_ptr<C2ReadView> read_view;
+        res = MapConstLinearBlock(*const_linear_block, TIMEOUT_NS, &read_view);
         if(C2_OK != res) break;
+        const uint8_t* in_raw = read_view->data();
 
         const size_t MEM_SIZE = width * height * 3 / 2;
         C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, producer_memory_type_ };

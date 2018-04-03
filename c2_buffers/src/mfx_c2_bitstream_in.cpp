@@ -44,13 +44,13 @@ c2_status_t MfxC2BitstreamIn::LoadC2BufferPack(C2FrameData& buf_pack, nsecs_t ti
         res = GetC2ConstLinearBlock(buf_pack, &c_linear_block);
         if(C2_OK != res) break;
 
-        const mfxU8* raw = nullptr;
-        res = MapConstLinearBlock(*c_linear_block, timeout, &raw);
+        std::unique_ptr<C2ReadView> read_view;
+        res = MapConstLinearBlock(*c_linear_block, timeout, &read_view);
         if(C2_OK != res) break;
 
         MFX_DEBUG_TRACE_I64(buf_pack.ordinal.timestamp.peeku());
 
-        data = raw + c_linear_block->offset();
+        data = read_view->data() + c_linear_block->offset();
         filled_len = c_linear_block->size();
 
         frame_constructor_->SetEosMode(buf_pack.flags & C2FrameData::FLAG_END_OF_STREAM);

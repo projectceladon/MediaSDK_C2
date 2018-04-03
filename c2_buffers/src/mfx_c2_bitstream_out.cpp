@@ -44,19 +44,17 @@ c2_status_t MfxC2BitstreamOut::Create(
             break;
         }
 
-        uint8_t* raw = nullptr;
-
-        res = MapLinearBlock(*block, timeout, &raw);
+        std::unique_ptr<C2WriteView> write_view;
+        res = MapLinearBlock(*block, timeout, &write_view);
         if (C2_OK != res) break;
 
         wrapper->mfx_bitstream_ = std::make_unique<mfxBitstream>();
         wrapper->c2_linear_block_ = block;
 
-        InitMfxBitstream(raw, block->capacity(), wrapper->mfx_bitstream_.get());
+        InitMfxBitstream(write_view->data(), block->capacity(), wrapper->mfx_bitstream_.get());
 
     } while(false);
 
     MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
-

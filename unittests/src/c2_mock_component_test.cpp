@@ -126,9 +126,14 @@ static std::unique_ptr<C2ConstLinearBlock> CreateFilledLinearBlock(
 
         if(nullptr == block) break;
 
-        uint8_t* data = nullptr;
-        sts = MapLinearBlock(*block, TIMEOUT_NS, &data);
+        std::unique_ptr<C2WriteView> write_view;
+        sts = MapLinearBlock(*block, TIMEOUT_NS, &write_view);
         EXPECT_EQ(sts, C2_OK);
+        EXPECT_NE(write_view, nullptr);
+
+        if(nullptr == write_view) break;
+
+        uint8_t* data = write_view->data();
         EXPECT_NE(data, nullptr);
 
         if(nullptr == data) break;
@@ -274,8 +279,11 @@ protected:
                     if(nullptr != linear_block) {
                         EXPECT_EQ(linear_block->capacity(), FRAME_BUF_SIZE);
 
-                        const uint8_t* raw {};
-                        sts = MapConstLinearBlock(*linear_block, TIMEOUT_NS, &raw);
+                        std::unique_ptr<C2ReadView> read_view;
+                        sts = MapConstLinearBlock(*linear_block, TIMEOUT_NS, &read_view);
+                        EXPECT_NE(read_view, nullptr);
+
+                        const uint8_t* raw = read_view->data();
                         EXPECT_EQ(sts, C2_OK);
                         EXPECT_NE(raw, nullptr);
 

@@ -34,11 +34,11 @@ android::c2_status_t MapConstGraphicBlock(const android::C2ConstGraphicBlock& gr
 android::c2_status_t MapGraphicBlock(android::C2GraphicBlock& graph_block, nsecs_t timeout,
     std::unique_ptr<android::C2GraphicView>* graph_view);
 
-android::c2_status_t MapConstLinearBlock(
-    const android::C2ConstLinearBlock& block, nsecs_t timeout, const uint8_t** data);
+android::c2_status_t MapConstLinearBlock(const android::C2ConstLinearBlock& block, nsecs_t timeout,
+    std::unique_ptr<android::C2ReadView>* read_view);
 
-android::c2_status_t MapLinearBlock(
-    android::C2LinearBlock& block, nsecs_t timeout, uint8_t** data);
+android::c2_status_t MapLinearBlock(android::C2LinearBlock& block, nsecs_t timeout,
+    std::unique_ptr<android::C2WriteView>* write_view);
 
 template<typename ParamType>
 android::C2ParamFieldValues MakeC2ParamField()
