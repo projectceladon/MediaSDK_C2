@@ -194,9 +194,12 @@ static void PrepareWork(uint32_t frame_index,
 
         if(nullptr == block) break;
 
-        uint8_t* data = nullptr;
-        sts = MapLinearBlock(*block, TIMEOUT_NS, &data);
+        std::unique_ptr<C2WriteView> write_view;
+        sts = MapLinearBlock(*block, TIMEOUT_NS, &write_view);
         EXPECT_EQ(sts, C2_OK);
+        EXPECT_NE(write_view, nullptr);
+
+        uint8_t* data = write_view->data();
         EXPECT_NE(data, nullptr);
 
         memcpy(data, &bitstream.front(), bitstream.size());

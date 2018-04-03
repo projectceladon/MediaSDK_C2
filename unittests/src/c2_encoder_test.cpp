@@ -318,15 +318,19 @@ protected:
 
             if(nullptr != linear_block) {
 
-                const uint8_t* raw  = nullptr;
-
-                sts = MapConstLinearBlock(*linear_block, TIMEOUT_NS, &raw);
+                std::unique_ptr<C2ReadView> read_view;
+                sts = MapConstLinearBlock(*linear_block, TIMEOUT_NS, &read_view);
                 EXPECT_EQ(sts, C2_OK);
-                EXPECT_NE(raw, nullptr);
-                EXPECT_NE(linear_block->size(), 0);
+                EXPECT_NE(read_view, nullptr);
 
-                if(nullptr != raw) {
-                    on_frame_(*worklet, raw + linear_block->offset(), linear_block->size());
+                if (nullptr != read_view) {
+                    const uint8_t* raw  = read_view->data();
+                    EXPECT_NE(raw, nullptr);
+                    EXPECT_NE(linear_block->size(), 0);
+
+                    if(nullptr != raw) {
+                        on_frame_(*worklet, raw + linear_block->offset(), linear_block->size());
+                    }
                 }
             }
         }

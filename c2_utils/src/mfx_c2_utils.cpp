@@ -167,15 +167,15 @@ c2_status_t MapGraphicBlock(C2GraphicBlock& graph_block, nsecs_t timeout,
     return res;
 }
 
-c2_status_t MapConstLinearBlock(
-    const C2ConstLinearBlock& c_lin_block, nsecs_t timeout, const uint8_t** data)
+c2_status_t MapConstLinearBlock(const C2ConstLinearBlock& c_lin_block, nsecs_t timeout,
+    std::unique_ptr<C2ReadView>* read_view)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
 
     do {
-        if(nullptr == data) {
+        if(nullptr == read_view) {
             res = C2_BAD_VALUE;
             break;
         }
@@ -184,38 +184,40 @@ c2_status_t MapConstLinearBlock(
         if(C2_OK != res) break;
 
         C2Acquirable<C2ReadView> acq_read_view = c_lin_block.map();
+        res = acq_read_view.GetError();
+        if(C2_OK != res) break;
 
         res = acq_read_view.wait(timeout);
         if(C2_OK != res) break;
 
-        C2ReadView read_view = acq_read_view.get();
-        *data = read_view.data();
+        *read_view = std::make_unique<C2ReadView>(acq_read_view.get());
 
     } while(false);
 
     return res;
 }
 
-c2_status_t MapLinearBlock(
-    C2LinearBlock& lin_block, nsecs_t timeout, uint8_t** data)
+c2_status_t MapLinearBlock(C2LinearBlock& lin_block, nsecs_t timeout,
+    std::unique_ptr<C2WriteView>* write_view)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
 
     do {
-        if(nullptr == data) {
+        if(nullptr == write_view) {
             res = C2_BAD_VALUE;
             break;
         }
 
         C2Acquirable<C2WriteView> acq_write_view = lin_block.map();
+        res = acq_write_view.GetError();
+        if(C2_OK != res) break;
 
         res = acq_write_view.wait(timeout);
         if(C2_OK != res) break;
 
-        C2WriteView write_view = acq_write_view.get();
-        *data = write_view.data();
+        *write_view = std::make_unique<C2WriteView>(acq_write_view.get());
 
     } while(false);
 
