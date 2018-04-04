@@ -31,7 +31,8 @@ MfxC2BitstreamIn::~MfxC2BitstreamIn()
     MFX_DEBUG_TRACE_FUNC;
 }
 
-c2_status_t MfxC2BitstreamIn::LoadC2BufferPack(C2FrameData& buf_pack, nsecs_t timeout)
+c2_status_t MfxC2BitstreamIn::AppendFrame(C2FrameData& buf_pack, nsecs_t timeout,
+    std::unique_ptr<FrameView>* frame_view)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -40,6 +41,11 @@ c2_status_t MfxC2BitstreamIn::LoadC2BufferPack(C2FrameData& buf_pack, nsecs_t ti
     mfxU32 filled_len = 0;
 
     do {
+        if (!frame_view) {
+            res = C2_BAD_VALUE;
+            break;
+        }
+
         std::unique_ptr<C2ConstLinearBlock> c_linear_block;
         res = GetC2ConstLinearBlock(buf_pack, &c_linear_block);
         if(C2_OK != res) break;
@@ -63,8 +69,22 @@ c2_status_t MfxC2BitstreamIn::LoadC2BufferPack(C2FrameData& buf_pack, nsecs_t ti
         res = MfxStatusToC2(mfx_res);
         if(C2_OK != res) break;
 
+        *frame_view = std::make_unique<FrameView>(frame_constructor_, std::move(read_view));
+
     } while(false);
 
     MFX_DEBUG_TRACE__android_c2_status_t(res);
+    return res;
+}
+
+c2_status_t MfxC2BitstreamIn::FrameView::Release()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    c2_status_t res = C2_OK;
+    if (read_view_) {
+        res = MfxStatusToC2(frame_constructor_->Unload());
+        read_view_.reset();
+    }
     return res;
 }
