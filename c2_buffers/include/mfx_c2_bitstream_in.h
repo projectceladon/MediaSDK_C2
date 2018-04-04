@@ -19,12 +19,33 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 class MfxC2BitstreamIn
 {
 public:
+    class FrameView
+    {
+    public:
+        FrameView(std::shared_ptr<IMfxC2FrameConstructor> frame_constructor,
+            std::unique_ptr<android::C2ReadView>&& read_view):
+                frame_constructor_(frame_constructor), read_view_(std::move(read_view)) {}
+        ~FrameView() { Release(); }
+
+        android::c2_status_t Release();
+
+    private:
+        std::shared_ptr<IMfxC2FrameConstructor> frame_constructor_;
+        std::unique_ptr<android::C2ReadView> read_view_;
+
+    private:
+        MFX_CLASS_NO_COPY(FrameView)
+    };
+
+public:
     MfxC2BitstreamIn(MfxC2FrameConstructorType fc_type);
     virtual ~MfxC2BitstreamIn();
 
     virtual std::shared_ptr<IMfxC2FrameConstructor> GetFrameConstructor() { return frame_constructor_; }
-
-    virtual android::c2_status_t LoadC2BufferPack(android::C2FrameData& buf_pack, nsecs_t timeout);
+    // Maps c2 linear block and can leave it in mapped state until
+    // frame_view freed or frame_view->Release is called.
+    virtual android::c2_status_t AppendFrame(android::C2FrameData& buf_pack, nsecs_t timeout,
+        std::unique_ptr<FrameView>* frame_view);
 
 protected: // variables
     std::shared_ptr<IMfxC2FrameConstructor> frame_constructor_;

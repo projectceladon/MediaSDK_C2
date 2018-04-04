@@ -677,7 +677,8 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
             if (res != C2_OK) break;
         }
 
-        res = c2_bitstream_->LoadC2BufferPack(work->input, TIMEOUT_NS);
+        std::unique_ptr<MfxC2BitstreamIn::FrameView> bitstream_view;
+        res = c2_bitstream_->AppendFrame(work->input, TIMEOUT_NS, &bitstream_view);
         if (C2_OK != res) break;
 
         works_queue_.push(std::move(work));
@@ -743,12 +744,8 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
             break;
         }
 
-        mfx_sts = c2_bitstream_->GetFrameConstructor()->Unload();
-        if (MFX_ERR_NONE != mfx_sts) {
-            MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
-            res = MfxStatusToC2(mfx_sts);
-            break;
-        }
+        res = bitstream_view->Release();
+        if (C2_OK != res) break;
 
     } while(false); // fake loop to have a cleanup point there
 
