@@ -87,7 +87,7 @@ public:
      * \retval C2_REFUSED       no permission to wait for the fence (unexpected - system)
      * \retval C2_CORRUPTED     some unknown error prevented waiting for the fence (unexpected)
      */
-    c2_status_t wait(nsecs_t timeoutNs);
+    c2_status_t wait(c2_nsecs_t timeoutNs);
 
     /**
      * Used to check if this fence is valid (if there is a chance for it to be signaled.)

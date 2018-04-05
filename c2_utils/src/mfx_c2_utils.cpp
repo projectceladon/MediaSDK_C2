@@ -113,7 +113,7 @@ c2_status_t GetC2ConstLinearBlock(
     return res;
 }
 
-c2_status_t MapConstGraphicBlock(const C2ConstGraphicBlock& graph_block, nsecs_t timeout,
+c2_status_t MapConstGraphicBlock(const C2ConstGraphicBlock& graph_block, c2_nsecs_t timeout,
     std::unique_ptr<const C2GraphicView>* graph_view)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -140,7 +140,7 @@ c2_status_t MapConstGraphicBlock(const C2ConstGraphicBlock& graph_block, nsecs_t
     return res;
 }
 
-c2_status_t MapGraphicBlock(C2GraphicBlock& graph_block, nsecs_t timeout,
+c2_status_t MapGraphicBlock(C2GraphicBlock& graph_block, c2_nsecs_t timeout,
     std::unique_ptr<C2GraphicView>* graph_view)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -167,7 +167,7 @@ c2_status_t MapGraphicBlock(C2GraphicBlock& graph_block, nsecs_t timeout,
     return res;
 }
 
-c2_status_t MapConstLinearBlock(const C2ConstLinearBlock& c_lin_block, nsecs_t timeout,
+c2_status_t MapConstLinearBlock(const C2ConstLinearBlock& c_lin_block, c2_nsecs_t timeout,
     std::unique_ptr<C2ReadView>* read_view)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -197,7 +197,7 @@ c2_status_t MapConstLinearBlock(const C2ConstLinearBlock& c_lin_block, nsecs_t t
     return res;
 }
 
-c2_status_t MapLinearBlock(C2LinearBlock& lin_block, nsecs_t timeout,
+c2_status_t MapLinearBlock(C2LinearBlock& lin_block, c2_nsecs_t timeout,
     std::unique_ptr<C2WriteView>* write_view)
 {
     MFX_DEBUG_TRACE_FUNC;

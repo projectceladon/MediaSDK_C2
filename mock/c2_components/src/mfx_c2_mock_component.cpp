@@ -52,7 +52,7 @@ c2_status_t MfxC2MockComponent::CopyGraphicToLinear(const C2FrameData& input,
         uint32_t height = const_graphic_block->height();
         MFX_DEBUG_TRACE_U32(height);
 
-        const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
+        const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
         std::unique_ptr<const C2GraphicView> c_graph_view;
         res = MapConstGraphicBlock(*const_graphic_block, TIMEOUT_NS, &c_graph_view);
@@ -126,7 +126,7 @@ c2_status_t MfxC2MockComponent::CopyLinearToGraphic(const C2FrameData& input,
         MFX_DEBUG_TRACE_U32(width);
         MFX_DEBUG_TRACE_U32(height);
 
-        const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
+        const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
         std::unique_ptr<C2ReadView> read_view;
         res = MapConstLinearBlock(*const_linear_block, TIMEOUT_NS, &read_view);
         if(C2_OK != res) break;

@@ -36,7 +36,7 @@ const uint32_t FRAME_FORMAT = HAL_PIXEL_FORMAT_NV12_TILED_INTEL; // nv12
 // This frame count is required by StaticBitrate test, the encoder cannot follow
 // bitrate on shorter frame sequences.
 const uint32_t FRAME_COUNT = 150; // 10 default GOP size
-const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
+const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
 static std::vector<C2ParamDescriptor> h264_params_desc =
 {

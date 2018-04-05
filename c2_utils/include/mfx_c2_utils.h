@@ -28,16 +28,16 @@ c2_status_t GetC2ConstGraphicBlock(
 c2_status_t GetC2ConstLinearBlock(
     const C2FrameData& buf_pack, std::unique_ptr<C2ConstLinearBlock>* c_lin_block);
 
-c2_status_t MapConstGraphicBlock(const C2ConstGraphicBlock& graph_block, nsecs_t timeout,
+c2_status_t MapConstGraphicBlock(const C2ConstGraphicBlock& graph_block, c2_nsecs_t timeout,
     std::unique_ptr<const C2GraphicView>* graph_view);
 
-c2_status_t MapGraphicBlock(C2GraphicBlock& graph_block, nsecs_t timeout,
+c2_status_t MapGraphicBlock(C2GraphicBlock& graph_block, c2_nsecs_t timeout,
     std::unique_ptr<C2GraphicView>* graph_view);
 
-c2_status_t MapConstLinearBlock(const C2ConstLinearBlock& block, nsecs_t timeout,
+c2_status_t MapConstLinearBlock(const C2ConstLinearBlock& block, c2_nsecs_t timeout,
     std::unique_ptr<C2ReadView>* read_view);
 
-c2_status_t MapLinearBlock(C2LinearBlock& block, nsecs_t timeout,
+c2_status_t MapLinearBlock(C2LinearBlock& block, c2_nsecs_t timeout,
     std::unique_ptr<C2WriteView>* write_view);
 
 template<typename ParamType>

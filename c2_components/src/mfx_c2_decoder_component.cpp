@@ -23,7 +23,7 @@ using namespace android;
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_decoder_component"
 
-const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
+const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
 MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, int flags, DecoderType decoder_type) :
     MfxC2Component(name, flags),

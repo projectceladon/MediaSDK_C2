@@ -31,7 +31,7 @@ MfxC2BitstreamIn::~MfxC2BitstreamIn()
     MFX_DEBUG_TRACE_FUNC;
 }
 
-c2_status_t MfxC2BitstreamIn::AppendFrame(C2FrameData& buf_pack, nsecs_t timeout,
+c2_status_t MfxC2BitstreamIn::AppendFrame(C2FrameData& buf_pack, c2_nsecs_t timeout,
     std::unique_ptr<FrameView>* frame_view)
 {
     MFX_DEBUG_TRACE_FUNC;
