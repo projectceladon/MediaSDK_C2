@@ -17,11 +17,11 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 class MfxC2ParamReflector
 {
 private:
-    std::vector<std::shared_ptr<android::C2ParamDescriptor>> params_descriptors_;
+    std::vector<std::shared_ptr<C2ParamDescriptor>> params_descriptors_;
 
-    std::map<android::C2Param::CoreIndex, android::C2StructDescriptor> params_struct_descriptors_;
+    std::map<C2Param::CoreIndex, C2StructDescriptor> params_struct_descriptors_;
 
-    std::map<android::C2ParamField, android::C2FieldSupportedValues> params_supported_values_;
+    std::map<C2ParamField, C2FieldSupportedValues> params_supported_values_;
 
 public:
     template<typename ParamType>
@@ -30,16 +30,16 @@ public:
     template<typename ParamType, typename ValueType, typename FieldType>
     void RegisterSupportedRange(FieldType ValueType::* pm, FieldType min, FieldType max);
 
-    bool ValidateParam(const android::C2Param* param,
-        std::vector<std::unique_ptr<android::C2SettingResult>>* const failures);
+    bool ValidateParam(const C2Param* param,
+        std::vector<std::unique_ptr<C2SettingResult>>* const failures);
 
-    std::unique_ptr<android::C2SettingResult> FindParam(
-        const android::C2Param* param) const;
+    std::unique_ptr<C2SettingResult> FindParam(
+        const C2Param* param) const;
 
-    bool FindParam(android::C2Param::Type param_type) const;
+    bool FindParam(C2Param::Type param_type) const;
 
-    android::c2_status_t getSupportedParams(
-        std::vector<std::shared_ptr<android::C2ParamDescriptor>>* const params) const;
+    c2_status_t getSupportedParams(
+        std::vector<std::shared_ptr<C2ParamDescriptor>>* const params) const;
 
 #if MFX_DEBUG == MFX_DEBUG_YES
     void DumpParams();

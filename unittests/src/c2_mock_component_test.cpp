@@ -76,7 +76,7 @@ TEST(MfxMockComponent, intf)
 // Allocates c2 graphic block of FRAME_WIDTH x FRAME_HEIGHT size and fills it with
 // specified byte value.
 static std::unique_ptr<C2ConstGraphicBlock> CreateFilledGraphicBlock(
-    std::shared_ptr<android::C2BlockPool> allocator, uint8_t fill, C2MemoryUsage::Consumer memory_type)
+    std::shared_ptr<C2BlockPool> allocator, uint8_t fill, C2MemoryUsage::Consumer memory_type)
 {
     std::unique_ptr<C2ConstGraphicBlock> res;
 
@@ -112,7 +112,7 @@ static std::unique_ptr<C2ConstGraphicBlock> CreateFilledGraphicBlock(
 // Allocates c2 linear block of FRAME_BUF_SIZE length and fills it with
 // specified byte value.
 static std::unique_ptr<C2ConstLinearBlock> CreateFilledLinearBlock(
-    std::shared_ptr<android::C2BlockPool> allocator, uint8_t fill)
+    std::shared_ptr<C2BlockPool> allocator, uint8_t fill)
 {
     std::unique_ptr<C2ConstLinearBlock> res;
 
@@ -175,10 +175,10 @@ static void PrepareWork(uint32_t frame_index,
     buffer_pack->ordinal.customOrdinal = 0;
 
     do {
-        std::shared_ptr<android::C2BlockPool> allocator;
+        std::shared_ptr<C2BlockPool> allocator;
         auto block_pool_id = (buffer_type == C2BufferData::LINEAR) ?
             C2BlockPool::BASIC_LINEAR : C2BlockPool::BASIC_GRAPHIC;
-        android::c2_status_t sts = GetCodec2BlockPool(block_pool_id,
+        c2_status_t sts = GetCodec2BlockPool(block_pool_id,
             component, &allocator);
 
         EXPECT_EQ(sts, C2_OK);

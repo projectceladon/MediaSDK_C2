@@ -44,7 +44,7 @@ public:
     };
 
 protected:
-    MfxC2EncoderComponent(const android::C2String name, int flags, EncoderType encoder_type);
+    MfxC2EncoderComponent(const C2String name, int flags, EncoderType encoder_type);
 
     MFX_CLASS_NO_COPY(MfxC2EncoderComponent)
 
@@ -54,31 +54,31 @@ public:
 public:
     static void RegisterClass(MfxC2ComponentsRegistry& registry);
 
-protected: // android::C2ComponentInterface
-    android::c2_status_t query_vb(
-        const std::vector<android::C2Param*> &stackParams,
-        const std::vector<android::C2Param::Index> &heapParamIndices,
-        android::c2_blocking_t mayBlock,
-        std::vector<std::unique_ptr<android::C2Param>>* const heapParams) const override;
+protected: // C2ComponentInterface
+    c2_status_t query_vb(
+        const std::vector<C2Param*> &stackParams,
+        const std::vector<C2Param::Index> &heapParamIndices,
+        c2_blocking_t mayBlock,
+        std::vector<std::unique_ptr<C2Param>>* const heapParams) const override;
 
-    android::c2_status_t config_vb(
-        const std::vector<android::C2Param*> &params,
-        android::c2_blocking_t mayBlock,
-        std::vector<std::unique_ptr<android::C2SettingResult>>* const failures) override;
+    c2_status_t config_vb(
+        const std::vector<C2Param*> &params,
+        c2_blocking_t mayBlock,
+        std::vector<std::unique_ptr<C2SettingResult>>* const failures) override;
 
-protected: // android::C2Component
-    android::c2_status_t queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items) override;
+protected: // C2Component
+    c2_status_t queue_nb(std::list<std::unique_ptr<C2Work>>* const items) override;
 
 protected:
-    android::c2_status_t Init() override;
+    c2_status_t Init() override;
 
-    android::c2_status_t DoStart() override;
+    c2_status_t DoStart() override;
 
-    android::c2_status_t DoStop() override;
+    c2_status_t DoStop() override;
 
 private:
-    android::c2_status_t QueryParam(const mfxVideoParam* src,
-        android::C2Param::Type type, android::C2Param** dst) const;
+    c2_status_t QueryParam(const mfxVideoParam* src,
+        C2Param::Type type, C2Param** dst) const;
 
     std::unique_ptr<mfxVideoParam> GetParamsView() const;
 
@@ -96,20 +96,20 @@ private:
         mfxEncodeCtrl *ctrl, mfxFrameSurface1 *surface, mfxBitstream *bs,
         mfxSyncPoint *syncp);
 
-    android::c2_status_t AllocateBitstream(const std::unique_ptr<android::C2Work>& work,
+    c2_status_t AllocateBitstream(const std::unique_ptr<C2Work>& work,
         MfxC2BitstreamOut* mfx_bitstream);
 
-    void DoConfig(const std::vector<android::C2Param*> &params,
-        std::vector<std::unique_ptr<android::C2SettingResult>>* const failures,
+    void DoConfig(const std::vector<C2Param*> &params,
+        std::vector<std::unique_ptr<C2SettingResult>>* const failures,
         bool queue_update);
 
-    android::c2_status_t ApplyWorkTunings(android::C2Work& work);
+    c2_status_t ApplyWorkTunings(C2Work& work);
     // Work routines
-    void DoWork(std::unique_ptr<android::C2Work>&& work);
+    void DoWork(std::unique_ptr<C2Work>&& work);
 
     void Drain();
     // waits for the sync_point and update work with encoder output then
-    void WaitWork(std::unique_ptr<android::C2Work>&& work,
+    void WaitWork(std::unique_ptr<C2Work>&& work,
         std::unique_ptr<mfxEncodeCtrl>&& encode_ctrl,
         MfxC2BitstreamOut&& bit_stream, mfxSyncPoint sync_point);
 
@@ -150,11 +150,11 @@ private:
     // got ERR_MORE_DATA so their output aren't being produced.
     // Handles display order only.
     // This queue is accessed from working thread only.
-    std::queue<std::unique_ptr<android::C2Work>> pending_works_;
+    std::queue<std::unique_ptr<C2Work>> pending_works_;
 
     std::list<MfxC2FrameIn> locked_frames_;
 
     EncoderControl encoder_control_;
 
-    std::shared_ptr<android::C2BlockPool> c2_allocator_;
+    std::shared_ptr<C2BlockPool> c2_allocator_;
 };

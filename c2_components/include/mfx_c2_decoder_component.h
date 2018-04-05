@@ -26,7 +26,7 @@ public:
     };
 
 protected:
-    MfxC2DecoderComponent(const android::C2String name, int flags, DecoderType decoder_type);
+    MfxC2DecoderComponent(const C2String name, int flags, DecoderType decoder_type);
 
     MFX_CLASS_NO_COPY(MfxC2DecoderComponent)
 
@@ -36,48 +36,48 @@ public:
 public:
     static void RegisterClass(MfxC2ComponentsRegistry& registry);
 
-protected: // android::C2ComponentInterface
-    android::c2_status_t query_vb(
-        const std::vector<android::C2Param*> &stackParams,
-        const std::vector<android::C2Param::Index> &heapParamIndices,
-        android::c2_blocking_t mayBlock,
-        std::vector<std::unique_ptr<android::C2Param>>* const heapParams) const override;
+protected: // C2ComponentInterface
+    c2_status_t query_vb(
+        const std::vector<C2Param*> &stackParams,
+        const std::vector<C2Param::Index> &heapParamIndices,
+        c2_blocking_t mayBlock,
+        std::vector<std::unique_ptr<C2Param>>* const heapParams) const override;
 
-    android::c2_status_t config_vb(
-        const std::vector<android::C2Param*> &params,
-        android::c2_blocking_t mayBlock,
-        std::vector<std::unique_ptr<android::C2SettingResult>>* const failures) override;
+    c2_status_t config_vb(
+        const std::vector<C2Param*> &params,
+        c2_blocking_t mayBlock,
+        std::vector<std::unique_ptr<C2SettingResult>>* const failures) override;
 
-protected: // android::C2Component
-    android::c2_status_t queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items) override;
+protected: // C2Component
+    c2_status_t queue_nb(std::list<std::unique_ptr<C2Work>>* const items) override;
 
 protected:
-    android::c2_status_t Init() override;
+    c2_status_t Init() override;
 
-    android::c2_status_t DoStart() override;
+    c2_status_t DoStart() override;
 
-    android::c2_status_t DoStop() override;
+    c2_status_t DoStop() override;
 
 private:
     struct C2WorkOutput
     {
-        std::unique_ptr<android::C2Work> work_;
+        std::unique_ptr<C2Work> work_;
         MfxC2FrameOut frame_;
     };
 
 private:
-    android::c2_status_t QueryParam(const mfxVideoParam* src,
-        android::C2Param::Type type, android::C2Param** dst) const;
+    c2_status_t QueryParam(const mfxVideoParam* src,
+        C2Param::Type type, C2Param** dst) const;
 
-    void DoConfig(const std::vector<android::C2Param*> &params,
-        std::vector<std::unique_ptr<android::C2SettingResult>>* const failures,
+    void DoConfig(const std::vector<C2Param*> &params,
+        std::vector<std::unique_ptr<C2SettingResult>>* const failures,
         bool queue_update);
 
     mfxStatus InitSession();
 
     mfxStatus Reset();
 
-    mfxStatus InitDecoder(std::shared_ptr<android::C2BlockPool> c2_allocator);
+    mfxStatus InitDecoder(std::shared_ptr<C2BlockPool> c2_allocator);
 
     void FreeDecoder();
 
@@ -87,16 +87,16 @@ private:
 
     mfxStatus DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& frame_out);
 
-    android::c2_status_t AllocateC2Block(std::shared_ptr<android::C2GraphicBlock>* out_block);
+    c2_status_t AllocateC2Block(std::shared_ptr<C2GraphicBlock>* out_block);
 
-    android::c2_status_t AllocateFrame(MfxC2FrameOut* frame_out);
+    c2_status_t AllocateFrame(MfxC2FrameOut* frame_out);
 
     mfxU16 GetAsyncDepth();
 
     // Work routines
-    android::c2_status_t ValidateWork(const std::unique_ptr<android::C2Work>& work);
+    c2_status_t ValidateWork(const std::unique_ptr<C2Work>& work);
 
-    void DoWork(std::unique_ptr<android::C2Work>&& work);
+    void DoWork(std::unique_ptr<C2Work>&& work);
 
     void Drain();
     // waits for the sync_point and update work with decoder output then
@@ -142,9 +142,9 @@ private:
 
     std::list<MfxC2FrameOut> locked_surfaces_; // allocated, but cannot be re-used as Locked by Decoder
 
-    std::queue<std::unique_ptr<android::C2Work>> works_queue_;
+    std::queue<std::unique_ptr<C2Work>> works_queue_;
 
     MfxFramePoolAllocator* allocator_; // used when Video memory output
     // for pre-allocation when Video memory is chosen and always when System memory output
-    std::shared_ptr<android::C2BlockPool> c2_allocator_;
+    std::shared_ptr<C2BlockPool> c2_allocator_;
 };

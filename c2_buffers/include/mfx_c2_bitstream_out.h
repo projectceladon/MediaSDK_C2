@@ -20,11 +20,11 @@ class MfxC2BitstreamOut
 public:
     MfxC2BitstreamOut() = default;
 
-    static android::c2_status_t Create(
-        std::shared_ptr<android::C2LinearBlock> block, nsecs_t timeout,
+    static c2_status_t Create(
+        std::shared_ptr<C2LinearBlock> block, nsecs_t timeout,
         MfxC2BitstreamOut* wrapper);
 
-    std::shared_ptr<android::C2LinearBlock> GetC2LinearBlock() const
+    std::shared_ptr<C2LinearBlock> GetC2LinearBlock() const
     {
         return c2_linear_block_;
     }
@@ -34,7 +34,7 @@ public:
         return mfx_bitstream_.get();
     }
 private:
-    std::shared_ptr<android::C2LinearBlock> c2_linear_block_;
-    std::unique_ptr<android::C2WriteView> c2_linear_view_;
+    std::shared_ptr<C2LinearBlock> c2_linear_block_;
+    std::unique_ptr<C2WriteView> c2_linear_view_;
     std::unique_ptr<mfxBitstream> mfx_bitstream_;
 };

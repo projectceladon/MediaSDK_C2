@@ -23,15 +23,15 @@ public:
     {
     public:
         FrameView(std::shared_ptr<IMfxC2FrameConstructor> frame_constructor,
-            std::unique_ptr<android::C2ReadView>&& read_view):
+            std::unique_ptr<C2ReadView>&& read_view):
                 frame_constructor_(frame_constructor), read_view_(std::move(read_view)) {}
         ~FrameView() { Release(); }
 
-        android::c2_status_t Release();
+        c2_status_t Release();
 
     private:
         std::shared_ptr<IMfxC2FrameConstructor> frame_constructor_;
-        std::unique_ptr<android::C2ReadView> read_view_;
+        std::unique_ptr<C2ReadView> read_view_;
 
     private:
         MFX_CLASS_NO_COPY(FrameView)
@@ -44,7 +44,7 @@ public:
     virtual std::shared_ptr<IMfxC2FrameConstructor> GetFrameConstructor() { return frame_constructor_; }
     // Maps c2 linear block and can leave it in mapped state until
     // frame_view freed or frame_view->Release is called.
-    virtual android::c2_status_t AppendFrame(android::C2FrameData& buf_pack, nsecs_t timeout,
+    virtual c2_status_t AppendFrame(C2FrameData& buf_pack, nsecs_t timeout,
         std::unique_ptr<FrameView>* frame_view);
 
 protected: // variables

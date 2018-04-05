@@ -28,8 +28,6 @@
 #include <list>
 #include <vector>
 
-namespace android {
-
 /// \defgroup work Work and data processing
 /// @{
 
@@ -210,7 +208,5 @@ struct C2WorkOutline {
 };
 
 /// @}
-
-}  // namespace android
 
 #endif  // C2WORK_H_

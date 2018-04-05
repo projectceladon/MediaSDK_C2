@@ -65,8 +65,8 @@ c2_status_t GetCodec2BlockPool(
  */
 class C2ComponentFactory {
 public:
-    typedef std::function<void(::android::C2Component*)> ComponentDeleter;
-    typedef std::function<void(::android::C2ComponentInterface*)> InterfaceDeleter;
+    typedef std::function<void(::C2Component*)> ComponentDeleter;
+    typedef std::function<void(::C2ComponentInterface*)> InterfaceDeleter;
 
     /**
      * Creates a component.
@@ -110,8 +110,8 @@ public:
 
     virtual ~C2ComponentFactory() = default;
 
-    typedef ::android::C2ComponentFactory* (*CreateCodec2FactoryFunc)(void);
-    typedef void (*DestroyCodec2FactoryFunc)(::android::C2ComponentFactory*);
+    typedef ::C2ComponentFactory* (*CreateCodec2FactoryFunc)(void);
+    typedef void (*DestroyCodec2FactoryFunc)(::C2ComponentFactory*);
 };
 
 /**

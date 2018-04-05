@@ -79,7 +79,7 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                 response->mids = nullptr;
                 // recreate pool_ to clean it
                 FreeAllMappings();
-                pool_ = std::make_unique<MfxPool<android::C2GraphicBlock>>();
+                pool_ = std::make_unique<MfxPool<C2GraphicBlock>>();
             }
         } while(false);
     } else {

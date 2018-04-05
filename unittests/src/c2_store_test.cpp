@@ -66,12 +66,12 @@ static bool PrepareConfFile()
 }
 
 // this function creates component store and keeps for subsequent usage
-static c2_status_t GetCachedC2ComponentStore(std::shared_ptr<android::C2ComponentStore>* store)
+static c2_status_t GetCachedC2ComponentStore(std::shared_ptr<C2ComponentStore>* store)
 {
     static bool conf_file_ready = PrepareConfFile();
     ASSERT_TRUE(conf_file_ready);
 
-    static std::shared_ptr<android::C2ComponentStore> g_store;
+    static std::shared_ptr<C2ComponentStore> g_store;
     static c2_status_t g_creation_status = GetC2ComponentStore(&g_store);
 
     ASSERT_NE(g_store, nullptr);
@@ -82,7 +82,7 @@ static c2_status_t GetCachedC2ComponentStore(std::shared_ptr<android::C2Componen
 // Tests if the component store can be created by itself.
 TEST(MfxComponentStore, Create)
 {
-    std::shared_ptr<android::C2ComponentStore> componentStore;
+    std::shared_ptr<C2ComponentStore> componentStore;
     c2_status_t status = GetCachedC2ComponentStore(&componentStore);
 
     EXPECT_EQ(status, C2_OK);
@@ -93,7 +93,7 @@ TEST(MfxComponentStore, Create)
 // For this test the running device should be rooted and remounted to able to write to /etc dir.
 TEST(MfxComponentStore, getComponents)
 {
-    std::shared_ptr<android::C2ComponentStore> componentStore;
+    std::shared_ptr<C2ComponentStore> componentStore;
     GetCachedC2ComponentStore(&componentStore);
 
     auto components = componentStore->listComponents();
@@ -121,7 +121,7 @@ TEST(MfxComponentStore, getComponents)
 // A module loaded into memory is checked as well.
 TEST(MfxComponentStore, createComponent)
 {
-    std::shared_ptr<android::C2ComponentStore> componentStore;
+    std::shared_ptr<C2ComponentStore> componentStore;
     GetCachedC2ComponentStore(&componentStore);
 
     for(const auto& component_desc : g_components) {
@@ -156,7 +156,7 @@ TEST(MfxComponentStore, createComponent)
 // Also test checks that component returns valid information via interface (b.e., returns name).
 TEST(MfxComponentStore, createInterface)
 {
-    std::shared_ptr<android::C2ComponentStore> componentStore;
+    std::shared_ptr<C2ComponentStore> componentStore;
     GetCachedC2ComponentStore(&componentStore);
 
     for(const auto& component_desc : g_components) {
@@ -182,7 +182,7 @@ TEST(MfxComponentStore, createInterface)
 // Checks C2ComponentStore::copyBuffer returns C2_OMITTED for now.
 TEST(MfxComponentStore, copyBuffer)
 {
-    std::shared_ptr<android::C2ComponentStore> componentStore;
+    std::shared_ptr<C2ComponentStore> componentStore;
     GetCachedC2ComponentStore(&componentStore);
 
     std::shared_ptr<C2GraphicBuffer> src;
@@ -196,7 +196,7 @@ TEST(MfxComponentStore, copyBuffer)
 // returns C2_OMITTED for now.
 TEST(MfxComponentStore, query_sm)
 {
-    std::shared_ptr<android::C2ComponentStore> componentStore;
+    std::shared_ptr<C2ComponentStore> componentStore;
     GetCachedC2ComponentStore(&componentStore);
 
     std::vector<C2Param*> stackParams;
@@ -211,7 +211,7 @@ TEST(MfxComponentStore, query_sm)
 // returns C2_OMITTED for now.
 TEST(MfxComponentStore, config_sm)
 {
-    std::shared_ptr<android::C2ComponentStore> componentStore;
+    std::shared_ptr<C2ComponentStore> componentStore;
     GetCachedC2ComponentStore(&componentStore);
 
     std::vector<C2Param*> params;

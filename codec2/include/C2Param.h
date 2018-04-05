@@ -29,8 +29,6 @@
 
 #define C2_PACK __attribute__((packed))
 
-namespace android {
-
 /// \addtogroup Parameters
 /// @{
 
@@ -1370,7 +1368,5 @@ struct C2ParamFieldValues {
 };
 
 /// @}
-
-}  // namespace android
 
 #endif  // C2PARAM_H_

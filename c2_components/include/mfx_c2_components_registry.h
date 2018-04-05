@@ -31,7 +31,7 @@ private:
 public:
     static MfxC2ComponentsRegistry& getInstance();
 
-    android::c2_status_t CreateMfxC2Component(const char* name, int flags, MfxC2Component** component);
+    c2_status_t CreateMfxC2Component(const char* name, int flags, MfxC2Component** component);
 
     void RegisterMfxC2Component(const std::string& name, CreateMfxC2ComponentFunc* createFunc);
 

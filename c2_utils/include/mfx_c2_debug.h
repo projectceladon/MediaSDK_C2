@@ -14,7 +14,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <C2Work.h>
 #include <C2.h>
 
-typedef android::c2_status_t android_c2_status_t;
+typedef c2_status_t android_c2_status_t;
 MFX_DEBUG_DECLARE_VALUE_DESC_PRINTF(android_c2_status_t)
 
 #if MFX_DEBUG == MFX_DEBUG_YES

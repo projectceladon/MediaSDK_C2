@@ -19,7 +19,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 using namespace android;
 
-MfxC2MockComponent::MfxC2MockComponent(const android::C2String name, int flags, Type type) :
+MfxC2MockComponent::MfxC2MockComponent(const C2String name, int flags, Type type) :
     MfxC2Component(name, flags), type_(type)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -162,7 +162,7 @@ c2_status_t MfxC2MockComponent::CopyLinearToGraphic(const C2FrameData& input,
 // with zero pitch, i.e block size is (width * height * 3 / 2) bytes.
 // The method allocates linear block of the same size and copies all input bytes there.
 // The purpose is to test buffers are going through C2 interfaces well.
-void MfxC2MockComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
+void MfxC2MockComponent::DoWork(std::unique_ptr<C2Work>&& work)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -212,9 +212,9 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
 }
 
 c2_status_t MfxC2MockComponent::config_vb(
-        const std::vector<android::C2Param*> &params,
-        android::c2_blocking_t mayBlock,
-        std::vector<std::unique_ptr<android::C2SettingResult>>* const)
+        const std::vector<C2Param*> &params,
+        c2_blocking_t mayBlock,
+        std::vector<std::unique_ptr<C2SettingResult>>* const)
 {
     (void)mayBlock;
 
@@ -231,7 +231,7 @@ c2_status_t MfxC2MockComponent::config_vb(
     return res;
 }
 
-c2_status_t MfxC2MockComponent::queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items)
+c2_status_t MfxC2MockComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const items)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -245,7 +245,7 @@ c2_status_t MfxC2MockComponent::queue_nb(std::list<std::unique_ptr<android::C2Wo
     return C2_OK;
 }
 
-android::c2_status_t MfxC2MockComponent::Init()
+c2_status_t MfxC2MockComponent::Init()
 {
     MFX_DEBUG_TRACE_FUNC;
 

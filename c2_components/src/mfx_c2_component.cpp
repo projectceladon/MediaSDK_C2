@@ -20,7 +20,7 @@ using namespace android;
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_component"
 
-MfxC2Component::MfxC2Component(const android::C2String& name, int flags) :
+MfxC2Component::MfxC2Component(const C2String& name, int flags) :
     name_(name),
     flags_(flags),
     mfx_implementation_(MFX_IMPLEMENTATION)
@@ -61,7 +61,7 @@ c2_node_id_t MfxC2Component::getId() const
 c2_status_t MfxC2Component::query_vb(
     const std::vector<C2Param*> &stackParams,
     const std::vector<C2Param::Index> &heapParamIndices,
-    android::c2_blocking_t mayBlock,
+    c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2Param>>* const heapParams) const
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -231,7 +231,7 @@ std::shared_ptr<C2ComponentInterface> MfxC2Component::intf()
 }
 
 c2_status_t MfxC2Component::setListener_vb(
-    const std::shared_ptr<Listener> &listener, android::c2_blocking_t mayBlock)
+    const std::shared_ptr<Listener> &listener, c2_blocking_t mayBlock)
 {
     (void)mayBlock;
 
@@ -256,7 +256,7 @@ void MfxC2Component::NotifyListeners(std::function<void(std::shared_ptr<Listener
     }
 }
 
-void MfxC2Component::NotifyWorkDone(std::unique_ptr<android::C2Work>&& work, android::c2_status_t sts)
+void MfxC2Component::NotifyWorkDone(std::unique_ptr<C2Work>&& work, c2_status_t sts)
 {
     MFX_DEBUG_TRACE_FUNC;
 

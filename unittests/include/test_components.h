@@ -105,8 +105,8 @@ private:
     static std::vector<std::string> GetTestFolders();
 };
 
-typedef std::shared_ptr<android::C2Component> C2CompPtr;
-typedef std::shared_ptr<android::C2ComponentInterface> C2CompIntfPtr;
+typedef std::shared_ptr<C2Component> C2CompPtr;
+typedef std::shared_ptr<C2ComponentInterface> C2CompIntfPtr;
 
 template <typename Desc>
 using ComponentTest =
@@ -124,14 +124,14 @@ void ForEveryComponent(
         SCOPED_TRACE(desc.component_name);
 
         std::shared_ptr<MfxC2Component> component = factory(desc.component_name);
-        bool creation_expected = (desc.creation_status == android::C2_OK);
+        bool creation_expected = (desc.creation_status == C2_OK);
         bool creation_actual = (component != nullptr);
 
         EXPECT_EQ(creation_actual, creation_expected) << " for " << desc.component_name;
         if (nullptr == component) continue;
 
-        std::shared_ptr<android::C2Component> c2_component = component;
-        std::shared_ptr<android::C2ComponentInterface> c2_component_intf = c2_component->intf();
+        std::shared_ptr<C2Component> c2_component = component;
+        std::shared_ptr<C2ComponentInterface> c2_component_intf = c2_component->intf();
 
         EXPECT_NE(c2_component_intf, nullptr);
         if (nullptr == c2_component_intf) continue;

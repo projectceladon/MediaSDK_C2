@@ -8,14 +8,12 @@
 
 #include <ui/Rect.h>
 
-namespace android {
-
 class C2BlockAllocatorImpl;
 
 class C2LinearAllocationMock : public C2LinearAllocation
 {
     using C2LinearAllocation::C2LinearAllocation;
-    friend class ::android::C2BlockAllocatorImpl;
+    friend class ::C2BlockAllocatorImpl;
 public:
     C2LinearAllocationMock(size_t capacity):
         C2LinearAllocation(capacity)
@@ -115,12 +113,12 @@ C2Block1D::C2Block1D(std::shared_ptr<C2LinearAllocation> alloc, size_t offset, s
 
 class C2ConstLinearBlockAccessor : public C2ConstLinearBlock {
     using C2ConstLinearBlock::C2ConstLinearBlock;
-    friend class ::android::C2LinearBlock;
+    friend class ::C2LinearBlock;
 };
 
 class C2LinearBlockAccessor : public C2LinearBlock {
     using C2LinearBlock::C2LinearBlock;
-    friend class ::android::C2BlockAllocatorImpl;
+    friend class ::C2BlockAllocatorImpl;
 };
 
 class C2ConstLinearBlock::Impl
@@ -160,12 +158,12 @@ uint8_t *C2WriteView::data()
 class C2ReadViewMock : public C2ReadView
 {
     using C2ReadView::C2ReadView;
-    friend class ::android::C2ConstLinearBlock;
+    friend class ::C2ConstLinearBlock;
 };
 
 class C2AcquirableReadView : public C2Acquirable<C2ReadView> {
     using C2Acquirable::C2Acquirable;
-    friend class ::android::C2ConstLinearBlock;
+    friend class ::C2ConstLinearBlock;
 };
 
 C2Acquirable<C2ReadView> C2ConstLinearBlock::map() const
@@ -189,12 +187,12 @@ C2Acquirable<C2ReadView> C2ConstLinearBlock::map() const
 class C2WriteViewMock : public C2WriteView
 {
     using C2WriteView::C2WriteView;
-    friend class ::android::C2LinearBlock;
+    friend class ::C2LinearBlock;
 };
 
 class C2AcquirableWriteView : public C2Acquirable<C2WriteView> {
     using C2Acquirable::C2Acquirable;
-    friend class ::android::C2LinearBlock;
+    friend class ::C2LinearBlock;
 };
 
 C2Acquirable<C2WriteView> C2LinearBlock::map()
@@ -239,7 +237,7 @@ public:
 
 class C2GraphicBlockAccessor : public C2GraphicBlock {
     using C2GraphicBlock::C2GraphicBlock;
-    friend class ::android::C2BlockAllocatorImpl;
+    friend class ::C2BlockAllocatorImpl;
 };
 
 C2ConstGraphicBlock::C2ConstGraphicBlock(const std::shared_ptr<C2GraphicAllocation> &alloc,
@@ -403,23 +401,23 @@ c2_status_t C2GraphicView::error() const
 class C2GraphicViewMock : public C2GraphicView
 {
     using C2GraphicView::C2GraphicView;
-    friend class ::android::C2ConstGraphicBlock;
-    friend class ::android::C2GraphicBlock;
+    friend class ::C2ConstGraphicBlock;
+    friend class ::C2GraphicBlock;
 };
 
 class C2AcquirableConstGraphicView : public C2Acquirable<const C2GraphicView> {
     using C2Acquirable::C2Acquirable;
-    friend class ::android::C2ConstGraphicBlock;
+    friend class ::C2ConstGraphicBlock;
 };
 
 class C2AcquirableGraphicView : public C2Acquirable<C2GraphicView> {
     using C2Acquirable::C2Acquirable;
-    friend class ::android::C2GraphicBlock;
+    friend class ::C2GraphicBlock;
 };
 
 class C2ConstGraphicBlockAccessor : public C2ConstGraphicBlock {
     using C2ConstGraphicBlock::C2ConstGraphicBlock;
-    friend class ::android::C2GraphicBlock;
+    friend class ::C2GraphicBlock;
 };
 
 C2Acquirable<const C2GraphicView> C2ConstGraphicBlock::map() const
@@ -701,5 +699,3 @@ c2_status_t GetCodec2BlockPool(
     }
     return res;
 }
-
-} //namespace android;

@@ -265,8 +265,8 @@ c2_status_t GetAggregateStatus(std::vector<std::unique_ptr<C2SettingResult>>* co
 }
 
 bool FindC2Param(
-    const std::vector<std::shared_ptr<android::C2ParamDescriptor>>& params_desc,
-    android::C2Param::Type param_type)
+    const std::vector<std::shared_ptr<C2ParamDescriptor>>& params_desc,
+    C2Param::Type param_type)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -380,7 +380,7 @@ void InitNV12PlaneData(int32_t pitch, int32_t alloc_height, uint8_t* base, uint8
 
 void InitNV12PlaneLayout(int32_t pitch, C2PlanarLayout* layout)
 {
-    layout->type = android::C2PlanarLayout::TYPE_YUV;
+    layout->type = C2PlanarLayout::TYPE_YUV;
     layout->numPlanes = 3;
 
     C2PlaneInfo& y_plane = layout->planes[C2PlanarLayout::PLANE_Y];

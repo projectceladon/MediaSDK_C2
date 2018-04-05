@@ -202,8 +202,8 @@ static void PrepareWork(uint32_t frame_index, bool last_frame, bool graphics_mem
 
     do {
 
-        std::shared_ptr<android::C2BlockPool> allocator;
-        android::c2_status_t sts = GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC,
+        std::shared_ptr<C2BlockPool> allocator;
+        c2_status_t sts = GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC,
             component, &allocator);
 
         EXPECT_EQ(sts, C2_OK);
@@ -904,8 +904,8 @@ TEST(MfxEncoderComponent, IntraRefresh)
                             std::make_unique<C2IntraRefreshTuning>();
                         intra_refresh->value = true;
                         if (use_config_nb) {
-                            std::vector<android::C2Param*> params { intra_refresh.get() };
-                            std::vector<std::unique_ptr<android::C2SettingResult>> failures;
+                            std::vector<C2Param*> params { intra_refresh.get() };
+                            std::vector<std::unique_ptr<C2SettingResult>> failures;
                             c2_blocking_t may_block {};
                             c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
 
@@ -959,7 +959,7 @@ TEST(MfxEncoderComponent, DynamicBitrate)
 
         C2RateControlSetting param_rate_control;
         param_rate_control.value = C2RateControlVBR;
-        std::vector<android::C2Param*> static_params { &param_rate_control };
+        std::vector<C2Param*> static_params { &param_rate_control };
         std::vector<std::unique_ptr<C2SettingResult>> failures;
         c2_blocking_t may_block {};
         c2_status_t sts = comp_intf->config_vb(static_params, may_block, &failures);

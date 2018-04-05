@@ -84,7 +84,7 @@ c2_status_t MfxGrallocModule::Init()
     return res;
 }
 
-android::c2_status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handle,
+c2_status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handle,
     MfxGrallocModule::BufferDetails* details)
 {
     MFX_DEBUG_TRACE_FUNC;
