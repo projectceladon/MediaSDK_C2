@@ -32,31 +32,35 @@
 /// \defgroup components Components
 /// @{
 
-class C2Component;
-
 struct C2FieldSupportedValuesQuery {
     enum type_t : uint32_t {
         POSSIBLE, ///< query all possible values regardless of other settings
         CURRENT,  ///< query currently possible values given dependent settings
     };
 
-    const C2ParamField field;
-    const type_t type;
+private:
+    C2ParamField _mField;
+    type_t _mType;
+public:
     c2_status_t status;
     C2FieldSupportedValues values;
 
     C2FieldSupportedValuesQuery(const C2ParamField &field_, type_t type_)
-        : field(field_), type(type_), status(C2_NO_INIT) { }
+        : _mField(field_), _mType(type_), status(C2_NO_INIT) { }
 
-    static C2FieldSupportedValuesQuery&&
+    static C2FieldSupportedValuesQuery
     Current(const C2ParamField &field_) {
-        return std::move(C2FieldSupportedValuesQuery(field_, CURRENT));
+        return C2FieldSupportedValuesQuery(field_, CURRENT);
     }
 
-    static C2FieldSupportedValuesQuery&&
+    static C2FieldSupportedValuesQuery
     Possible(const C2ParamField &field_) {
-        return std::move(C2FieldSupportedValuesQuery(field_, POSSIBLE));
+        return C2FieldSupportedValuesQuery(field_, POSSIBLE);
     }
+
+    inline C2ParamField field() const { return _mField; };
+
+    inline type_t type() const { return _mType; }
 };
 
 /**
@@ -394,7 +398,7 @@ public:
         domain_t domain; ///< component domain (e.g. audio or video)
         kind_t kind; ///< component kind (e.g. encoder, decoder or filter)
         rank_t rank; ///< rank used to determine component ordering (the lower the sooner)
-        C2StringLiteral mediaType; ///< media type supported by the component
+        C2String mediaType; ///< media type supported by the component
 
         /**
          * name alias(es) for backward compatibility.
@@ -694,6 +698,7 @@ public:
         DEFAULT_GRAPHIC,    ///< basic graphic allocator type
         PLATFORM_START = 0x10,
         VENDOR_START   = 0x100,
+        BAD_ID         = C2Allocator::BAD_ID, ///< DO NOT USE
     };
 
     /**
