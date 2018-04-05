@@ -136,9 +136,9 @@ typename std::iterator_traits<typename Collection::iterator>::value_type Extract
 }
 
 template<typename T>
-std::list<T> MakeList(T&& item)
+std::vector<T> MakeVector(T&& item)
 {
-    std::list<T> res;
+    std::vector<T> res;
     res.push_back(std::move(item));
     return res;
 }
