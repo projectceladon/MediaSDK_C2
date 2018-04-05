@@ -227,7 +227,7 @@ c2_status_t MapLinearBlock(C2LinearBlock& lin_block, c2_nsecs_t timeout,
 std::unique_ptr<C2SettingResult> MakeC2SettingResult(
     const C2ParamField& param_field,
     C2SettingResult::Failure failure,
-    std::list<C2ParamFieldValues>&& conflicting_fields,
+    std::vector<C2ParamFieldValues>&& conflicting_fields,
     const C2FieldSupportedValues* supported_values)
 {
     std::unique_ptr<C2FieldSupportedValues> supported_values_unique;

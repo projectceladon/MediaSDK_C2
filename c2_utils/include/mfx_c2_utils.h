@@ -50,7 +50,7 @@ C2ParamFieldValues MakeC2ParamField()
 std::unique_ptr<C2SettingResult> MakeC2SettingResult(
     const C2ParamField& param_field,
     C2SettingResult::Failure failure,
-    std::list<C2ParamFieldValues>&& conflicting_fields = {},
+    std::vector<C2ParamFieldValues>&& conflicting_fields = {},
     const C2FieldSupportedValues* supported_values = nullptr);
 
 c2_status_t GetAggregateStatus(std::vector<std::unique_ptr<C2SettingResult>>* const failures);

@@ -66,7 +66,7 @@ struct C2SettingResult {
 
     /// Conflicting parameters or fields with optional suggestions with (optional) suggested values
     /// for any conflicting fields to avoid the conflict.
-    std::list<C2ParamFieldValues> conflicts;
+    std::vector<C2ParamFieldValues> conflicts;
 };
 
 // ================================================================================================

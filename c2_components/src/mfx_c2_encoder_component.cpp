@@ -890,18 +890,18 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                         // If state is executing and rate control is not VBR, Reset will not update bitrate,
                         // so report an error.
                         failures->push_back(MakeC2SettingResult(C2ParamField(param),
-                            C2SettingResult::CONFLICT, MakeList(MakeC2ParamField<C2RateControlSetting>())));
+                            C2SettingResult::CONFLICT, MakeVector(MakeC2ParamField<C2RateControlSetting>())));
                     }
                 } else {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param),
-                        C2SettingResult::CONFLICT, MakeList(MakeC2ParamField<C2RateControlSetting>())));
+                        C2SettingResult::CONFLICT, MakeVector(MakeC2ParamField<C2RateControlSetting>())));
                 }
                 break;
             case kParamIndexFrameQP: {
                 const C2FrameQPSetting* qp_setting = static_cast<const C2FrameQPSetting*>(param);
                     if(video_params_config_.mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
                         failures->push_back(MakeC2SettingResult(C2ParamField(param),
-                            C2SettingResult::CONFLICT, MakeList(MakeC2ParamField<C2RateControlSetting>())));
+                            C2SettingResult::CONFLICT, MakeVector(MakeC2ParamField<C2RateControlSetting>())));
                     } else {
                         video_params_config_.mfx.QPI = qp_setting->qp_i;
                         video_params_config_.mfx.QPP = qp_setting->qp_p;
