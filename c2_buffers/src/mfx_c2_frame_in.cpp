@@ -29,7 +29,7 @@ MfxC2FrameIn::~MfxC2FrameIn()
 }
 
 c2_status_t MfxC2FrameIn::Create(MfxFrameConverter* frame_converter,
-    C2FrameData& buf_pack, nsecs_t timeout, MfxC2FrameIn* wrapper)
+    C2FrameData& buf_pack, c2_nsecs_t timeout, MfxC2FrameIn* wrapper)
 {
     MFX_DEBUG_TRACE_FUNC;
 

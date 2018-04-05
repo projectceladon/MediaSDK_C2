@@ -24,12 +24,10 @@
 #ifdef __ANDROID__
 
 #include <utils/Errors.h>       // for status_t
-#include <utils/Timers.h>       // for nsecs_t
 
 #else
 
 #include <errno.h>
-typedef int64_t nsecs_t;
 
 enum {
     GRALLOC_USAGE_SW_READ_OFTEN,
@@ -43,6 +41,9 @@ enum {
 };
 
 #endif
+
+/** nanoseconds with arbitrary origin. */
+typedef int64_t c2_nsecs_t;
 
 /** \mainpage Codec2
  *

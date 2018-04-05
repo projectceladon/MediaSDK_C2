@@ -29,7 +29,7 @@ using namespace android;
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_encoder_component"
 
-const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
+const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
 std::unique_ptr<mfxEncodeCtrl> EncoderControl::AcquireEncodeCtrl()
 {

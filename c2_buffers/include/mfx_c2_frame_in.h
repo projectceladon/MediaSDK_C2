@@ -24,7 +24,7 @@ public:
     ~MfxC2FrameIn();
 
     static c2_status_t Create(MfxFrameConverter* frame_converter,
-        C2FrameData& buf_pack, nsecs_t timeout, MfxC2FrameIn* wrapper);
+        C2FrameData& buf_pack, c2_nsecs_t timeout, MfxC2FrameIn* wrapper);
 
     mfxFrameSurface1* GetMfxFrameSurface() const
     {

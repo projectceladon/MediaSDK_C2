@@ -21,7 +21,7 @@ public:
     MfxC2BitstreamOut() = default;
 
     static c2_status_t Create(
-        std::shared_ptr<C2LinearBlock> block, nsecs_t timeout,
+        std::shared_ptr<C2LinearBlock> block, c2_nsecs_t timeout,
         MfxC2BitstreamOut* wrapper);
 
     std::shared_ptr<C2LinearBlock> GetC2LinearBlock() const

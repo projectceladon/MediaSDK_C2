@@ -20,7 +20,7 @@ using namespace android;
 
 c2_status_t MfxC2FrameOut::Create(MfxFrameConverter* frame_converter,
                                std::shared_ptr<C2GraphicBlock> block,
-                               nsecs_t timeout,
+                               c2_nsecs_t timeout,
                                MfxC2FrameOut* wrapper)
 {
     MFX_DEBUG_TRACE_FUNC;

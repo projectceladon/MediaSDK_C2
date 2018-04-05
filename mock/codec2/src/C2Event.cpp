@@ -7,7 +7,7 @@ public:
     std::shared_future<void> future_;
 };
 
-c2_status_t C2Fence::wait(nsecs_t timeoutNs)
+c2_status_t C2Fence::wait(c2_nsecs_t timeoutNs)
 {
     c2_status_t res = C2_OK;
     try {

@@ -24,7 +24,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 using namespace android;
 
 const uint64_t FRAME_DURATION_US = 33333; // 30 fps
-const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
+const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
 static std::vector<C2ParamDescriptor> h264_params_desc =
 {
