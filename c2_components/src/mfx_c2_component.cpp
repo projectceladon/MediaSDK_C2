@@ -272,7 +272,7 @@ void MfxC2Component::NotifyWorkDone(std::unique_ptr<C2Work>&& work, c2_status_t 
 
     NotifyListeners([weak_this, &work] (std::shared_ptr<Listener> listener)
     {
-        std::vector<std::unique_ptr<C2Work>> work_items;
+        std::list<std::unique_ptr<C2Work>> work_items;
         work_items.push_back(std::move(work));
         listener->onWorkDone_nb(weak_this, std::move(work_items));
     });

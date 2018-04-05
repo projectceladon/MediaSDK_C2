@@ -264,7 +264,7 @@ public:
 protected:
     void onWorkDone_nb(
         std::weak_ptr<C2Component> component,
-        std::vector<std::unique_ptr<C2Work>> workItems) override
+        std::list<std::unique_ptr<C2Work>> workItems) override
     {
         (void)component;
 
