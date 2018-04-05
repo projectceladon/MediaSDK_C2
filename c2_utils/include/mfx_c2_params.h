@@ -13,8 +13,6 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include <C2Config.h>
 #include <C2ParamDef.h>
 
-namespace android {
-
 enum C2ParamIndexKindVendor : uint32_t {
 
     kParamIndexRateControl = C2Param::TYPE_INDEX_VENDOR_START,
@@ -74,5 +72,3 @@ C2ENUM(C2MemoryType, int32_t,
 );
 
 typedef C2GlobalParam<C2Setting, C2SimpleValueStruct<C2MemoryType>, kParamIndexMemoryType> C2MemoryTypeSetting;
-
-} // namespace android

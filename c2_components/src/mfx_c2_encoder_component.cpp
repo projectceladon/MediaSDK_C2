@@ -54,7 +54,7 @@ void EncoderControl::Modify(ModifyFunction& function)
     function(ctrl_once_.get());
 }
 
-MfxC2EncoderComponent::MfxC2EncoderComponent(const android::C2String name, int flags, EncoderType encoder_type) :
+MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, int flags, EncoderType encoder_type) :
     MfxC2Component(name, flags),
     encoder_type_(encoder_type),
     synced_points_count_(0)
@@ -107,7 +107,7 @@ void MfxC2EncoderComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
         &MfxC2Component::Factory<MfxC2EncoderComponent, EncoderType>::Create<ENCODER_H264>);
 }
 
-android::c2_status_t MfxC2EncoderComponent::Init()
+c2_status_t MfxC2EncoderComponent::Init()
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -313,7 +313,7 @@ mfxStatus MfxC2EncoderComponent::EncodeFrameAsync(
     return sts;
 }
 
-c2_status_t MfxC2EncoderComponent::AllocateBitstream(const std::unique_ptr<android::C2Work>& work,
+c2_status_t MfxC2EncoderComponent::AllocateBitstream(const std::unique_ptr<C2Work>& work,
     MfxC2BitstreamOut* mfx_bitstream)
 {
     // TODO: allocation pool is required here
@@ -390,7 +390,7 @@ c2_status_t MfxC2EncoderComponent::ApplyWorkTunings(C2Work& work)
     return res;
 }
 
-void MfxC2EncoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
+void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -457,7 +457,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
 
         if(MFX_ERR_NONE == mfx_sts) {
 
-            std::unique_ptr<android::C2Work> work = std::move(pending_works_.front());
+            std::unique_ptr<C2Work> work = std::move(pending_works_.front());
 
             pending_works_.pop();
 
@@ -502,7 +502,7 @@ void MfxC2EncoderComponent::Drain()
 
         if (MFX_ERR_NONE == mfx_sts) {
 
-            std::unique_ptr<android::C2Work> work = std::move(pending_works_.front());
+            std::unique_ptr<C2Work> work = std::move(pending_works_.front());
 
             pending_works_.pop();
 
@@ -742,7 +742,7 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
 c2_status_t MfxC2EncoderComponent::query_vb(
     const std::vector<C2Param*> &stackParams,
     const std::vector<C2Param::Index> &heapParamIndices,
-    android::c2_blocking_t mayBlock,
+    c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2Param>>* const heapParams) const
 {
     (void)mayBlock;
@@ -1005,7 +1005,7 @@ c2_status_t MfxC2EncoderComponent::config_vb(const std::vector<C2Param*> &params
     return res;
 }
 
-c2_status_t MfxC2EncoderComponent::queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items)
+c2_status_t MfxC2EncoderComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const items)
 {
     MFX_DEBUG_TRACE_FUNC;
 

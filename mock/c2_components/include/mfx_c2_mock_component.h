@@ -32,47 +32,47 @@ public:
         Decoder
     };
 protected:
-    MfxC2MockComponent(const android::C2String name, int flags, Type type);
+    MfxC2MockComponent(const C2String name, int flags, Type type);
 
     MFX_CLASS_NO_COPY(MfxC2MockComponent)
 
 public:
     static void RegisterClass(MfxC2ComponentsRegistry& registry);
 
-protected: // android::C2ComponentInterface
-    android::c2_status_t config_vb(
-        const std::vector<android::C2Param*> &params,
-        android::c2_blocking_t mayBlock,
-        std::vector<std::unique_ptr<android::C2SettingResult>>* const failures) override;
+protected: // C2ComponentInterface
+    c2_status_t config_vb(
+        const std::vector<C2Param*> &params,
+        c2_blocking_t mayBlock,
+        std::vector<std::unique_ptr<C2SettingResult>>* const failures) override;
 
-protected: // android::C2Component
-    android::c2_status_t queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items) override;
+protected: // C2Component
+    c2_status_t queue_nb(std::list<std::unique_ptr<C2Work>>* const items) override;
 
 protected:
-    android::c2_status_t Init() override;
+    c2_status_t Init() override;
 
-    android::c2_status_t DoStart() override;
+    c2_status_t DoStart() override;
 
-    android::c2_status_t DoStop() override;
+    c2_status_t DoStop() override;
 
 private:
     // Allocates linear block of the length as input and copies input there.
-    android::c2_status_t CopyGraphicToLinear(const android::C2FrameData& input,
-        const std::shared_ptr<android::C2BlockPool>& allocator,
-        std::shared_ptr<android::C2Buffer>* out_buffer);
+    c2_status_t CopyGraphicToLinear(const C2FrameData& input,
+        const std::shared_ptr<C2BlockPool>& allocator,
+        std::shared_ptr<C2Buffer>* out_buffer);
     // Allocates graphic block of the length as input and copies input there.
-    android::c2_status_t CopyLinearToGraphic(const android::C2FrameData& input,
-        const std::shared_ptr<android::C2BlockPool>& allocator,
-        std::shared_ptr<android::C2Buffer>* out_buffer);
+    c2_status_t CopyLinearToGraphic(const C2FrameData& input,
+        const std::shared_ptr<C2BlockPool>& allocator,
+        std::shared_ptr<C2Buffer>* out_buffer);
 
-    void DoWork(std::unique_ptr<android::C2Work>&& work);
+    void DoWork(std::unique_ptr<C2Work>&& work);
 
 private:
     Type type_;
 
     MfxCmdQueue cmd_queue_;
 
-    android::C2MemoryUsage::Producer producer_memory_type_ { android::C2MemoryUsage::CPU_WRITE };
+    C2MemoryUsage::Producer producer_memory_type_ { C2MemoryUsage::CPU_WRITE };
 
-    std::shared_ptr<android::C2BlockPool> c2_allocator_;
+    std::shared_ptr<C2BlockPool> c2_allocator_;
 };

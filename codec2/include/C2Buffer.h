@@ -37,8 +37,6 @@ typedef void* C2Handle;
 
 #endif
 
-namespace android {
-
 /// \defgroup buffer Buffers
 /// @{
 
@@ -2004,7 +2002,5 @@ protected:
 /// \endcond
 
 /// @}
-
-}  // namespace android
 
 #endif  // C2BUFFER_H_

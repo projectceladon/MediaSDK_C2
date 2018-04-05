@@ -16,7 +16,7 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 class MfxC2Component;
 
 typedef MfxC2Component* (CreateMfxC2ComponentFunc)(const char* name, int flags,
-    android::c2_status_t* status);
+    c2_status_t* status);
 
 #define MFX_C2_COMPONENT_STORE_NAME "MfxC2ComponentStore"
 
@@ -28,4 +28,4 @@ typedef MfxC2Component* (CreateMfxC2ComponentFunc)(const char* name, int flags,
 const nsecs_t MFX_SECOND_NS = 1000000000; // 1e9
 
 extern const size_t g_h264_profile_levels_count;
-extern const android::C2ProfileLevelStruct g_h264_profile_levels[];
+extern const C2ProfileLevelStruct g_h264_profile_levels[];

@@ -1,8 +1,6 @@
 #include <future>
 #include "C2Buffer.h"
 
-namespace android {
-
 class C2Fence::Impl
 {
 public:
@@ -75,5 +73,3 @@ c2_status_t C2Event::fire()
     }
     return res;
 }
-
-} //namespace android;

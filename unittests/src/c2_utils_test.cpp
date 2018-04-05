@@ -484,7 +484,7 @@ TEST(MfxGrallocAllocator, BufferKeepsContents)
 
         for (int i = 0; i < FRAME_COUNT; ++i) {
             uint8_t* data[C2PlanarLayout::MAX_NUM_PLANES] {};
-            android::C2PlanarLayout layout {};
+            C2PlanarLayout layout {};
             res = allocator->LockFrame(handle[i], data, &layout);
             EXPECT_EQ(res, C2_OK);
 
@@ -498,7 +498,7 @@ TEST(MfxGrallocAllocator, BufferKeepsContents)
 
         for (int i = 0; i < FRAME_COUNT; ++i) {
             uint8_t* data[C2PlanarLayout::MAX_NUM_PLANES] {};
-            android::C2PlanarLayout layout {};
+            C2PlanarLayout layout {};
             res = allocator->LockFrame(handle[i], data, &layout);
             EXPECT_EQ(res, C2_OK);
 
@@ -866,7 +866,7 @@ public:
 
             for (int i = 0; i < FRAME_COUNT; ++i) {
                 uint8_t* data[C2PlanarLayout::MAX_NUM_PLANES] {};
-                android::C2PlanarLayout layout {};
+                C2PlanarLayout layout {};
                 c2_status_t res = gr_allocator->LockFrame(handles[i], data, &layout);
                 EXPECT_EQ(res, C2_OK);
 

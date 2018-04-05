@@ -29,8 +29,6 @@
 #include <C2Param.h>
 #include <C2Work.h>
 
-namespace android {
-
 /// \defgroup components Components
 /// @{
 
@@ -945,7 +943,5 @@ public:
 // ================================================================================================
 
 /// @}
-
-}  // namespace android
 
 #endif  // C2COMPONENT_H_

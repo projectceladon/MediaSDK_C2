@@ -41,7 +41,7 @@ c2_status_t MfxC2FrameIn::Create(MfxFrameConverter* frame_converter,
             break;
         }
 
-        std::unique_ptr<android::C2ConstGraphicBlock> c_graph_block;
+        std::unique_ptr<C2ConstGraphicBlock> c_graph_block;
         res = GetC2ConstGraphicBlock(buf_pack, &c_graph_block);
         if(C2_OK != res) break;
 

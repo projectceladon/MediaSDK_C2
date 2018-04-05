@@ -19,7 +19,7 @@ using namespace android;
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_frame_out"
 
 c2_status_t MfxC2FrameOut::Create(MfxFrameConverter* frame_converter,
-                               std::shared_ptr<android::C2GraphicBlock> block,
+                               std::shared_ptr<C2GraphicBlock> block,
                                nsecs_t timeout,
                                MfxC2FrameOut* wrapper)
 {
@@ -79,7 +79,7 @@ c2_status_t MfxC2FrameOut::Create(MfxFrameConverter* frame_converter,
     return res;
 }
 
-std::shared_ptr<android::C2GraphicBlock> MfxC2FrameOut::GetC2GraphicBlock() const
+std::shared_ptr<C2GraphicBlock> MfxC2FrameOut::GetC2GraphicBlock() const
 {
     MFX_DEBUG_TRACE_FUNC;
     return c2_graphic_block_;

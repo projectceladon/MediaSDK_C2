@@ -13,8 +13,6 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 #include "gtest_emulation.h"
 #include "mfx_legacy_defs.h"
 
-using namespace android;
-
 std::unique_ptr<StreamReader> StreamReader::Create(const std::vector<const StreamDescription*>& streams)
 {
     std::unique_ptr<StreamReader> res;
@@ -122,7 +120,7 @@ bool ExtractAvcSequenceParameterSet(std::vector<char>&& bitstream, AvcSequencePa
     return sps_found;
 }
 
-bool TestAvcStreamProfileLevel(const android::C2ProfileLevelStruct& profile_level, std::vector<char>&& bitstream, std::string* message)
+bool TestAvcStreamProfileLevel(const C2ProfileLevelStruct& profile_level, std::vector<char>&& bitstream, std::string* message)
 {
     struct SpsProfile {
         uint16_t sps_profile;

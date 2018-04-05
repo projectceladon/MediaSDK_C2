@@ -304,4 +304,4 @@ struct AvcSequenceParameterSet
 
 bool ExtractAvcSequenceParameterSet(std::vector<char>&& bitstream, AvcSequenceParameterSet* sps);
 
-bool TestAvcStreamProfileLevel(const android::C2ProfileLevelStruct& profile_level, std::vector<char>&& bitstream, std::string* message);
+bool TestAvcStreamProfileLevel(const C2ProfileLevelStruct& profile_level, std::vector<char>&& bitstream, std::string* message);

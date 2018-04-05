@@ -12,12 +12,12 @@ Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include <C2Param.h>
 
-inline bool Valid(const android::C2Param& param)
+inline bool Valid(const C2Param& param)
 {
     return (bool)param;
 }
 
-inline bool Equal(const android::C2Param& param1, const android::C2Param& param2)
+inline bool Equal(const C2Param& param1, const C2Param& param2)
 {
     return param1 == param2;
 }
@@ -25,7 +25,7 @@ inline bool Equal(const android::C2Param& param1, const android::C2Param& param2
 // C2 parameters values set.
 class C2ParamValues
 {
-    using C2Param = android::C2Param;
+    using C2Param = C2Param;
 private:
     std::list<std::shared_ptr<C2Param>> expected_;
     std::vector<std::unique_ptr<C2Param>> stack_values_;

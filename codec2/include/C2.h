@@ -26,8 +26,6 @@
 #include <utils/Errors.h>       // for status_t
 #include <utils/Timers.h>       // for nsecs_t
 
-namespace android {
-
 #else
 
 #include <errno.h>
@@ -109,53 +107,35 @@ typedef const char *C2StringLiteral;
  * c2_status_t: status codes used.
  */
 enum c2_status_t : int32_t {
-
 /*
- * Use android status constants if available. Otherwise, define the android status constants as
- * additional enum values using POSIX errno constants.
+ * Use POSIX errno constants.
  */
-#ifndef __ANDROID__
-    ALREADY_EXISTS      = -EEXIST,
-    BAD_VALUE           = -EINVAL,
-    BAD_INDEX           = -EOVERFLOW,
-    FAILED_TRANSACTION  = -ENOTSUP,
-    INVALID_OPERATION   = -ENOSYS,
-    NAME_NOT_FOUND      = -ENOENT,
-    NO_MEMORY           = -ENOMEM,
-    NO_INIT             = -ENODEV,
-    OK                  = 0,
-    PERMISSION_DENIED   = -EPERM,
-    TIMED_OUT           = -ETIMEDOUT,
-    UNKNOWN_ERROR       = -EFAULT,
-    UNKNOWN_TRANSACTION = -EBADMSG,
-    WOULD_BLOCK         = -EWOULDBLOCK,
-#endif
-
-    C2_OK        = OK,                   ///< operation completed successfully
+    C2_OK        = 0,            ///< operation completed successfully
 
     // bad input
-    C2_BAD_VALUE = BAD_VALUE,            ///< argument has invalid value (user error)
-    C2_BAD_INDEX = BAD_INDEX,            ///< argument uses invalid index (user error)
-    C2_CANNOT_DO = FAILED_TRANSACTION,   ///< argument/index is valid but not possible
+    C2_BAD_VALUE = EINVAL,       ///< argument has invalid value (user error)
+    C2_BAD_INDEX = ENXIO,        ///< argument uses invalid index (user error)
+    C2_CANNOT_DO = ENOTSUP,      ///< argument/index is valid but not possible
 
     // bad sequencing of events
-    C2_DUPLICATE = ALREADY_EXISTS,       ///< object already exists
-    C2_NOT_FOUND = NAME_NOT_FOUND,       ///< object not found
-    C2_BAD_STATE = INVALID_OPERATION,    ///< operation is not permitted in the current state
-    C2_BLOCKING  = WOULD_BLOCK,          ///< operation would block but blocking is not permitted
+    C2_DUPLICATE = EEXIST,       ///< object already exists
+    C2_NOT_FOUND = ENOENT,       ///< object not found
+    C2_BAD_STATE = EPERM,        ///< operation is not permitted in the current state
+    C2_BLOCKING  = EWOULDBLOCK,  ///< operation would block but blocking is not permitted
+    C2_CANCELED  = EINTR,        ///< operation interrupted/canceled
 
     // bad environment
-    C2_NO_MEMORY = NO_MEMORY,            ///< not enough memory to complete operation
-    C2_REFUSED   = PERMISSION_DENIED,    ///< missing permission to complete operation
+    C2_NO_MEMORY = ENOMEM,       ///< not enough memory to complete operation
+    C2_REFUSED   = EACCES,       ///< missing permission to complete operation
 
-    C2_TIMED_OUT = TIMED_OUT,            ///< operation did not complete within timeout
+    C2_TIMED_OUT = ETIMEDOUT,    ///< operation did not complete within timeout
 
     // bad versioning
-    C2_OMITTED   = UNKNOWN_TRANSACTION,  ///< operation is not implemented/supported (optional only)
+    C2_OMITTED   = ENOSYS,       ///< operation is not implemented/supported (optional only)
 
     // unknown fatal
-    C2_CORRUPTED = UNKNOWN_ERROR,        ///< some unexpected error prevented the operation
-    C2_NO_INIT   = NO_INIT,              ///< status has not been initialized
+    C2_CORRUPTED = EFAULT,       ///< some unexpected error prevented the operation
+    C2_NO_INIT   = ENODEV,       ///< status has not been initialized
 };
 
 /**
@@ -535,32 +515,28 @@ constexpr typename c2_types<T, U, V...>::min_type c2_min(const T a, const U b, c
 
 /// @}
 
-#ifdef __ANDROID__
-} // namespace android
-#endif
-
 #include <functional>
 template<typename T>
-struct std::less<::android::c2_cntr_t<T>> {
-    constexpr bool operator()(const ::android::c2_cntr_t<T> &lh, const ::android::c2_cntr_t<T> &rh) const {
+struct std::less<::c2_cntr_t<T>> {
+    constexpr bool operator()(const ::c2_cntr_t<T> &lh, const ::c2_cntr_t<T> &rh) const {
         return lh.peeku() < rh.peeku();
     }
 };
 template<typename T>
-struct std::less_equal<::android::c2_cntr_t<T>> {
-    constexpr bool operator()(const ::android::c2_cntr_t<T> &lh, const ::android::c2_cntr_t<T> &rh) const {
+struct std::less_equal<::c2_cntr_t<T>> {
+    constexpr bool operator()(const ::c2_cntr_t<T> &lh, const ::c2_cntr_t<T> &rh) const {
         return lh.peeku() <= rh.peeku();
     }
 };
 template<typename T>
-struct std::greater<::android::c2_cntr_t<T>> {
-    constexpr bool operator()(const ::android::c2_cntr_t<T> &lh, const ::android::c2_cntr_t<T> &rh) const {
+struct std::greater<::c2_cntr_t<T>> {
+    constexpr bool operator()(const ::c2_cntr_t<T> &lh, const ::c2_cntr_t<T> &rh) const {
         return lh.peeku() > rh.peeku();
     }
 };
 template<typename T>
-struct std::greater_equal<::android::c2_cntr_t<T>> {
-    constexpr bool operator()(const ::android::c2_cntr_t<T> &lh, const ::android::c2_cntr_t<T> &rh) const {
+struct std::greater_equal<::c2_cntr_t<T>> {
+    constexpr bool operator()(const ::c2_cntr_t<T> &lh, const ::c2_cntr_t<T> &rh) const {
         return lh.peeku() >= rh.peeku();
     }
 };

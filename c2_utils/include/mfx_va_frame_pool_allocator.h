@@ -30,27 +30,27 @@ public:
     MfxVaFramePoolAllocator(VADisplay dpy):
         MfxVaFrameAllocator(dpy)
     {
-        pool_ = std::make_unique<MfxPool<android::C2GraphicBlock>>();
+        pool_ = std::make_unique<MfxPool<C2GraphicBlock>>();
     }
     virtual ~MfxVaFramePoolAllocator() = default;
 private:
-    virtual void SetC2Allocator(std::shared_ptr<android::C2BlockPool> c2_allocator) override
+    virtual void SetC2Allocator(std::shared_ptr<C2BlockPool> c2_allocator) override
     {
         std::lock_guard<std::mutex> lock(mutex_);
         c2_allocator_ = c2_allocator;
     }
 
-    virtual std::shared_ptr<android::C2GraphicBlock> Alloc() override
+    virtual std::shared_ptr<C2GraphicBlock> Alloc() override
     {
         MFX_DEBUG_TRACE_FUNC;
-        std::shared_ptr<android::C2GraphicBlock> res = pool_->Alloc();
+        std::shared_ptr<C2GraphicBlock> res = pool_->Alloc();
         MFX_DEBUG_TRACE_STREAM(res);
         return res;
     }
     // Forget about allocated resources.
     virtual void Reset() override
     {
-        pool_ = std::make_unique<MfxPool<android::C2GraphicBlock>>();
+        pool_ = std::make_unique<MfxPool<C2GraphicBlock>>();
     }
 private:
     virtual mfxStatus AllocFrames(mfxFrameAllocRequest *request, mfxFrameAllocResponse *response) override;
@@ -60,9 +60,9 @@ private:
 private:
     std::mutex mutex_;
 
-    std::shared_ptr<android::C2BlockPool> c2_allocator_;
+    std::shared_ptr<C2BlockPool> c2_allocator_;
 
-    std::unique_ptr<MfxPool<android::C2GraphicBlock>> pool_;
+    std::unique_ptr<MfxPool<C2GraphicBlock>> pool_;
 
 private:
     MFX_CLASS_NO_COPY(MfxVaFramePoolAllocator)

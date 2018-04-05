@@ -25,7 +25,7 @@ using namespace android;
 
 const nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
-MfxC2DecoderComponent::MfxC2DecoderComponent(const android::C2String name, int flags, DecoderType decoder_type) :
+MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, int flags, DecoderType decoder_type) :
     MfxC2Component(name, flags),
     decoder_type_(decoder_type),
     initialized_(false),
@@ -62,7 +62,7 @@ void MfxC2DecoderComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
         &MfxC2Component::Factory<MfxC2DecoderComponent, DecoderType>::Create<DECODER_H264>);
 }
 
-android::c2_status_t MfxC2DecoderComponent::Init()
+c2_status_t MfxC2DecoderComponent::Init()
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -325,7 +325,7 @@ c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
 c2_status_t MfxC2DecoderComponent::query_vb(
     const std::vector<C2Param*> &stackParams,
     const std::vector<C2Param::Index> &heapParamIndices,
-    android::c2_blocking_t mayBlock,
+    c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2Param>>* const heapParams) const
 {
     (void)mayBlock;
@@ -661,7 +661,7 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
     return res;
 }
 
-void MfxC2DecoderComponent::DoWork(std::unique_ptr<android::C2Work>&& work)
+void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -785,7 +785,7 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
         MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     }
 
-    std::unique_ptr<android::C2Work> work = std::move(work_output.work_);
+    std::unique_ptr<C2Work> work = std::move(work_output.work_);
     if (work) {
         if(MFX_ERR_NONE == mfx_res) {
 
@@ -827,7 +827,7 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
     dev_busy_cond_.notify_one();
 }
 
-c2_status_t MfxC2DecoderComponent::ValidateWork(const std::unique_ptr<android::C2Work>& work)
+c2_status_t MfxC2DecoderComponent::ValidateWork(const std::unique_ptr<C2Work>& work)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -854,7 +854,7 @@ c2_status_t MfxC2DecoderComponent::ValidateWork(const std::unique_ptr<android::C
     return res;
 }
 
-c2_status_t MfxC2DecoderComponent::queue_nb(std::list<std::unique_ptr<android::C2Work>>* const items)
+c2_status_t MfxC2DecoderComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const items)
 {
     MFX_DEBUG_TRACE_FUNC;
 
