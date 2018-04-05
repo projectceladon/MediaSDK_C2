@@ -21,14 +21,11 @@
 #include <C2BufferBase.h>
 #include <C2Param.h> // for C2Info
 
-#include <list>
 #include <memory>
+#include <vector>
 
 #ifdef __ANDROID__
 #include <android-C2Buffer.h>
-
-typedef native_handle_t C2Handle;
-
 #else
 
 typedef void* C2Handle;
@@ -122,10 +119,16 @@ public:
      */
     bool isHW() const;
 
-private:
+    /**
+     * Null-fence. A fence that has fired.
+     */
+    constexpr C2Fence() : mImpl(nullptr) { }
+
+public:
     class Impl;
     std::shared_ptr<Impl> mImpl;
-    friend class C2Event;
+    C2Fence(std::shared_ptr<Impl> impl);
+    friend struct _C2FenceFactory;
 };
 
 /**
@@ -368,7 +371,7 @@ private:
 };
 
 /**
- * Aspect for objects that have a linear range.
+ * Aspect for objects that have a linear range inside a linear capacity.
  *
  * This class is copiable.
  */
@@ -453,7 +456,7 @@ public:
 };
 
 /**
- * Utility class for simple capacity and range construction.
+ * Utility class for simple and safe capacity and range construction.
  */
 class C2LinearCapacity : public _C2LinearCapacityAspect {
 public:
@@ -498,6 +501,7 @@ public:
         mOffset = offset;
         return true;
     }
+
     /**
      * Sets the size to |size|. Returns true if successful, which is equivalent to
      * if 0 <= |size| <= capacity() - offset().
@@ -513,6 +517,7 @@ public:
             return true;
         }
     }
+
     /**
      * Sets the offset to |offset| with best effort. Same as setOffset() except that offset will
      * be clamped to the buffer capacity.
@@ -521,16 +526,9 @@ public:
      * on the order of the operations. Always set offset first to ensure proper size.
      */
     inline void setOffset_be(uint32_t offset) {
-        if (offset > capacity()) {
-            offset = capacity();
-        }
-        if (offset > mOffset + mSize) {
-            mSize = 0;
-        } else {
-            mSize = mOffset + mSize - offset;
-        }
-        mOffset = offset;
+        (void)setOffset(c2_min(offset, capacity()));
     }
+
     /**
      * Sets the size to |size| with best effort. Same as setSize() except that the selected region
      * will be clamped to the buffer capacity (e.g. size is clamped to [0, capacity() - offset()]).
@@ -539,7 +537,7 @@ public:
      * on the order of the operations. Always set offset first to ensure proper size.
      */
     inline void setSize_be(uint32_t size) {
-        mSize = std::min(size, capacity() - mOffset);
+        mSize = c2_min(size, capacity() - mOffset);
     }
 /// @}
 };
@@ -2118,8 +2116,32 @@ public:
      * \return true iff there is a metadata with the parameter type attached to this buffer.
      */
     bool hasInfo(C2Param::Type index) const;
+
+    /**
+     * Removes a metadata from the buffer.
+     */
     std::shared_ptr<C2Info> removeInfo(C2Param::Type index);
     ///@}
+
+    /**
+     * Creates a buffer containing a single linear block.
+     *
+     * \param block the content of the buffer.
+     *
+     * \return shared pointer to the created buffer.
+     */
+    static std::shared_ptr<C2Buffer> CreateLinearBuffer(const C2ConstLinearBlock &block);
+
+    /**
+     * Creates a buffer containing a single graphic block.
+     *
+     * \param block the content of the buffer.
+     *
+     * \return shared pointer to the created buffer.
+     */
+    static std::shared_ptr<C2Buffer> CreateGraphicBuffer(const C2ConstGraphicBlock &block);
+
+
 
 protected:
     // no public constructor
