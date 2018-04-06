@@ -342,7 +342,7 @@ c2_status_t MfxC2DecoderComponent::query_vb(
         // 1st cycle on stack params
         for (C2Param* param : stackParams) {
             c2_status_t param_res = C2_OK;
-            if (param_reflector_.FindParam(param->type())) {
+            if (param_reflector_.FindParam(param->index())) {
                 param_res = QueryParam(params_view, param->type(), &param);
             } else {
                 param_res =  C2_BAD_INDEX;

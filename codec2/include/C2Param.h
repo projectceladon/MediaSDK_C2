@@ -1021,7 +1021,7 @@ public:
      * For vendor-defined components, it can be true even for vendor-defined params,
      * but it is not recommended, in case the component becomes platform-defined.
      */
-    inline bool isRequired() const { return _mIsRequired; }
+    inline bool isRequired() const { return _mAttrib & IS_REQUIRED; }
 
     /**
      * Returns whether this parameter is persistent. This is always true for C2Tuning and C2Setting,
@@ -1030,35 +1030,72 @@ public:
      * current frame and is not assumed to have the same value (or even be present) on subsequent
      * frames, unless it is specified for those frames.
      */
-    inline bool isPersistent() const { return _mIsPersistent; }
+    inline bool isPersistent() const { return _mAttrib & IS_PERSISTENT; }
+
+    inline bool isStrict() const { return _mAttrib & IS_STRICT; }
+
+    inline bool isReadOnly() const { return _mAttrib & IS_READ_ONLY; }
+
+    inline bool isVisible() const { return !(_mAttrib & IS_HIDDEN); }
+
+    inline bool isPublic() const { return !(_mAttrib & IS_INTERNAL); }
 
     /// Returns the name of this param.
     /// This defaults to the underlying C2Struct's name, but could be altered for a component.
     inline C2String name() const { return _mName; }
 
-    /// Returns the parameter type
-    /// \todo fix this
-    inline C2Param::Type type() const { return _mType; }
+    /// Returns the parameter index
+    inline C2Param::Index index() const { return _mIndex; }
 
+    /// Returns the indices of parameters that this parameter has a dependency on
+    inline const std::vector<C2Param::Index> &dependencies() const { return _mDependencies; }
+
+    /// \deprecated
     template<typename T>
     inline C2ParamDescriptor(bool isRequired, C2StringLiteral name, const T*)
-        : _mIsRequired(isRequired),
-          _mIsPersistent(true),
-          _mName(name),
-          _mType(T::PARAM_TYPE) { }
+        : _mIndex(T::PARAM_TYPE),
+          _mAttrib(IS_PERSISTENT | (isRequired ? IS_REQUIRED : 0)),
+          _mName(name) { }
+
+    /// \deprecated
+    inline C2ParamDescriptor(
+            bool isRequired, C2StringLiteral name, C2Param::Index index)
+        : _mIndex(index),
+          _mAttrib(IS_PERSISTENT | (isRequired ? IS_REQUIRED : 0)),
+          _mName(name) { }
+
+    enum attrib_t : uint32_t {
+        // flags that default on
+        IS_REQUIRED   = 1u << 0, ///< parameter is required to be specified
+        IS_PERSISTENT = 1u << 1, ///< parameter retains its value
+        // flags that default off
+        IS_STRICT     = 1u << 2, ///< parameter is strict
+        IS_READ_ONLY  = 1u << 3, ///< parameter is publicly read-only
+        IS_HIDDEN     = 1u << 4, ///< parameter shall not be visible to clients
+        IS_INTERNAL   = 1u << 5, ///< parameter shall not be used by framework (other than testing)
+    };
 
     inline C2ParamDescriptor(
-            bool isRequired, C2StringLiteral name, C2Param::Type type)
-        : _mIsRequired(isRequired),
-          _mIsPersistent(true),
+        C2Param::Index index, attrib_t attrib, C2StringLiteral name)
+        : _mIndex(index),
+          _mAttrib(attrib),
+          _mName(name) { }
+
+    inline C2ParamDescriptor(
+        C2Param::Index index, attrib_t attrib, C2String &&name,
+        std::vector<C2Param::Index> &&dependencies)
+        : _mIndex(index),
+          _mAttrib(attrib),
           _mName(name),
-          _mType(type) { }
+          _mDependencies(std::move(dependencies)) { }
 
 private:
-    const bool _mIsRequired;
-    const bool _mIsPersistent;
+    const C2Param::Index _mIndex;
+    const uint32_t _mAttrib;
     const C2String _mName;
-    const C2Param::Type _mType;
+    std::vector<C2Param::Index> _mDependencies;
+
+    friend struct _C2ParamInspector;
 };
 
 /// \ingroup internal

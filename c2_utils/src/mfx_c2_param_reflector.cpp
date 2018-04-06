@@ -87,9 +87,9 @@ bool MfxC2ParamReflector::ValidateParam(const C2Param* param,
     return res;
 }
 
-bool MfxC2ParamReflector::FindParam(C2Param::Type param_type) const
+bool MfxC2ParamReflector::FindParam(C2Param::Index param_index) const
 {
-    return FindC2Param(params_descriptors_, param_type);
+    return FindC2Param(params_descriptors_, param_index);
 }
 
 std::unique_ptr<C2SettingResult> MfxC2ParamReflector::FindParam(const C2Param* param) const
@@ -145,8 +145,8 @@ void MfxC2ParamReflector::DumpParams()
 
     for(auto desc : params_descriptors_) {
         std::ostringstream oss;
-        uint32_t type = desc->type().type();
-        oss << std::hex << type << " " << desc->name();
+        uint32_t index = desc->index();
+        oss << std::hex << index << " " << desc->name();
         MFX_DEBUG_TRACE_MSG(oss.str().c_str());
     }
 
