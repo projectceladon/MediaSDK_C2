@@ -36,7 +36,7 @@ public:
     std::unique_ptr<C2SettingResult> FindParam(
         const C2Param* param) const;
 
-    bool FindParam(C2Param::Type param_type) const;
+    bool FindParam(C2Param::Index param_index) const;
 
     c2_status_t getSupportedParams(
         std::vector<std::shared_ptr<C2ParamDescriptor>>* const params) const;

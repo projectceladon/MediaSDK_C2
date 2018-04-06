@@ -266,17 +266,16 @@ c2_status_t GetAggregateStatus(std::vector<std::unique_ptr<C2SettingResult>>* co
 
 bool FindC2Param(
     const std::vector<std::shared_ptr<C2ParamDescriptor>>& params_desc,
-    C2Param::Type param_type)
+    C2Param::Index param_index)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    auto type_match = [param_type] (const auto& param_desc) {
-        // type includes: kind, dir, flexible and param_index, doesn't include stream id
-        // stream should be checked on individual parameters handling
-        return param_type == param_desc->type();
+    auto index_match = [param_index] (const auto& param_desc) {
+        // C2Param::Index is most descriptive param ID, so its match means exact id match
+        return param_index == param_desc->index();
     };
 
-    bool res = std::any_of(params_desc.begin(), params_desc.end(), type_match);
+    bool res = std::any_of(params_desc.begin(), params_desc.end(), index_match);
     MFX_DEBUG_TRACE_I32(res);
     return res;
 }
@@ -289,23 +288,22 @@ std::unique_ptr<C2SettingResult> FindC2Param(
 
     std::unique_ptr<C2SettingResult> res;
 
-    auto type_match = [param] (const auto& param_desc) {
-        // type includes: kind, dir, flexible and param_index, doesn't include stream id
-        // stream should be checked on individual parameters handling
-        return C2Param::Type(param->type()) == param_desc->type();
+    auto index_match = [param] (const auto& param_desc) {
+        // C2Param::Index is most descriptive param ID, so its match means exact id match
+        return param->index() == param_desc->index();
     };
 
-    if (std::none_of(params_desc.begin(), params_desc.end(), type_match)) {
+    if (std::none_of(params_desc.begin(), params_desc.end(), index_match)) {
         // there is not exact match among supported parameters
         // if we find supported parameter with another port -> it is BAD_PORT error
         // otherwise -> BAD_TYPE error
         auto match_regardless_port = [param] (const auto& param_desc) {
-            C2Param::Type typeA(param->type());
-            C2Param::Type typeB(param_desc->type());
+            C2Param::Index indexA(param->index());
+            C2Param::Index indexB(param_desc->index());
 
-            return typeA.kind() == typeB.kind() &&
-                typeA.forStream() == typeB.forStream() &&
-                typeA.coreIndex() == typeB.coreIndex();
+            return indexA.kind() == indexB.kind() &&
+                indexA.forStream() == indexB.forStream() &&
+                indexA.coreIndex() == indexB.coreIndex();
         };
 
         if (std::any_of(params_desc.begin(), params_desc.end(), match_regardless_port)) {

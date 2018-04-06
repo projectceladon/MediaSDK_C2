@@ -57,7 +57,7 @@ c2_status_t GetAggregateStatus(std::vector<std::unique_ptr<C2SettingResult>>* co
 
 bool FindC2Param(
     const std::vector<std::shared_ptr<C2ParamDescriptor>>& params_desc,
-    C2Param::Type param_type);
+    C2Param::Index param_index);
 
 std::unique_ptr<C2SettingResult> FindC2Param(
     const std::vector<std::shared_ptr<C2ParamDescriptor>>& params_desc,

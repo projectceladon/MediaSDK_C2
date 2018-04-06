@@ -508,7 +508,7 @@ TEST(MfxEncoderComponent, getSupportedParams)
         for(const C2ParamDescriptor& param_expected : desc.params_desc) {
 
             const auto found_actual = std::find_if(params_actual.begin(), params_actual.end(),
-                [&] (auto p) { return p->type() == param_expected.type(); } );
+                [&] (auto p) { return p->index() == param_expected.index(); } );
 
             EXPECT_NE(found_actual, params_actual.end())
                 << "missing parameter " << param_expected.name();
