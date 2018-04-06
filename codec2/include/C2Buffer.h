@@ -1368,93 +1368,6 @@ public:
 
 /// \defgroup allocator Allocation and memory placement
 /// @{
-
-/**
- * \ingroup linear allocator
- * 1D allocation interface.
- */
-class C2LinearAllocation : public _C2LinearCapacityAspect {
-public:
-    /**
-     * Maps a portion of an allocation starting from |offset| with |size| into local process memory.
-     * Stores the starting address into |addr|, or NULL if the operation was unsuccessful.
-     * |fenceFd| is a file descriptor referring to an acquire sync fence object. If it is already
-     * safe to access the buffer contents, then -1.
-     *
-     * \param offset          starting position of the portion to be mapped (this does not have to
-     *                      be page aligned)
-     * \param size            size of the portion to be mapped (this does not have to be page
-     *                      aligned)
-     * \param usage           the desired usage. \todo this must be kSoftwareRead and/or
-     *                      kSoftwareWrite.
-     * \param fenceFd         a pointer to a file descriptor if an async mapping is requested. If
-     *                      not-null, and acquire fence FD will be stored here on success, or -1
-     *                      on failure. If null, the mapping will be synchronous.
-     * \param addr            a pointer to where the starting address of the mapped portion will be
-     *                      stored. On failure, nullptr will be stored here.
-     *
-     * \todo Only one portion can be mapped at the same time - this is true for gralloc, but there
-     *       is no need for this for 1D buffers.
-     * \todo Do we need to support sync operation as we could just wait for the fence?
-     *
-     * \retval C2_OK        the operation was successful
-     * \retval C2_REFUSED   no permission to map the portion
-     * \retval C2_TIMED_OUT the operation timed out
-     * \retval C2_DUPLICATE if the allocation is already mapped.
-     * \retval C2_NO_MEMORY not enough memory to complete the operation
-     * \retval C2_BAD_VALUE the parameters (offset/size) are invalid or outside the allocation, or
-     *                      the usage flags are invalid (caller error)
-     * \retval C2_CORRUPTED some unknown error prevented the operation from completing (unexpected)
-     */
-    virtual c2_status_t map(
-            size_t offset, size_t size, C2MemoryUsage usage, int *fenceFd /* nullable */,
-            void **addr /* nonnull */) = 0;
-
-    /**
-     * Unmaps a portion of an allocation at |addr| with |size|. These must be parameters previously
-     * passed to |map|; otherwise, this operation is a no-op.
-     *
-     * \param addr            starting address of the mapped region
-     * \param size            size of the mapped region
-     * \param fenceFd         a pointer to a file descriptor if an async unmapping is requested. If
-     *                      not-null, a release fence FD will be stored here on success, or -1
-     *                      on failure. This fence signals when the original allocation contains
-     *                      any changes that happened to the mapped region. If null, the unmapping
-     *                      will be synchronous.
-     *
-     * \retval C2_OK        the operation was successful
-     * \retval C2_TIMED_OUT the operation timed out
-     * \retval C2_NOT_FOUND if the allocation was not mapped previously.
-     * \retval C2_BAD_VALUE the parameters (addr/size) do not correspond to previously mapped
-     *                      regions (caller error)
-     * \retval C2_CORRUPTED some unknown error prevented the operation from completing (unexpected)
-     * \retval C2_REFUSED   no permission to unmap the portion (unexpected - system)
-     */
-    virtual c2_status_t unmap(void *addr, size_t size, int *fenceFd /* nullable */) = 0;
-
-    /**
-     * Returns true if this is a valid allocation.
-     *
-     * \todo remove?
-     */
-    virtual bool isValid() const = 0;
-
-    /**
-     * Returns a pointer to the allocation handle.
-     */
-    virtual const C2Handle *handle() const = 0;
-
-    /**
-     * Returns true if this is the same allocation as |other|.
-     */
-    virtual bool equals(const std::shared_ptr<C2LinearAllocation> &other) const = 0;
-
-protected:
-    // \todo should we limit allocation directly?
-    C2LinearAllocation(size_t capacity) : _C2LinearCapacityAspect(c2_min(capacity, UINT32_MAX)) {}
-    virtual ~C2LinearAllocation() = default;
-};
-
 /**
  * \ingroup graphic allocator
  * 2D allocation interface.
@@ -1537,6 +1450,7 @@ protected:
     virtual ~C2GraphicAllocation() = default;
 };
 
+class C2LinearAllocation;
 /**
  *  Allocators are used by the framework to allocate memory (allocations) for buffers. They can
  *  support either 1D or 2D allocations.
@@ -1720,6 +1634,90 @@ protected:
     C2Allocator() = default;
 
     virtual ~C2Allocator() = default;
+};
+
+/**
+ * \ingroup linear allocator
+ * 1D allocation interface.
+ */
+class C2LinearAllocation : public _C2LinearCapacityAspect {
+public:
+    /**
+     * Maps a portion of an allocation starting from |offset| with |size| into local process memory.
+     * Stores the starting address into |addr|, or NULL if the operation was unsuccessful.
+     * |fence| will contain an acquire sync fence object. If it is already
+     * safe to access the buffer contents, then it will contain an empty (already fired) fence.
+     *
+     * \param offset        starting position of the portion to be mapped (this does not have to
+     *                      be page aligned)
+     * \param size          size of the portion to be mapped (this does not have to be page
+     *                      aligned)
+     * \param usage         the desired usage. \todo this must be kSoftwareRead and/or
+     *                      kSoftwareWrite.
+     * \param fence         a pointer to a fence object if an async mapping is requested. If
+     *                      not-null, and acquire fence will be stored here on success, or empty
+     *                      fence on failure. If null, the mapping will be synchronous.
+     * \param addr          a pointer to where the starting address of the mapped portion will be
+     *                      stored. On failure, nullptr will be stored here.
+     *
+     * \todo Only one portion can be mapped at the same time - this is true for gralloc, but there
+     *       is no need for this for 1D buffers.
+     * \todo Do we need to support sync operation as we could just wait for the fence?
+     *
+     * \retval C2_OK        the operation was successful
+     * \retval C2_REFUSED   no permission to map the portion
+     * \retval C2_TIMED_OUT the operation timed out
+     * \retval C2_DUPLICATE if the allocation is already mapped.
+     * \retval C2_NO_MEMORY not enough memory to complete the operation
+     * \retval C2_BAD_VALUE the parameters (offset/size) are invalid or outside the allocation, or
+     *                      the usage flags are invalid (caller error)
+     * \retval C2_CORRUPTED some unknown error prevented the operation from completing (unexpected)
+     */
+    virtual c2_status_t map(
+            size_t offset, size_t size, C2MemoryUsage usage, C2Fence *fence /* nullable */,
+            void **addr /* nonnull */) = 0;
+
+    /**
+     * Unmaps a portion of an allocation at |addr| with |size|. These must be parameters previously
+     * passed to and returned by |map|; otherwise, this operation is a no-op.
+     *
+     * \param addr          starting address of the mapped region
+     * \param size          size of the mapped region
+     * \param fence         a pointer to a fence object if an async unmapping is requested. If
+     *                      not-null, a release fence will be stored here on success, or empty fence
+     *                      on failure. This fence signals when the original allocation contains
+     *                      all changes that happened to the mapped region. If null, the unmapping
+     *                      will be synchronous.
+     *
+     * \retval C2_OK        the operation was successful
+     * \retval C2_TIMED_OUT the operation timed out
+     * \retval C2_NOT_FOUND if the allocation was not mapped previously.
+     * \retval C2_BAD_VALUE the parameters (addr/size) do not correspond to previously mapped
+     *                      regions (caller error)
+     * \retval C2_CORRUPTED some unknown error prevented the operation from completing (unexpected)
+     * \retval C2_REFUSED   no permission to unmap the portion (unexpected - system)
+     */
+    virtual c2_status_t unmap(void *addr, size_t size, C2Fence *fence /* nullable */) = 0;
+
+    /**
+     * Returns the allocator ID for this allocation. This is useful to put the handle into context.
+     */
+    virtual C2Allocator::id_t getAllocatorId() const = 0;
+
+    /**
+     * Returns a pointer to the allocation handle.
+     */
+    virtual const C2Handle *handle() const = 0;
+
+    /**
+     * Returns true if this is the same allocation as |other|.
+     */
+    virtual bool equals(const std::shared_ptr<C2LinearAllocation> &other) const = 0;
+
+protected:
+    // \todo should we limit allocation directly?
+    C2LinearAllocation(size_t capacity) : _C2LinearCapacityAspect(c2_min(capacity, UINT32_MAX)) {}
+    virtual ~C2LinearAllocation() = default;
 };
 
 /**
