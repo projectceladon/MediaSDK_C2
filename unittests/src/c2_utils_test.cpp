@@ -832,7 +832,7 @@ public:
                     WIDTH, HEIGHT,
                     HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL,
                     // HW_CODEC forces VNDK mock to allocate gralloc memory, not system
-                    { C2MemoryUsage::HW_CODEC_READ, C2MemoryUsage::HW_CODEC_WRITE },
+                    { android::C2AndroidMemoryUsage::HW_CODEC_READ, android::C2AndroidMemoryUsage::HW_CODEC_WRITE },
                     &gr_blocks[i]);
 
                 handles[i] = gr_blocks[i]->handle();

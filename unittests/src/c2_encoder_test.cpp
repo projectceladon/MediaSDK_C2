@@ -212,7 +212,7 @@ static void PrepareWork(uint32_t frame_index, bool last_frame, bool graphics_mem
         if(nullptr == allocator) break;
 
         C2MemoryUsage mem_usage = {
-            graphics_memory ? C2MemoryUsage::HW_CODEC_READ : C2MemoryUsage::CPU_READ,
+            graphics_memory ? android::C2AndroidMemoryUsage::HW_CODEC_READ : C2MemoryUsage::CPU_READ,
             C2MemoryUsage::CPU_WRITE
         };
         std::shared_ptr<C2GraphicBlock> block;

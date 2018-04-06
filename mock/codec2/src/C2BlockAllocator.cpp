@@ -173,7 +173,7 @@ C2Acquirable<C2ReadView> C2ConstLinearBlock::map() const
     event.fire(); // map is always ready to read
 
     void* data = nullptr;
-    error = mImpl->allocation_->map({}, {}, {}, {}, &data);
+    error = mImpl->allocation_->map({}, {}, C2MemoryUsage { 0 }, {}, &data);
 
     if (C2_OK == error) {
         C2ReadViewMock read_view(this, (uint8_t*)data);
@@ -202,7 +202,7 @@ C2Acquirable<C2WriteView> C2LinearBlock::map()
     event.fire(); // map is always ready to read
 
     void* data = nullptr;
-    error = mImpl->allocation_->map({}, {}, {}, {}, &data);
+    error = mImpl->allocation_->map({}, {}, C2MemoryUsage { 0 }, {}, &data);
 
     if (C2_OK == error) {
         C2WriteViewMock write_view(this, (uint8_t*)data);
@@ -432,7 +432,7 @@ C2Acquirable<const C2GraphicView> C2ConstGraphicBlock::map() const
     data.resize(C2PlanarLayout::MAX_NUM_PLANES);
     C2PlanarLayout layout;
 
-    error = mImpl->allocation_->map(C2Rect { 0, 0 }, {}, {}, &layout, &data.front());
+    error = mImpl->allocation_->map(C2Rect { 0, 0 }, C2MemoryUsage { 0 }, {}, &layout, &data.front());
     if (C2_OK == error) {
         data.resize(layout.numPlanes);
         C2GraphicViewMock graphic_view(this, &data.front(), layout, mImpl->allocation_);
@@ -455,7 +455,7 @@ C2Acquirable<C2GraphicView> C2GraphicBlock::map()
     data.resize(C2PlanarLayout::MAX_NUM_PLANES);
     C2PlanarLayout layout;
 
-    error = mImpl->allocation_->map(C2Rect { 0, 0 }, {}, {}, &layout, &data.front());
+    error = mImpl->allocation_->map(C2Rect { 0, 0 }, C2MemoryUsage { 0 }, {}, &layout, &data.front());
     if (C2_OK == error) {
         data.resize(layout.numPlanes);
         C2GraphicViewMock graphic_view(this, &data.front(), layout, mImpl->allocation_);
@@ -640,8 +640,8 @@ c2_status_t C2BlockAllocatorImpl::fetchGraphicBlock(
     C2GraphicAllocationMock* allocation {};
 
     try {
-        if ((usage.consumer & C2MemoryUsage::HW_CODEC_READ) ||
-            (usage.producer & C2MemoryUsage::HW_CODEC_WRITE)) {
+        if ((usage.expected & android::C2AndroidMemoryUsage::HW_CODEC_READ) ||
+            (usage.expected & android::C2AndroidMemoryUsage::HW_CODEC_WRITE)) {
 
             buffer_handle_t handle {};
 
