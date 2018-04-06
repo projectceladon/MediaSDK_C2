@@ -76,12 +76,12 @@ TEST(MfxMockComponent, intf)
 // Allocates c2 graphic block of FRAME_WIDTH x FRAME_HEIGHT size and fills it with
 // specified byte value.
 static std::unique_ptr<C2ConstGraphicBlock> CreateFilledGraphicBlock(
-    std::shared_ptr<C2BlockPool> allocator, uint8_t fill, C2MemoryUsage::Consumer memory_type)
+    std::shared_ptr<C2BlockPool> allocator, uint8_t fill, uint64_t consumer_memory_type)
 {
     std::unique_ptr<C2ConstGraphicBlock> res;
 
     do {
-        C2MemoryUsage mem_usage = { memory_type, C2MemoryUsage::CPU_WRITE };
+        C2MemoryUsage mem_usage = { consumer_memory_type, C2MemoryUsage::CPU_WRITE };
         std::shared_ptr<C2GraphicBlock> block;
         c2_status_t sts = allocator->fetchGraphicBlock(FRAME_WIDTH, FRAME_HEIGHT, FRAME_FORMAT,
             mem_usage, &block);
@@ -157,7 +157,7 @@ static std::unique_ptr<C2ConstLinearBlock> CreateFilledLinearBlock(
 static void PrepareWork(uint32_t frame_index,
     std::shared_ptr<const C2Component> component,
     std::unique_ptr<C2Work>* work,
-    C2BufferData::Type buffer_type, C2MemoryUsage::Consumer memory_type)
+    C2BufferData::Type buffer_type, uint64_t consumer_memory_type)
 {
     *work = std::make_unique<C2Work>();
     C2FrameData* buffer_pack = &((*work)->input);
@@ -190,7 +190,7 @@ static void PrepareWork(uint32_t frame_index,
         // fill the frame with pixels == frame_index
         if(buffer_type == C2BufferData::GRAPHIC) {
             std::unique_ptr<C2ConstGraphicBlock> const_block =
-                CreateFilledGraphicBlock(allocator, (uint8_t)frame_index, memory_type);
+                CreateFilledGraphicBlock(allocator, (uint8_t)frame_index, consumer_memory_type);
             if(nullptr == const_block) break;
             // make buffer of graphic block
             buffer = std::make_shared<C2Buffer>(MakeC2Buffer( { *const_block } ));
@@ -351,8 +351,8 @@ TEST(MfxMockComponent, Encode)
     EXPECT_NE(component, nullptr);
     if(nullptr != component) {
 
-        for (C2MemoryUsage::Consumer memory_type :
-            { C2MemoryUsage::CPU_READ, C2MemoryUsage::HW_CODEC_READ } ) {
+        for (uint64_t consumer_memory_type :
+            { (uint64_t)C2MemoryUsage::CPU_READ, (uint64_t)android::C2AndroidMemoryUsage::HW_CODEC_READ } ) {
 
             std::shared_ptr<MockOutputValidator> validator =
                 std::make_unique<MockOutputValidator>(C2BufferData::LINEAR);
@@ -367,7 +367,7 @@ TEST(MfxMockComponent, Encode)
                 std::unique_ptr<C2Work> work;
 
                 // insert input data
-                PrepareWork(frame_index, component, &work, C2BufferData::GRAPHIC, memory_type);
+                PrepareWork(frame_index, component, &work, C2BufferData::GRAPHIC, consumer_memory_type);
                 std::list<std::unique_ptr<C2Work>> works;
                 works.push_back(std::move(work));
 
@@ -405,8 +405,8 @@ TEST(MfxMockComponent, Decode)
     EXPECT_NE(component, nullptr);
     if(nullptr != component) {
 
-        for (C2MemoryUsage::Producer memory_type :
-            { C2MemoryUsage::CPU_WRITE, C2MemoryUsage::HW_CODEC_WRITE } ) {
+        for (uint64_t producer_memory_type :
+            { (uint64_t)C2MemoryUsage::CPU_WRITE, (uint64_t)android::C2AndroidMemoryUsage::HW_CODEC_WRITE } ) {
 
             std::shared_ptr<MockOutputValidator> validator =
                 std::make_unique<MockOutputValidator>(C2BufferData::GRAPHIC);
@@ -420,7 +420,7 @@ TEST(MfxMockComponent, Decode)
 
                 if (!component_intf) continue;
 
-                C2ProducerMemoryType memory_type_setting(memory_type);
+                C2ProducerMemoryType memory_type_setting(producer_memory_type);
                 sts = component_intf->config_vb( { &memory_type_setting }, may_block, nullptr );
                 EXPECT_EQ(sts, C2_OK);
 

@@ -18,16 +18,14 @@
 #define C2BUFFER_H_
 
 #include <C2.h>
+#include <C2BufferBase.h>
 #include <C2Param.h> // for C2Info
 
 #include <list>
 #include <memory>
 
 #ifdef __ANDROID__
-
-// #include <system/window.h>
-#include <cutils/native_handle.h>
-#include <hardware/gralloc.h> // TODO: remove
+#include <android-C2Buffer.h>
 
 typedef native_handle_t C2Handle;
 
@@ -1370,38 +1368,6 @@ public:
 
 /// \defgroup allocator Allocation and memory placement
 /// @{
-
-/**
- * Buffer/memory usage bits. These are used by the allocators to select optimal memory type/pool and
- * buffer layout.
- *
- * \note This struct has public fields without getters/setters. All methods are inline.
- */
-struct C2MemoryUsage {
-// public:
-    // TODO: match these to gralloc1.h
-    enum Consumer : uint64_t {
-        // \todo do we need to distinguish often from rarely?
-        CPU_READ          = GRALLOC_USAGE_SW_READ_OFTEN,
-        RENDERSCRIPT_READ = GRALLOC_USAGE_RENDERSCRIPT,
-        HW_TEXTURE_READ   = GRALLOC_USAGE_HW_TEXTURE,
-        HW_COMPOSER_READ  = GRALLOC_USAGE_HW_COMPOSER,
-        HW_CODEC_READ     = GRALLOC_USAGE_HW_VIDEO_ENCODER,
-        READ_PROTECTED    = GRALLOC_USAGE_PROTECTED,
-    };
-
-    enum Producer : uint64_t {
-        CPU_WRITE          = GRALLOC_USAGE_SW_WRITE_OFTEN,
-        RENDERSCRIPT_WRITE = GRALLOC_USAGE_RENDERSCRIPT,
-        HW_TEXTURE_WRITE   = GRALLOC_USAGE_HW_RENDER,
-        HW_COMPOSER_WRITE  = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_RENDER,
-        HW_CODEC_WRITE     = GRALLOC_USAGE_HW_VIDEO_ENCODER,
-        WRITE_PROTECTED    = GRALLOC_USAGE_PROTECTED,
-    };
-
-    uint64_t consumer; // e.g. input
-    uint64_t producer; // e.g. output
-};
 
 /**
  * \ingroup linear allocator

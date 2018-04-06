@@ -72,7 +72,7 @@ private:
 
     MfxCmdQueue cmd_queue_;
 
-    C2MemoryUsage::Producer producer_memory_type_ { C2MemoryUsage::CPU_WRITE };
+    uint64_t producer_memory_type_ { C2MemoryUsage::CPU_WRITE };
 
     std::shared_ptr<C2BlockPool> c2_allocator_;
 };
