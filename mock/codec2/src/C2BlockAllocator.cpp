@@ -22,7 +22,7 @@ public:
     }
 
     virtual c2_status_t map(size_t/* offset*/, size_t/* size*/,
-        C2MemoryUsage/* usage*/, int */*fenceFd*/, void **addr) override
+        C2MemoryUsage/* usage*/, C2Fence*/* fence nullable */, void **addr) override
     {
         c2_status_t res = C2_OK;
         if (byte_array_) {
@@ -33,7 +33,7 @@ public:
         return res;
     }
 
-    virtual c2_status_t unmap(void *addr, size_t/* size*/, int */*fenceFd *//* nullable */) override
+    virtual c2_status_t unmap(void *addr, size_t/* size*/, C2Fence*/* fence nullable */) override
     {
         c2_status_t res = C2_OK;
         if (byte_array_) {
@@ -45,7 +45,7 @@ public:
         return res;
     }
 
-    virtual bool isValid() const override { return nullptr != byte_array_; }
+    virtual C2Allocator::id_t getAllocatorId() const override { return 0; }
 
     virtual const C2Handle *handle() const override { return nullptr; }
 
