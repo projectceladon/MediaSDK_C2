@@ -358,7 +358,7 @@ class C2GraphicView::Impl
 public:
     std::vector<uint8_t*> data_ {};
     C2PlanarLayout plane_layout_ {};
-    c2_status_t error { C2_OK };
+    c2_status_t error_ { C2_OK };
     // shared_ptr to prevent C2Block::Impl destruction before this destruction
     std::shared_ptr<C2GraphicAllocation> allocation_;
 public:
@@ -393,6 +393,11 @@ const uint8_t *const *C2GraphicView::data() const
 const C2PlanarLayout C2GraphicView::layout() const
 {
     return mImpl->plane_layout_;
+}
+
+c2_status_t C2GraphicView::error() const
+{
+    return mImpl->error_;
 }
 
 class C2GraphicViewMock : public C2GraphicView
