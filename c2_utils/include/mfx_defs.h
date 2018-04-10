@@ -30,7 +30,6 @@ extern mfxVersion g_required_mfx_version;
 
 #ifdef LIBVA_SUPPORT
     #include <va/va.h>
-    #include <va/va_tpi.h>
 #endif // #ifdef LIBVA_SUPPORT
 
 #define MFX_MAX_PATH 260
