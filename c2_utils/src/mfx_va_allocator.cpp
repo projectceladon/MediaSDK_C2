@@ -453,7 +453,7 @@ mfxStatus MfxVaFrameAllocator::CreateNV12SurfaceFromGralloc(buffer_handle_t gral
     surfExtBuf.pitches[0] = info.pitch;
     surfExtBuf.num_planes = 2;
     surfExtBuf.num_buffers = 1;
-    surfExtBuf.buffers = (long unsigned int*)&gralloc_buffer;
+    surfExtBuf.buffers = (uintptr_t *)&gralloc_buffer;
     surfExtBuf.flags = VA_SURFACE_ATTRIB_MEM_TYPE_ANDROID_GRALLOC;
 
     attribs[0].type = (VASurfaceAttribType)VASurfaceAttribMemoryType;

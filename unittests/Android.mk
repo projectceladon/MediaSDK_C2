@@ -1,11 +1,11 @@
 LOCAL_PATH:= $(call my-dir)
 
-include $(MFX_HOME)/android/mfx_env.mk
+include $(MFX_HOME)/mdp_msdk-lib/android/mfx_env.mk
 
 # =============================================================================
 
 include $(CLEAR_VARS)
-include $(MFX_HOME)/android/mfx_defs.mk
+include $(MFX_HOME)/mdp_msdk-lib/android/mfx_defs.mk
 include $(MFX_C2_HOME)/mfx_c2_defs.mk
 
 LOCAL_SRC_FILES := \
@@ -51,7 +51,7 @@ include $(BUILD_EXECUTABLE)
 # =============================================================================
 
 include $(CLEAR_VARS)
-include $(MFX_HOME)/android/mfx_defs.mk
+include $(MFX_HOME)/mdp_msdk-lib/android/mfx_defs.mk
 include $(MFX_C2_HOME)/mfx_c2_defs.mk
 
 STREAM_CPP_FILES := $(wildcard $(LOCAL_PATH)/streams/*/*.cpp)
@@ -113,7 +113,7 @@ include $(BUILD_EXECUTABLE)
 define build_mock_unittests
 
   include $(CLEAR_VARS)
-  include $(MFX_HOME)/android/mfx_defs.mk
+  include $(MFX_HOME)/mdp_msdk-lib/android/mfx_defs.mk
   include $(MFX_C2_HOME)/mfx_c2_defs.mk
 
   STREAM_CPP_FILES := $$(wildcard $(LOCAL_PATH)/streams/*/*.cpp)

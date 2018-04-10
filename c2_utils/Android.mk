@@ -1,11 +1,11 @@
 LOCAL_PATH:= $(call my-dir)
 
-include $(MFX_HOME)/android/mfx_env.mk
+include $(MFX_HOME)/mdp_msdk-lib/android/mfx_env.mk
 
 # Usage: $(call build_utils, va|pure)
 define build_utils
   include $$(CLEAR_VARS)
-  include $$(MFX_HOME)/android/mfx_defs.mk
+  include $$(MFX_HOME)/mdp_msdk-lib/android/mfx_defs.mk
   include $(MFX_C2_HOME)/mfx_c2_defs.mk
 
   LOCAL_SRC_FILES := \
