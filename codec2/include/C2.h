@@ -166,6 +166,7 @@ enum c2_blocking_t : int32_t {
     type args& operator=(const type args&) = delete; \
     type(const type args&) = delete; \
 
+#define C2_ALLOW_OVERFLOW __attribute__((no_sanitize("integer")))
 #define C2_PURE __attribute__((pure))
 #define C2_CONST __attribute__((const))
 #define C2_HIDE __attribute__((visibility("hidden")))
@@ -511,6 +512,18 @@ constexpr typename c2_types<T, U, V...>::min_type c2_min(const T a, const U b, c
     return ({
         wide_type a_(a), b_(c2_min(b, c...));
         static_cast<typename c2_types<T, rest_type>::min_type>(a_ < b_ ? a_ : b_);
+    });
+}
+
+/**
+ *  \ingroup utils_internal
+ */
+template<typename T, typename U, typename V>
+inline constexpr typename c2_types<T, V>::wide_type c2_clamp(const T a, const U b, const V c) {
+    typedef typename c2_types<T, U, V>::wide_type wide_type;
+    return ({
+        wide_type a_(a), b_(b), c_(c);
+        static_cast<typename c2_types<T, V>::wide_type>(b_ < a_ ? a_ : b_ > c_ ? c_ : b_);
     });
 }
 

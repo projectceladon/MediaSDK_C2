@@ -82,22 +82,23 @@ public:
     }
 
 private:
-    const uint8_t *mData;
+    const uint8_t *mData {};
     c2_status_t mError;
 };
 
-C2ReadView::C2ReadView(const _C2LinearCapacityAspect *parent, const uint8_t *data)
-    : _C2LinearCapacityAspect(parent), mImpl(std::make_shared<Impl>(data)) {}
+C2ReadView::C2ReadView(std::shared_ptr<Impl> impl, uint32_t offset, uint32_t size)
+    : _C2LinearCapacityAspect(size), mImpl(impl), mOffset(offset) {}
 
 C2ReadView::C2ReadView(c2_status_t error)
     : _C2LinearCapacityAspect(0u), mImpl(std::make_shared<Impl>(error)) {}
 
 const uint8_t *C2ReadView::data() const {
-    return mImpl->data();
+    return mImpl->data() + mOffset;
 }
 
 C2ReadView C2ReadView::subView(size_t offset, size_t size) const {
-    return C2ReadView(std::make_shared<C2LinearCapacity>(size).get(), data() + offset);
+    C2LinearRange subRange(*this, offset, size);
+    return C2ReadView(mImpl, mOffset + subRange.offset(), subRange.size());
 }
 
 c2_status_t C2ReadView::error() const {
@@ -108,16 +109,13 @@ class C2WriteView::Impl
 {
 public:
     uint8_t* data_ {};
+    uint32_t size_ {};
     c2_status_t error_ { C2_OK };
 };
 
-C2Block1D::C2Block1D(std::shared_ptr<C2LinearAllocation> alloc):
-    _C2LinearRangeAspect(alloc.get()),
-    mImpl(std::shared_ptr<Impl>(new Impl { alloc } )) {}
-
-C2Block1D::C2Block1D(std::shared_ptr<C2LinearAllocation> alloc, size_t offset, size_t size):
-    _C2LinearRangeAspect(alloc.get(), offset, size),
-    mImpl(std::shared_ptr<Impl>(new Impl { alloc } )) {}
+C2Block1D::C2Block1D(std::shared_ptr<Impl> impl, const _C2LinearRangeAspect &range):
+    _C2LinearRangeAspect(range),
+    mImpl(std::shared_ptr<Impl>(impl)) {}
 
 class C2ConstLinearBlockAccessor : public C2ConstLinearBlock {
     using C2ConstLinearBlock::C2ConstLinearBlock;
@@ -129,38 +127,29 @@ class C2LinearBlockAccessor : public C2LinearBlock {
     friend class ::C2BlockAllocatorImpl;
 };
 
-class C2ConstLinearBlock::Impl
-{
-public:
-    std::shared_ptr<C2LinearAllocation> allocation_;
-};
+C2ConstLinearBlock::C2ConstLinearBlock(std::shared_ptr<Impl> impl,
+    const _C2LinearRangeAspect &range, C2Fence /*mFence*/):
+        C2Block1D(impl, range) {}
 
-C2ConstLinearBlock::C2ConstLinearBlock(std::shared_ptr<C2LinearAllocation> allocation,
-    size_t offset, size_t size):
-        C2Block1D(allocation, offset, size),
-        mImpl(std::shared_ptr<Impl>(new Impl { allocation } )) {}
+C2LinearBlock::C2LinearBlock(std::shared_ptr<Impl> impl, const _C2LinearRangeAspect &range):
+    C2Block1D(impl, range) {}
 
-class C2LinearBlock::Impl
-{
-public:
-    std::shared_ptr<C2LinearAllocation> allocation_;
-};
-
-C2LinearBlock::C2LinearBlock(std::shared_ptr<C2LinearAllocation> allocation):
-    C2Block1D(allocation),
-    mImpl(std::shared_ptr<Impl>(new Impl { allocation } )) {}
-
-C2WriteView::C2WriteView(const _C2LinearRangeAspect *parent, uint8_t *base):
-    _C2EditableLinearRange(parent),
-    mImpl(std::shared_ptr<Impl>(new Impl { base, C2_OK } )) {}
+C2WriteView::C2WriteView(std::shared_ptr<Impl> impl):
+    _C2EditableLinearRangeAspect(std::make_unique<C2LinearCapacity>(impl->size_).get()),
+    mImpl(impl) {}
 
 C2WriteView::C2WriteView(c2_status_t error):
-    _C2EditableLinearRange(nullptr),
-    mImpl(std::shared_ptr<Impl>(new Impl { nullptr, error } )) {}
+    _C2EditableLinearRangeAspect(nullptr),
+    mImpl(std::shared_ptr<Impl>(new Impl { nullptr, 0, error })) {}
+
+uint8_t *C2WriteView::base()
+{
+    return mImpl->data_;
+}
 
 uint8_t *C2WriteView::data()
 {
-    return mImpl->data_;
+    return mImpl->data_ + offset();
 }
 
 c2_status_t C2WriteView::error() const
@@ -189,7 +178,9 @@ C2Acquirable<C2ReadView> C2ConstLinearBlock::map() const
     error = mImpl->allocation_->map({}, {}, C2MemoryUsage { 0 }, {}, &data);
 
     if (C2_OK == error) {
-        C2ReadViewMock read_view(this, (uint8_t*)data);
+        C2ReadViewMock read_view(
+            std::make_shared<C2ReadViewMock::Impl>((uint8_t*)data + offset()),
+            0/*offset*/, size());
         return C2AcquirableReadView(error, event.fence(), read_view);
     } else {
         C2ReadViewMock read_view(error);
@@ -218,7 +209,9 @@ C2Acquirable<C2WriteView> C2LinearBlock::map()
     error = mImpl->allocation_->map({}, {}, C2MemoryUsage { 0 }, {}, &data);
 
     if (C2_OK == error) {
-        C2WriteViewMock write_view(this, (uint8_t*)data);
+        C2WriteViewMock write_view(
+            std::shared_ptr<C2WriteViewMock::Impl>(
+                new C2WriteViewMock::Impl { (uint8_t*)data, capacity(), C2_OK } ));
         return C2AcquirableWriteView(error, event.fence(), write_view);
     } else {
         C2WriteViewMock write_view(error);
@@ -226,9 +219,10 @@ C2Acquirable<C2WriteView> C2LinearBlock::map()
     }
 }
 
-C2ConstLinearBlock C2LinearBlock::share(size_t offset, size_t size, C2Fence /*fence*/)
+C2ConstLinearBlock C2LinearBlock::share(size_t offset, size_t size, C2Fence fence)
 {
-    C2ConstLinearBlockAccessor const_linear_block(mImpl->allocation_, offset, size);
+    C2ConstLinearBlockAccessor const_linear_block(mImpl,
+        C2LinearRange(*this, offset, size), fence);
     return const_linear_block;
 }
 
@@ -238,36 +232,22 @@ public:
     std::shared_ptr<C2GraphicAllocation> allocation_;
 };
 
-C2Block2D::C2Block2D(const std::shared_ptr<C2GraphicAllocation>& alloc):
-    _C2PlanarSection(alloc.get()),
-    mImpl(std::shared_ptr<Impl>(new Impl { alloc } )) {}
-
-class C2ConstGraphicBlock::Impl
-{
-public:
-    std::shared_ptr<C2GraphicAllocation> allocation_;
-};
+C2Block2D::C2Block2D(std::shared_ptr<Impl> impl, const _C2PlanarSectionAspect &section):
+    _C2PlanarSectionAspect(impl->allocation_.get(), section.crop()), mImpl(impl) {}
 
 class C2GraphicBlockAccessor : public C2GraphicBlock {
     using C2GraphicBlock::C2GraphicBlock;
     friend class ::C2BlockAllocatorImpl;
 };
 
-C2ConstGraphicBlock::C2ConstGraphicBlock(const std::shared_ptr<C2GraphicAllocation> &alloc,
-    C2Fence fence):
-        C2Block2D(alloc),
-        mImpl(std::shared_ptr<Impl>(new Impl { alloc } )),
+C2ConstGraphicBlock::C2ConstGraphicBlock(std::shared_ptr<Impl> impl,
+    const _C2PlanarSectionAspect &section, C2Fence fence):
+        C2Block2D(impl, section),
         mFence(fence) {}
 
-class C2GraphicBlock::Impl
-{
-public:
-    std::shared_ptr<C2GraphicAllocation> allocation_;
-};
-
-C2GraphicBlock::C2GraphicBlock(const std::shared_ptr<C2GraphicAllocation>& alloc):
-    C2Block2D(alloc),
-    mImpl(std::shared_ptr<Impl>(new Impl { alloc } )) {}
+C2GraphicBlock::C2GraphicBlock(
+    std::shared_ptr<Impl> impl, const _C2PlanarSectionAspect &section):
+        C2Block2D(impl, section) {}
 
 const C2Handle *C2Block2D::handle() const
 {
@@ -375,21 +355,18 @@ public:
     std::shared_ptr<C2GraphicAllocation> allocation_;
 public:
     ~Impl() {
-        allocation_->unmap(data_.data(), {}, nullptr/*C2Fence *fenceFd*/);
+        if (allocation_) {
+            allocation_->unmap(data_.data(), {}, nullptr/*C2Fence *fenceFd*/);
+        }
     }
 };
 
-C2GraphicView::C2GraphicView(
-            const _C2PlanarCapacityAspect *parent,
-            uint8_t *const *data,
-            const C2PlanarLayout& layout,
-            const std::shared_ptr<C2GraphicAllocation> &alloc):
-    _C2PlanarSection(parent),
-    mImpl(std::shared_ptr<Impl>(
-        new Impl { { data, data + layout.numPlanes }, layout, C2_OK, { alloc } } )) {}
+C2GraphicView::C2GraphicView(std::shared_ptr<Impl> impl,
+    const _C2PlanarSectionAspect &section):
+    _C2EditablePlanarSectionAspect(impl->allocation_.get(), section.crop()), mImpl(impl) {}
 
 C2GraphicView::C2GraphicView(c2_status_t error):
-    _C2PlanarSection(nullptr),
+    _C2EditablePlanarSectionAspect(nullptr),
     mImpl(std::shared_ptr<Impl>(new Impl { {}, {}, error, {} } )) {}
 
 uint8_t *const *C2GraphicView::data()
@@ -449,7 +426,10 @@ C2Acquirable<const C2GraphicView> C2ConstGraphicBlock::map() const
     error = mImpl->allocation_->map(C2Rect { 0, 0 }, C2MemoryUsage { 0 }, {}, &layout, &data.front());
     if (C2_OK == error) {
         data.resize(layout.numPlanes);
-        C2GraphicViewMock graphic_view(this, &data.front(), layout, mImpl->allocation_);
+
+        C2GraphicViewMock graphic_view(
+            std::shared_ptr<C2GraphicViewMock::Impl>(new C2GraphicViewMock::Impl { data, layout, error, mImpl->allocation_} ),
+            *this);
         return C2AcquirableConstGraphicView(error, event.fence(), graphic_view);
     } else {
         C2GraphicViewMock graphic_view(error);
@@ -472,7 +452,9 @@ C2Acquirable<C2GraphicView> C2GraphicBlock::map()
     error = mImpl->allocation_->map(C2Rect { 0, 0 }, C2MemoryUsage { 0 }, {}, &layout, &data.front());
     if (C2_OK == error) {
         data.resize(layout.numPlanes);
-        C2GraphicViewMock graphic_view(this, &data.front(), layout, mImpl->allocation_);
+        C2GraphicViewMock graphic_view(
+            std::shared_ptr<C2GraphicViewMock::Impl>(new C2GraphicViewMock::Impl { data, layout, error, mImpl->allocation_ }),
+            *this);
         return C2AcquirableGraphicView(error, event.fence(), graphic_view);
     } else {
         C2GraphicViewMock graphic_view(error);
@@ -482,8 +464,7 @@ C2Acquirable<C2GraphicView> C2GraphicBlock::map()
 
 C2ConstGraphicBlock C2GraphicBlock::share(const C2Rect &crop, C2Fence fence)
 {
-    C2ConstGraphicBlockAccessor const_graphics_block(mImpl->allocation_, fence);
-    const_graphics_block.setCrop(crop);
+    C2ConstGraphicBlockAccessor const_graphics_block(mImpl, C2PlanarSection(*this, crop), fence);
 
     return const_graphics_block;
 }
@@ -633,8 +614,9 @@ c2_status_t C2BlockAllocatorImpl::fetchLinearBlock(
     c2_status_t res = C2_OK;
     try {
         std::shared_ptr<C2LinearAllocation> allocation(new C2LinearAllocationMock(capacity));
-
-        *block = std::shared_ptr<C2LinearBlock>(new C2LinearBlockAccessor(allocation));
+        std::shared_ptr<C2LinearBlockAccessor::Impl> impl(new C2LinearBlockAccessor::Impl { allocation });
+        *block = std::shared_ptr<C2LinearBlock>(new C2LinearBlockAccessor(impl,
+            C2LinearRange(*allocation, 0/*offset*/, capacity)));
     }
     catch(const std::bad_alloc&) {
         res = C2_NO_MEMORY;
@@ -678,8 +660,10 @@ c2_status_t C2BlockAllocatorImpl::fetchGraphicBlock(
         }
 
         if (C2_OK == res) {
-            *block = std::shared_ptr<C2GraphicBlock>(
-                new C2GraphicBlockAccessor(std::shared_ptr<C2GraphicAllocation>(allocation)));
+            std::shared_ptr<C2GraphicAllocation> shared_allocation(allocation);
+            std::shared_ptr<C2GraphicBlockAccessor::Impl> impl(new C2GraphicBlockAccessor::Impl { shared_allocation });
+            *block = std::shared_ptr<C2GraphicBlock>(new C2GraphicBlockAccessor(impl,
+                C2PlanarSection(*allocation, C2Rect(allocation->width(), allocation->height()))));
         }
     } catch(const std::bad_alloc&) {
         res = C2_NO_MEMORY;
