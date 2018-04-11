@@ -589,12 +589,6 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(std::shared_ptr<C2GraphicBloc
                 break;
             }
 
-            C2Rect required_rect(video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height);
-            if (block->width() > required_rect.width || block->height() > required_rect.height) {
-                MFX_DEBUG_TRACE_STREAM(NAMED(required_rect.width) << NAMED(required_rect.height));
-                block->setCrop(required_rect);
-            }
-
             *out_block = std::move(block);
 
         } else {
@@ -803,7 +797,7 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
                 const C2Rect rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH,
                                 mfx_surface->Info.CropX, mfx_surface->Info.CropY);
 
-                C2ConstGraphicBlock const_graphic = work_output.frame_.GetC2GraphicBlock()->share(work_output.frame_.GetC2GraphicBlock()->crop(), event.fence());
+                C2ConstGraphicBlock const_graphic = work_output.frame_.GetC2GraphicBlock()->share(rect, event.fence());
                 C2Buffer out_buffer = MakeC2Buffer( { const_graphic } );
 
                 std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
