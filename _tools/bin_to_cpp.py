@@ -1,6 +1,6 @@
 # Converts all files from source folder to their c array representations.
 # Output .h files and .cpp files are written to <dst_dir>.
-# Usage: python _tools/bin_to_c.py -i ../streams -o unittests/streams
+# Usage: python _tools/bin_to_cpp.py -i ../streams -o unittests/streams
 
 import os
 import argparse
@@ -33,6 +33,7 @@ for root, dirs, filenames in os.walk(args.binary_dir):
                 dst.write('    .name = "{}",\n'.format(c_id));
                 dst.write("    .sps = { },\n");
                 dst.write("    .pps = { },\n");
+                dst.write("    .crc32_nv12 = 0x0,\n");
                 dst.write("    .data = {\n");
 
                 bytes_count = 0
