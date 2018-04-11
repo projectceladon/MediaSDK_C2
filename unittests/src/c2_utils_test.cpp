@@ -831,7 +831,8 @@ public:
                 res = c2_allocator->fetchGraphicBlock(
                     WIDTH, HEIGHT,
                     HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL,
-                    { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE },
+                    // HW_CODEC forces VNDK mock to allocate gralloc memory, not system
+                    { C2MemoryUsage::HW_CODEC_READ, C2MemoryUsage::HW_CODEC_WRITE },
                     &gr_blocks[i]);
 
                 handles[i] = gr_blocks[i]->handle();
