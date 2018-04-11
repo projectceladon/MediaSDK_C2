@@ -18,9 +18,9 @@ enum MfxC2FrameConstructorType
     MfxC2FC_None,
     MfxC2FC_AVC,
     /*MfxC2FC_AVC_Secure_SEC,
-    MfxC2FC_AVC_Secure_HUC,
+    MfxC2FC_AVC_Secure_HUC,*/
     MfxC2FC_HEVC,
-    MfxC2FC_HEVC_Secure_HUC,
+    /*MfxC2FC_HEVC_Secure_HUC,
     MfxC2FC_VC1,
     MfxC2FC_VP8,
     MfxC2FC_VP9,
@@ -165,6 +165,25 @@ protected: // data
 
 private:
     MFX_CLASS_NO_COPY(MfxC2AVCFrameConstructor)
+};
+
+class MfxC2HEVCFrameConstructor : public MfxC2AVCFrameConstructor
+{
+public:
+    MfxC2HEVCFrameConstructor();
+    virtual ~MfxC2HEVCFrameConstructor();
+
+protected: // functions
+    virtual StartCode ReadStartCode(const mfxU8** position, mfxU32* size_left);
+    virtual bool      isSPS(mfxI32 code) { return NAL_UT_HEVC_SPS == code; }
+    virtual bool      isPPS(mfxI32 code) { return NAL_UT_HEVC_PPS == code; }
+
+protected: // data
+    const static mfxU32 NAL_UT_HEVC_SPS = 33;
+    const static mfxU32 NAL_UT_HEVC_PPS = 34;
+
+private:
+    MFX_CLASS_NO_COPY(MfxC2HEVCFrameConstructor)
 };
 
 class MfxC2FrameConstructorFactory

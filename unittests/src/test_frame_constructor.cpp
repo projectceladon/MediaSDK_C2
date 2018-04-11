@@ -11,6 +11,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include "gtest_emulation.h"
 #include "mfx_frame_constructor.h"
 #include "streams/h264/aud_mw_e.264.h"
+#include "streams/h265/AMVP_A_MTK_4.bit.h"
 
 const size_t READ_ALL = std::numeric_limits<size_t>::max();
 const size_t DO_NOT_READ = 0;
@@ -25,7 +26,8 @@ struct TestStream
 };
 
 TestStream test_streams[] = {
-    PARAMS_DESCRIBED(MfxC2FC_AVC, aud_mw_e_264)
+    PARAMS_DESCRIBED(MfxC2FC_AVC, aud_mw_e_264),
+    PARAMS_DESCRIBED(MfxC2FC_HEVC, AMVP_A_MTK_4_bit)
 };
 
 // Returns bool result if Reader is able to read some data from input stream.
@@ -100,6 +102,10 @@ TEST(FrameConstructor, PassEverything)
         PARAMS_DESCRIBED(MfxC2FC_AVC, aud_mw_e_264, StreamReader::Slicing::NalUnit(), READ_ALL, true),
         PARAMS_DESCRIBED(MfxC2FC_AVC, aud_mw_e_264, StreamReader::Slicing(1000), READ_ALL, false),
         PARAMS_DESCRIBED(MfxC2FC_AVC, aud_mw_e_264, StreamReader::Slicing(1000), 960, false),
+        PARAMS_DESCRIBED(MfxC2FC_HEVC, AMVP_A_MTK_4_bit, StreamReader::Slicing::NalUnit(), READ_ALL, false),
+        PARAMS_DESCRIBED(MfxC2FC_HEVC, AMVP_A_MTK_4_bit, StreamReader::Slicing::NalUnit(), READ_ALL, true),
+        PARAMS_DESCRIBED(MfxC2FC_HEVC, AMVP_A_MTK_4_bit, StreamReader::Slicing(1000), READ_ALL, false),
+        PARAMS_DESCRIBED(MfxC2FC_HEVC, AMVP_A_MTK_4_bit, StreamReader::Slicing(1000), 960, false),
     };
 
     for (const TestCase& test_case : g_test_cases) {
