@@ -537,6 +537,81 @@ mfxStatus MfxC2AVCFrameConstructor::Load(const mfxU8* data, mfxU32 size, mfxU64 
     return mfx_res;
 }
 
+MfxC2HEVCFrameConstructor::MfxC2HEVCFrameConstructor():
+    MfxC2AVCFrameConstructor()
+{
+    MFX_DEBUG_TRACE_FUNC;
+}
+
+MfxC2HEVCFrameConstructor::~MfxC2HEVCFrameConstructor()
+{
+    MFX_DEBUG_TRACE_FUNC;
+}
+
+IMfxC2FrameConstructor::StartCode MfxC2HEVCFrameConstructor::ReadStartCode(const mfxU8** position, mfxU32* size_left)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    StartCode start_code = { .type=-1, .size=0 };
+    mfxU32 zero_count = 0;
+    static const mfxU8 NAL_UNITTYPE_BITS_H265 = 0x7e;
+    static const mfxU8 NAL_UNITTYPE_SHIFT_H265 = 1;
+
+    mfxI32 i = 0;
+    for (; i < (mfxI32)*size_left - 2; ) {
+        if ((*position)[1]) {
+            *position += 2;
+            i += 2;
+            continue;
+        }
+
+        zero_count = 0;
+        if (!(*position)[0]) zero_count++;
+
+        mfxU32 j;
+        for (j = 1; j < (mfxU32)*size_left - i; j++) {
+            if ((*position)[j]) break;
+        }
+
+        zero_count = zero_count ? j: j - 1;
+
+        *position += j;
+        i += j;
+
+        if (i >= (mfxI32)*size_left) break;
+
+        if (zero_count >= 2 && (*position)[0] == 1) {
+            start_code.size = MFX_MIN(zero_count + 1, 4);
+            *size_left -= i + 1;
+            (*position)++; // remove 0x01 symbol
+            if (*size_left >= 1) {
+                start_code.type = ((*position)[0] & NAL_UNITTYPE_BITS_H265) >> NAL_UNITTYPE_SHIFT_H265;
+            } else {
+                *position -= start_code.size;
+                *size_left += start_code.size;
+                start_code.size = 0;
+            }
+            return start_code;
+        }
+        zero_count = 0;
+    }
+
+    if (!zero_count) {
+        for (mfxU32 k = 0; k < *size_left - i; k++, (*position)++) {
+            if ((*position)[0]) {
+                zero_count = 0;
+                continue;
+            }
+            zero_count++;
+        }
+    }
+
+    zero_count = MFX_MIN(zero_count, 3);
+    *position -= zero_count;
+    *size_left = zero_count;
+    return start_code;
+}
+
 std::shared_ptr<IMfxC2FrameConstructor> MfxC2FrameConstructorFactory::CreateFrameConstructor(MfxC2FrameConstructorType fc_type)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -544,6 +619,10 @@ std::shared_ptr<IMfxC2FrameConstructor> MfxC2FrameConstructorFactory::CreateFram
     std::shared_ptr<IMfxC2FrameConstructor> fc;
     if (MfxC2FC_AVC == fc_type) {
         fc = std::make_shared<MfxC2AVCFrameConstructor>();
+        return fc;
+
+    } else if (MfxC2FC_HEVC == fc_type) {
+        fc = std::make_shared<MfxC2HEVCFrameConstructor>();
         return fc;
 
     } else {
