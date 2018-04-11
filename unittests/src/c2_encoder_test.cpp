@@ -753,7 +753,7 @@ TEST(MfxEncoderComponent, StaticFrameQP)
                         EXPECT_EQ(set_res->field.values->range.min.u32, 1);
                         EXPECT_EQ(set_res->field.values->range.max.u32, 51);
                         EXPECT_EQ(set_res->field.values->range.step.u32, 1);
-                        EXPECT_EQ(set_res->field.values->range.nom.u32, 1);
+                        EXPECT_EQ(set_res->field.values->range.num.u32, 1);
                         EXPECT_EQ(set_res->field.values->range.denom.u32, 1);
                     }
                     EXPECT_TRUE(set_res->conflicts.empty());
