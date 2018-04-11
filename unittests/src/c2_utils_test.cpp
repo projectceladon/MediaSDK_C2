@@ -21,6 +21,8 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include "test_streams.h"
 #include "streams/h264/aud_mw_e.264.h"
 #include "streams/h264/freh9.264.h"
+#include "streams/h265/AMVP_A_MTK_4.bit.h"
+#include "streams/h265/CAINIT_A_SHARP_4.bit.h"
 #include "mfx_c2_component.h"
 #include "mfx_c2_components_registry.h"
 
@@ -38,7 +40,12 @@ static const size_t CMD_COUNT = 10;
 #define MOCK_COMPONENT_ENC "C2.MockComponent.Enc"
 #define MOCK_COMPONENT MOCK_COMPONENT_ENC // use encoder for common tests
 
-static std::vector<const StreamDescription*> g_streams { &aud_mw_e_264, &freh9_264 };
+static std::vector<const StreamDescription*> g_streams {
+    &aud_mw_e_264,
+    &freh9_264,
+    &AMVP_A_MTK_4_bit,
+    &CAINIT_A_SHARP_4_bit
+};
 
 // Multiple streams read till the end with CombinedStreamReader should give the same output
 // as those streams read with SingleStreamReader instances.
