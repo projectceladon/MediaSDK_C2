@@ -35,6 +35,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, int flags, Dec
 
     switch(decoder_type_) {
         case DECODER_H264:
+        case DECODER_H265:
 
             MfxC2ParamReflector& pr = param_reflector_;
 
@@ -60,6 +61,9 @@ void MfxC2DecoderComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
 
     registry.RegisterMfxC2Component("C2.h264vd",
         &MfxC2Component::Factory<MfxC2DecoderComponent, DecoderType>::Create<DECODER_H264>);
+
+    registry.RegisterMfxC2Component("C2.h265vd",
+        &MfxC2Component::Factory<MfxC2DecoderComponent, DecoderType>::Create<DECODER_H265>);
 }
 
 c2_status_t MfxC2DecoderComponent::Init()
@@ -78,6 +82,9 @@ c2_status_t MfxC2DecoderComponent::Init()
         {
         case DECODER_H264:
             fc_type = MfxC2FC_AVC;
+            break;
+        case DECODER_H265:
+            fc_type = MfxC2FC_HEVC;
             break;
         default:
             MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
@@ -182,6 +189,9 @@ mfxStatus MfxC2DecoderComponent::Reset()
     {
     case DECODER_H264:
         video_params_.mfx.CodecId = MFX_CODEC_AVC;
+        break;
+    case DECODER_H265:
+        video_params_.mfx.CodecId = MFX_CODEC_HEVC;
         break;
     default:
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");

@@ -17,6 +17,8 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include "C2PlatformSupport.h"
 #include "streams/h264/aud_mw_e.264.h"
 #include "streams/h264/freh9.264.h"
+#include "streams/h265/AMVP_A_MTK_4.bit.h"
+#include "streams/h265/CAINIT_A_SHARP_4.bit.h"
 
 #include <future>
 #include <set>
@@ -26,7 +28,7 @@ using namespace android;
 const uint64_t FRAME_DURATION_US = 33333; // 30 fps
 const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
-static std::vector<C2ParamDescriptor> h264_params_desc =
+static std::vector<C2ParamDescriptor> dec_params_desc =
 {
     { false, "MemoryType", C2MemoryTypeSetting::PARAM_TYPE },
 };
@@ -50,8 +52,17 @@ static std::vector<std::vector<const StreamDescription*>> h264_streams =
     { &freh9_264, &aud_mw_e_264 }
 };
 
+static std::vector<std::vector<const StreamDescription*>> h265_streams =
+{
+    { &AMVP_A_MTK_4_bit },
+    { &CAINIT_A_SHARP_4_bit },
+    { &AMVP_A_MTK_4_bit, &CAINIT_A_SHARP_4_bit },
+    { &CAINIT_A_SHARP_4_bit, &AMVP_A_MTK_4_bit }
+};
+
 static ComponentDesc g_components_desc[] = {
-    { "C2.h264vd", 0, C2_OK, h264_params_desc, h264_streams },
+    { "C2.h264vd", 0, C2_OK, dec_params_desc, h264_streams },
+    { "C2.h265vd", 0, C2_OK, dec_params_desc, h265_streams },
     { "C2.NonExistingDecoder", 0, C2_NOT_FOUND, {}, {} },
 };
 
