@@ -232,40 +232,40 @@ C2FlexStructCheck<S, ParamIndex, TypeFlags>::FIELD_LIST = S::FIELD_LIST;
     inline static _Type* From(std::nullptr_t) { return nullptr; } \
 
 /**
- * Define flexible allocators (alloc_shared or alloc_unique) for flexible params.
- *  - P::alloc_xyz(flexCount, args...): allocate for given flex-count.
- *  - P::alloc_xyz(args..., T[]): allocate for size of (and with) init array.
- *  - P::alloc_xyz(T[]): allocate for size of (and with) init array with no other args.
- *  - P::alloc_xyz(args..., std::initializer_list<T>): allocate for size of (and with) initializer
+ * Define flexible allocators (AllocShared or AllocUnique) for flexible params.
+ *  - P::AllocXyz(flexCount, args...): allocate for given flex-count.
+ *  - P::AllocXyz(args..., T[]): allocate for size of (and with) init array.
+ *  - P::AllocXyz(T[]): allocate for size of (and with) init array with no other args.
+ *  - P::AllocXyz(args..., std::initializer_list<T>): allocate for size of (and with) initializer
  *    list.
  */
-#define DEFINE_FLEXIBLE_ALLOC(_Type, S, ptr) \
+#define DEFINE_FLEXIBLE_ALLOC(_Type, S, ptr, Ptr) \
     template<typename ...Args> \
-    inline static std::ptr##_ptr<_Type> alloc_##ptr(size_t flexCount, const Args(&... args)) { \
+    inline static std::ptr##_ptr<_Type> Alloc##Ptr(size_t flexCount, const Args(&... args)) { \
         return std::ptr##_ptr<_Type>(new(flexCount) _Type(flexCount, args...)); \
     } \
     /* NOTE: unfortunately this is not supported by clang yet */ \
     template<typename ...Args, typename U=typename S::FlexType, unsigned N> \
-    inline static std::ptr##_ptr<_Type> alloc_##ptr(const Args(&... args), const U(&init)[N]) { \
+    inline static std::ptr##_ptr<_Type> Alloc##Ptr(const Args(&... args), const U(&init)[N]) { \
         return std::ptr##_ptr<_Type>(new(N) _Type(N, args..., init)); \
     } \
     /* so for now, specialize for no args */ \
     template<typename U=typename S::FlexType, unsigned N> \
-    inline static std::ptr##_ptr<_Type> alloc_##ptr(const U(&init)[N]) { \
+    inline static std::ptr##_ptr<_Type> Alloc##Ptr(const U(&init)[N]) { \
         return std::ptr##_ptr<_Type>(new(N) _Type(N, init)); \
     } \
     template<typename ...Args, typename U=typename S::FlexType> \
-    inline static std::ptr##_ptr<_Type> alloc_##ptr( \
+    inline static std::ptr##_ptr<_Type> Alloc##Ptr( \
             const Args(&... args), const std::initializer_list<U> &init) { \
         return std::ptr##_ptr<_Type>(new(init.size()) _Type(init.size(), args..., init)); \
     } \
 
 /**
- * Define flexible methods alloc_shared, alloc_unique and flexCount.
+ * Define flexible methods AllocShared, AllocUnique and flexCount.
  */
 #define DEFINE_FLEXIBLE_METHODS(_Type, S) \
-    DEFINE_FLEXIBLE_ALLOC(_Type, S, shared) \
-    DEFINE_FLEXIBLE_ALLOC(_Type, S, unique) \
+    DEFINE_FLEXIBLE_ALLOC(_Type, S, shared, Shared) \
+    DEFINE_FLEXIBLE_ALLOC(_Type, S, unique, Unique) \
     inline size_t flexCount() const { \
         static_assert(sizeof(_Type) == _Type::BASE_SIZE, "incorrect BASE_SIZE"); \
         size_t sz = this->size(); \

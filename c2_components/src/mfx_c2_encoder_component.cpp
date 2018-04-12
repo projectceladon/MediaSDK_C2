@@ -710,7 +710,7 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
             if (nullptr == *dst) {
                 if (encoder_type_ == ENCODER_H264) {
                     std::unique_ptr<C2ProfileLevelInfo::output> info =
-                        C2ProfileLevelInfo::output::alloc_unique(g_h264_profile_levels_count);
+                        C2ProfileLevelInfo::output::AllocUnique(g_h264_profile_levels_count);
 
                     for (size_t i = 0; i < g_h264_profile_levels_count; ++i) {
                         info->m.values[i] = g_h264_profile_levels[i];
