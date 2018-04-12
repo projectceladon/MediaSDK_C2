@@ -23,6 +23,7 @@ class MfxC2DecoderComponent : public MfxC2Component
 public:
     enum DecoderType {
         DECODER_H264,
+        DECODER_H265,
     };
 
 protected:
