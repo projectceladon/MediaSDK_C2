@@ -1,4 +1,4 @@
-cc_library {
+cc_library_vndk_mfx {
     name: "libstagefright_codec2_vndk_mfx",
 
     srcs: [
@@ -47,4 +47,16 @@ cc_library {
     ],
 
     vendor_available: true,
+}
+
+bootstrap_go_package {
+    name: "soong-vndk_mfx",
+    pkgPath: "android/soong/vendor/intel/mediasdk/vndk_mfx",
+    deps: [
+        "soong-cc",
+    ],
+    srcs: [
+        "vndk_mfx.go",
+    ],
+    pluginFor: ["soong_build"],
 }
