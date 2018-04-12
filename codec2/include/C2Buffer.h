@@ -792,6 +792,9 @@ struct C2Rect {
     uint32_t width;
     uint32_t height;
 
+    constexpr inline C2Rect()
+        : C2Rect(0, 0, 0, 0) { }
+
     constexpr inline C2Rect(uint32_t width_, uint32_t height_)
         : C2Rect(width_, height_, 0, 0) { }
 
@@ -1368,89 +1371,10 @@ public:
 
 /// \defgroup allocator Allocation and memory placement
 /// @{
-/**
- * \ingroup graphic allocator
- * 2D allocation interface.
- */
-class C2GraphicAllocation : public _C2PlanarCapacityAspect {
-public:
-    /**
-     * Maps a rectangular section (as defined by |rect|) of a 2D allocation into local process
-     * memory for flexible access. On success, it fills out |layout| with the plane specifications
-     * and fills the |addr| array with pointers to the first byte of the top-left pixel of each
-     * plane used. Otherwise, it leaves |layout| and |addr| untouched. |fenceFd| is a file
-     * descriptor referring to an acquire sync fence object. If it is already safe to access the
-     * buffer contents, then -1.
-     *
-     * \note Only one portion of the graphic allocation can be mapped at the same time. (This is
-     * from gralloc1 limitation.)
-     *
-     * \param rect            section to be mapped (this does not have to be aligned)
-     * \param usage           the desired usage. \todo this must be kSoftwareRead and/or
-     *                      kSoftwareWrite.
-     * \param fenceFd         a pointer to a file descriptor if an async mapping is requested. If
-     *                      not-null, and acquire fence FD will be stored here on success, or -1
-     *                      on failure. If null, the mapping will be synchronous.
-     * \param layout          a pointer to where the mapped planes' descriptors will be
-     *                      stored. On failure, nullptr will be stored here.
-     *
-     * \todo Do we need to support sync operation as we could just wait for the fence?
-     *
-     * \retval C2_OK        the operation was successful
-     * \retval C2_REFUSED   no permission to map the section
-     * \retval C2_DUPLICATE there is already a mapped region (caller error)
-     * \retval C2_TIMED_OUT the operation timed out
-     * \retval C2_NO_MEMORY not enough memory to complete the operation
-     * \retval C2_BAD_VALUE the parameters (rect) are invalid or outside the allocation, or the
-     *                      usage flags are invalid (caller error)
-     * \retval C2_CORRUPTED some unknown error prevented the operation from completing (unexpected)
-
-     */
-    virtual c2_status_t map(
-            C2Rect rect, C2MemoryUsage usage, int *fenceFd,
-            // TODO: return <addr, size> buffers with plane sizes
-            C2PlanarLayout *layout /* nonnull */, uint8_t **addr /* nonnull */) = 0;
-
-    /**
-     * Unmaps the last mapped rectangular section.
-     *
-     * \param fenceFd         a pointer to a file descriptor if an async unmapping is requested. If
-     *                      not-null, a release fence FD will be stored here on success, or -1
-     *                      on failure. This fence signals when the original allocation contains
-     *                      any changes that happened to the mapped section. If null, the unmapping
-     *                      will be synchronous.
-     *
-     * \retval C2_OK        the operation was successful
-     * \retval C2_TIMED_OUT the operation timed out
-     * \retval C2_NOT_FOUND there is no mapped region (caller error)
-     * \retval C2_CORRUPTED some unknown error prevented the operation from completing (unexpected)
-     * \retval C2_REFUSED   no permission to unmap the section (unexpected - system)
-     */
-    virtual c2_status_t unmap(C2Fence *fenceFd /* nullable */) = 0;
-
-    /**
-     * Returns true if this is a valid allocation.
-     *
-     * \todo remove?
-     */
-    virtual bool isValid() const = 0;
-
-    /**
-     * Returns a pointer to the allocation handle.
-     */
-    virtual const C2Handle *handle() const = 0;
-
-    /**
-     * Returns true if this is the same allocation as |other|.
-     */
-    virtual bool equals(const std::shared_ptr<const C2GraphicAllocation> &other) const = 0;
-
-protected:
-    using _C2PlanarCapacityAspect::_C2PlanarCapacityAspect;
-    virtual ~C2GraphicAllocation() = default;
-};
 
 class C2LinearAllocation;
+class C2GraphicAllocation;
+
 /**
  *  Allocators are used by the framework to allocate memory (allocations) for buffers. They can
  *  support either 1D or 2D allocations.
@@ -1718,6 +1642,91 @@ protected:
     // \todo should we limit allocation directly?
     C2LinearAllocation(size_t capacity) : _C2LinearCapacityAspect(c2_min(capacity, UINT32_MAX)) {}
     virtual ~C2LinearAllocation() = default;
+};
+
+/**
+ * \ingroup graphic allocator
+ * 2D allocation interface.
+ */
+class C2GraphicAllocation : public _C2PlanarCapacityAspect {
+public:
+    /**
+     * Maps a rectangular section (as defined by |rect|) of a 2D allocation into local process
+     * memory for flexible access. On success, it fills out |layout| with the plane specifications
+     * and fills the |addr| array with pointers to the first byte of the top-left pixel of each
+     * plane used. Otherwise, it leaves |layout| and |addr| untouched. |fence| will contain
+     * an acquire sync fence object. If it is already safe to access the
+     * buffer contents, then it will be an empty (already fired) fence.
+     *
+     * Safe regions for the pointer addresses returned can be gotten via C2LayoutInfo.minOffset()/
+     * maxOffset().
+     *
+     * \param rect          section to be mapped (this does not have to be aligned)
+     * \param usage         the desired usage. \todo this must be kSoftwareRead and/or
+     *                      kSoftwareWrite.
+     * \param fence         a pointer to a fence object if an async mapping is requested. If
+     *                      not-null, and acquire fence will be stored here on success, or empty
+     *                      fence on failure. If null, the mapping will be synchronous.
+     * \param layout        a pointer to where the mapped planes' descriptors will be
+     *                      stored. On failure, nullptr will be stored here.
+     * \param addr          pointer to an array with at least C2PlanarLayout::MAX_NUM_PLANES
+     *                      elements. Only layout.numPlanes elements will be modified on success.
+     *
+     * \retval C2_OK        the operation was successful
+     * \retval C2_REFUSED   no permission to map the section
+     * \retval C2_DUPLICATE there is already a mapped region and this allocation cannot support
+     *                      multi-mapping (caller error)
+     * \retval C2_TIMED_OUT the operation timed out
+     * \retval C2_NO_MEMORY not enough memory to complete the operation
+     * \retval C2_BAD_VALUE the parameters (rect) are invalid or outside the allocation, or the
+     *                      usage flags are invalid (caller error)
+     * \retval C2_CORRUPTED some unknown error prevented the operation from completing (unexpected)
+
+     */
+    virtual c2_status_t map(
+            C2Rect rect, C2MemoryUsage usage, C2Fence *fence,
+            C2PlanarLayout *layout /* nonnull */, uint8_t **addr /* nonnull */) = 0;
+
+    /**
+     * Unmaps a section of an allocation at |addr| with |rect|. These must be parameters previously
+     * passed to and returned by |map|; otherwise, this operation is a no-op.
+     *
+     * \param addr          pointer to an array with at least C2PlanarLayout::MAX_NUM_PLANES
+     *                      elements containing the starting addresses of the mapped layers
+     * \param rect          boundaries of the mapped section
+     * \param fence         a pointer to a fence object if an async unmapping is requested. If
+     *                      not-null, a release fence will be stored here on success, or empty fence
+     *                      on failure. This fence signals when the original allocation contains
+     *                      all changes that happened to the mapped section. If null, the unmapping
+     *                      will be synchronous.
+     *
+     * \retval C2_OK        the operation was successful
+     * \retval C2_TIMED_OUT the operation timed out
+     * \retval C2_NOT_FOUND there is no such mapped region (caller error)
+     * \retval C2_CORRUPTED some unknown error prevented the operation from completing (unexpected)
+     * \retval C2_REFUSED   no permission to unmap the section (unexpected - system)
+     */
+    virtual c2_status_t unmap(
+            uint8_t **addr /* nonnull */, C2Rect rect, C2Fence *fence /* nullable */) = 0;
+
+    /**
+     * Returns the allocator ID for this allocation. This is useful to put the handle into context.
+     */
+    virtual C2Allocator::id_t getAllocatorId() const = 0;
+
+    /**
+     * Returns a pointer to the allocation handle.
+     */
+    virtual const C2Handle *handle() const = 0;
+
+    /**
+     * Returns true if this is the same allocation as |other|.
+     */
+    virtual bool equals(const std::shared_ptr<const C2GraphicAllocation> &other) const = 0;
+
+protected:
+    using _C2PlanarCapacityAspect::_C2PlanarCapacityAspect;
+    virtual ~C2GraphicAllocation() = default;
 };
 
 /**

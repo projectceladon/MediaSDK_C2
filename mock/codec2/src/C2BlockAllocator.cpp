@@ -308,7 +308,7 @@ public:
     }
 
     virtual c2_status_t map(
-            C2Rect/* rect*/, C2MemoryUsage/* usage*/, int */*fenceFd*/,
+            C2Rect/* rect*/, C2MemoryUsage/* usage*/, C2Fence */*fenceFd*/,
             // TODO: return <addr, size> buffers with plane sizes
             C2PlanarLayout *layout /* nonnull */, uint8_t **addr /* nonnull */) override
     {
@@ -334,14 +334,15 @@ public:
         return error;
     }
 
-    virtual c2_status_t unmap(C2Fence */*fenceFd*/ /* nullable */) override
+    virtual c2_status_t unmap(uint8_t **/*addr*/ /* nonnull */, C2Rect /*rect*/,
+        C2Fence */*fenceFd*/ /* nullable */) override
     {
         if (handle_ && gralloc_allocator_) gralloc_allocator_->UnlockFrame(handle_);
         locked_.store(false);
         return C2_OK;
     }
 
-    virtual bool isValid() const override { return true; }
+    virtual C2Allocator::id_t getAllocatorId() const override { return 0; }
 
     virtual const C2Handle *handle() const override { return handle_; }
 
@@ -361,7 +362,7 @@ public:
     std::shared_ptr<C2GraphicAllocation> allocation_;
 public:
     ~Impl() {
-        allocation_->unmap(nullptr/*C2Fence *fenceFd*/);
+        allocation_->unmap(data_.data(), {}, nullptr/*C2Fence *fenceFd*/);
     }
 };
 
