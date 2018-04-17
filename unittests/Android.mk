@@ -122,15 +122,12 @@ define build_mock_unittests
       $$(STREAM_CPP_FILES:$(LOCAL_PATH)/%=%) \
       src/c2_mock_component_test.cpp \
       src/c2_utils_test.cpp \
+      src/c2_vndk_test.cpp \
       src/gtest_emulation.cpp \
       src/test_components.cpp \
       src/test_streams.cpp \
       src/test_frame_constructor.cpp \
       src/test_main.cpp
-
-  ifeq ($(USE_MOCK_CODEC2),false)
-      LOCAL_SRC_FILES += src/c2_vndk_test.cpp
-  endif
 
   LOCAL_C_INCLUDES := \
       $$(MFX_C_INCLUDES) \
@@ -146,6 +143,10 @@ define build_mock_unittests
   LOCAL_CFLAGS += \
       $$(MFX_CFLAGS) \
       $$(MFX_CFLAGS_C2)
+
+  ifeq ($(USE_MOCK_CODEC2),true)
+      LOCAL_CFLAGS += -DUSE_MOCK_CODEC2
+  endif
 
   LOCAL_LDFLAGS += \
       $$(MFX_LDFLAGS)
