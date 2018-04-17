@@ -22,7 +22,7 @@ then
   touch --date "2008-01-01" 'lastsync~' # set old date to make all sources newer
 fi
 
-remote=${remote_server}:${remote_dir}/vendor/intel/mediasdk/samples/sample_c2_plugins/
+remote=${remote_server}:${remote_dir}/vendor/intel/mediasdk_git/mdp_msdk-lib/samples/sample_c2_plugins/
 find . -not -path '*/\.*' -type f -newer 'lastsync~' -exec scp {} $remote{} \;
 
 touch 'lastsync~'
