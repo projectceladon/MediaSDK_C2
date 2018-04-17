@@ -31,120 +31,41 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include "gtest_emulation.h"
 #include "mfx_defs.h"
 
-#include <C2AllocatorIon.h>
-#include <C2AllocatorGralloc.h>
 #include <C2Buffer.h>
-#include <C2BufferPriv.h>
+#include <C2PlatformSupport.h>
+#include "mfx_c2_component.h"
+#include "mfx_c2_components_registry.h"
 
 #include <memory>
 
 using namespace android;
 
+#define MOCK_COMPONENT_ENC "C2.MockComponent.Enc"
+#define MOCK_COMPONENT MOCK_COMPONENT_ENC // use encoder for common tests
+
 class C2BufferTest
 {
 public:
-    C2BufferTest()
-        : mLinearAllocator(std::make_shared<C2AllocatorIon>()),
-          mSize(0u),
-          mAddr(nullptr),
-          mGraphicAllocator(std::make_shared<C2AllocatorGralloc>()) {
-    }
-
+    C2BufferTest() = default;
     ~C2BufferTest() = default;
 
-    void allocateLinear(size_t capacity) {
-        c2_status_t err = mLinearAllocator->newLinearAllocation(
-                capacity,
-                { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE },
-                &mLinearAllocation);
-        if (err != C2_OK) {
-            mLinearAllocation.reset();
-            EXPECT_TRUE(false) << "C2Allocator::newLinearAllocation() failed: " << err;
-        }
-    }
-
-    void mapLinear(size_t offset, size_t size, uint8_t **addr) {
-        ASSERT_TRUE(mLinearAllocation);
-        c2_status_t err = mLinearAllocation->map(
-                offset,
-                size,
-                { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE },
-                // TODO: fence
-                nullptr,
-                &mAddr);
-        if (err != C2_OK) {
-            mAddr = nullptr;
-            EXPECT_TRUE(false) << "C2LinearAllocation::map() failed: " << err;
-        }
-        ASSERT_NE(nullptr, mAddr);
-        mSize = size;
-        *addr = (uint8_t *)mAddr;
-    }
-
-    void unmapLinear() {
-        ASSERT_TRUE(mLinearAllocation);
-        ASSERT_NE(nullptr, mAddr);
-        ASSERT_NE(0u, mSize);
-
-        // TODO: fence
-        ASSERT_EQ(C2_OK, mLinearAllocation->unmap(mAddr, mSize, nullptr));
-        mSize = 0u;
-        mAddr = nullptr;
-    }
-
     std::shared_ptr<C2BlockPool> makeLinearBlockPool() {
-        return std::make_shared<C2BasicLinearBlockPool>(mLinearAllocator);
-    }
 
-    void allocateGraphic(uint32_t width, uint32_t height) {
-        c2_status_t err = mGraphicAllocator->newGraphicAllocation(
-                width,
-                height,
-                HAL_PIXEL_FORMAT_YCBCR_420_888,
-                { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE },
-                &mGraphicAllocation);
-        if (err != C2_OK) {
-            mGraphicAllocation.reset();
-            EXPECT_TRUE(false) << "C2Allocator::newGraphicAllocation() failed: " << err;
-        }
-    }
+        std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, nullptr));
 
-    void mapGraphic(C2Rect rect, C2PlanarLayout *layout, uint8_t **addr) {
-        ASSERT_TRUE(mGraphicAllocation);
-        c2_status_t err = mGraphicAllocation->map(
-                rect,
-                { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE },
-                // TODO: fence
-                nullptr,
-                layout,
-                addr);
-        if (err != C2_OK) {
-            addr[C2PlanarLayout::PLANE_Y] = nullptr;
-            addr[C2PlanarLayout::PLANE_U] = nullptr;
-            addr[C2PlanarLayout::PLANE_V] = nullptr;
-            EXPECT_TRUE(false) << "C2GraphicAllocation::map() failed: " << err;
-        }
-    }
-
-    void unmapGraphic() {
-        ASSERT_TRUE(mGraphicAllocation);
-
-        // TODO: fence
-        ASSERT_EQ(C2_OK, mGraphicAllocation->unmap(nullptr));
+        std::shared_ptr<C2BlockPool> block_pool;
+        GetCodec2BlockPool(C2BlockPool::BASIC_LINEAR, component, &block_pool);
+        return block_pool;
     }
 
     std::shared_ptr<C2BlockPool> makeGraphicBlockPool() {
-        return std::make_shared<C2BasicGraphicBlockPool>(mGraphicAllocator);
+
+        std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, nullptr));
+
+        std::shared_ptr<C2BlockPool> block_pool;
+        GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC, component, &block_pool);
+        return block_pool;
     }
-
-private:
-    std::shared_ptr<C2Allocator> mLinearAllocator;
-    std::shared_ptr<C2LinearAllocation> mLinearAllocation;
-    size_t mSize;
-    void *mAddr;
-
-    std::shared_ptr<C2Allocator> mGraphicAllocator;
-    std::shared_ptr<C2GraphicAllocation> mGraphicAllocation;
 };
 
 TEST(C2BufferTest, BlockPoolTest) {
@@ -233,18 +154,7 @@ TEST(C2BufferTest, GraphicBlockPoolTest) {
 
     std::shared_ptr<C2BlockPool> blockPool(test.makeGraphicBlockPool());
 
-    uint32_t pixel_formats[] { HAL_PIXEL_FORMAT_YCBCR_420_888, HAL_PIXEL_FORMAT_NV12_TILED_INTEL };
-
-    for (uint32_t pixel_format : pixel_formats ) {
-
-        std::shared_ptr<C2GraphicBlock> block;
-        ASSERT_EQ(C2_OK, blockPool->fetchGraphicBlock(
-                kWidth,
-                kHeight,
-                pixel_format,
-                { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE },
-                &block));
-        ASSERT_TRUE(block);
+    auto fill_planes = [] (std::shared_ptr<C2GraphicBlock> block) {
 
         C2Acquirable<C2GraphicView> graphicViewHolder = block->map();
         C2GraphicView graphicView = graphicViewHolder.get();
@@ -269,6 +179,9 @@ TEST(C2BufferTest, GraphicBlockPoolTest) {
         fillPlane({ kWidth / 4, kHeight / 4, kWidth / 2, kHeight / 2 }, yInfo, y, 0x12);
         fillPlane({ kWidth / 4, kHeight / 4, kWidth / 2, kHeight / 2 }, uInfo, u, 0x34);
         fillPlane({ kWidth / 4, kHeight / 4, kWidth / 2, kHeight / 2 }, vInfo, v, 0x56);
+    };
+
+    auto verify_planes = [] (std::shared_ptr<C2GraphicBlock> block) {
 
         C2Fence fence;
         C2ConstGraphicBlock constBlock = block->share(
@@ -282,15 +195,15 @@ TEST(C2BufferTest, GraphicBlockPoolTest) {
         ASSERT_EQ(kHeight, constGraphicView.height());
 
         const uint8_t *const *constData = constGraphicView.data();
-        layout = graphicView.layout();
+        C2PlanarLayout layout = constGraphicView.layout();
         ASSERT_NE(nullptr, constData);
 
         const uint8_t *cy = constData[C2PlanarLayout::PLANE_Y];
-        yInfo = layout.planes[C2PlanarLayout::PLANE_Y];
+        C2PlaneInfo yInfo = layout.planes[C2PlanarLayout::PLANE_Y];
         const uint8_t *cu = constData[C2PlanarLayout::PLANE_U];
-        uInfo = layout.planes[C2PlanarLayout::PLANE_U];
+        C2PlaneInfo uInfo = layout.planes[C2PlanarLayout::PLANE_U];
         const uint8_t *cv = constData[C2PlanarLayout::PLANE_V];
-        vInfo = layout.planes[C2PlanarLayout::PLANE_V];
+        C2PlaneInfo vInfo = layout.planes[C2PlanarLayout::PLANE_V];
 
         ASSERT_TRUE(verifyPlane({ kWidth / 4, kHeight / 4, kWidth / 2, kHeight / 2 }, yInfo, cy, 0x12));
         ASSERT_TRUE(verifyPlane({ kWidth / 4, kHeight / 4, kWidth / 2, kHeight / 2 }, uInfo, cu, 0x34));
@@ -301,5 +214,27 @@ TEST(C2BufferTest, GraphicBlockPoolTest) {
         ASSERT_TRUE(verifyPlane({ 0, 0, kWidth / 4, kHeight }, yInfo, cy, 0));
         ASSERT_TRUE(verifyPlane({ 0, 0, kWidth / 4, kHeight }, uInfo, cu, 0));
         ASSERT_TRUE(verifyPlane({ 0, 0, kWidth / 4, kHeight }, vInfo, cv, 0));
+    };
+
+    uint32_t pixel_formats[] {
+#ifndef USE_MOCK_CODEC2
+        HAL_PIXEL_FORMAT_YCBCR_420_888, // mock doesn't support this
+#endif
+        HAL_PIXEL_FORMAT_NV12_TILED_INTEL
+    };
+
+    for (uint32_t pixel_format : pixel_formats ) {
+
+        std::shared_ptr<C2GraphicBlock> block;
+        ASSERT_EQ(C2_OK, blockPool->fetchGraphicBlock(
+                kWidth,
+                kHeight,
+                pixel_format,
+                { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE },
+                &block));
+        ASSERT_TRUE(block);
+
+        fill_planes(block);
+        verify_planes(std::move(block)); // move to allow verify_planes free block
     }
 }

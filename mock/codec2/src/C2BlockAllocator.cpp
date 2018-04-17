@@ -96,6 +96,14 @@ const uint8_t *C2ReadView::data() const {
     return mImpl->data();
 }
 
+C2ReadView C2ReadView::subView(size_t offset, size_t size) const {
+    return C2ReadView(std::make_shared<C2LinearCapacity>(size).get(), data() + offset);
+}
+
+c2_status_t C2ReadView::error() const {
+    return mImpl->error();
+}
+
 class C2WriteView::Impl
 {
 public:
@@ -153,6 +161,11 @@ C2WriteView::C2WriteView(c2_status_t error):
 uint8_t *C2WriteView::data()
 {
     return mImpl->data_;
+}
+
+c2_status_t C2WriteView::error() const
+{
+    return mImpl->error_;
 }
 
 class C2ReadViewMock : public C2ReadView
