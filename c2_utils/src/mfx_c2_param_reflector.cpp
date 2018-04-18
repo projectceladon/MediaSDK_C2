@@ -12,6 +12,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include "mfx_debug.h"
 #include "mfx_c2_utils.h"
 #include <sstream>
+#include <C2ParamInternal.h>
 
 using namespace android;
 
@@ -43,8 +44,14 @@ bool MfxC2ParamReflector::ValidateParam(const C2Param* param,
                     // C2ParamField measures offset in C2Param structure,
                     // C2FieldDescriptor, in turn, in embedded data struct.
                     // So sizeof(C2Param) should be added to offset before search.
-                    C2ParamField param_field(param,
-                        (uint32_t*)(uintptr_t)(field_desc.offset() + sizeof(C2Param)));
+
+                    C2ParamField param_field = _C2ParamInspector::CreateParamField(param->index(),
+                        field_desc.offset() + sizeof(C2Param), sizeof(uint32_t));
+
+                    MFX_DEBUG_TRACE_STREAM("Looking for C2ParamField:"
+                        << std::hex << " index: " << _C2ParamInspector::getIndex(param_field)
+                        << std::dec << " offset: " << _C2ParamInspector::getOffset(param_field)
+                        << " size: " << _C2ParamInspector::getSize(param_field));
 
                     auto it_supported = params_supported_values_.find(param_field);
                     if(it_supported != params_supported_values_.end()) {

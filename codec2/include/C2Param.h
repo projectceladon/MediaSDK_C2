@@ -666,7 +666,7 @@ struct C2ParamField {
     template<typename S, typename T>
     inline C2ParamField(S* param, T* offset)
         : _mIndex(param->index()),
-          _mFieldId(offset) {}
+          _mFieldId((T*)((uintptr_t)offset - (uintptr_t)param)) {}
 
     /**
      * Create a field identifier using a configuration parameter (variable),

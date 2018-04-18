@@ -12,7 +12,9 @@ define build_utils
       $$(addprefix src/, $$(notdir $$(wildcard $$(LOCAL_PATH)/src/*.cpp)))
   LOCAL_C_INCLUDES += \
       $$(MFX_C_INCLUDES) \
-      $$(MFX_C_INCLUDES_C2)
+      $$(MFX_C_INCLUDES_C2) \
+      $(MFX_C2_HOME)/codec2/vndk
+
   LOCAL_CFLAGS += \
       $$(MFX_CFLAGS) \
       $$(MFX_CFLAGS_C2)
