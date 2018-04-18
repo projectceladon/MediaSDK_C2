@@ -903,6 +903,8 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                         failures->push_back(MakeC2SettingResult(C2ParamField(param),
                             C2SettingResult::CONFLICT, MakeVector(MakeC2ParamField<C2RateControlSetting>())));
                     } else {
+                        MFX_DEBUG_TRACE_STREAM(
+                            NAMED(qp_setting->qp_i) << NAMED(qp_setting->qp_p) << NAMED(qp_setting->qp_b));
                         video_params_config_.mfx.QPI = qp_setting->qp_i;
                         video_params_config_.mfx.QPP = qp_setting->qp_p;
                         video_params_config_.mfx.QPB = qp_setting->qp_b;

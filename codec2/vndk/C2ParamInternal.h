@@ -19,8 +19,6 @@
 
 #include <C2Param.h>
 
-namespace android {
-
 struct C2_HIDE _C2ParamInspector {
    inline static uint32_t getIndex(const C2ParamField &pf) {
         return pf._mIndex;
@@ -39,8 +37,6 @@ struct C2_HIDE _C2ParamInspector {
         return C2ParamField(index, offset, size);
     }
 };
-
-}
 
 #endif // ANDROID_STAGEFRIGHT_C2PARAM_INTERNAL_H_
 

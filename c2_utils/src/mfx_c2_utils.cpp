@@ -284,7 +284,7 @@ std::unique_ptr<C2SettingResult> FindC2Param(
     const std::vector<std::shared_ptr<C2ParamDescriptor>>& params_desc, const C2Param* param)
 {
     MFX_DEBUG_TRACE_FUNC;
-    MFX_DEBUG_TRACE_STREAM(NAMED(param->index()));
+    MFX_DEBUG_TRACE_STREAM(std::hex << NAMED(param->index()));
 
     std::unique_ptr<C2SettingResult> res;
 
