@@ -1,12 +1,15 @@
 # Downloads binaries from remote server, pulls them to android device
 # and runs tests there.
+# Tested on windows git-bash (msys) and ubuntu systems.
 # Android device is assumed to be the only device connected to adb.
-# Remote server should be set in $remote_server,
-# android tree location on it - in $remote_dir.
+# Remote server should be set in $remote_server, could be localhost if run tests on build machine.
+# android tree location on it - in $remote_dir, should be full path if run tests on build machine.
 # If option -32 specified 32-bit output is tested, otherwise - 64-bit.
 # Usages:
 # _tools/run-tests.sh -32
 # _tools/run-tests.sh
+# Example of local run from android tree dir:
+# remote_server=localhost remote_dir=$(pwd) target_platform=gordon_peak ./run-tests.sh
 
 set -e
 
@@ -46,7 +49,6 @@ mkdir -p $local_dir
 rm --force $local_dir/*
 
 libs=\
-libstagefright_codec2_vndk_mfx.so,\
 libmfx_c2_store.so,\
 libmfx_mock_c2_components.so,\
 libmfx_c2_components_pure.so,\
@@ -54,6 +56,11 @@ libmfx_c2_components_sw.so,\
 libmfx_c2_components_hw.so
 
 execs=mfx_c2_store_unittests,mfx_c2_components_unittests,mfx_c2_mock_unittests
+
+if ssh $remote_server "test -e $remote_dir/out/target/product/$target_platform/vendor/${remote_lib}/libstagefright_codec2_vndk_mfx.so"
+then
+    libs="$libs,libstagefright_codec2_vndk_mfx.so"
+fi
 
 scp ${remote_output}\{$remote_lib/\{$libs\},bin/\{$execs\}$bitness\} ${local_dir}
 
@@ -68,7 +75,10 @@ fi
 
 adb shell "rm -rf ${device_dir}/*"
 
-adb push ${local_dir} //data//local//tmp
+cd /tmp # do cd and adb separately to use msys mangling for /tmp path
+MSYS_NO_PATHCONV=1 adb push ${tests_folder}/. ${device_dir} # and not use mangling for $device_dir
+# adb push src folder ends with /. to work same way on windows and ubuntu adb versions
+
 adb wait-for-device
 
 if [ -z "$gtest_filter" ]
@@ -76,6 +86,6 @@ then
     gtest_filter='.*'
 fi
 
-/c/tools/platform-tools/adb.exe shell 'cd '${device_dir}'; \
+adb shell 'cd '${device_dir}'; \
 for exec_name in ./*unittests*; do chmod a+x $exec_name; \
 LD_LIBRARY_PATH=.:/system/'$remote_lib'/vndk-sp ./$exec_name --gtest_filter='$gtest_filter' --dump-output; done'
