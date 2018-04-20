@@ -1,19 +1,19 @@
-# Performs build when $HOME/build.signal file appears.
-android_tree=~/android-O
-build_target=r2_bxt_rvp-userdebug
-components="\
-    libmfx_c2_store \
-    libmfx_mock_c2_components \
-    libmfx_c2_components_pure \
-    libmfx_c2_components_sw \
-    libmfx_c2_components_hw \
-    mfx_c2_components_unittests \
-    mfx_c2_store_unittests \
-    mfx_c2_mock_unittests"
+# Performs building components when $HOME/build.signal file appears.
+# Run the script from android tree directory.
 
-cd $android_tree
+if [ -z "$target_platform" ]
+then
+    echo 'specify $target_platform to be built'
+    exit 1
+fi
+
 source build/envsetup.sh
-lunch $build_target
+lunch $target_platform
+
+cd vendor/intel/mediasdk_git
+
+echo 'include $(call all-subdir-makefiles)' > Android.mk
+echo 'optional_subdirs = ["*"] ' > Android.bp
 
 while true
 do
@@ -21,7 +21,7 @@ do
     if [ -f "$HOME/build.signal" ]
     then
          echo -n "building...      "
-         make -j32 BOARD_HAVE_MEDIASDK_SRC=true $components > ~/build.log
+         mm -j32 USE_MOCK_CODEC2=true BOARD_HAVE_MEDIASDK_SRC=true > ~/build.log
          rm $HOME/build.signal
          echo "done."
     else
