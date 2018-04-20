@@ -797,7 +797,8 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
                 const C2Rect rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH,
                                 mfx_surface->Info.CropX, mfx_surface->Info.CropY);
 
-                C2ConstGraphicBlock const_graphic = work_output.frame_.GetC2GraphicBlock()->share(rect, event.fence());
+                std::shared_ptr<C2GraphicBlock> block = work_output.frame_.GetC2GraphicBlock();
+                C2ConstGraphicBlock const_graphic = block->share(rect, event.fence());
                 C2Buffer out_buffer = MakeC2Buffer( { const_graphic } );
 
                 std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
@@ -806,7 +807,15 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
                 worklet->output.ordinal.frameIndex = work->input.ordinal.frameIndex;
                 worklet->output.ordinal.customOrdinal = work->input.ordinal.customOrdinal;
 
-                worklet->output.buffers.front() = std::make_shared<C2Buffer>(out_buffer);
+                // Deleter is for keeping source block in lambda capture.
+                // block reference count is increased as shared_ptr is captured to the lambda by value.
+                auto deleter = [block] (C2Buffer* p) mutable {
+                    delete p;
+                    block.reset(); // here block reference count is decreased
+                };
+                // Make shared_ptr keeping source block during lifetime of output buffer.
+                worklet->output.buffers.front() =
+                    std::shared_ptr<C2Buffer>(new C2Buffer(out_buffer), deleter);
             }
         }
         // Release output frame before onWorkDone is called, release causes unmap for system memory.
