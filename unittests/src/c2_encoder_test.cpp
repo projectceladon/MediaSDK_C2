@@ -112,58 +112,14 @@ static ComponentDesc g_components_desc[] = {
     NonExistingEncoderDesc(),
 };
 
-static const ComponentDesc* GetComponentDesc(const std::string& component_name)
-{
-    const ComponentDesc* result = nullptr;
-    for(const auto& desc : g_components_desc) {
-        if(component_name == desc.component_name) {
-            result = &desc;
-            break;
-        }
-    }
-    return result;
-}
-
-static std::map<std::string, std::shared_ptr<MfxC2Component>>& GetComponentsCache()
-{
-    static std::map<std::string, std::shared_ptr<MfxC2Component>> g_components;
-    return g_components;
-}
-
-static std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name)
-{
-    std::shared_ptr<MfxC2Component> result;
-    auto& components_cache = GetComponentsCache(); // auto& is needed to have ref not a copy of cache
-
-    auto it = components_cache.find(name);
-    if(it != components_cache.end()) {
-        result = it->second;
-    }
-    else {
-        const ComponentDesc* desc = GetComponentDesc(name);
-        ASSERT_NE(desc, nullptr);
-
-        c2_status_t status = C2_OK;
-        MfxC2Component* mfx_component = MfxCreateC2Component(name, desc->flags, &status);
-
-        EXPECT_EQ(status, desc->creation_status);
-        if(desc->creation_status == C2_OK) {
-            EXPECT_NE(mfx_component, nullptr);
-            result = std::shared_ptr<MfxC2Component>(mfx_component);
-
-            components_cache.emplace(name, result);
-        }
-    }
-    return result;
-}
-
 // Assures that all encoding components might be successfully created.
 // NonExistingEncoder cannot be created and C2_NOT_FOUND error is returned.
 TEST(MfxEncoderComponent, Create)
 {
     for(const auto& desc : g_components_desc) {
 
-        std::shared_ptr<MfxC2Component> encoder = GetCachedComponent(desc.component_name);
+        std::shared_ptr<MfxC2Component> encoder =
+            GetCachedComponent(desc.component_name, g_components_desc);
 
         EXPECT_EQ(encoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;
     }
@@ -173,7 +129,7 @@ TEST(MfxEncoderComponent, Create)
 // and return correct information once queried (component name).
 TEST(MfxEncoderComponent, intf)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         EXPECT_EQ(comp_intf->getName(), desc.component_name);
@@ -425,7 +381,7 @@ static void Encode(
 // -GopPicSize 15 -GopRefDist 1 -PicStruct 0 -NumSlice 1 -crc
 TEST(MfxEncoderComponent, EncodeBitExact)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         const int TESTS_COUNT = 5;
@@ -472,7 +428,7 @@ TEST(MfxEncoderComponent, EncodeBitExact)
 // stop from RUNNING state. Otherwise, C2_BAD_STATE should be returned.
 TEST(MfxEncoderComponent, State)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr) {
 
         c2_status_t sts = C2_OK;
@@ -496,7 +452,7 @@ TEST(MfxEncoderComponent, State)
 // For every parameter index, name, required and persistent fields are checked.
 TEST(MfxEncoderComponent, getSupportedParams)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         std::vector<std::shared_ptr<C2ParamDescriptor>> params_actual;
@@ -526,7 +482,7 @@ TEST(MfxEncoderComponent, getSupportedParams)
 // initialized fields and aggregate status value.
 TEST(MfxEncoderComponent, UnsupportedParam)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [] (const ComponentDesc&, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         const uint32_t kParamIndexUnsupported = C2Param::TYPE_INDEX_VENDOR_START + 1000;
@@ -566,7 +522,7 @@ TEST(MfxEncoderComponent, UnsupportedParam)
 // Actual bitstream size is checked to be no more 10% differ from expected.
 TEST(MfxEncoderComponent, StaticBitrate)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         C2RateControlSetting param_rate_control;
@@ -624,7 +580,7 @@ TEST(MfxEncoderComponent, StaticBitrate)
 // Outputs should differ.
 TEST(MfxEncoderComponent, StaticRateControlMethod)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         C2RateControlSetting param_rate_control;
@@ -681,7 +637,7 @@ TEST(MfxEncoderComponent, StaticRateControlMethod)
 // bitstream must be bit exact with previous run.
 TEST(MfxEncoderComponent, StaticFrameQP)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         C2RateControlSetting param_rate_control;
@@ -798,9 +754,9 @@ TEST(MfxEncoderComponent, StaticFrameQP)
 // and after encoding.
 TEST(MfxEncoderComponent, query_vb)
 {
-    GetComponentsCache().clear(); // reset cache to re-create components and have default params there
+    ComponentsCache::GetInstance()->Clear(); // reset cache to re-create components and have default params there
 
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [&] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         (void)comp;
@@ -876,7 +832,7 @@ uint32_t CountIdrSlices(std::vector<char>&& contents)
 // It tries to request IDR frame with config_vb and with C2Work structure.
 TEST(MfxEncoderComponent, IntraRefresh)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [&] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
         (void)comp_desc;
         (void)comp;
@@ -952,7 +908,7 @@ TEST(MfxEncoderComponent, IntraRefresh)
 // dynamic bitrate change.
 TEST(MfxEncoderComponent, DynamicBitrate)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [&] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
         (void)comp_desc;
         (void)comp;
@@ -1045,7 +1001,7 @@ TEST(MfxEncoderComponent, DynamicBitrate)
 // Queries array of supported pairs (profile, level) and compares to expected array.
 TEST(MfxEncoderComponent, ProfileLevelInfo)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [&] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
         (void)comp;
 
@@ -1081,7 +1037,7 @@ TEST(MfxEncoderComponent, ProfileLevelInfo)
 // Encodes stream and checks sps of encoded bitstreams fit passed profile and level.
 TEST(MfxEncoderComponent, CodecProfileAndLevel)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         for(const C2ProfileLevelStruct& test_run : comp_desc.profile_levels) {

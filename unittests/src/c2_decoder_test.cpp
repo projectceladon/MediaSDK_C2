@@ -55,58 +55,14 @@ static ComponentDesc g_components_desc[] = {
     { "C2.NonExistingDecoder", 0, C2_NOT_FOUND, {}, {} },
 };
 
-static const ComponentDesc* GetComponentDesc(const std::string& component_name)
-{
-    const ComponentDesc* result = nullptr;
-    for(const auto& desc : g_components_desc) {
-        if(component_name == desc.component_name) {
-            result = &desc;
-            break;
-        }
-    }
-    return result;
-}
-
-static std::map<std::string, std::shared_ptr<MfxC2Component>>& GetComponentsCache()
-{
-    static std::map<std::string, std::shared_ptr<MfxC2Component>> g_components;
-    return g_components;
-}
-
-static std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name)
-{
-    std::shared_ptr<MfxC2Component> result;
-    auto& components_cache = GetComponentsCache(); // auto& is needed to have ref not a copy of cache
-
-    auto it = components_cache.find(name);
-    if(it != components_cache.end()) {
-        result = it->second;
-    }
-    else {
-        const ComponentDesc* desc = GetComponentDesc(name);
-        ASSERT_NE(desc, nullptr);
-
-        c2_status_t status = C2_OK;
-        MfxC2Component* mfx_component = MfxCreateC2Component(name, desc->flags, &status);
-
-        EXPECT_EQ(status, desc->creation_status);
-        if(desc->creation_status == C2_OK) {
-            EXPECT_NE(mfx_component, nullptr);
-            result = std::shared_ptr<MfxC2Component>(mfx_component);
-
-            components_cache.emplace(name, result);
-        }
-    }
-    return result;
-}
-
 // Assures that all decoding components might be successfully created.
 // NonExistingDecoder cannot be created and C2_NOT_FOUND error is returned.
 TEST(MfxDecoderComponent, Create)
 {
     for(const auto& desc : g_components_desc) {
 
-        std::shared_ptr<MfxC2Component> decoder = GetCachedComponent(desc.component_name);
+        std::shared_ptr<MfxC2Component> decoder =
+            GetCachedComponent(desc.component_name, g_components_desc);
 
         EXPECT_EQ(decoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;
     }
@@ -116,7 +72,7 @@ TEST(MfxDecoderComponent, Create)
 // and return correct information once queried (component name).
 TEST(MfxDecoderComponent, intf)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         EXPECT_EQ(comp_intf->getName(), desc.component_name);
@@ -128,7 +84,7 @@ TEST(MfxDecoderComponent, intf)
 // For every parameter index, name, required and persistent fields are checked.
 TEST(MfxDecoderComponent, getSupportedParams)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         std::vector<std::shared_ptr<C2ParamDescriptor>> params_actual;
@@ -441,7 +397,7 @@ static std::string GetStreamsCombinedName(const std::vector<const StreamDescript
 
 TEST(MfxDecoderComponent, DecodeBitExact)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         const int TESTS_COUNT = 5;
@@ -490,7 +446,7 @@ TEST(MfxDecoderComponent, DecodeBitExact)
 // stop from RUNNING state. Otherwise, C2_BAD_STATE should be returned.
 TEST(MfxDecoderComponent, State)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc, GetCachedComponent,
+    ForEveryComponent<ComponentDesc>(g_components_desc,
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr) {
 
         c2_status_t sts = C2_OK;

@@ -69,6 +69,8 @@ std::vector<std::string> GTestBinaryWriter::GetTestFolders()
     return { test_info->test_case_name(), test_info->name() };
 }
 
+ComponentsCache* ComponentsCache::g_cache = ComponentsCache::Create();
+
 void NoiseGenerator::Apply(uint32_t /*frame_index*/, uint8_t* data,
     uint32_t width, uint32_t stride, uint32_t height)
 {
