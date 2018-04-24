@@ -43,6 +43,8 @@ mfxStatus MfxDevVa::Init()
 
         va_display_ = vaGetDisplay(&display_id_);
 
+        MFX_DEBUG_TRACE_STREAM(NAMED(va_display_));
+
         int major_version = 0, minor_version = 0;
         VAStatus va_res = vaInitialize(va_display_, &major_version, &minor_version);
         if (VA_STATUS_SUCCESS == va_res) {
@@ -91,6 +93,7 @@ mfxStatus MfxDevVa::Close()
     if (nullptr != va_pool_allocator_) va_pool_allocator_ = nullptr;
 
     if (va_initialized_) {
+        MFX_DEBUG_TRACE_STREAM(NAMED(va_display_));
         vaTerminate(va_display_);
         va_initialized_ = false;
     }

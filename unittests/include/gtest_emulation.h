@@ -142,6 +142,21 @@ struct TestRegistration
     std::function<void()> func_;
 };
 
+// Instances are auto-registered in environment collection, they are freed by gtest emulation after
+// all tests finished.
+// This is done to prevent resources free during application termination,
+// some system resources are unable to free then.
+class Environment {
+public:
+    virtual ~Environment() {}
+
+    virtual void SetUp() {}
+
+    virtual void TearDown() {}
+};
+
+Environment* AddGlobalTestEnvironment(Environment* env);
+
 extern std::ostringstream g_failures_stream;
 
 } // namespace testing

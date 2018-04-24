@@ -105,6 +105,78 @@ private:
     static std::vector<std::string> GetTestFolders();
 };
 
+class ComponentsCache : public testing::Environment
+{
+public:
+    static ComponentsCache* GetInstance() { return g_cache; }
+
+    std::shared_ptr<MfxC2Component> GetComponent(const char* name)
+    {
+        std::shared_ptr<MfxC2Component> result;
+        auto it = components_.find(name);
+        if(it != components_.end()) {
+            result = it->second;
+        }
+        return result;
+    }
+
+    void PutComponent(const char* name, std::shared_ptr<MfxC2Component> component)
+    {
+        components_.emplace(name, component);
+    }
+
+    void Clear() { components_.clear(); }
+
+    void TearDown() override { Clear(); }
+
+private:
+    static ComponentsCache* Create()
+    {
+        ComponentsCache* cache = new ComponentsCache();
+        ::testing::AddGlobalTestEnvironment(cache);
+        return cache;
+    }
+
+private:
+    static ComponentsCache* g_cache;
+
+    std::map<std::string, std::shared_ptr<MfxC2Component>> components_;
+};
+
+template<typename ComponentDesc, int N>
+const ComponentDesc* GetComponentDesc(const std::string& component_name, ComponentDesc (&components_desc)[N])
+{
+    const ComponentDesc* result = nullptr;
+    for(const auto& desc : components_desc) {
+        if(component_name == desc.component_name) {
+            result = &desc;
+            break;
+        }
+    }
+    return result;
+}
+
+template<typename ComponentDesc, int N>
+std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name, ComponentDesc (&components_desc)[N])
+{
+    std::shared_ptr<MfxC2Component> result = ComponentsCache::GetInstance()->GetComponent(name);
+    if (result == nullptr) {
+        const ComponentDesc* desc = GetComponentDesc(name, components_desc);
+        ASSERT_NE(desc, nullptr);
+
+        c2_status_t status = C2_OK;
+        MfxC2Component* mfx_component = MfxCreateC2Component(name, desc->flags, &status);
+
+        EXPECT_EQ(status, desc->creation_status);
+        if(desc->creation_status == C2_OK) {
+            EXPECT_NE(mfx_component, nullptr);
+            result = std::shared_ptr<MfxC2Component>(mfx_component);
+            ComponentsCache::GetInstance()->PutComponent(name, result);
+        }
+    }
+    return result;
+}
+
 typedef std::shared_ptr<C2Component> C2CompPtr;
 typedef std::shared_ptr<C2ComponentInterface> C2CompIntfPtr;
 
@@ -114,16 +186,15 @@ using ComponentTest =
 
 // Calls specified test std::function for every successfully created component.
 // Used to avoid duplicating the same loop everywhere.
-template<typename ComponentDesc, int N, typename ComponentFactory>
+template<typename ComponentDesc, int N>
 void ForEveryComponent(
-    ComponentDesc (&components_desc)[N], ComponentFactory factory,
-    ComponentTest<ComponentDesc> comp_test)
+    ComponentDesc (&components_desc)[N], ComponentTest<ComponentDesc> comp_test)
 {
     for(const auto& desc : components_desc) {
 
         SCOPED_TRACE(desc.component_name);
 
-        std::shared_ptr<MfxC2Component> component = factory(desc.component_name);
+        std::shared_ptr<MfxC2Component> component = GetCachedComponent(desc.component_name, components_desc);
         bool creation_expected = (desc.creation_status == C2_OK);
         bool creation_actual = (component != nullptr);
 

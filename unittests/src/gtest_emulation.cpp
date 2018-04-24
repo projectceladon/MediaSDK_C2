@@ -37,6 +37,8 @@ std::string ScopedTrace::s_overall;
 
 static std::unique_ptr<std::regex> g_test_filter; // unique_ptr as optional
 
+static std::vector<std::unique_ptr<Environment>> g_test_environments;
+
 std::vector<TestRegistration>& GetTestsRegistry()
 {
     static std::vector<TestRegistration> g_tests_registry;
@@ -52,6 +54,12 @@ TestRegistration::TestRegistration(const std::string& test_case_name, const std:
     test_case_name_(test_case_name), test_name_(test_name), func_(func)
 {
     RegisterTest(*this);
+}
+
+Environment* AddGlobalTestEnvironment(Environment* env)
+{
+    g_test_environments.push_back(std::unique_ptr<Environment>(env));
+    return env;
 }
 
 // If text starts with prefix, cuts prefix out of text, returns true.
@@ -109,6 +117,10 @@ using namespace testing;
 
 int RUN_ALL_TESTS()
 {
+    for (auto& env : g_test_environments) {
+        env->SetUp();
+    }
+
     int failed_tests = 0;
     size_t executing_tests = GetTestsRegistry().size();
 
@@ -161,5 +173,11 @@ int RUN_ALL_TESTS()
     }
 
     std::cout << "\n" << std::endl;
+
+    for (auto& env : g_test_environments) {
+        env->TearDown();
+    }
+    g_test_environments.clear();
+
     return failed_tests != 0;
 }
