@@ -59,6 +59,12 @@ public:
     // save current SPS/PPS
     virtual mfxStatus SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset) = 0;
 
+protected:
+    struct StartCode
+    {
+        mfxI32 type;
+        mfxI32 size;
+    };
 };
 
 class MfxC2FrameConstructor : public IMfxC2FrameConstructor
@@ -103,7 +109,7 @@ protected: // functions
     // cleaning up of internal buffers
     mfxStatus BstBufSync();
 
-protected: // variables
+protected: // data
     // parameters which define FC behavior
     MfxC2BitstreamState bs_state_;
 
@@ -146,11 +152,11 @@ protected: // functions
     virtual mfxStatus LoadHeader(const mfxU8* data, mfxU32 size, bool header);
 
     virtual mfxStatus FindHeaders(const mfxU8* data, mfxU32 size, bool &found_sps, bool &found_pps);
-    virtual mfxI32    FindStartCode(const mfxU8 * (&pb), mfxU32 & size, mfxI32 & start_code_size);
-    virtual bool      isSPS(mfxI32 code) {return NAL_UT_AVC_SPS == code;}
-    virtual bool      isPPS(mfxI32 code) {return NAL_UT_AVC_PPS == code;}
+    virtual StartCode ReadStartCode(const mfxU8** position, mfxU32* size_left);
+    virtual bool      isSPS(mfxI32 code) { return NAL_UT_AVC_SPS == code; }
+    virtual bool      isPPS(mfxI32 code) { return NAL_UT_AVC_PPS == code; }
 
-protected: // variables
+protected: // data
     const static mfxU32 NAL_UT_AVC_SPS = 7;
     const static mfxU32 NAL_UT_AVC_PPS = 8;
 

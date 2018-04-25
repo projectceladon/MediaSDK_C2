@@ -378,43 +378,41 @@ mfxStatus MfxC2AVCFrameConstructor::FindHeaders(const mfxU8* data, mfxU32 size, 
     found_pps = false;
 
     if (data && size) {
-        mfxI32 startCodeSize;
-        mfxI32 code;
+        StartCode start_code;
         mfxU32 length;
         for (; size > 3;) {
-            startCodeSize = 0;
-            code = FindStartCode(data, size, startCodeSize);
-            if (isSPS(code)) {
+            start_code = ReadStartCode(&data, &size);
+            if (isSPS(start_code.type)) {
                 std::shared_ptr<mfxBitstream> sps = std::make_shared<mfxBitstream>();
                 MFX_ZERO_MEMORY((*sps));
-                sps->Data = (mfxU8*)data - startCodeSize;
+                sps->Data = (mfxU8*)data - start_code.size;
 
-                length = size + startCodeSize;
-                code = FindStartCode(data, size, startCodeSize);
-                if (-1 != code)
-                    length -= size + startCodeSize;
+                length = size + start_code.size;
+                start_code = ReadStartCode(&data, &size);
+                if (-1 != start_code.type)
+                    length -= size + start_code.size;
                 sps->DataLength = length;
                 MFX_LOG_INFO("Found SPS size %d", length);
                 mfx_res = SaveHeaders(sps, nullptr, false);
                 if (MFX_ERR_NONE != mfx_res) return mfx_res;
                 found_sps = true;
             }
-            if (isPPS(code)) {
+            if (isPPS(start_code.type)) {
                 std::shared_ptr<mfxBitstream> pps = std::make_shared<mfxBitstream>();
                 MFX_ZERO_MEMORY((*pps));
-                pps->Data = (mfxU8*)data - startCodeSize;
+                pps->Data = (mfxU8*)data - start_code.size;
 
-                length = size + startCodeSize;
-                code = FindStartCode(data, size, startCodeSize);
-                if (-1 != code)
-                    length -= size + startCodeSize;
+                length = size + start_code.size;
+                start_code = ReadStartCode(&data, &size);
+                if (-1 != start_code.type)
+                    length -= size + start_code.size;
                 pps->DataLength = length;
                 MFX_LOG_INFO("Found PPS size %d", length);
                 mfx_res = SaveHeaders(nullptr, pps, false);
                 if (MFX_ERR_NONE != mfx_res) return mfx_res;
                 found_pps = true;
             }
-            if (-1 == code) break;
+            if (-1 == start_code.type) break;
         }
     }
 
@@ -465,69 +463,67 @@ mfxStatus MfxC2AVCFrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, b
     return mfx_res;
 }
 
-mfxI32 MfxC2AVCFrameConstructor::FindStartCode(const mfxU8 * (&pb), mfxU32 & size, mfxI32 & start_code_size)
+IMfxC2FrameConstructor::StartCode MfxC2AVCFrameConstructor::ReadStartCode(const mfxU8** position, mfxU32* size_left)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    mfxU32 zeroCount = 0;
-    static const mfxU8 nalUnitTypeBits = 0x1f;
+    StartCode start_code = { .type=-1, .size=0 };
+    mfxU32 zero_count = 0;
+    static const mfxU8 nal_unit_type_bits = 0x1f;
 
     mfxI32 i = 0;
-    for (; i < (mfxI32)size - 2; ) {
-        if (pb[1]) {
-            pb += 2;
+    for (; i < (mfxI32)*size_left - 2; ) {
+        if ((*position)[1]) {
+            *position += 2;
             i += 2;
             continue;
         }
 
-        zeroCount = 0;
-        if (!pb[0]) zeroCount++;
+        zero_count = 0;
+        if (!(*position)[0]) zero_count++;
 
         mfxU32 j;
-        for (j = 1; j < (mfxU32)size - i; j++) {
-            if (pb[j]) break;
+        for (j = 1; j < (mfxU32)*size_left - i; j++) {
+            if ((*position)[j]) break;
         }
 
-        zeroCount = zeroCount ? j: j - 1;
+        zero_count = zero_count ? j: j - 1;
 
-        pb += j;
+        *position += j;
         i += j;
 
-        if (i >= (mfxI32)size) break;
+        if (i >= (mfxI32)*size_left) break;
 
-        if (zeroCount >= 2 && pb[0] == 1) {
-            start_code_size = MFX_MIN(zeroCount + 1, 4);
-            size -= i + 1;
-            pb++; // remove 0x01 symbol
-            zeroCount = 0;
-            if (size >= 1) {
-                return pb[0] & nalUnitTypeBits;
+        if (zero_count >= 2 && (*position)[0] == 1) {
+            start_code.size = MFX_MIN(zero_count + 1, 4);
+            *size_left -= i + 1;
+            (*position)++; // remove 0x01 symbol
+            if (*size_left >= 1) {
+                start_code.type = (*position)[0] & nal_unit_type_bits;
             } else {
-                pb -= start_code_size;
-                size += start_code_size;
-                start_code_size = 0;
-                return -1;
+                *position -= start_code.size;
+                *size_left += start_code.size;
+                start_code.size = 0;
             }
+            return start_code;
         }
-        zeroCount = 0;
+        zero_count = 0;
     }
 
-    if (!zeroCount) {
-        for (mfxU32 k = 0; k < size - i; k++, pb++) {
-            if (pb[0]) {
-                zeroCount = 0;
+    if (!zero_count) {
+        for (mfxU32 k = 0; k < *size_left - i; k++, (*position)++) {
+            if ((*position)[0]) {
+                zero_count = 0;
                 continue;
             }
-            zeroCount++;
+            zero_count++;
         }
     }
 
-    zeroCount = MFX_MIN(zeroCount, 3);
-    pb -= zeroCount;
-    size = zeroCount;
-    zeroCount = 0;
-    start_code_size = 0;
-    return -1;
+    zero_count = MFX_MIN(zero_count, 3);
+    *position -= zero_count;
+    *size_left = zero_count;
+    return start_code;
 }
 
 mfxStatus MfxC2AVCFrameConstructor::Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame)
