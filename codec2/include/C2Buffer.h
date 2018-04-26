@@ -124,7 +124,7 @@ public:
      */
     constexpr C2Fence() : mImpl(nullptr) { }
 
-public:
+private:
     class Impl;
     std::shared_ptr<Impl> mImpl;
     C2Fence(std::shared_ptr<Impl> impl);
@@ -141,7 +141,6 @@ public:
  */
 class C2Event {
 public:
-    C2Event();
     /**
      * Returns a fence for this event.
      */
