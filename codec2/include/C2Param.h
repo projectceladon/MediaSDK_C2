@@ -606,7 +606,7 @@ struct _C2FieldId {
 
     DEFINE_OTHER_COMPARISON_OPERATORS(_C2FieldId)
 
-#if 1
+#if 0
     inline uint32_t offset() const { return _mOffset; }
     inline uint32_t size() const { return _mSize; }
 #endif
@@ -893,9 +893,6 @@ struct C2FieldDescriptor {
     inline C2StringLiteral name() const { return _mName; }
 
     const NamedValuesType &namedValues() const { return _mNamedValues; }
-
-    uint32_t size() const { return _mFieldId.size(); }
-    uint32_t offset() const { return _mFieldId.offset(); }
 
 #if defined(FRIEND_TEST)
     friend void PrintTo(const C2FieldDescriptor &, ::std::ostream*);
