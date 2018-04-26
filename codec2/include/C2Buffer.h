@@ -228,8 +228,6 @@ public:
         return mT;
     }
 
-    c2_status_t GetError() const { return mInitialError; }
-
 protected:
     C2Acquirable(c2_status_t error, C2Fence fence, T t) : C2Fence(fence), mInitialError(error), mT(t) { }
 

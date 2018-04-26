@@ -893,7 +893,6 @@ public:
 
             for (int i = 0; i < FRAME_COUNT; ++i) {
                 C2Acquirable<C2GraphicView> acquirable = gr_blocks[i]->map();
-                EXPECT_EQ(acquirable.GetError(), C2_OK);
                 C2GraphicView view = acquirable.get();
                 EXPECT_EQ(view.error(), C2_OK);
 

@@ -127,7 +127,7 @@ c2_status_t MapConstGraphicBlock(const C2ConstGraphicBlock& graph_block, c2_nsec
         }
 
         C2Acquirable<const C2GraphicView> acq_graph_view = graph_block.map();
-        res = acq_graph_view.GetError();
+        res = acq_graph_view.get().error();
         if(C2_OK != res) break;
 
         res = acq_graph_view.wait(timeout);
@@ -154,7 +154,7 @@ c2_status_t MapGraphicBlock(C2GraphicBlock& graph_block, c2_nsecs_t timeout,
         }
 
         C2Acquirable<C2GraphicView> acq_graph_view = graph_block.map();
-        res = acq_graph_view.GetError();
+        res = acq_graph_view.get().error();
         if(C2_OK != res) break;
 
         res = acq_graph_view.wait(timeout);
@@ -184,7 +184,7 @@ c2_status_t MapConstLinearBlock(const C2ConstLinearBlock& c_lin_block, c2_nsecs_
         if(C2_OK != res) break;
 
         C2Acquirable<C2ReadView> acq_read_view = c_lin_block.map();
-        res = acq_read_view.GetError();
+        res = acq_read_view.get().error();
         if(C2_OK != res) break;
 
         res = acq_read_view.wait(timeout);
@@ -211,7 +211,7 @@ c2_status_t MapLinearBlock(C2LinearBlock& lin_block, c2_nsecs_t timeout,
         }
 
         C2Acquirable<C2WriteView> acq_write_view = lin_block.map();
-        res = acq_write_view.GetError();
+        res = acq_write_view.get().error();
         if(C2_OK != res) break;
 
         res = acq_write_view.wait(timeout);
