@@ -42,34 +42,28 @@ bool C2Fence::valid() const
     return mImpl && mImpl->future_.valid();
 }
 
-class C2Event::Impl
+struct _C2FenceFactory
 {
 public:
-    std::promise<void> promise_;
-};
+    // Creates fence already ready.
+    static C2Fence CreateFence()
+    {
+        std::promise<void> promise;
 
-C2Event::C2Event()
-{
-    mImpl = std::make_shared<Impl>();
-    mImpl->promise_ = std::promise<void>();
-}
+        C2Fence fence;
+        fence.mImpl = std::make_shared<C2Fence::Impl>();
+        fence.mImpl->future_ = promise.get_future();
+        promise.set_value();
+        return fence;
+    }
+};
 
 C2Fence C2Event::fence() const
 {
-    C2Fence fence;
-    fence.mImpl = std::make_shared<C2Fence::Impl>();
-    fence.mImpl->future_ = mImpl->promise_.get_future();
-    return fence;
+    return _C2FenceFactory::CreateFence();
 }
 
 c2_status_t C2Event::fire()
 {
-    c2_status_t res = C2_OK;
-    try {
-        mImpl->promise_.set_value();
-    }
-    catch(const std::future_error& ex) {
-        res = C2_BAD_STATE;
-    }
-    return res;
+    return C2_OK;
 }
