@@ -25,10 +25,39 @@
 
 #include <C2AllocatorGralloc.h>
 #include <C2Buffer.h>
-
-const uint32_t HAL_PIXEL_FORMAT_NV12_TILED_INTEL = 0x100;
+#include <C2PlatformSupport.h>
 
 namespace android {
+
+namespace {
+    enum : uint64_t {
+        /**
+         * Usage mask that is passed through from gralloc to Codec 2.0 usage.
+         */
+        PASSTHROUGH_USAGE_MASK =
+            ~(GRALLOC_USAGE_SW_READ_MASK | GRALLOC_USAGE_SW_WRITE_MASK | GRALLOC_USAGE_PROTECTED)
+    };
+
+    // verify that passthrough mask is within the platform mask
+    static_assert((~C2MemoryUsage::PLATFORM_MASK & PASSTHROUGH_USAGE_MASK) == 0, "");
+}
+
+C2MemoryUsage C2AndroidMemoryUsage::FromGrallocUsage(uint64_t usage) {
+    // gralloc does not support WRITE_PROTECTED
+    return C2MemoryUsage(
+            ((usage & GRALLOC_USAGE_SW_READ_MASK) ? C2MemoryUsage::CPU_READ : 0) |
+            ((usage & GRALLOC_USAGE_SW_WRITE_MASK) ? C2MemoryUsage::CPU_WRITE : 0) |
+            ((usage & GRALLOC_USAGE_PROTECTED) ? C2MemoryUsage::READ_PROTECTED : 0) |
+            (usage & PASSTHROUGH_USAGE_MASK));
+}
+
+uint64_t C2AndroidMemoryUsage::asGrallocUsage() const {
+    // gralloc does not support WRITE_PROTECTED
+    return (((expected & C2MemoryUsage::CPU_READ) ? GRALLOC_USAGE_SW_READ_MASK : 0) |
+            ((expected & C2MemoryUsage::CPU_WRITE) ? GRALLOC_USAGE_SW_WRITE_MASK : 0) |
+            ((expected & C2MemoryUsage::READ_PROTECTED) ? GRALLOC_USAGE_PROTECTED : 0) |
+            (expected & PASSTHROUGH_USAGE_MASK));
+}
 
 using ::android::hardware::graphics::allocator::V2_0::IAllocator;
 using ::android::hardware::graphics::common::V1_0::BufferUsage;
@@ -184,11 +213,12 @@ public:
     virtual ~C2AllocationGralloc() override;
 
     virtual c2_status_t map(
-            C2Rect rect, C2MemoryUsage usage, int *fenceFd,
+            C2Rect rect, C2MemoryUsage usage, C2Fence *fence,
             C2PlanarLayout *layout /* nonnull */, uint8_t **addr /* nonnull */) override;
-    virtual c2_status_t unmap(C2Fence *fenceFd /* nullable */) override;
-    virtual bool isValid() const override { return true; }
-    virtual const C2Handle *handle() const override { return /*mLockedHandle ? :*/ mHandle; }
+    virtual c2_status_t unmap(
+            uint8_t **addr /* nonnull */, C2Rect rect, C2Fence *fence /* nullable */) override;
+    virtual C2Allocator::id_t getAllocatorId() const override { return mAllocatorId; }
+    virtual const C2Handle *handle() const override { return mLockedHandle ? : mHandle; }
     virtual bool equals(const std::shared_ptr<const C2GraphicAllocation> &other) const override;
 
     // internal methods
@@ -197,7 +227,8 @@ public:
               const BufferDescriptorInfo &info,
               const sp<IMapper> &mapper,
               hidl_handle &hidlHandle,
-              const C2HandleGralloc *const handle);
+              const C2HandleGralloc *const handle,
+              C2Allocator::id_t allocatorId);
     int dup() const;
     c2_status_t status() const;
 
@@ -207,38 +238,47 @@ private:
     const hidl_handle mHidlHandle;
     const C2HandleGralloc *mHandle;
     buffer_handle_t mBuffer;
-    const C2HandleGralloc *mLockedHandle {};
+    const C2HandleGralloc *mLockedHandle;
     bool mLocked;
+    C2Allocator::id_t mAllocatorId;
 };
 
 C2AllocationGralloc::C2AllocationGralloc(
           const BufferDescriptorInfo &info,
           const sp<IMapper> &mapper,
           hidl_handle &hidlHandle,
-          const C2HandleGralloc *const handle)
+          const C2HandleGralloc *const handle,
+          C2Allocator::id_t allocatorId)
     : C2GraphicAllocation(info.mapperInfo.width, info.mapperInfo.height),
       mInfo(info),
       mMapper(mapper),
       mHidlHandle(std::move(hidlHandle)),
       mHandle(handle),
       mBuffer(nullptr),
-      mLocked(false) {}
+      mLockedHandle(nullptr),
+      mLocked(false),
+      mAllocatorId(allocatorId) {
+}
 
 C2AllocationGralloc::~C2AllocationGralloc() {
     if (!mBuffer) {
         return;
     }
     if (mLocked) {
-        unmap(nullptr);
+        // implementation ignores addresss and rect
+        uint8_t* addr[C2PlanarLayout::MAX_NUM_PLANES] = {};
+        unmap(addr, C2Rect(), nullptr);
     }
     mMapper->freeBuffer(const_cast<native_handle_t *>(mBuffer));
+    native_handle_delete(const_cast<native_handle_t*>(
+            reinterpret_cast<const native_handle_t*>(mHandle)));
 }
 
 c2_status_t C2AllocationGralloc::map(
-        C2Rect rect, C2MemoryUsage usage, int *fenceFd,
+        C2Rect rect, C2MemoryUsage usage, C2Fence *fence,
         C2PlanarLayout *layout /* nonnull */, uint8_t **addr /* nonnull */) {
     // TODO
-    (void) fenceFd;
+    (void) fence;
     (void) usage;
 
     if (mBuffer && mLocked) {
@@ -268,10 +308,9 @@ c2_status_t C2AllocationGralloc::map(
                 (uint32_t)mInfo.mapperInfo.format, mInfo.mapperInfo.usage, mInfo.stride);
     }
 
-    switch ((uint32_t)mInfo.mapperInfo.format) {
-        case HAL_PIXEL_FORMAT_NV12_TILED_INTEL:
-        case (uint32_t)PixelFormat::YCBCR_420_888:
-        case (uint32_t)PixelFormat::YV12: {
+    switch (mInfo.mapperInfo.format) {
+        case PixelFormat::YCBCR_420_888:
+        case PixelFormat::YV12: {
             YCbCrLayout ycbcrLayout;
             mMapper->lockYCbCr(
                     const_cast<native_handle_t *>(mBuffer),
@@ -293,6 +332,7 @@ c2_status_t C2AllocationGralloc::map(
             addr[C2PlanarLayout::PLANE_V] = (uint8_t *)ycbcrLayout.cr;
             layout->type = C2PlanarLayout::TYPE_YUV;
             layout->numPlanes = 3;
+            layout->rootPlanes = 3;
             layout->planes[C2PlanarLayout::PLANE_Y] = {
                 C2PlaneInfo::CHANNEL_Y,         // channel
                 1,                              // colInc
@@ -303,6 +343,8 @@ c2_status_t C2AllocationGralloc::map(
                 8,                              // bitDepth
                 0,                              // rightShift
                 C2PlaneInfo::NATIVE,            // endianness
+                C2PlanarLayout::PLANE_Y,        // rootIx
+                0,                              // offset
             };
             layout->planes[C2PlanarLayout::PLANE_U] = {
                 C2PlaneInfo::CHANNEL_CB,          // channel
@@ -314,6 +356,8 @@ c2_status_t C2AllocationGralloc::map(
                 8,                                // bitDepth
                 0,                                // rightShift
                 C2PlaneInfo::NATIVE,              // endianness
+                C2PlanarLayout::PLANE_U,          // rootIx
+                0,                                // offset
             };
             layout->planes[C2PlanarLayout::PLANE_V] = {
                 C2PlaneInfo::CHANNEL_CR,          // channel
@@ -325,14 +369,27 @@ c2_status_t C2AllocationGralloc::map(
                 8,                                // bitDepth
                 0,                                // rightShift
                 C2PlaneInfo::NATIVE,              // endianness
+                C2PlanarLayout::PLANE_V,          // rootIx
+                0,                                // offset
             };
+            // handle interleaved formats
+            intptr_t uvOffset = addr[C2PlanarLayout::PLANE_V] - addr[C2PlanarLayout::PLANE_U];
+            if (uvOffset > 0 && uvOffset < (intptr_t)ycbcrLayout.chromaStep) {
+                layout->rootPlanes = 2;
+                layout->planes[C2PlanarLayout::PLANE_V].rootIx = C2PlanarLayout::PLANE_U;
+                layout->planes[C2PlanarLayout::PLANE_V].offset = uvOffset;
+            } else if (uvOffset < 0 && uvOffset > -(intptr_t)ycbcrLayout.chromaStep) {
+                layout->rootPlanes = 2;
+                layout->planes[C2PlanarLayout::PLANE_U].rootIx = C2PlanarLayout::PLANE_V;
+                layout->planes[C2PlanarLayout::PLANE_U].offset = -uvOffset;
+            }
             break;
         }
 
-        case (uint32_t)PixelFormat::RGBA_8888:
+        case PixelFormat::RGBA_8888:
             // TODO: alpha channel
             // fall-through
-        case (uint32_t)PixelFormat::RGBX_8888: {
+        case PixelFormat::RGBX_8888: {
             void *pointer = nullptr;
             mMapper->lock(
                     const_cast<native_handle_t *>(mBuffer),
@@ -354,6 +411,7 @@ c2_status_t C2AllocationGralloc::map(
             addr[C2PlanarLayout::PLANE_B] = (uint8_t *)pointer + 2;
             layout->type = C2PlanarLayout::TYPE_RGB;
             layout->numPlanes = 3;
+            layout->rootPlanes = 1;
             layout->planes[C2PlanarLayout::PLANE_R] = {
                 C2PlaneInfo::CHANNEL_R,         // channel
                 4,                              // colInc
@@ -364,6 +422,8 @@ c2_status_t C2AllocationGralloc::map(
                 8,                              // bitDepth
                 0,                              // rightShift
                 C2PlaneInfo::NATIVE,            // endianness
+                C2PlanarLayout::PLANE_R,        // rootIx
+                0,                              // offset
             };
             layout->planes[C2PlanarLayout::PLANE_G] = {
                 C2PlaneInfo::CHANNEL_G,         // channel
@@ -375,6 +435,8 @@ c2_status_t C2AllocationGralloc::map(
                 8,                              // bitDepth
                 0,                              // rightShift
                 C2PlaneInfo::NATIVE,            // endianness
+                C2PlanarLayout::PLANE_R,        // rootIx
+                1,                              // offset
             };
             layout->planes[C2PlanarLayout::PLANE_B] = {
                 C2PlaneInfo::CHANNEL_B,         // channel
@@ -386,6 +448,8 @@ c2_status_t C2AllocationGralloc::map(
                 8,                              // bitDepth
                 0,                              // rightShift
                 C2PlaneInfo::NATIVE,            // endianness
+                C2PlanarLayout::PLANE_R,        // rootIx
+                2,                              // offset
             };
             break;
         }
@@ -398,14 +462,17 @@ c2_status_t C2AllocationGralloc::map(
     return C2_OK;
 }
 
-c2_status_t C2AllocationGralloc::unmap(C2Fence *fenceFd /* nullable */) {
-    // TODO: fence
+c2_status_t C2AllocationGralloc::unmap(
+        uint8_t **addr, C2Rect rect, C2Fence *fence /* nullable */) {
+    // TODO: check addr and size, use fence
+    (void)addr;
+    (void)rect;
     c2_status_t err = C2_OK;
     mMapper->unlock(
             const_cast<native_handle_t *>(mBuffer),
-            [&err, &fenceFd](const auto &maperr, const auto &releaseFence) {
+            [&err, &fence](const auto &maperr, const auto &releaseFence) {
                 // TODO
-                (void) fenceFd;
+                (void) fence;
                 (void) releaseFence;
                 err = maperr2error(maperr);
                 if (err == C2_OK) {
@@ -425,11 +492,19 @@ bool C2AllocationGralloc::equals(const std::shared_ptr<const C2GraphicAllocation
 /* ===================================== GRALLOC ALLOCATOR ==================================== */
 class C2AllocatorGralloc::Impl {
 public:
-    Impl();
+    Impl(id_t id);
 
-    id_t getId() const;
+    id_t getId() const {
+        return mTraits->id;
+    }
 
-    C2String getName() const;
+    C2String getName() const {
+        return mTraits->name;
+    }
+
+    std::shared_ptr<const C2Allocator::Traits> getTraits() const {
+        return mTraits;
+    }
 
     c2_status_t newGraphicAllocation(
             uint32_t width, uint32_t height, uint32_t format, const C2MemoryUsage &usage,
@@ -442,26 +517,24 @@ public:
     c2_status_t status() const { return mInit; }
 
 private:
+    std::shared_ptr<C2Allocator::Traits> mTraits;
     c2_status_t mInit;
     sp<IAllocator> mAllocator;
     sp<IMapper> mMapper;
 };
 
-C2AllocatorGralloc::Impl::Impl() : mInit(C2_OK) {
-    // TODO: share a global service
+C2AllocatorGralloc::Impl::Impl(id_t id) : mInit(C2_OK) {
+    // TODO: get this from allocator
+    C2MemoryUsage minUsage = { 0, 0 }, maxUsage = { ~(uint64_t)0, ~(uint64_t)0 };
+    Traits traits = { "android.allocator.gralloc", id, C2Allocator::GRAPHIC, minUsage, maxUsage };
+    mTraits = std::make_shared<C2Allocator::Traits>(traits);
+
+    // gralloc allocator is a singleton, so all objects share a global service
     mAllocator = IAllocator::getService();
     mMapper = IMapper::getService();
     if (mAllocator == nullptr || mMapper == nullptr) {
         mInit = C2_CORRUPTED;
     }
-}
-
-C2Allocator::id_t C2AllocatorGralloc::Impl::getId() const {
-    return 1; /// \todo implement ID
-}
-
-C2String C2AllocatorGralloc::Impl::getName() const {
-    return "android.allocator.gralloc";
 }
 
 c2_status_t C2AllocatorGralloc::Impl::newGraphicAllocation(
@@ -520,7 +593,8 @@ c2_status_t C2AllocatorGralloc::Impl::newGraphicAllocation(
             C2HandleGralloc::WrapNativeHandle(
                     buffer.getNativeHandle(),
                     info.mapperInfo.width, info.mapperInfo.height,
-                    (uint32_t)info.mapperInfo.format, info.mapperInfo.usage, info.stride)));
+                    (uint32_t)info.mapperInfo.format, info.mapperInfo.usage, info.stride),
+            mTraits->id));
     return C2_OK;
 }
 
@@ -537,13 +611,13 @@ c2_status_t C2AllocatorGralloc::Impl::priorGraphicAllocation(
         return C2_BAD_VALUE;
     }
 
-    hidl_handle hidlHandle = C2HandleGralloc::UnwrapNativeHandle(grallocHandle);
-
-    allocation->reset(new C2AllocationGralloc(info, mMapper, hidlHandle, grallocHandle));
+    hidl_handle hidlHandle;
+    hidlHandle.setTo(C2HandleGralloc::UnwrapNativeHandle(grallocHandle), true);
+    allocation->reset(new C2AllocationGralloc(info, mMapper, hidlHandle, grallocHandle, mTraits->id));
     return C2_OK;
 }
 
-C2AllocatorGralloc::C2AllocatorGralloc() : mImpl(new Impl) {}
+C2AllocatorGralloc::C2AllocatorGralloc(id_t id) : mImpl(new Impl(id)) {}
 
 C2AllocatorGralloc::~C2AllocatorGralloc() { delete mImpl; }
 
@@ -553,6 +627,10 @@ C2Allocator::id_t C2AllocatorGralloc::getId() const {
 
 C2String C2AllocatorGralloc::getName() const {
     return mImpl->getName();
+}
+
+std::shared_ptr<const C2Allocator::Traits> C2AllocatorGralloc::getTraits() const {
+    return mImpl->getTraits();
 }
 
 c2_status_t C2AllocatorGralloc::newGraphicAllocation(
@@ -569,6 +647,10 @@ c2_status_t C2AllocatorGralloc::priorGraphicAllocation(
 
 c2_status_t C2AllocatorGralloc::status() const {
     return mImpl->status();
+}
+
+bool C2AllocatorGralloc::isValid(const C2Handle* const o) {
+    return C2HandleGralloc::isValid(o);
 }
 
 } // namespace android
