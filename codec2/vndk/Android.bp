@@ -13,8 +13,8 @@ cc_library_headers {
     vendor_available: true,
 }
 
-cc_library_shared {
-    name: "libstagefright_codec2_vndk",
+cc_library_vndk_mfx {
+    name: "libstagefright_codec2_vndk_mfx",
     vendor_available: true,
     vndk: {
         enabled: true,
@@ -38,7 +38,10 @@ cc_library_shared {
 
     include_dirs: [
         "frameworks/native/include/media/hardware",
-        "hardware/google/av/codec2/include",
+    ],
+
+    header_libs: [
+        "codec2_headers",
     ],
 
     shared_libs: [
@@ -59,11 +62,27 @@ cc_library_shared {
         "libutils",
     ],
 
+    whole_static_libs: [
+        "libmfx_mock_codec2_event",
+    ],
+
     cflags: [
         "-Werror",
         "-Wall",
         "-std=c++14",
     ],
+}
+
+bootstrap_go_package {
+    name: "soong-vndk_mfx",
+    pkgPath: "android/soong/vendor/intel/mediasdk/vndk_mfx",
+    deps: [
+        "soong-cc",
+    ],
+    srcs: [
+        "vndk_mfx.go",
+    ],
+    pluginFor: ["soong_build"],
 }
 
 subdirs = [
