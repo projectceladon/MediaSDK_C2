@@ -530,7 +530,7 @@ public:
             : mInit(C2_OK),
               mBufferPoolManager(ClientManager::getInstance()),
               mAllocator(std::make_shared<_C2BufferPoolAllocator>(allocator)) {
-        if (mAllocator && mBufferPoolManager) {
+        if (mAllocator && mBufferPoolManager != nullptr) {
             if (mBufferPoolManager->create(
                     mAllocator, &mConnectionId) == ResultStatus::OK) {
                 return;

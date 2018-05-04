@@ -141,7 +141,7 @@ ResultStatus ClientManager::Impl::create(
         const std::shared_ptr<BufferPoolAllocator> &allocator,
         ConnectionId *pConnectionId) {
     const sp<Accessor> accessor = new Accessor(allocator);
-    if (!accessor || !accessor->isValid()) {
+    if (accessor == nullptr || !accessor->isValid()) {
         return ResultStatus::CRITICAL_ERROR;
     }
     std::shared_ptr<BufferPoolClient> client =
@@ -259,7 +259,7 @@ std::mutex ClientManager::sInstanceLock;
 
 sp<ClientManager> ClientManager::getInstance() {
     std::lock_guard<std::mutex> lock(sInstanceLock);
-    if (!sInstance) {
+    if (sInstance == nullptr) {
         sInstance = new ClientManager();
     }
     return sInstance;

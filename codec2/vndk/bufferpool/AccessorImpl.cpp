@@ -134,7 +134,7 @@ ResultStatus Accessor::Impl::connect(
         ConnectionId *pConnectionId, const QueueDescriptor** fmqDescPtr) {
     sp<Connection> newConnection = new Connection();
     ResultStatus status = ResultStatus::CRITICAL_ERROR;
-    if (newConnection) {
+    if (newConnection != nullptr) {
         std::lock_guard<std::mutex> lock(mBufferPool.mMutex);
         ConnectionId id = (int64_t)sPid << 32 | sSeqId;
         status = mBufferPool.mObserver.open(id, fmqDescPtr);
