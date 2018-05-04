@@ -26,7 +26,7 @@ namespace implementation {
 // Methods from ::android::hardware::media::bufferpool::V1_0::IConnection follow.
 Return<void> Connection::fetch(uint64_t transactionId, uint32_t bufferId, fetch_cb _hidl_cb) {
     ResultStatus status = ResultStatus::CRITICAL_ERROR;
-    if (mInitialized && mAccessor) {
+    if (mInitialized && mAccessor != nullptr) {
         const native_handle_t *handle = NULL;
         status = mAccessor->fetch(
                 mConnectionId, transactionId, bufferId, &handle);
@@ -42,7 +42,7 @@ Return<void> Connection::fetch(uint64_t transactionId, uint32_t bufferId, fetch_
 Connection::Connection() : mInitialized(false), mConnectionId(-1LL) {}
 
 Connection::~Connection() {
-    if (mInitialized && mAccessor) {
+    if (mInitialized && mAccessor != nullptr) {
         mAccessor->close(mConnectionId);
     }
 }
@@ -59,7 +59,7 @@ void Connection::initialize(
 ResultStatus Connection::allocate(
         const std::vector<uint8_t> &params, BufferId *bufferId,
         const native_handle_t **handle) {
-    if (mInitialized && mAccessor) {
+    if (mInitialized && mAccessor != nullptr) {
         return mAccessor->allocate(mConnectionId, params, bufferId, handle);
     }
     return ResultStatus::CRITICAL_ERROR;
