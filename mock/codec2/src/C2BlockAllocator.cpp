@@ -309,19 +309,18 @@ public:
 
         c2_status_t error = C2_OK;
 
-        bool locked = locked_.exchange(true);
-        if (locked) {
-            error = C2_BAD_STATE;
+        if (nullptr == handle_) { // system memory block
+            sw_buffer_.InitNV12PlaneLayout(layout);
+            sw_buffer_.InitNV12PlaneData(addr);
         } else {
-            if (nullptr == handle_) { // system memory block
-                sw_buffer_.InitNV12PlaneLayout(layout);
-                sw_buffer_.InitNV12PlaneData(addr);
+            bool locked = locked_.exchange(true);
+            if (locked) {
+                error = C2_BAD_STATE;
             } else {
                 MFX_DEBUG_TRACE_P(handle_);
                 error = gralloc_allocator_->LockFrame(handle_, addr, layout);
             }
         }
-
         MFX_DEBUG_TRACE__android_c2_status_t(error);
 
         return error;
@@ -330,8 +329,10 @@ public:
     virtual c2_status_t unmap(uint8_t **/*addr*/ /* nonnull */, C2Rect /*rect*/,
         C2Fence */*fenceFd*/ /* nullable */) override
     {
-        if (handle_ && gralloc_allocator_) gralloc_allocator_->UnlockFrame(handle_);
-        locked_.store(false);
+        if (handle_ && gralloc_allocator_) {
+            gralloc_allocator_->UnlockFrame(handle_);
+            locked_.store(false);
+        }
         return C2_OK;
     }
 
