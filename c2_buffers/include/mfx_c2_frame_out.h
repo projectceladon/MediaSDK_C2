@@ -37,6 +37,6 @@ public:
 
 private:
     std::shared_ptr<C2GraphicBlock> c2_graphic_block_;
-    std::unique_ptr<C2GraphicView> c2_graphic_view_;
+    std::shared_ptr<C2GraphicView> c2_graphic_view_;
     std::shared_ptr<mfxFrameSurface1> mfx_surface_;
 };
