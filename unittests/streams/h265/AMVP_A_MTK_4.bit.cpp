@@ -2,6 +2,7 @@
 
 StreamDescription AMVP_A_MTK_4_bit = {
     .name = "AMVP_A_MTK_4_bit",
+    .fourcc = MFX_CODEC_HEVC,
     .sps = { 28, 38 },
     .pps = { 66, 10 },
     .crc32_nv12 = 0x58652391,

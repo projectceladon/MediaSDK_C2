@@ -12,10 +12,12 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 
 #include <vector>
 #include "mfx_c2_params.h"
+#include "mfxstructures.h"
 
 struct StreamDescription
 {
     const char* name;
+    uint32_t fourcc;
     struct Region
     {
         size_t offset;
@@ -115,6 +117,31 @@ private:
 private:
     const StreamDescription* stream_;
     std::vector<char>::const_iterator pos_;
+
+    static const uint8_t NAL_UNITTYPE_BITS_H264 = 0x1f;
+
+    static const uint8_t NAL_UT_SLICE = 1;
+    static const uint8_t NAL_UT_IDR_SLICE = 5;
+
+    static const uint8_t NAL_UNITTYPE_BITS_H265 = 0x7e;
+    static const uint8_t NAL_UNITTYPE_SHIFT_H265 = 1;
+
+    static const uint8_t NAL_UT_CODED_SLICE_TRAIL_N    = 0;
+    static const uint8_t NAL_UT_CODED_SLICE_TRAIL_R    = 1;
+    static const uint8_t NAL_UT_CODED_SLICE_TSA_N      = 2;
+    static const uint8_t NAL_UT_CODED_SLICE_TLA_R      = 3;
+    static const uint8_t NAL_UT_CODED_SLICE_STSA_N     = 4;
+    static const uint8_t NAL_UT_CODED_SLICE_STSA_R     = 5;
+    static const uint8_t NAL_UT_CODED_SLICE_RADL_N     = 6;
+    static const uint8_t NAL_UT_CODED_SLICE_RADL_R     = 7;
+    static const uint8_t NAL_UT_CODED_SLICE_RASL_N     = 8;
+    static const uint8_t NAL_UT_CODED_SLICE_RASL_R     = 9;
+    static const uint8_t NAL_UT_CODED_SLICE_BLA_W_LP   = 16;
+    static const uint8_t NAL_UT_CODED_SLICE_BLA_W_RADL = 17;
+    static const uint8_t NAL_UT_CODED_SLICE_BLA_N_LP   = 18;
+    static const uint8_t NAL_UT_CODED_SLICE_IDR_W_RADL = 19;
+    static const uint8_t NAL_UT_CODED_SLICE_IDR_N_LP   = 20;
+    static const uint8_t NAL_UT_CODED_SLICE_CRA        = 21;
 };
 
 class CombinedStreamReader : public StreamReader
@@ -253,11 +280,47 @@ inline bool SingleStreamReader::ContainsHeader(const StreamDescription::Region& 
 inline bool SingleStreamReader::ContainsSlice(const StreamDescription::Region& region, size_t start_code_len)
 {
     bool is_slice = false;
+    uint8_t nal_unit_type = 0;
+
     if (region.size >= start_code_len + 1) {
         char header_byte = stream_->data[region.offset + start_code_len]; // first byte after start code
-        uint8_t nal_unit_type = (uint8_t)header_byte & 0x1F;
-        if(nal_unit_type == 1 || nal_unit_type == 5) { // slice types
-            is_slice = true;
+
+        switch(stream_->fourcc) {
+            case MFX_CODEC_AVC:
+                nal_unit_type = (uint8_t)header_byte & NAL_UNITTYPE_BITS_H264;
+                if (nal_unit_type == NAL_UT_SLICE || nal_unit_type == NAL_UT_IDR_SLICE) {
+                    is_slice = true;
+                }
+                break;
+
+            case MFX_CODEC_HEVC:
+                nal_unit_type = ((uint8_t)header_byte & NAL_UNITTYPE_BITS_H265) >> NAL_UNITTYPE_SHIFT_H265;
+                switch(nal_unit_type) {
+                    case NAL_UT_CODED_SLICE_TRAIL_N:
+                    case NAL_UT_CODED_SLICE_TRAIL_R:
+                    case NAL_UT_CODED_SLICE_TSA_N:
+                    case NAL_UT_CODED_SLICE_TLA_R:
+                    case NAL_UT_CODED_SLICE_STSA_N:
+                    case NAL_UT_CODED_SLICE_STSA_R:
+                    case NAL_UT_CODED_SLICE_RADL_N:
+                    case NAL_UT_CODED_SLICE_RADL_R:
+                    case NAL_UT_CODED_SLICE_RASL_N:
+                    case NAL_UT_CODED_SLICE_RASL_R:
+                    case NAL_UT_CODED_SLICE_BLA_W_LP:
+                    case NAL_UT_CODED_SLICE_BLA_W_RADL:
+                    case NAL_UT_CODED_SLICE_BLA_N_LP:
+                    case NAL_UT_CODED_SLICE_IDR_W_RADL:
+                    case NAL_UT_CODED_SLICE_IDR_N_LP:
+                    case NAL_UT_CODED_SLICE_CRA:
+                        is_slice = true;
+                        break;
+                    default:
+                        break;
+                };
+                break;
+
+            default:
+                break;
         }
     }
     return is_slice;
