@@ -2,6 +2,7 @@
 
 StreamDescription CAINIT_A_SHARP_4_bit = {
     .name = "CAINIT_A_SHARP_4_bit",
+    .fourcc = MFX_CODEC_HEVC,
     .sps = { 29, 52 },
     .pps = { 81, 11 },
     .crc32_nv12 = 0x4DB7BF2F,
