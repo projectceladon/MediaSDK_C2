@@ -10,6 +10,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 
 #pragma once
 
+#include "mfx_debug.h"
 #include <C2Param.h>
 #include <C2Work.h>
 #include <map>

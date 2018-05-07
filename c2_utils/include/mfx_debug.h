@@ -257,6 +257,7 @@ private:
 #define MFX_DEBUG_TRACE_S(_arg)
 #define MFX_DEBUG_TRACE_E(_arg, _val)
 #define MFX_DEBUG_TRACE_PRINTF(...)
+#define MFX_DEBUG_TRACE_STREAM(...)
 
 #define MFX_TRACEABLE(var)
 #define MFX_PTR_NAME(ptr)
