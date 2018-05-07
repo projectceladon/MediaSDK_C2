@@ -139,6 +139,11 @@ c2_status_t MfxC2DecoderComponent::DoStop()
     waiting_queue_.Stop();
     working_queue_.Stop();
 
+    while (!works_queue_.empty()) {
+        NotifyWorkDone(std::move(works_queue_.front()), C2_CANCELED);
+        works_queue_.pop();
+    }
+
     c2_allocator_ = nullptr;
 
     FreeDecoder();
@@ -540,6 +545,11 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
 
                 if (MFX_ERR_NONE == mfx_sts) {
 
+                    if (works_queue_.empty()) {
+                        MFX_DEBUG_TRACE_MSG("Cannot find free work: works_queue_ is empty");
+                        mfx_sts = MFX_ERR_UNDEFINED_BEHAVIOR;
+                        break;
+                    }
                     auto pred_match_surface =
                         [surface_out] (const auto& item) { return item.GetMfxFrameSurface().get() == surface_out; };
 
