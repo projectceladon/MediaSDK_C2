@@ -499,6 +499,7 @@ mfxStatus MfxC2DecoderComponent::DecodeFrameAsync(
     return mfx_res;
 }
 
+// Can return MFX_ERR_NONE, MFX_ERR_MORE_DATA, MFX_ERR_MORE_SURFACE in case of success
 mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& frame_work)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -582,12 +583,6 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
                     }
                 }
             }
-
-            // This happens when we do drain and no more output can be produced,
-            // have to return error to upper level to stop drain.
-            bool drain_completed = (nullptr == bs && MFX_ERR_MORE_DATA == mfx_sts);
-            if (!drain_completed) mfx_sts = MFX_ERR_NONE;
-
         } else if (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == mfx_sts) {
             MFX_DEBUG_TRACE_MSG("MFX_ERR_INCOMPATIBLE_VIDEO_PARAM: resolution was changed");
         }
@@ -719,11 +714,17 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             }
 
             MfxC2FrameOut frame_out;
-            res = AllocateFrame(&frame_out);
-            if (C2_OK != res) break;
+            do {
+                res = AllocateFrame(&frame_out);
+                if (C2_OK != res) break;
 
-            mfx_sts = DecodeFrame(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(),
-                std::move(frame_out));
+                mfx_sts = DecodeFrame(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(),
+                    std::move(frame_out));
+            } while (mfx_sts == MFX_ERR_NONE || mfx_sts == MFX_ERR_MORE_SURFACE);
+
+            if (MFX_ERR_MORE_DATA == mfx_sts) {
+                mfx_sts = MFX_ERR_NONE; // valid result of DecodeFrame
+            }
 
             resolution_change = (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == mfx_sts);
             if (resolution_change) {
@@ -785,7 +786,9 @@ void MfxC2DecoderComponent::Drain()
             if (C2_OK != c2_sts) break; // no output allocated, no sense in calling DecodeFrame
 
             mfx_sts = DecodeFrame(nullptr, std::move(frame_out));
-        } while (MFX_ERR_NONE == mfx_sts);
+
+        // exit cycle if MFX_ERR_MORE_DATA or critical error happens
+        } while (MFX_ERR_NONE == mfx_sts || MFX_ERR_MORE_SURFACE == mfx_sts);
     }
 }
 
