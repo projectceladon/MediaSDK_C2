@@ -24,7 +24,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 
 #ifdef ANDROID
 #define MFX_LOG_TAG "mediasdk_c2"
-#include <android/log.h>
+#include <utils/Log.h>
 #define MFX_PRINT(LEVEL, ...) \
     __android_log_print(LEVEL, MFX_LOG_TAG, __VA_ARGS__)
 #else
