@@ -515,6 +515,10 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
         }
 
         MFX_DEBUG_TRACE_P(surface_work);
+        if (surface_work->Data.Locked) {
+            mfx_sts = MFX_ERR_UNDEFINED_BEHAVIOR;
+            break;
+        }
 
         mfxSyncPoint sync_point;
         mfx_sts = DecodeFrameAsync(bs,
@@ -553,7 +557,16 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
                     auto pred_match_surface =
                         [surface_out] (const auto& item) { return item.GetMfxFrameSurface().get() == surface_out; };
 
-                    MfxC2FrameOut frame_out = Extract(locked_surfaces_, pred_match_surface);
+                    MfxC2FrameOut frame_out;
+                    auto found = std::find_if(locked_surfaces_.begin(), locked_surfaces_.end(),
+                        pred_match_surface);
+                    if (found != locked_surfaces_.end()) {
+                        frame_out = *found;
+                    } else {
+                        MFX_DEBUG_TRACE_STREAM("Not found LOCKED!!!");
+                        // If not found pass empty frame_out to WaitWork, it will report an error.
+                    }
+
                     C2WorkOutput work_output;
                     work_output.frame_ = std::move(frame_out);
                     work_output.work_ = std::move(works_queue_.front());
