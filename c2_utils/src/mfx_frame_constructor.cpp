@@ -392,7 +392,7 @@ mfxStatus MfxC2AVCFrameConstructor::FindHeaders(const mfxU8* data, mfxU32 size, 
                 if (-1 != start_code.type)
                     length -= size + start_code.size;
                 sps->DataLength = length;
-                MFX_LOG_INFO("Found SPS size %d", length);
+                MFX_DEBUG_TRACE_STREAM("Found SPS size " << length);
                 mfx_res = SaveHeaders(sps, nullptr, false);
                 if (MFX_ERR_NONE != mfx_res) return mfx_res;
                 found_sps = true;
@@ -407,7 +407,7 @@ mfxStatus MfxC2AVCFrameConstructor::FindHeaders(const mfxU8* data, mfxU32 size, 
                 if (-1 != start_code.type)
                     length -= size + start_code.size;
                 pps->DataLength = length;
-                MFX_LOG_INFO("Found PPS size %d", length);
+                MFX_DEBUG_TRACE_STREAM("Found PPS size " << length);
                 mfx_res = SaveHeaders(nullptr, pps, false);
                 if (MFX_ERR_NONE != mfx_res) return mfx_res;
                 found_pps = true;
