@@ -170,6 +170,12 @@ c2_status_t MfxC2EncoderComponent::DoStop()
 
     waiting_queue_.Stop();
     working_queue_.Stop();
+
+    while (!pending_works_.empty()) {
+        NotifyWorkDone(std::move(pending_works_.front()), C2_CANCELED);
+        pending_works_.pop();
+    }
+
     FreeEncoder();
 
     return C2_OK;
