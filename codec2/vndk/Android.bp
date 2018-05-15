@@ -1,5 +1,24 @@
+cc_library_headers {
+    name: "libstagefright_codec2_internal",
+
+    export_include_dirs: [
+        "internal",
+    ],
+
+    vndk: {
+        enabled: true,
+    },
+
+    // TODO: Remove this when this module is moved back to frameworks/av.
+    vendor_available: true,
+}
+
 cc_library_vndk_mfx {
     name: "libstagefright_codec2_vndk_mfx",
+    vendor_available: true,
+    vndk: {
+        enabled: true,
+    },
 
     srcs: [
         "C2AllocatorIon.cpp",
@@ -13,6 +32,10 @@ cc_library_vndk_mfx {
         "include",
     ],
 
+    local_include_dirs: [
+        "internal",
+    ],
+
     include_dirs: [
         "frameworks/native/include/media/hardware",
     ],
@@ -24,14 +47,17 @@ cc_library_vndk_mfx {
     shared_libs: [
         "android.hardware.graphics.allocator@2.0",
         "android.hardware.graphics.mapper@2.0",
+        "android.hardware.media.bufferpool@1.0",
         "libbinder",
         "libcutils",
         "libdl",
         "libhardware",
         "libhidlbase",
         "libion",
+        "libfmq",
         "liblog",
         "libstagefright_foundation",
+        "libstagefright_bufferpool@1.0",
         "libui",
         "libutils",
     ],
@@ -45,8 +71,6 @@ cc_library_vndk_mfx {
         "-Wall",
         "-std=c++14",
     ],
-
-    vendor_available: true,
 }
 
 bootstrap_go_package {
@@ -60,3 +84,7 @@ bootstrap_go_package {
     ],
     pluginFor: ["soong_build"],
 }
+
+subdirs = [
+    "bufferpool",
+]

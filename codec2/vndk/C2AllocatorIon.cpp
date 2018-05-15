@@ -18,8 +18,11 @@
 #define LOG_TAG "C2AllocatorIon"
 #include <utils/Log.h>
 
+#include <list>
+
 #include <ion/ion.h>
 #include <sys/mman.h>
+#include <unistd.h>
 
 #include <C2AllocatorIon.h>
 #include <C2Buffer.h>
@@ -116,17 +119,17 @@ class C2AllocationIon : public C2LinearAllocation {
 public:
     /* Interface methods */
     virtual c2_status_t map(
-        size_t offset, size_t size, C2MemoryUsage usage, int *fence,
+        size_t offset, size_t size, C2MemoryUsage usage, C2Fence *fence,
         void **addr /* nonnull */) override;
-    virtual c2_status_t unmap(void *addr, size_t size, int *fenceFd) override;
-    virtual bool isValid() const override;
+    virtual c2_status_t unmap(void *addr, size_t size, C2Fence *fenceFd) override;
     virtual ~C2AllocationIon() override;
     virtual const C2Handle *handle() const override;
+    virtual id_t getAllocatorId() const override;
     virtual bool equals(const std::shared_ptr<C2LinearAllocation> &other) const override;
 
     // internal methods
-    C2AllocationIon(int ionFd, size_t size, size_t align, unsigned heapMask, unsigned flags);
-    C2AllocationIon(int ionFd, size_t size, int shareFd);
+    C2AllocationIon(int ionFd, size_t size, size_t align, unsigned heapMask, unsigned flags, C2Allocator::id_t id);
+    C2AllocationIon(int ionFd, size_t size, int shareFd, C2Allocator::id_t id);
 
     c2_status_t status() const;
 
@@ -154,13 +157,13 @@ private:
      *                  invalid if err is not 0.
      * \param err       errno during buffer allocation or import
      */
-    Impl(int ionFd, size_t capacity, int bufferFd, ion_user_handle_t buffer, int err)
+    Impl(int ionFd, size_t capacity, int bufferFd, ion_user_handle_t buffer, C2Allocator::id_t id, int err)
         : mIonFd(ionFd),
           mHandle(bufferFd, capacity),
           mBuffer(buffer),
+          mId(id),
           mInit(c2_map_errno<ENOMEM, EACCES, EINVAL>(err)),
-          mMapFd(-1),
-          mMapSize(0) {
+          mMapFd(-1) {
         if (mInit != C2_OK) {
             // close ionFd now on error
             if (mIonFd >= 0) {
@@ -184,10 +187,10 @@ public:
      * \return created ion allocation (implementation) which may be invalid if the
      * import failed.
      */
-    static Impl *Import(int ionFd, size_t capacity, int bufferFd) {
+    static Impl *Import(int ionFd, size_t capacity, int bufferFd, C2Allocator::id_t id) {
         ion_user_handle_t buffer = -1;
         int ret = ion_import(ionFd, bufferFd, &buffer);
-        return new Impl(ionFd, capacity, bufferFd, buffer, ret);
+        return new Impl(ionFd, capacity, bufferFd, buffer, id, ret);
     }
 
     /**
@@ -202,7 +205,7 @@ public:
      * \return created ion allocation (implementation) which may be invalid if the
      * allocation failed.
      */
-    static Impl *Alloc(int ionFd, size_t size, size_t align, unsigned heapMask, unsigned flags) {
+    static Impl *Alloc(int ionFd, size_t size, size_t align, unsigned heapMask, unsigned flags, C2Allocator::id_t id) {
         int bufferFd = -1;
         ion_user_handle_t buffer = -1;
         int ret = ion_alloc(ionFd, size, align, heapMask, flags, &buffer);
@@ -214,19 +217,19 @@ public:
                 buffer = -1;
             }
         }
-        return new Impl(ionFd, size, bufferFd, buffer, ret);
+        return new Impl(ionFd, size, bufferFd, buffer, id, ret);
     }
 
-    c2_status_t map(size_t offset, size_t size, C2MemoryUsage usage, int *fenceFd, void **addr) {
-        (void)fenceFd; // TODO: wait for fence
+    c2_status_t map(size_t offset, size_t size, C2MemoryUsage usage, C2Fence *fence, void **addr) {
+        (void)fence; // TODO: wait for fence
         *addr = nullptr;
 
         if (mIonFd < 0) {
             *addr = mVector.data() + offset;
             return C2_OK;
         }
-
-        if (mMapSize > 0) {
+        if (!mMappings.empty()) {
+            ALOGV("multiple map");
             // TODO: technically we should return DUPLICATE here, but our block views don't
             // actually unmap, so we end up remapping an ion buffer multiple times.
             //
@@ -238,10 +241,10 @@ public:
 
         int prot = PROT_NONE;
         int flags = MAP_PRIVATE;
-        if (usage.consumer & C2MemoryUsage::CPU_READ) {
+        if (usage.expected & C2MemoryUsage::CPU_READ) {
             prot |= PROT_READ;
         }
-        if (usage.producer & C2MemoryUsage::CPU_WRITE) {
+        if (usage.expected & C2MemoryUsage::CPU_WRITE) {
             prot |= PROT_WRITE;
             flags = MAP_SHARED;
         }
@@ -249,68 +252,77 @@ public:
         size_t alignmentBytes = offset % PAGE_SIZE;
         size_t mapOffset = offset - alignmentBytes;
         size_t mapSize = size + alignmentBytes;
+        Mapping map = { nullptr, alignmentBytes, mapSize };
 
         c2_status_t err = C2_OK;
         if (mMapFd == -1) {
             int ret = ion_map(mIonFd, mBuffer, mapSize, prot,
-                              flags, mapOffset, (unsigned char**)&mMapAddr, &mMapFd);
+                              flags, mapOffset, (unsigned char**)&map.addr, &mMapFd);
             if (ret) {
                 mMapFd = -1;
-                *addr = nullptr;
+                map.addr = *addr = nullptr;
                 err = c2_map_errno<EINVAL>(-ret);
             } else {
-                *addr = (uint8_t *)mMapAddr + alignmentBytes;
-                mMapAlignmentBytes = alignmentBytes;
-                mMapSize = mapSize;
+                *addr = (uint8_t *)map.addr + alignmentBytes;
             }
         } else {
-            mMapAddr = mmap(nullptr, mapSize, prot, flags, mMapFd, mapOffset);
-            if (mMapAddr == MAP_FAILED) {
-                mMapAddr = *addr = nullptr;
+            map.addr = mmap(nullptr, mapSize, prot, flags, mMapFd, mapOffset);
+            if (map.addr == MAP_FAILED) {
+                map.addr = *addr = nullptr;
                 err = c2_map_errno<EINVAL>(errno);
             } else {
-                *addr = (uint8_t *)mMapAddr + alignmentBytes;
-                mMapAlignmentBytes = alignmentBytes;
-                mMapSize = mapSize;
+                *addr = (uint8_t *)map.addr + alignmentBytes;
             }
+        }
+        if (map.addr) {
+            mMappings.push_back(map);
         }
         return err;
     }
 
-    c2_status_t unmap(void *addr, size_t size, int *fenceFd) {
+    c2_status_t unmap(void *addr, size_t size, C2Fence *fence) {
         if (mIonFd < 0) {
             return C2_OK;
         }
-        if (mMapFd < 0 || mMapSize == 0) {
+         if (mMapFd < 0 || mMappings.empty()) {
             return C2_NOT_FOUND;
         }
-        if (addr != (uint8_t *)mMapAddr + mMapAlignmentBytes ||
-                size + mMapAlignmentBytes != mMapSize) {
-            return C2_BAD_VALUE;
+        for (auto it = mMappings.begin(); it != mMappings.end(); ++it) {
+            if (addr != (uint8_t *)it->addr + it->alignmentBytes ||
+                    size + it->alignmentBytes != it->size) {
+                continue;
+            }
+            int err = munmap(it->addr, it->size);
+            if (err != 0) {
+                return c2_map_errno<EINVAL>(errno);
+            }
+            if (fence) {
+                *fence = C2Fence(); // not using fences
+            }
+            (void)mMappings.erase(it);
+            return C2_OK;
         }
-        int err = munmap(mMapAddr, mMapSize);
-        if (err != 0) {
-            return c2_map_errno<EINVAL>(errno);
-        }
-        if (fenceFd) {
-            *fenceFd = -1; // not using fences
-        }
-        mMapSize = 0;
-        return C2_OK;
+        return C2_BAD_VALUE;
     }
 
     ~Impl() {
+        if (!mMappings.empty()) {
+            ALOGD("Dangling mappings!");
+            for (const Mapping &map : mMappings) {
+                (void)munmap(map.addr, map.size);
+            }
+        }
         if (mMapFd >= 0) {
             close(mMapFd);
             mMapFd = -1;
         }
         if (mInit == C2_OK) {
             (void)ion_free(mIonFd, mBuffer);
+            native_handle_close(&mHandle);
         }
         if (mIonFd >= 0) {
             close(mIonFd);
         }
-        native_handle_close(&mHandle);
     }
 
     c2_status_t status() const {
@@ -321,38 +333,54 @@ public:
         return &mHandle;
     }
 
+    C2Allocator::id_t getAllocatorId() const {
+        return mId;
+    }
+
+    ion_user_handle_t ionHandle() const {
+        return mBuffer;
+    }
+
 private:
     int mIonFd;
     C2HandleIon mHandle;
     ion_user_handle_t mBuffer;
+    C2Allocator::id_t mId;
     c2_status_t mInit;
     int mMapFd; // only one for now
-    void *mMapAddr;
-    size_t mMapAlignmentBytes;
-    size_t mMapSize;
+    struct Mapping {
+        void *addr;
+        size_t alignmentBytes;
+        size_t size;
+    };
+    std::list<Mapping> mMappings;
     std::vector<uint8_t> mVector;
 };
 
 c2_status_t C2AllocationIon::map(
-    size_t offset, size_t size, C2MemoryUsage usage, int *fenceFd, void **addr) {
-    return mImpl->map(offset, size, usage, fenceFd, addr);
+    size_t offset, size_t size, C2MemoryUsage usage, C2Fence *fence, void **addr) {
+    return mImpl->map(offset, size, usage, fence, addr);
 }
 
-c2_status_t C2AllocationIon::unmap(void *addr, size_t size, int *fenceFd) {
-    return mImpl->unmap(addr, size, fenceFd);
-}
-
-bool C2AllocationIon::isValid() const {
-    return mImpl->status() == C2_OK;
+c2_status_t C2AllocationIon::unmap(void *addr, size_t size, C2Fence *fence) {
+    return mImpl->unmap(addr, size, fence);
 }
 
 c2_status_t C2AllocationIon::status() const {
     return mImpl->status();
 }
 
+C2Allocator::id_t C2AllocationIon::getAllocatorId() const {
+    return mImpl->getAllocatorId();
+}
+
 bool C2AllocationIon::equals(const std::shared_ptr<C2LinearAllocation> &other) const {
-    return other != nullptr &&
-        other->handle(); // TODO
+    if (!other || other->getAllocatorId() != getAllocatorId()) {
+        return false;
+    }
+    // get user handle to compare objects
+    std::shared_ptr<C2AllocationIon> otherAsIon = std::static_pointer_cast<C2AllocationIon>(other);
+    return mImpl->ionHandle() == otherAsIon->mImpl->ionHandle();
 }
 
 const C2Handle *C2AllocationIon::handle() const {
@@ -363,21 +391,28 @@ C2AllocationIon::~C2AllocationIon() {
     delete mImpl;
 }
 
-C2AllocationIon::C2AllocationIon(int ionFd, size_t size, size_t align, unsigned heapMask, unsigned flags)
+C2AllocationIon::C2AllocationIon(int ionFd, size_t size, size_t align,
+                                 unsigned heapMask, unsigned flags, C2Allocator::id_t id)
     : C2LinearAllocation(size),
-      mImpl(Impl::Alloc(ionFd, size, align, heapMask, flags)) { }
+      mImpl(Impl::Alloc(ionFd, size, align, heapMask, flags, id)) { }
 
-C2AllocationIon::C2AllocationIon(int ionFd, size_t size, int shareFd)
+C2AllocationIon::C2AllocationIon(int ionFd, size_t size, int shareFd, C2Allocator::id_t id)
     : C2LinearAllocation(size),
-      mImpl(Impl::Import(ionFd, size, shareFd)) { }
+      mImpl(Impl::Import(ionFd, size, shareFd, id)) { }
 
 /* ======================================= ION ALLOCATOR ====================================== */
-C2AllocatorIon::C2AllocatorIon() : mInit(C2_OK), mIonFd(ion_open()) {
+C2AllocatorIon::C2AllocatorIon(id_t id)
+    : mInit(C2_OK),
+      mIonFd(ion_open()) {
     if (mIonFd < 0) {
         switch (errno) {
         case ENOENT:    mInit = C2_OMITTED; break;
         default:        mInit = c2_map_errno<EACCES>(errno); break;
         }
+    } else {
+        C2MemoryUsage minUsage = { 0, 0 }, maxUsage = { ~(uint64_t)0, ~(uint64_t)0 };
+        Traits traits = { "android.allocator.ion", id, LINEAR, minUsage, maxUsage };
+        mTraits = std::make_shared<Traits>(traits);
     }
 }
 
@@ -388,11 +423,15 @@ C2AllocatorIon::~C2AllocatorIon() {
 }
 
 C2Allocator::id_t C2AllocatorIon::getId() const {
-    return 0; /// \todo implement ID
+    return mTraits->id;
 }
 
 C2String C2AllocatorIon::getName() const {
-    return "android.allocator.ion";
+    return mTraits->name;
+}
+
+std::shared_ptr<const C2Allocator::Traits> C2AllocatorIon::getTraits() const {
+    return mTraits;
 }
 
 c2_status_t C2AllocatorIon::newLinearAllocation(
@@ -421,7 +460,7 @@ c2_status_t C2AllocatorIon::newLinearAllocation(
 #endif
 
     std::shared_ptr<C2AllocationIon> alloc
-        = std::make_shared<C2AllocationIon>(dup(mIonFd), capacity, align, heapMask, flags);
+        = std::make_shared<C2AllocationIon>(dup(mIonFd), capacity, align, heapMask, flags, mTraits ? mTraits->id : C2Allocator::id_t {} );
     c2_status_t ret = alloc->status();
     if (ret == C2_OK) {
         *allocation = alloc;
@@ -443,12 +482,18 @@ c2_status_t C2AllocatorIon::priorLinearAllocation(
     // TODO: get capacity and validate it
     const C2HandleIon *h = static_cast<const C2HandleIon*>(handle);
     std::shared_ptr<C2AllocationIon> alloc
-        = std::make_shared<C2AllocationIon>(dup(mIonFd), h->size(), h->bufferFd());
+        = std::make_shared<C2AllocationIon>(dup(mIonFd), h->size(), h->bufferFd(), mTraits->id);
     c2_status_t ret = alloc->status();
     if (ret == C2_OK) {
         *allocation = alloc;
+        native_handle_delete(const_cast<native_handle_t*>(
+                reinterpret_cast<const native_handle_t*>(handle)));
     }
     return ret;
+}
+
+bool C2AllocatorIon::isValid(const C2Handle* const o) {
+    return C2HandleIon::isValid(o);
 }
 
 } // namespace android

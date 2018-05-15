@@ -37,7 +37,7 @@ else
     remote_lib=lib64
 fi
 
-remote_output=$remote_server:$remote_dir/out/target/product/$target_platform/vendor/
+remote_output=$remote_dir/out/target/product/$target_platform/
 
 tests_folder=c2-msdk-tests
 
@@ -57,12 +57,20 @@ libmfx_c2_components_hw.so
 
 execs=mfx_c2_store_unittests,mfx_c2_components_unittests,mfx_c2_mock_unittests
 
-if ssh $remote_server "test -e $remote_dir/out/target/product/$target_platform/vendor/${remote_lib}/libstagefright_codec2_vndk_mfx.so"
-then
-    libs="$libs,libstagefright_codec2_vndk_mfx.so"
-fi
+scp $remote_server:${remote_output}vendor/\{$remote_lib/\{$libs\},bin/\{$execs\}$bitness\} ${local_dir}
 
-scp ${remote_output}\{$remote_lib/\{$libs\},bin/\{$execs\}$bitness\} ${local_dir}
+system_libs="\
+libstagefright_codec2_vndk_mfx.so \
+android.hardware.media.bufferpool@1.0.so \
+libstagefright_bufferpool@1.0.so"
+
+for i in $system_libs
+do
+    if ssh $remote_server "test -e ${remote_output}system/${remote_lib}/${i}"
+    then
+        scp $remote_server:$remote_output/system/${remote_lib}/${i} ${local_dir}
+    fi
+done
 
 if adb shell "[ ! -w /system ]"
 then
