@@ -6,7 +6,7 @@ cc_library_headers {
     ],
 
     vndk: {
-        enabled: true,
+        enabled: false,
     },
 
     // TODO: Remove this when this module is moved back to frameworks/av.
@@ -17,7 +17,7 @@ cc_library_vndk_mfx {
     name: "libstagefright_codec2_vndk_mfx",
     vendor_available: true,
     vndk: {
-        enabled: true,
+        enabled: false,
     },
 
     srcs: [
