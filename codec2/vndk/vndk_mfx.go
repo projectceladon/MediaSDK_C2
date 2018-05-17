@@ -32,7 +32,7 @@ func vndkMfxDefaults(ctx android.LoadHookContext) {
 
     p := &props{}
     ret := ctx.AConfig().Getenv("USE_MOCK_CODEC2")
-    if ret == "false" {
+    if ret != "true" {
         p.Target.Android.Enabled = proptools.BoolPtr(true)
     } else {
         p.Target.Android.Enabled = proptools.BoolPtr(false)
