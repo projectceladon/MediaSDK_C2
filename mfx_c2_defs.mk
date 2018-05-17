@@ -2,7 +2,7 @@
 #   Defines include paths, compilation flags, etc. to build C2 plug-ins.
 
 ifeq ($(USE_MOCK_CODEC2),)
-    USE_MOCK_CODEC2 = true
+    USE_MOCK_CODEC2 = false
 endif
 
 MFX_C_INCLUDES_C2 += $(MFX_C2_HOME)/codec2/include/

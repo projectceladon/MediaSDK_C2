@@ -21,7 +21,8 @@ do
     if [ -f "$HOME/build.signal" ]
     then
          echo -n "building...      "
-         mm -j32 USE_MOCK_CODEC2=true BOARD_HAVE_MEDIASDK_SRC=true > ~/build.log
+         # USE_MOCK_CODEC2=true/false could be specified to select mock/vndk build, default is vndk
+         mm -j32 BOARD_HAVE_MEDIASDK_SRC=true > ~/build.log
          rm $HOME/build.signal
          echo "done."
     else
