@@ -62,7 +62,11 @@ scp $remote_server:${remote_output}vendor/\{$remote_lib/\{$libs\},bin/\{$execs\}
 system_libs="\
 libstagefright_codec2_vndk_mfx.so \
 android.hardware.media.bufferpool@1.0.so \
-libstagefright_bufferpool@1.0.so"
+libstagefright_bufferpool@1.0.so \
+libhidltransport.so \
+libhidlbase.so \
+libhwbinder.so \
+libbase.so"
 
 for i in $system_libs
 do
