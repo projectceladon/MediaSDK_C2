@@ -823,7 +823,6 @@ public:
     Step c2_alloc = [this] (MfxGrallocAllocator*, MfxFrameAllocator*, MfxFrameConverter*) {
 
         std::shared_ptr<C2BlockPool> c2_allocator;
-        MfxC2Component* c_mfx_component {};
         c2_status_t res = C2_OK;
 
         std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, &res));
@@ -1110,7 +1109,6 @@ typedef std::function<void (MfxFrameAllocator* allocator, MfxFramePoolAllocator*
 static void MfxFramePoolAllocatorTest(const std::vector<MfxFramePoolAllocatorTestStep>& steps, int repeat_count = 1)
 {
     std::shared_ptr<C2BlockPool> c2_allocator;
-    MfxC2Component* c_mfx_component {};
     c2_status_t res = C2_OK;
     std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, &res));
     EXPECT_EQ(res, C2_OK);
