@@ -15,8 +15,8 @@ LOCAL_SRC_FILES := \
     src/test_main.cpp
 
 LOCAL_C_INCLUDES += \
-    $(MFX_C_INCLUDES) \
-    $(MFX_C_INCLUDES_C2) \
+    $(MFX_INCLUDES) \
+    $(MFX_INCLUDES_C2) \
     $(MFX_C2_HOME)/c2_store/include \
     $(MFX_C2_HOME)/c2_components/include \
     $(MFX_C2_HOME)/unittests/include \
@@ -66,8 +66,8 @@ LOCAL_SRC_FILES := \
     src/test_main.cpp
 
 LOCAL_C_INCLUDES := \
-    $(MFX_C_INCLUDES) \
-    $(MFX_C_INCLUDES_C2) \
+    $(MFX_INCLUDES) \
+    $(MFX_INCLUDES_C2) \
     $(MFX_C2_HOME)/c2_components/include \
     $(MFX_C2_HOME)/c2_streams/include \
     $(MFX_C2_HOME)/unittests/include \
@@ -130,8 +130,8 @@ define build_mock_unittests
       src/test_main.cpp
 
   LOCAL_C_INCLUDES := \
-      $$(MFX_C_INCLUDES) \
-      $$(MFX_C_INCLUDES_C2) \
+      $$(MFX_INCLUDES) \
+      $$(MFX_INCLUDES_C2) \
       $$(MFX_C2_HOME)/mock/c2_components/include \
       $$(MFX_C2_HOME)/c2_components/include \
       $$(MFX_C2_HOME)/unittests/include \
@@ -167,7 +167,7 @@ define build_mock_unittests
     MODULE_SUFFIX :=
 
     LOCAL_C_INCLUDES += \
-        $$(MFX_C_INCLUDES_LIBVA)
+        $$(MFX_INCLUDES_LIBVA)
     LOCAL_CFLAGS += \
         $$(MFX_CFLAGS_LIBVA)
     LOCAL_SHARED_LIBRARIES += \

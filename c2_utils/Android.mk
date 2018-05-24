@@ -11,8 +11,8 @@ define build_utils
   LOCAL_SRC_FILES := \
       $$(addprefix src/, $$(notdir $$(wildcard $$(LOCAL_PATH)/src/*.cpp)))
   LOCAL_C_INCLUDES += \
-      $$(MFX_C_INCLUDES) \
-      $$(MFX_C_INCLUDES_C2)
+      $$(MFX_INCLUDES) \
+      $$(MFX_INCLUDES_C2)
   LOCAL_CFLAGS += \
       $$(MFX_CFLAGS) \
       $$(MFX_CFLAGS_C2)
@@ -23,7 +23,7 @@ define build_utils
     MODULE_SUFFIX := _$(1)
 
     LOCAL_C_INCLUDES += \
-        $$(MFX_C_INCLUDES_LIBVA)
+        $$(MFX_INCLUDES_LIBVA)
     LOCAL_CFLAGS += \
         $$(MFX_CFLAGS_LIBVA)
   else

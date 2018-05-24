@@ -9,8 +9,8 @@ include $(MFX_C2_HOME)/mfx_c2_defs.mk
 LOCAL_SRC_FILES := $(addprefix src/, $(notdir $(wildcard $(LOCAL_PATH)/src/*.cpp)))
 
 LOCAL_C_INCLUDES += \
-    $(MFX_C_INCLUDES) \
-    $(MFX_C_INCLUDES_C2) \
+    $(MFX_INCLUDES) \
+    $(MFX_INCLUDES_C2) \
     $(MFX_C2_HOME)/c2_utils/include \
     $(LOCAL_PATH)/include
 
