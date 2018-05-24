@@ -120,6 +120,34 @@ bool ExtractAvcSequenceParameterSet(std::vector<char>&& bitstream, AvcSequencePa
     return sps_found;
 }
 
+bool ExtractHevcSequenceParameterSet(std::vector<char>&& bitstream, HevcSequenceParameterSet* sps)
+{
+    StreamDescription stream {};
+    stream.data = std::move(bitstream); // do not init sps/pps regions, don't care of them
+    SingleStreamReader reader(&stream);
+
+    bool sps_found = false;
+
+    StreamDescription::Region region {};
+    bool header {};
+    size_t start_code_len {};
+    while (reader.Read(StreamReader::Slicing::NalUnit(), &region, &header, &start_code_len)) {
+        if (region.size > start_code_len) {
+            char header_byte = stream.data[region.offset + start_code_len]; // first byte start code
+            uint8_t nal_unit_type = ((uint8_t)header_byte & 0x7E) >> 1;
+            const uint8_t UNIT_TYPE_SPS = 33;
+            if (nal_unit_type == UNIT_TYPE_SPS && region.size > start_code_len + 17) {
+                uint8_t general_profile_idc = stream.data[region.offset + start_code_len + 2];
+                sps->profile = general_profile_idc & 0x1F;
+                sps->level = ((uint8_t)stream.data[region.offset + start_code_len + 17]) / 3;
+                sps_found = true;
+                break;
+            }
+        }
+    }
+    return sps_found;
+}
+
 bool TestAvcStreamProfileLevel(const C2ProfileLevelStruct& profile_level, std::vector<char>&& bitstream, std::string* message)
 {
     struct SpsProfile {
@@ -175,6 +203,62 @@ bool TestAvcStreamProfileLevel(const C2ProfileLevelStruct& profile_level, std::v
         if (profile_to_sps.at(profile_level.profile).sps_constraints != sps_actual.constraints) {
             res = false;
             oss << "sps constraints is " << sps_actual.constraints << " instead of " << profile_to_sps.at(profile_level.profile).sps_constraints << std::endl;
+        }
+        if (level_to_sps.at(profile_level.level) != sps_actual.level) {
+            res = false;
+            oss << "sps level is " << sps_actual.level << " instead of " << level_to_sps.at(profile_level.level) << std::endl;
+        }
+    }
+
+    *message = oss.str();
+    return res;
+}
+
+bool TestHevcStreamProfileLevel(const C2ProfileLevelStruct& profile_level, std::vector<char>&& bitstream, std::string* message)
+{
+    struct SpsProfile {
+        uint16_t sps_profile;
+    };
+
+    const std::map<uint32_t, SpsProfile> profile_to_sps = {
+        { LEGACY_VIDEO_HEVCProfileMain, { 1 } },
+        { LEGACY_VIDEO_HEVCProfileMain10, { 2 } },
+    };
+
+    struct TestLevel {
+        const char* name;
+        LEGACY_VIDEO_HEVCLEVELTYPE level;
+        uint16_t sps_level;
+    };
+
+    const std::map<uint32_t, uint16_t> level_to_sps = {
+        { LEGACY_VIDEO_HEVCLevel1, 10 },
+        { LEGACY_VIDEO_HEVCLevel2, 20 },
+        { LEGACY_VIDEO_HEVCLevel121, 21 },
+        { LEGACY_VIDEO_HEVCLevel3, 30 },
+        { LEGACY_VIDEO_HEVCLevel31, 31 },
+        { LEGACY_VIDEO_HEVCCLevel40, 40 },
+        { LEGACY_VIDEO_HEVCLevel41, 41 },
+        { LEGACY_VIDEO_HEVCLevel50, 50 },
+        { LEGACY_VIDEO_HEVCLevel51, 51 },
+        { LEGACY_VIDEO_HEVCLevel52, 52 },
+        { LEGACY_VIDEO_HEVCLevel60, 60 },
+        { LEGACY_VIDEO_HEVCLevel61, 61 },
+        { LEGACY_VIDEO_HEVCLevel62, 62 },
+    };
+
+    std::ostringstream oss;
+
+    HevcSequenceParameterSet sps_actual;
+    bool res = ExtractHevcSequenceParameterSet(std::move(bitstream), &sps_actual);
+    if (!res) {
+        oss << "sps is not found in bitstream\n";
+    }
+
+    if (res) {
+        if (profile_to_sps.at(profile_level.profile).sps_profile != sps_actual.profile) {
+            res = false;
+            oss << "sps profile is " << sps_actual.profile << " instead of " << profile_to_sps.at(profile_level.profile).sps_profile << std::endl;
         }
         if (level_to_sps.at(profile_level.level) != sps_actual.level) {
             res = false;

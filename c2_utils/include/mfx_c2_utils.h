@@ -71,6 +71,14 @@ bool AvcLevelAndroidToMfx(uint32_t android_value, mfxU16* mfx_value);
 
 bool AvcLevelMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value);
 
+bool HevcProfileAndroidToMfx(uint32_t android_value, mfxU16* mfx_value);
+
+bool HevcProfileMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value);
+
+bool HevcLevelAndroidToMfx(uint32_t android_value, mfxU16* mfx_value);
+
+bool HevcLevelMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value);
+
 void InitNV12PlaneLayout(int32_t pitch, C2PlanarLayout* layout);
 
 void InitNV12PlaneData(int32_t pitch, int32_t alloc_height, uint8_t* base, uint8_t** plane_data);

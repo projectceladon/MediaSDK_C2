@@ -27,7 +27,8 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 
 using namespace android;
 
-const uint64_t FRAME_DURATION_US = 33333; // 30 fps
+const float FRAME_RATE = 30.0; // 30 fps
+const uint64_t FRAME_DURATION_US = (uint64_t)(1000000 / FRAME_RATE);
 // Low res is chosen to speed up the tests.
 const uint32_t FRAME_WIDTH = 320;
 const uint32_t FRAME_HEIGHT = 240;
@@ -38,17 +39,25 @@ const uint32_t FRAME_FORMAT = HAL_PIXEL_FORMAT_NV12_TILED_INTEL; // nv12
 const uint32_t FRAME_COUNT = 150; // 10 default GOP size
 const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
-static std::vector<C2ParamDescriptor> h264_params_desc =
+std::vector<C2ParamDescriptor> DefaultC2Params()
 {
-    { false, "RateControl", C2RateControlSetting::PARAM_TYPE },
-    { false, "Bitrate", C2BitrateTuning::output::PARAM_TYPE },
-    { false, "FrameQP", C2FrameQPSetting::PARAM_TYPE },
-    { false, "IntraRefresh", C2IntraRefreshTuning::PARAM_TYPE },
-    { false, "Profile", C2ProfileSetting::PARAM_TYPE },
-    { false, "Level", C2LevelSetting::PARAM_TYPE },
-    { false, "SupportedProfilesLevels", C2ProfileLevelInfo::output::PARAM_TYPE },
-    { false, "MemoryType", C2MemoryTypeSetting::PARAM_TYPE },
-};
+    std::vector<C2ParamDescriptor> param =
+    {
+        { false, "RateControl", C2RateControlSetting::PARAM_TYPE },
+        { false, "Bitrate", C2BitrateTuning::output::PARAM_TYPE },
+        { false, "FrameQP", C2FrameQPSetting::PARAM_TYPE },
+        { false, "IntraRefresh", C2IntraRefreshTuning::PARAM_TYPE },
+        { false, "Profile", C2ProfileSetting::PARAM_TYPE },
+        { false, "Level", C2LevelSetting::PARAM_TYPE },
+        { false, "SupportedProfilesLevels", C2ProfileLevelInfo::output::PARAM_TYPE },
+        { false, "MemoryType", C2MemoryTypeSetting::PARAM_TYPE },
+    };
+    return param;
+}
+
+static std::vector<C2ParamDescriptor> h264_params_desc = DefaultC2Param();
+
+static std::vector<C2ParamDescriptor> h265_params_desc = DefaultC2Param();
 
 namespace {
 
@@ -83,12 +92,19 @@ C2RateControlMethod MfxRateControlToC2(mfxU16 rate_control)
     return res;
 }
 
-static C2ParamValues GetH264DefaultValues()
+static C2ParamValues GetDefaultValues(const char * component_name)
 {
     C2ParamValues default_values;
     // get default c2 params from mfx default structure
     mfxVideoParam video_params {};
-    video_params.mfx.CodecId = MFX_CODEC_AVC;
+    if (!strcmp(component_name, "C2.h264ve")) {
+        video_params.mfx.CodecId = MFX_CODEC_AVC;
+    } else if (!strcmp(component_name, "C2.h265ve")) {
+        video_params.mfx.CodecId = MFX_CODEC_HEVC;
+    } else {
+        video_params.mfx.CodecId = 0; // UNKNOWN
+    }
+
     mfx_set_defaults_mfxVideoParam_enc(&video_params);
 
     default_values.Append(new C2RateControlSetting(MfxRateControlToC2(video_params.mfx.RateControlMethod)));
@@ -106,9 +122,12 @@ static ComponentDesc NonExistingEncoderDesc()
 }
 
 static ComponentDesc g_components_desc[] = {
-    { "C2.h264ve", 0, C2_OK, h264_params_desc, GetH264DefaultValues(), C2_CORRUPTED,
+    { "C2.h264ve", 0, C2_OK, h264_params_desc, GetDefaultValues("C2.h264ve"), C2_CORRUPTED,
         { g_h264_profile_levels, g_h264_profile_levels + g_h264_profile_levels_count },
         &TestAvcStreamProfileLevel },
+    { "C2.h265ve", 0, C2_OK, h265_params_desc, GetDefaultValues("C2.h265ve"), C2_CORRUPTED,
+        { g_h265_profile_levels, g_h265_profile_levels + g_h265_profile_levels_count },
+        &TestHevcStreamProfileLevel },
     NonExistingEncoderDesc(),
 };
 
@@ -565,10 +584,10 @@ TEST(MfxEncoderComponent, StaticBitrate)
             Encode(FRAME_COUNT, false/*system memory*/, comp, validator,
                 { &stripe_generator, &noise_generator } );
 
-            int64_t expected_len = FRAME_DURATION_US * FRAME_COUNT * 1000 * bitrates[test_index] /
-                (8 * 1000000);
-            EXPECT_TRUE(abs(bitstream_len - expected_len) < expected_len * 0.1)
-                << "Expected bitstream len: " << expected_len << " Actual: " << bitstream_len
+            int64_t expected_bitrate = 1000 * bitrates[test_index]; // target bitrate in bits
+            int64_t real_bitrate = (bitstream_len * FRAME_RATE * 8) / FRAME_COUNT;
+            EXPECT_TRUE(abs(real_bitrate - expected_bitrate) < expected_bitrate * 0.1)
+                << "Expected bitrate: " << expected_bitrate << " Actual: " << real_bitrate
                 << " for bitrate " << bitrates[test_index] << " kbit";
 
         }
@@ -800,7 +819,7 @@ TEST(MfxEncoderComponent, query_vb)
     }); // ForEveryComponent
 }
 
-uint32_t CountIdrSlices(std::vector<char>&& contents)
+uint32_t CountIdrSlices(std::vector<char>&& contents, const char* component_name)
 {
     StreamDescription stream {};
     stream.data = std::move(contents); // do not init sps/pps regions, don't care of them
@@ -816,10 +835,19 @@ uint32_t CountIdrSlices(std::vector<char>&& contents)
 
         if (region.size > start_code_len) {
             char header_byte = stream.data[region.offset + start_code_len]; // first byte start code
-            uint8_t nal_unit_type = (uint8_t)header_byte & 0x1F;
-            const uint8_t IDR_SLICE = 5;
-            if (nal_unit_type == IDR_SLICE) {
-                ++count;
+            uint8_t nal_unit_type = 0;
+            if (!strcmp(component_name, "C2.h264ve")) {
+                nal_unit_type = (uint8_t)header_byte & 0x1F;
+                const uint8_t IDR_SLICE = 5;
+                if (nal_unit_type == IDR_SLICE) {
+                    ++count;
+                }
+            } else if (!strcmp(component_name, "C2.h265ve")) {
+                nal_unit_type = ((uint8_t)header_byte & 0x7E) >> 1; // extract 6 bits: from 2nd to 7th
+                const uint8_t IDR_W_RADL = 19;
+                const uint8_t IDR_N_LP = 20;
+                if ((nal_unit_type == IDR_W_RADL) || (nal_unit_type == IDR_N_LP))
+                    ++count;
             }
         }
     }
@@ -892,7 +920,7 @@ TEST(MfxEncoderComponent, IntraRefresh)
 
                 uint32_t idr_expected = (FRAME_COUNT - 1) / idr_distance + 1;
 
-                uint32_t idr_actual = CountIdrSlices(std::move(bitstream));
+                uint32_t idr_actual = CountIdrSlices(std::move(bitstream), comp_desc.component_name);
 
                 EXPECT_EQ(idr_expected, idr_actual) << NAMED(idr_expected) << NAMED(idr_actual)
                     << NAMED(idr_distance);
@@ -992,9 +1020,14 @@ TEST(MfxEncoderComponent, DynamicBitrate)
             Encode(TEST_FRAME_COUNT, false/*system memory*/, comp, validator, { &stripe_generator, &noise_generator },
                 before_queue_work );
 
-            int64_t stream_len_2_expected = stream_len_1 * MULTIPLIER;
-            EXPECT_TRUE(abs((int64_t)stream_len_2 - stream_len_2_expected) < stream_len_2_expected * 0.1)
-                << NAMED(stream_len_2) << NAMED(stream_len_1);
+            int64_t real_bitrate_1 = (stream_len_1 * FRAME_RATE * 8) / FRAME_COUNT;
+            int64_t real_bitrate_2 = (stream_len_2 * FRAME_RATE * 8) / FRAME_COUNT;
+
+            EXPECT_TRUE(abs(real_bitrate_1 - BITRATE_1 * 1000) < BITRATE_1 * 1000 * 0.1)
+                << "Expected bitrate: " << BITRATE_1 * 1000 << " Actual: " << real_bitrate_1;
+
+            EXPECT_TRUE(abs(real_bitrate_2 - BITRATE_2 * 1000) < BITRATE_2 * 1000 * 0.1)
+                << "Expected bitrate: " << BITRATE_2 * 1000 << " Actual: " << real_bitrate_2;
         }
     }); // ForEveryComponent
 }

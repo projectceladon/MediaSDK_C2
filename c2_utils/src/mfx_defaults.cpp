@@ -117,6 +117,8 @@ mfxStatus mfx_set_defaults_mfxVideoParam_enc(mfxVideoParam* params)
         memset(params, 0, sizeof(mfxVideoParam));
         params->mfx.CodecId = CodecId;
         params->mfx.NumThread = 0;
+        params->mfx.FrameInfo.FrameRateExtD = 1;
+        params->mfx.FrameInfo.FrameRateExtN = 30;
         switch (params->mfx.CodecId)
         {
         case MFX_CODEC_AVC:
@@ -163,11 +165,14 @@ mfxStatus mfx_set_defaults_mfxVideoParam_enc(mfxVideoParam* params)
             params->mfx.CodecLevel = MFX_LEVEL_HEVC_6;
             params->mfx.TargetUsage = MFX_TARGETUSAGE_BEST_SPEED;
             params->mfx.FrameInfo.PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
+            params->mfx.FrameInfo.ChromaFormat = MFX_CHROMAFORMAT_YUV420; // YUV420, need set because HEVCe doesn't support MONOCHROME
             res = mfx_set_RateControlMethod(MFX_RATECONTROL_CBR, params);
             params->mfx.GopPicSize = 16;
             params->mfx.GopRefDist = 1;
             params->mfx.NumSlice = 1;
             params->mfx.NumRefFrame = 1;
+            params->mfx.FrameInfo.Width = 320; // WA for HEVCe Query: resolution shouldn't be
+            params->mfx.FrameInfo.Height = 240; // 0, because used for initialize device
             break;
         default:
             break;
