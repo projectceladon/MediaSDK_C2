@@ -11,8 +11,8 @@ define build_components
   LOCAL_SRC_FILES := $$(addprefix src/, $(notdir $(wildcard $(LOCAL_PATH)/src/*.cpp)))
 
   LOCAL_C_INCLUDES := \
-      $$(MFX_C_INCLUDES) \
-      $$(MFX_C_INCLUDES_C2) \
+      $$(MFX_INCLUDES) \
+      $$(MFX_INCLUDES_C2) \
       $$(MFX_C2_HOME)/c2_utils/include \
       $$(MFX_C2_HOME)/c2_buffers/include
 
@@ -36,7 +36,7 @@ define build_components
     MSDK_IMPL := $(1)
 
     LOCAL_C_INCLUDES += \
-        $$(MFX_C_INCLUDES_LIBVA)
+        $$(MFX_INCLUDES_LIBVA)
     LOCAL_CFLAGS += \
         $$(MFX_CFLAGS_LIBVA)
     LOCAL_SHARED_LIBRARIES += \
