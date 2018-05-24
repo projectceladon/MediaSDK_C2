@@ -1,11 +1,10 @@
 LOCAL_PATH:= $(call my-dir)
 
-include $(MFX_HOME)/mdp_msdk-lib/android/mfx_env.mk
+include $(MFX_C2_HOME)/mfx_c2_env.mk
 
 # =============================================================================
 
 include $(CLEAR_VARS)
-include $(MFX_HOME)/mdp_msdk-lib/android/mfx_defs.mk
 include $(MFX_C2_HOME)/mfx_c2_defs.mk
 
 LOCAL_SRC_FILES := \
@@ -14,31 +13,22 @@ LOCAL_SRC_FILES := \
     src/test_components.cpp \
     src/test_main.cpp
 
-LOCAL_C_INCLUDES += \
-    $(MFX_INCLUDES) \
-    $(MFX_INCLUDES_C2) \
+LOCAL_C_INCLUDES := \
+    $(MFX_C2_INCLUDES) \
     $(MFX_C2_HOME)/c2_store/include \
     $(MFX_C2_HOME)/c2_components/include \
     $(MFX_C2_HOME)/unittests/include \
     $(MFX_C2_HOME)/c2_utils/include
 
-LOCAL_C_INCLUDES_32 := $(IPP_ROOT_32)/include
-LOCAL_C_INCLUDES_64 := $(IPP_ROOT_64)/include
+LOCAL_CFLAGS := $(MFX_C2_CFLAGS)
 
-LOCAL_CFLAGS += \
-    $(MFX_CFLAGS) \
-    $(MFX_CFLAGS_C2)
-
-LOCAL_LDFLAGS += \
-    $(MFX_LDFLAGS)
+LOCAL_LDFLAGS := $(MFX_C2_LDFLAGS)
 
 LOCAL_STATIC_LIBRARIES := libippdc_l libippcore_l
-
 LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_store
-
-LOCAL_HEADER_LIBRARIES := \
-    $(MFX_HEADER_LIBRARIES) \
-    libhardware_headers       # It's here due to <hardware/gralloc.h> include. Need to remove when the header will be removed
+LOCAL_HEADER_LIBRARIES := $(MFX_C2_HEADER_LIBRARIES)
+LOCAL_HEADER_LIBRARIES_32 := libmdp_msdk_ipp_32_headers
+LOCAL_HEADER_LIBRARIES_64 := libmdp_msdk_ipp_64_headers
 
 LOCAL_MULTILIB := both
 LOCAL_MODULE_TAGS := optional
@@ -51,7 +41,6 @@ include $(BUILD_EXECUTABLE)
 # =============================================================================
 
 include $(CLEAR_VARS)
-include $(MFX_HOME)/mdp_msdk-lib/android/mfx_defs.mk
 include $(MFX_C2_HOME)/mfx_c2_defs.mk
 
 STREAM_CPP_FILES := $(wildcard $(LOCAL_PATH)/streams/*/*.cpp)
@@ -66,38 +55,31 @@ LOCAL_SRC_FILES := \
     src/test_main.cpp
 
 LOCAL_C_INCLUDES := \
-    $(MFX_INCLUDES) \
-    $(MFX_INCLUDES_C2) \
+    $(MFX_C2_INCLUDES) \
     $(MFX_C2_HOME)/c2_components/include \
     $(MFX_C2_HOME)/c2_streams/include \
     $(MFX_C2_HOME)/unittests/include \
     $(MFX_C2_HOME)/c2_utils/include
 
-LOCAL_C_INCLUDES_32 := $(IPP_ROOT_32)/include
-LOCAL_C_INCLUDES_64 := $(IPP_ROOT_64)/include
+LOCAL_CFLAGS := $(MFX_C2_CFLAGS)
 
-LOCAL_CFLAGS += \
-    $(MFX_CFLAGS) \
-    $(MFX_CFLAGS_C2)
-
-LOCAL_LDFLAGS += \
-    $(MFX_LDFLAGS)
+LOCAL_LDFLAGS := $(MFX_C2_LDFLAGS)
 
 LOCAL_STATIC_LIBRARIES := \
     libmfx_c2_utils \
     libippdc_l \
     libippcore_l \
-    $(MFX_STATIC_LIBS_C2)
+    $(MFX_C2_STATIC_LIBS)
 
 LOCAL_SHARED_LIBRARIES := \
     libdl \
     liblog \
     libmfx_c2_components_hw \
-    $(MFX_SHARED_LIBS_C2)
+    $(MFX_C2_SHARED_LIBS)
 
-LOCAL_HEADER_LIBRARIES := \
-    $(MFX_HEADER_LIBRARIES) \
-    libhardware_headers       # It's here due to <hardware/gralloc.h> include. Need to remove when the header will be removed
+LOCAL_HEADER_LIBRARIES := $(MFX_C2_HEADER_LIBRARIES)
+LOCAL_HEADER_LIBRARIES_32 := libmdp_msdk_ipp_32_headers
+LOCAL_HEADER_LIBRARIES_64 := libmdp_msdk_ipp_64_headers
 
 LOCAL_MULTILIB := both
 LOCAL_MODULE_TAGS := optional
@@ -113,7 +95,6 @@ include $(BUILD_EXECUTABLE)
 define build_mock_unittests
 
   include $(CLEAR_VARS)
-  include $(MFX_HOME)/mdp_msdk-lib/android/mfx_defs.mk
   include $(MFX_C2_HOME)/mfx_c2_defs.mk
 
   STREAM_CPP_FILES := $$(wildcard $(LOCAL_PATH)/streams/*/*.cpp)
@@ -130,49 +111,38 @@ define build_mock_unittests
       src/test_main.cpp
 
   LOCAL_C_INCLUDES := \
-      $$(MFX_INCLUDES) \
-      $$(MFX_INCLUDES_C2) \
+      $$(MFX_C2_INCLUDES) \
       $$(MFX_C2_HOME)/mock/c2_components/include \
       $$(MFX_C2_HOME)/c2_components/include \
       $$(MFX_C2_HOME)/unittests/include \
       $$(MFX_C2_HOME)/c2_utils/include
 
-  LOCAL_C_INCLUDES_32 := $$(IPP_ROOT_32)/include
-  LOCAL_C_INCLUDES_64 := $$(IPP_ROOT_64)/include
-
-  LOCAL_CFLAGS += \
-      $$(MFX_CFLAGS) \
-      $$(MFX_CFLAGS_C2)
+  LOCAL_CFLAGS := $$(MFX_C2_CFLAGS)
 
   ifeq ($(USE_MOCK_CODEC2),true)
       LOCAL_CFLAGS += -DUSE_MOCK_CODEC2
   endif
 
-  LOCAL_LDFLAGS += \
-      $$(MFX_LDFLAGS)
+  LOCAL_LDFLAGS := $$(MFX_C2_LDFLAGS)
 
   LOCAL_STATIC_LIBRARIES := \
     libippdc_l \
     libippcore_l \
-    $(MFX_STATIC_LIBS_C2)
+    $(MFX_C2_STATIC_LIBS)
 
   LOCAL_SHARED_LIBRARIES := \
     libmfx_mock_c2_components \
     libdl \
     liblog \
     libhardware \
-    $(MFX_SHARED_LIBS_C2)
+    $(MFX_C2_SHARED_LIBS)
 
   ifneq ($(1),pure)
     MODULE_SUFFIX :=
 
-    LOCAL_C_INCLUDES += \
-        $$(MFX_INCLUDES_LIBVA)
-    LOCAL_CFLAGS += \
-        $$(MFX_CFLAGS_LIBVA)
-    LOCAL_SHARED_LIBRARIES += \
-      libva libva-android
-
+    LOCAL_C_INCLUDES += $$(MFX_C2_INCLUDES_LIBVA)
+    LOCAL_CFLAGS += $$(MFX_C2_CFLAGS_LIBVA)
+    LOCAL_SHARED_LIBRARIES += libva libva-android
     LOCAL_STATIC_LIBRARIES += libmfx_c2_utils_va
   else
     MODULE_SUFFIX := _pure
@@ -180,8 +150,9 @@ define build_mock_unittests
     LOCAL_STATIC_LIBRARIES += libmfx_c2_utils
   endif
 
-  LOCAL_HEADER_LIBRARIES := \
-      $$(MFX_HEADER_LIBRARIES)
+  LOCAL_HEADER_LIBRARIES := $$(MFX_C2_HEADER_LIBRARIES)
+  LOCAL_HEADER_LIBRARIES_32 := libmdp_msdk_ipp_32_headers
+  LOCAL_HEADER_LIBRARIES_64 := libmdp_msdk_ipp_64_headers
 
   LOCAL_MULTILIB := both
   LOCAL_MODULE_TAGS := optional
