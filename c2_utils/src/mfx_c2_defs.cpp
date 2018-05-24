@@ -24,3 +24,11 @@ const C2ProfileLevelStruct g_h264_profile_levels[] =
 };
 
 const size_t g_h264_profile_levels_count = MFX_GET_ARRAY_SIZE(g_h264_profile_levels);
+
+const C2ProfileLevelStruct g_h265_profile_levels[] =
+{
+    { LEGACY_VIDEO_HEVCProfileMain, LEGACY_VIDEO_HEVCLevel51 },
+    /*{ LEGACY_VIDEO_HEVCProfileMain10, LEGACY_VIDEO_HEVCLevel51 }, supports only 8 bit (see caps.BitDepth8Only)*/
+};
+
+const size_t g_h265_profile_levels_count = MFX_GET_ARRAY_SIZE(g_h265_profile_levels);

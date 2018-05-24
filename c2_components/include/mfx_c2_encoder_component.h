@@ -41,6 +41,7 @@ class MfxC2EncoderComponent : public MfxC2Component
 public:
     enum EncoderType {
         ENCODER_H264,
+        ENCODER_H265,
     };
 
 protected:

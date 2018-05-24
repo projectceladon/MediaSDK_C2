@@ -29,6 +29,15 @@ typedef enum LEGACY_VIDEO_AVCPROFILETYPE {
     LEGACY_VIDEO_AVCProfileMax      = 0x7FFFFFFF
 } LEGACY_VIDEO_AVCPROFILETYPE;
 
+/**
+ * HEVC profile types, each profile indicates support for various
+ * performance bounds and different annexes.
+ */
+typedef enum LEGACY_VIDEO_HEVCPROFILETYPE {
+    LEGACY_VIDEO_HEVCProfileMain   = 0x01,   /**< Main profile */
+    LEGACY_VIDEO_HEVCProfileMain10 = 0x02,   /**< Main 10 profile */
+    LEGACY_VIDEO_HEVCCProfileMax   = 0x7FFFFFFF
+} LEGACY_VIDEO_HEVCPROFILETYPE;
 
 /**
  * AVC level types, each level indicates support for various frame sizes,
@@ -57,3 +66,25 @@ typedef enum LEGACY_VIDEO_AVCLEVELTYPE {
     LEGACY_VIDEO_AVCLevelMax = 0x7FFFFFFF
 } LEGACY_VIDEO_AVCLEVELTYPE;
 
+/**
+ * HEVC level types, each level indicates support for various frame sizes,
+ * bit rates, decoder frame rates.  No need
+ */
+typedef enum LEGACY_VIDEO_HEVCLEVELTYPE {
+    LEGACY_VIDEO_HEVCLevel1     = 0x01,     /**< Level 1 */
+    LEGACY_VIDEO_HEVCLevel2     = 0x02,     /**< Level 2 */
+    LEGACY_VIDEO_HEVCLevel121   = 0x04,     /**< Level 21 */
+    LEGACY_VIDEO_HEVCLevel3     = 0x08,     /**< Level 3 */
+    LEGACY_VIDEO_HEVCLevel31    = 0x10,     /**< Level 31 */
+    LEGACY_VIDEO_HEVCCLevel40   = 0x20,     /**< Level 40 */
+    LEGACY_VIDEO_HEVCLevel41    = 0x40,     /**< Level 41 */
+    LEGACY_VIDEO_HEVCLevel50    = 0x80,     /**< Level 50 */
+    LEGACY_VIDEO_HEVCLevel51    = 0x100,    /**< Level 51 */
+    LEGACY_VIDEO_HEVCLevel52    = 0x200,    /**< Level 52 */
+    LEGACY_VIDEO_HEVCLevel60    = 0x400,    /**< Level 60 */
+    LEGACY_VIDEO_HEVCLevel61    = 0x800,    /**< Level 61 */
+    LEGACY_VIDEO_HEVCLevel62    = 0x1000,   /**< Level 62 */
+    LEGACY_VIDEO_HEVCLevelKhronosExtensions = 0x6F000000, /**< Reserved region for introducing Khronos Standard Extensions */
+    LEGACY_VIDEO_HEVCLevelVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
+    LEGACY_VIDEO_HEVCLevelMax = 0x7FFFFFFF
+} LEGACY_VIDEO_HEVCLEVELTYPE;

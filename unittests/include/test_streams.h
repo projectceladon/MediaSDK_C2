@@ -365,6 +365,17 @@ struct AvcSequenceParameterSet
     uint16_t level;
 };
 
+struct HevcSequenceParameterSet
+{
+    uint16_t profile;
+    uint16_t level;
+};
+
+
 bool ExtractAvcSequenceParameterSet(std::vector<char>&& bitstream, AvcSequenceParameterSet* sps);
 
+bool ExtractHevcSequenceParameterSet(std::vector<char>&& bitstream, HevcSequenceParameterSet* sps);
+
 bool TestAvcStreamProfileLevel(const C2ProfileLevelStruct& profile_level, std::vector<char>&& bitstream, std::string* message);
+
+bool TestHevcStreamProfileLevel(const C2ProfileLevelStruct& profile_level, std::vector<char>&& bitstream, std::string* message);

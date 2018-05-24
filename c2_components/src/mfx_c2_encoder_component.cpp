@@ -63,6 +63,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, int flags, Enc
 
     switch(encoder_type_) {
         case ENCODER_H264:
+        case ENCODER_H265:
 
             MfxC2ParamReflector& pr = param_reflector_;
 
@@ -105,6 +106,8 @@ void MfxC2EncoderComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
 
     registry.RegisterMfxC2Component("C2.h264ve",
         &MfxC2Component::Factory<MfxC2EncoderComponent, EncoderType>::Create<ENCODER_H264>);
+    registry.RegisterMfxC2Component("C2.h265ve",
+        &MfxC2Component::Factory<MfxC2EncoderComponent, EncoderType>::Create<ENCODER_H265>);
 }
 
 c2_status_t MfxC2EncoderComponent::Init()
@@ -212,6 +215,9 @@ mfxStatus MfxC2EncoderComponent::Reset()
     {
     case ENCODER_H264:
         video_params_config_.mfx.CodecId = MFX_CODEC_AVC;
+        break;
+   case ENCODER_H265:
+        video_params_config_.mfx.CodecId = MFX_CODEC_HEVC;
         break;
     default:
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
@@ -686,6 +692,9 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
                 case ENCODER_H264:
                     set_res = AvcProfileMfxToAndroid(video_params_config_.mfx.CodecProfile, &setting->value);
                     break;
+                case ENCODER_H265:
+                    set_res = HevcProfileMfxToAndroid(video_params_config_.mfx.CodecProfile, &setting->value);
+                    break;
                 default:
                     break;
             }
@@ -704,6 +713,9 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
                 case ENCODER_H264:
                     set_res = AvcLevelMfxToAndroid(video_params_config_.mfx.CodecLevel, &setting->value);
                     break;
+                case ENCODER_H265:
+                    set_res = HevcLevelMfxToAndroid(video_params_config_.mfx.CodecLevel, &setting->value);
+                    break;
                 default:
                     break;
             }
@@ -720,6 +732,14 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
 
                     for (size_t i = 0; i < g_h264_profile_levels_count; ++i) {
                         info->m.values[i] = g_h264_profile_levels[i];
+                    }
+                    *dst = info.release();
+                } else if (encoder_type_ == ENCODER_H265) {
+                    std::unique_ptr<C2ProfileLevelInfo::output> info =
+                        C2ProfileLevelInfo::output::AllocUnique(g_h265_profile_levels_count);
+
+                    for (size_t i = 0; i < g_h265_profile_levels_count; ++i) {
+                        info->m.values[i] = g_h265_profile_levels[i];
                     }
                     *dst = info.release();
                 } else {
@@ -943,6 +963,9 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                     case ENCODER_H264:
                         set_res = AvcProfileAndroidToMfx(profile_setting->value, &video_params_config_.mfx.CodecProfile);
                         break;
+                    case ENCODER_H265:
+                        set_res = HevcProfileAndroidToMfx(profile_setting->value, &video_params_config_.mfx.CodecProfile);
+                        break;
                     default:
                         break;
                 }
@@ -958,6 +981,9 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 switch (encoder_type_) {
                     case ENCODER_H264:
                         set_res = AvcLevelAndroidToMfx(setting->value, &video_params_config_.mfx.CodecLevel);
+                        break;
+                    case ENCODER_H265:
+                        set_res = HevcLevelAndroidToMfx(setting->value, &video_params_config_.mfx.CodecLevel);
                         break;
                     default:
                         break;

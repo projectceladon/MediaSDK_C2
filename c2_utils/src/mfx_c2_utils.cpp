@@ -346,6 +346,31 @@ static const std::pair<LEGACY_VIDEO_AVCLEVELTYPE, mfxU16> g_h264_levels[] =
     { LEGACY_VIDEO_AVCLevel51, MFX_LEVEL_AVC_51 }
 };
 
+static const std::pair<LEGACY_VIDEO_HEVCPROFILETYPE, mfxU16> g_h265_profiles[] =
+{
+    { LEGACY_VIDEO_HEVCProfileMain,  MFX_PROFILE_HEVC_MAIN },
+    { LEGACY_VIDEO_HEVCProfileMain10, MFX_PROFILE_HEVC_MAIN10 }
+    /* LEGACY_VIDEO_HEVCProfileMainSp, LEGACY_VIDEO_HEVCProfileRext, LEGACY_VIDEO_HEVCProfileScc
+    are not supported */
+};
+
+static const std::pair<LEGACY_VIDEO_HEVCLEVELTYPE, mfxU16> g_h265_levels[] =
+{
+    { LEGACY_VIDEO_HEVCLevel1, MFX_LEVEL_HEVC_1 },
+    { LEGACY_VIDEO_HEVCLevel2, MFX_LEVEL_HEVC_2},
+    { LEGACY_VIDEO_HEVCLevel121, MFX_LEVEL_HEVC_21 },
+    { LEGACY_VIDEO_HEVCLevel3, MFX_LEVEL_HEVC_3 },
+    { LEGACY_VIDEO_HEVCLevel31, MFX_LEVEL_HEVC_31 },
+    { LEGACY_VIDEO_HEVCCLevel40, MFX_LEVEL_HEVC_4 },
+    { LEGACY_VIDEO_HEVCLevel41, MFX_LEVEL_HEVC_41 },
+    { LEGACY_VIDEO_HEVCLevel50, MFX_LEVEL_HEVC_5 },
+    { LEGACY_VIDEO_HEVCLevel51, MFX_LEVEL_HEVC_51 },
+    { LEGACY_VIDEO_HEVCLevel52, MFX_LEVEL_HEVC_52 },
+    { LEGACY_VIDEO_HEVCLevel60, MFX_LEVEL_HEVC_6 },
+    { LEGACY_VIDEO_HEVCLevel61, MFX_LEVEL_HEVC_61 },
+    { LEGACY_VIDEO_HEVCLevel62, MFX_LEVEL_HEVC_62 }
+};
+
 bool AvcProfileAndroidToMfx(uint32_t android_value, mfxU16* mfx_value)
 {
     return FirstToSecond(g_h264_profiles,
@@ -366,6 +391,28 @@ bool AvcLevelAndroidToMfx(uint32_t android_value, mfxU16* mfx_value)
 bool AvcLevelMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value)
 {
     return SecondToFirst(g_h264_levels, mfx_value, android_value);
+}
+
+bool HevcProfileAndroidToMfx(uint32_t android_value, mfxU16* mfx_value)
+{
+    return FirstToSecond(g_h265_profiles,
+        static_cast<LEGACY_VIDEO_HEVCPROFILETYPE>(android_value), mfx_value);
+}
+
+bool HevcProfileMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value)
+{
+    return SecondToFirst(g_h265_profiles, mfx_value, android_value);
+}
+
+bool HevcLevelAndroidToMfx(uint32_t android_value, mfxU16* mfx_value)
+{
+    return FirstToSecond(g_h265_levels,
+        static_cast<LEGACY_VIDEO_HEVCLEVELTYPE>(android_value), mfx_value);
+}
+
+bool HevcLevelMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value)
+{
+    return SecondToFirst(g_h265_levels, mfx_value, android_value);
 }
 
 // Returns pointers to NV12 planes.

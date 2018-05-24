@@ -29,3 +29,6 @@ const c2_nsecs_t MFX_SECOND_NS = 1000000000; // 1e9
 
 extern const size_t g_h264_profile_levels_count;
 extern const C2ProfileLevelStruct g_h264_profile_levels[];
+
+extern const size_t g_h265_profile_levels_count;
+extern const C2ProfileLevelStruct g_h265_profile_levels[];
