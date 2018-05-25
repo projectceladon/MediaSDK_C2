@@ -8,6 +8,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 #define __C2_GENERATE_GLOBAL_VARS__
+#include "C2ParamUtils.h"
 #include "mfx_c2_params.h"
 
 #include "mfx_c2_component.h"

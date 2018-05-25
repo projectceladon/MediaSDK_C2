@@ -174,7 +174,7 @@ public:
         CORE_INDEX = ParamIndex | C2Param::CoreIndex::IS_FLEX_FLAG, ///< flexible struct core-index
     };
 
-    const static std::initializer_list<const C2FieldDescriptor> FIELD_LIST; // TODO assign here
+    inline static const std::vector<C2FieldDescriptor> FieldList() { return S::FieldList(); }
 
     // default constructor needed because of the disabled copy constructor
     inline _C2FlexStructCheck() = default;
@@ -212,12 +212,6 @@ protected:
         return nullptr;
     }
 };
-
-// TODO: this probably does not work.
-/// Expose FIELD_LIST from subClass;
-template<typename S, int ParamIndex, unsigned TypeFlags>
-const std::initializer_list<const C2FieldDescriptor>
-_C2FlexStructCheck<S, ParamIndex, TypeFlags>::FIELD_LIST = S::FIELD_LIST;
 
 /// Define From() cast operators for params.
 #define DEFINE_CAST_OPERATORS(_Type) \
@@ -878,11 +872,17 @@ typedef C2SimpleValueStruct<char[]> C2StringValue;
 
 #if 1
 template<typename T>
-const std::initializer_list<const C2FieldDescriptor> C2SimpleValueStruct<T>::FIELD_LIST = { C2FIELD(value, "value") };
+const std::vector<C2FieldDescriptor> C2SimpleValueStruct<T>::FieldList() {
+    return { DESCRIBE_C2FIELD(value, "value") };
+}
 template<typename T>
-const std::initializer_list<const C2FieldDescriptor> C2SimpleValueStruct<T[]>::FIELD_LIST = { C2FIELD(value, "value") };
+const std::vector<C2FieldDescriptor> C2SimpleValueStruct<T[]>::FieldList() {
+    return { DESCRIBE_C2FIELD(value, "value") };
+}
 template<typename T>
-const std::initializer_list<const C2FieldDescriptor> C2SimpleArrayStruct<T>::FIELD_LIST = { C2FIELD(values, "values") };
+const std::vector<C2FieldDescriptor> C2SimpleArrayStruct<T>::FieldList() {
+    return { DESCRIBE_C2FIELD(values, "values") };
+}
 #else
 // This seem to be able to be handled by the template above
 DESCRIBE_TEMPLATED_C2STRUCT(C2SimpleValueStruct<int32_t>, { C2FIELD(value, "value") });

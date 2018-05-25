@@ -60,6 +60,7 @@ enum C2ParamIndexKind : C2Param::type_index_t {
     kParamIndexStreamCount,
     kParamIndexFormat,
     kParamIndexBlockPools,
+    kParamIndexBitrate,
 
     kParamIndexMaxVideoSizeHint,
     kParamIndexVideoSizeTuning,
@@ -129,6 +130,10 @@ C2ENUM(C2FormatKind, uint32_t,
 typedef C2StreamParam<C2Tuning, C2Uint32Value, kParamIndexFormat> C2StreamFormatConfig;
 
 typedef C2PortParam<C2Tuning, C2Uint64Array, kParamIndexBlockPools> C2PortBlockPoolsTuning;
+
+// encoder bitrate [IN]
+typedef C2StreamParam<C2Tuning, C2Uint32Value, kParamIndexBitrate> C2BitrateTuning;
+constexpr char C2_NAME_STREAM_BITRATE_SETTING[] = "coded.bitrate";
 
 typedef C2StreamParam<C2Info, C2BlobValue, kParamIndexCsd> C2StreamCsdInfo;
 

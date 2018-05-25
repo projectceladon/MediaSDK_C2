@@ -67,7 +67,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, int flags, Enc
             MfxC2ParamReflector& pr = param_reflector_;
 
             pr.RegisterParam<C2RateControlSetting>("RateControl");
-            pr.RegisterParam<C2BitrateTuning>("Bitrate");
+            pr.RegisterParam<C2BitrateTuning::output>("Bitrate");
 
             pr.RegisterParam<C2FrameQPSetting>("FrameQP");
             const uint32_t MIN_QP = 1;
@@ -652,7 +652,7 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
         }
         case kParamIndexBitrate: {
             if (nullptr == *dst) {
-                *dst = new C2BitrateTuning();
+                *dst = new C2BitrateTuning::output();
             }
             C2BitrateTuning* bitrate = (C2BitrateTuning*)*dst;
             if (src->mfx.RateControlMethod != MFX_RATECONTROL_CQP) {

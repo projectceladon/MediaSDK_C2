@@ -20,7 +20,7 @@ class MfxC2ParamReflector
 private:
     std::vector<std::shared_ptr<C2ParamDescriptor>> params_descriptors_;
 
-    std::map<C2Param::CoreIndex, C2StructDescriptor> params_struct_descriptors_;
+    std::map<C2Param::Type, C2StructDescriptor> params_struct_descriptors_;
 
     std::map<C2ParamField, C2FieldSupportedValues> params_supported_values_;
 
@@ -57,8 +57,7 @@ void MfxC2ParamReflector::RegisterParam(const char* param_name)
     params_descriptors_.push_back(
         std::make_shared<C2ParamDescriptor>(false, param_name, ParamType::PARAM_TYPE));
 
-    C2Param::CoreIndex base_index = C2Param::Type(ParamType::PARAM_TYPE).typeIndex();
-    params_struct_descriptors_.insert({ base_index, C2StructDescriptor(base_index, ParamType::FIELD_LIST) });
+    params_struct_descriptors_.insert({ ParamType::PARAM_TYPE, C2StructDescriptor(ParamType::PARAM_TYPE, ParamType::FieldList()) });
 };
 
 template<typename ParamType, typename ValueType, typename FieldType>

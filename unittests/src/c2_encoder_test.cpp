@@ -41,7 +41,7 @@ const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 static std::vector<C2ParamDescriptor> h264_params_desc =
 {
     { false, "RateControl", C2RateControlSetting::PARAM_TYPE },
-    { false, "Bitrate", C2BitrateTuning::PARAM_TYPE },
+    { false, "Bitrate", C2BitrateTuning::output::PARAM_TYPE },
     { false, "FrameQP", C2FrameQPSetting::PARAM_TYPE },
     { false, "IntraRefresh", C2IntraRefreshTuning::PARAM_TYPE },
     { false, "Profile", C2ProfileSetting::PARAM_TYPE },
@@ -92,7 +92,7 @@ static C2ParamValues GetH264DefaultValues()
     mfx_set_defaults_mfxVideoParam_enc(&video_params);
 
     default_values.Append(new C2RateControlSetting(MfxRateControlToC2(video_params.mfx.RateControlMethod)));
-    default_values.Append(new C2BitrateTuning(video_params.mfx.TargetKbps));
+    default_values.Append(new C2BitrateTuning::output(0/*stream*/, video_params.mfx.TargetKbps));
     default_values.Append(Invalidate(new C2FrameQPSetting()));
     return default_values;
 }
@@ -527,7 +527,7 @@ TEST(MfxEncoderComponent, StaticBitrate)
 
         C2RateControlSetting param_rate_control;
         param_rate_control.value = C2RateControlCBR;
-        C2BitrateTuning param_bitrate;
+        C2BitrateTuning::output param_bitrate;
 
         // these bit rates handles accurately for low res (320x240) and significant frame count (150)
         const uint32_t bitrates[] = { 100, 500, 1000 };
@@ -928,7 +928,8 @@ TEST(MfxEncoderComponent, DynamicBitrate)
 
             SCOPED_TRACE((use_config_nb ? "config_vb" : "C2Work"));
 
-            std::unique_ptr<C2BitrateTuning> param_bitrate = std::make_unique<C2BitrateTuning>();
+            std::unique_ptr<C2BitrateTuning::output> param_bitrate =
+                std::make_unique<C2BitrateTuning::output>();
 
             const uint32_t BITRATE_1 = 100;
             const uint32_t MULTIPLIER = 2;
