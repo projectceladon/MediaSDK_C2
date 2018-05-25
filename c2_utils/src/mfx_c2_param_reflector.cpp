@@ -57,10 +57,12 @@ bool MfxC2ParamReflector::ValidateParam(const C2Param* param,
 
     do {
 
-        C2Param::CoreIndex base_index = C2Param::Type(param->type()).typeIndex();
-        auto found_struct = params_struct_descriptors_.find(base_index);
+        C2Param::Type param_type = param->type();
+
+        MFX_DEBUG_TRACE_STREAM(std::hex << NAMED(param_type.type()));
+        auto found_struct = params_struct_descriptors_.find(param_type);
         if(found_struct == params_struct_descriptors_.end()) {
-            // the whole param is not supported
+            MFX_DEBUG_TRACE_MSG("the whole param is not supported");
             res = false;
             failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE));
             break;
@@ -70,7 +72,10 @@ bool MfxC2ParamReflector::ValidateParam(const C2Param* param,
         for(auto it_field = struct_desc.cbegin(); it_field != struct_desc.cend(); ++it_field) {
 
             const C2FieldDescriptor& field_desc = *it_field;
+            MFX_DEBUG_TRACE_STREAM(std::hex << NAMED((uint32_t)field_desc.type()));
+
             switch(field_desc.type()) {
+                case C2FieldDescriptor::INT32:
                 case C2FieldDescriptor::UINT32: {
 
                     // C2ParamField measures offset in C2Param structure,
@@ -113,7 +118,8 @@ bool MfxC2ParamReflector::ValidateParam(const C2Param* param,
 
                     break;
                 }
-                default: // other types not supported yet
+                default:
+                    MFX_DEBUG_TRACE_MSG("other types not supported yet");
                     res = false;
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE));
                     break;
@@ -123,6 +129,7 @@ bool MfxC2ParamReflector::ValidateParam(const C2Param* param,
 
     } while(false);
 
+    MFX_DEBUG_TRACE_STREAM(NAMED(res));
     return res;
 }
 

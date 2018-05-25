@@ -68,7 +68,8 @@ endif
 # Setting usual paths to include files
 MFX_C2_INCLUDES := \
   $(LOCAL_PATH)/include \
-  $(MFX_C2_HOME)/codec2/include/
+  $(MFX_C2_HOME)/codec2/include/ \
+  $(MFX_C2_HOME)/codec2/vndk/include/util
 
 ifeq ($(USE_MOCK_CODEC2),)
     USE_MOCK_CODEC2 = false

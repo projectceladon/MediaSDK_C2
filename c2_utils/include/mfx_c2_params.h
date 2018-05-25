@@ -16,7 +16,6 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 enum C2ParamIndexKindVendor : uint32_t {
 
     kParamIndexRateControl = C2Param::TYPE_INDEX_VENDOR_START,
-    kParamIndexBitrate,
     kParamIndexProfile,
     kParamIndexLevel,
     kParamIndexProfileLevel,
@@ -33,8 +32,6 @@ C2ENUM(C2RateControlMethod, int32_t,
 
 typedef C2PortParam<C2Setting, C2SimpleValueStruct<C2RateControlMethod>, kParamIndexRateControl>::output
     C2RateControlSetting;
-
-typedef C2PortParam<C2Tuning, C2Uint32Value, kParamIndexBitrate>::output C2BitrateTuning;
 
 struct C2FrameQPStruct {
     uint32_t qp_i;

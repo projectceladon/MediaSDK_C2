@@ -216,7 +216,7 @@ private:
         }
 
         for (C2String s : sanitizedNames) {
-            std::cout << s << std::endl;
+            // std::cout << s << std::endl;
         }
 
         return sanitizedNames;
