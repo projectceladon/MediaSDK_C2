@@ -17,13 +17,13 @@ then
 fi
 
 tar --exclude=.git* --exclude=*~ -czf c2.tar.gz *
-scp c2.tar.gz ${remote_server}:${remote_dir}/vendor/intel/mediasdk_git/mdp_msdk-lib/samples/
+scp c2.tar.gz ${remote_server}:${remote_dir}/vendor/intel/
 rm c2.tar.gz
 
 ssh ${remote_server} "
     set -e
-    cd $remote_dir/vendor/intel/mediasdk_git/mdp_msdk-lib/samples/
-    tar -czf c2_prev.backup.$(date +%s).tar.gz sample_c2_plugins/
-    rm -rf sample_c2_plugins/*
-    tar xzmf c2.tar.gz -C sample_c2_plugins/
+    cd $remote_dir/vendor/intel/
+    tar -czf c2_prev.backup.$(date +%s).tar.gz mdp_msdk-c2-plugins/
+    rm -rf mdp_msdk-c2-plugins/*
+    tar xzmf c2.tar.gz -C mdp_msdk-c2-plugins/
     rm c2.tar.gz"
