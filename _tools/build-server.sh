@@ -10,10 +10,11 @@ fi
 source build/envsetup.sh
 lunch $target_platform
 
-cd vendor/intel/mediasdk_git
+# If out/ dir was cleaned then we need to directly make targets depended from other dirs at least once.
+# They cannot be built with mm from mdp_msdk-c2-plugins folder from scratch.
+make -j32 BOARD_HAVE_MEDIASDK_SRC=true libmfx_c2_components_hw libmfx_c2_components_sw mfx_c2_store_unittests
 
-echo 'include $(call all-subdir-makefiles)' > Android.mk
-echo 'optional_subdirs = ["*"] ' > Android.bp
+cd vendor/intel/mdp_msdk-c2-plugins
 
 while true
 do
