@@ -89,8 +89,19 @@ mfxStatus MfxDevVa::Close()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    if (nullptr != va_allocator_) va_allocator_ = nullptr;
-    if (nullptr != va_pool_allocator_) va_pool_allocator_ = nullptr;
+    mfxStatus res = MFX_ERR_NONE;
+    // Define weak_ptrs to allocators to check if they exist.
+    std::weak_ptr<MfxVaFrameAllocator> weak_va_allocator { va_allocator_ };
+    std::weak_ptr<MfxVaFramePoolAllocator> weak_va_pool_allocator { va_pool_allocator_ };
+
+    va_allocator_.reset();
+    va_pool_allocator_.reset();
+
+    // If an allocator exists then some error in resource release order.
+    if (!weak_va_allocator.expired() || !weak_va_pool_allocator.expired()) {
+        MFX_DEBUG_TRACE_MSG("MfxDevVa allocator is still in use while device is closed");
+        res = MFX_ERR_UNDEFINED_BEHAVIOR;
+    }
 
     if (va_initialized_) {
         MFX_DEBUG_TRACE_STREAM(NAMED(va_display_));
@@ -98,7 +109,7 @@ mfxStatus MfxDevVa::Close()
         va_initialized_ = false;
     }
 
-    return MFX_ERR_NONE;
+    return res;
 }
 
 mfxStatus MfxDevVa::InitMfxSession(MFXVideoSession* session)
@@ -138,22 +149,22 @@ mfxStatus MfxDevVa::InitMfxSession(MFXVideoSession* session)
     return mfx_res;
 }
 
-MfxFrameAllocator* MfxDevVa::GetFrameAllocator()
+std::shared_ptr<MfxFrameAllocator> MfxDevVa::GetFrameAllocator()
 {
     MFX_DEBUG_TRACE_FUNC;
-    return usage_ == Usage::Decoder ? va_pool_allocator_.get() : va_allocator_.get();
+    return usage_ == Usage::Decoder ? va_pool_allocator_ : va_allocator_;
 }
 
-MfxFrameConverter* MfxDevVa::GetFrameConverter()
+std::shared_ptr<MfxFrameConverter> MfxDevVa::GetFrameConverter()
 {
     MFX_DEBUG_TRACE_FUNC;
-    return usage_ == Usage::Decoder ? va_pool_allocator_.get() : va_allocator_.get();
+    return usage_ == Usage::Decoder ? va_pool_allocator_ : va_allocator_;
 }
 
-MfxFramePoolAllocator* MfxDevVa::GetFramePoolAllocator()
+std::shared_ptr<MfxFramePoolAllocator> MfxDevVa::GetFramePoolAllocator()
 {
     MFX_DEBUG_TRACE_FUNC;
-    return usage_ == Usage::Decoder ? va_pool_allocator_.get() : nullptr;
+    return usage_ == Usage::Decoder ? va_pool_allocator_ : nullptr;
 }
 
 #endif // #ifdef LIBVA_SUPPORT

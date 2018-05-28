@@ -617,7 +617,7 @@ static void MfxVaAllocatorTest(const std::vector<MfxVaAllocatorTestStep>& steps,
     mfxStatus sts = dev->Init();
     EXPECT_EQ(MFX_ERR_NONE, sts);
 
-    MfxFrameAllocator* allocator = dev->GetFrameAllocator();
+    std::shared_ptr<MfxFrameAllocator> allocator = dev->GetFrameAllocator();
     EXPECT_NE(allocator, nullptr);
 
     if (allocator) {
@@ -654,12 +654,15 @@ static void MfxVaAllocatorTest(const std::vector<MfxVaAllocatorTestStep>& steps,
                         request.AllocId = va_contexts[index]->GetVaContext();
                     }
 
-                    step(run, allocator, request, response);
+                    step(run, allocator.get(), request, response);
                 }
             }
         }
+
+        allocator.reset();
     }
-    dev->Close();
+    sts = dev->Close();
+    EXPECT_EQ(MFX_ERR_NONE, sts);
 }
 
 static void MfxFrameAlloc(const MfxAllocTestRun& run, MfxFrameAllocator* allocator,
@@ -781,21 +784,26 @@ static void MfxFrameConverterTest(const std::vector<MfxFrameConverterTestStep>& 
     mfxStatus sts = dev->Init();
     EXPECT_EQ(MFX_ERR_NONE, sts);
 
-    MfxFrameAllocator* allocator = dev->GetFrameAllocator();
+    std::shared_ptr<MfxFrameAllocator> allocator = dev->GetFrameAllocator();
     EXPECT_NE(allocator, nullptr);
 
-    MfxFrameConverter* converter = dev->GetFrameConverter();
+    std::shared_ptr<MfxFrameConverter> converter = dev->GetFrameConverter();
     EXPECT_NE(converter, nullptr);
 
     if (gr_allocator && allocator && converter) {
         for (int i = 0; i < repeat_count; ++i) {
             for (auto& step : steps) {
-                step(gr_allocator.get(), allocator, converter);
+                step(gr_allocator.get(), allocator.get(), converter.get());
             }
         }
     }
 
-    dev->Close();
+    converter->FreeAllMappings();
+    converter.reset();
+    allocator.reset();
+
+    sts = dev->Close();
+    EXPECT_EQ(MFX_ERR_NONE, sts);
 }
 
 // Class implementing variety of steps for MfxFrameConverter tests.
@@ -1124,9 +1132,9 @@ static void MfxFramePoolAllocatorTest(const std::vector<MfxFramePoolAllocatorTes
     EXPECT_EQ(MFX_ERR_NONE, sts);
 
     if (c2_allocator) {
-        MfxFrameAllocator* allocator = dev->GetFrameAllocator();
+        std::shared_ptr<MfxFrameAllocator> allocator = dev->GetFrameAllocator();
         EXPECT_NE(allocator, nullptr);
-        MfxFramePoolAllocator* pool_allocator = dev->GetFramePoolAllocator();
+        std::shared_ptr<MfxFramePoolAllocator> pool_allocator = dev->GetFramePoolAllocator();
         EXPECT_NE(pool_allocator, nullptr);
         if (pool_allocator) {
 
@@ -1134,13 +1142,14 @@ static void MfxFramePoolAllocatorTest(const std::vector<MfxFramePoolAllocatorTes
 
             for (int i = 0; i < repeat_count; ++i) {
                 for (auto& step : steps) {
-                    step(allocator, pool_allocator);
+                    step(allocator.get(), pool_allocator.get());
                 }
             }
         }
     }
 
-    dev->Close();
+    sts = dev->Close();
+    EXPECT_EQ(MFX_ERR_NONE, sts);
 }
 
 // Tests a typical use sequence for MfxFramePoolAllocator.

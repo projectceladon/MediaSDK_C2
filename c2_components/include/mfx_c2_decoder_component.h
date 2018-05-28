@@ -145,7 +145,7 @@ private:
 
     std::queue<std::unique_ptr<C2Work>> works_queue_;
 
-    MfxFramePoolAllocator* allocator_; // used when Video memory output
+    std::shared_ptr<MfxFramePoolAllocator> allocator_; // used when Video memory output
     // for pre-allocation when Video memory is chosen and always when System memory output
     std::shared_ptr<C2BlockPool> c2_allocator_;
 };

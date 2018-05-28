@@ -23,7 +23,7 @@ public:
     MfxC2FrameIn(MfxC2FrameIn&& other) = default;
     ~MfxC2FrameIn();
 
-    static c2_status_t Create(MfxFrameConverter* frame_converter,
+    static c2_status_t Create(std::shared_ptr<MfxFrameConverter> frame_converter,
         C2FrameData& buf_pack, c2_nsecs_t timeout, MfxC2FrameIn* wrapper);
 
     mfxFrameSurface1* GetMfxFrameSurface() const
@@ -34,5 +34,5 @@ private:
     std::shared_ptr<C2Buffer> c2_buffer_;
     std::unique_ptr<const C2GraphicView> c2_graphic_view_;
     std::unique_ptr<mfxFrameSurface1> mfx_frame_;
-    MfxFrameConverter* frame_converter_ {};
+    std::shared_ptr<MfxFrameConverter> frame_converter_;
 };

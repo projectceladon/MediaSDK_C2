@@ -141,7 +141,7 @@ c2_status_t MfxC2EncoderComponent::DoStart()
             // set frame allocator
             if (allocator_required) {
 
-                MfxFrameAllocator* allocator = device_->GetFrameAllocator();
+                std::shared_ptr<MfxFrameAllocator> allocator = device_->GetFrameAllocator();
                 if (!allocator) {
                     mfx_res = MFX_ERR_NOT_INITIALIZED;
                     break;
@@ -413,7 +413,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
         C2FrameData& input = work->input;
 
-        MfxFrameConverter* frame_converter = nullptr;
+        std::shared_ptr<MfxFrameConverter> frame_converter;
         if (video_params_config_.IOPattern == MFX_IOPATTERN_IN_VIDEO_MEMORY) {
             frame_converter = device_->GetFrameConverter();
         }
