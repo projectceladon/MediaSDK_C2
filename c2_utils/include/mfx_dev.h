@@ -32,11 +32,11 @@ public:
 
     virtual mfxStatus Close() = 0;
 
-    virtual MfxFrameAllocator* GetFrameAllocator() = 0;
+    virtual std::shared_ptr<MfxFrameAllocator> GetFrameAllocator() = 0;
 
-    virtual MfxFrameConverter* GetFrameConverter() = 0;
+    virtual std::shared_ptr<MfxFrameConverter> GetFrameConverter() = 0;
 
-    virtual MfxFramePoolAllocator* GetFramePoolAllocator() = 0;
+    virtual std::shared_ptr<MfxFramePoolAllocator> GetFramePoolAllocator() = 0;
 
     virtual mfxStatus InitMfxSession(MFXVideoSession* session) = 0;
 

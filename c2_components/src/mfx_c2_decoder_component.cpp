@@ -643,7 +643,7 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
 
     c2_status_t res = C2_OK;
 
-    MfxFrameConverter* converter = nullptr;
+    std::shared_ptr<MfxFrameConverter> converter;
     if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
         converter = device_->GetFrameConverter();
     }

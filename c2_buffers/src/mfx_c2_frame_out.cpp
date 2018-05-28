@@ -18,7 +18,7 @@ using namespace android;
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_frame_out"
 
-c2_status_t MfxC2FrameOut::Create(MfxFrameConverter* frame_converter,
+c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& frame_converter,
                                std::shared_ptr<C2GraphicBlock> block,
                                c2_nsecs_t timeout,
                                MfxC2FrameOut* wrapper)

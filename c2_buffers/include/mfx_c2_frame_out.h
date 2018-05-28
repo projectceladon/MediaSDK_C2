@@ -27,7 +27,7 @@ public:
         , mfx_surface_(mfx_frame)
     {}
 
-    static c2_status_t Create(MfxFrameConverter* frame_converter,
+    static c2_status_t Create(const std::shared_ptr<MfxFrameConverter>& frame_converter,
                                     std::shared_ptr<C2GraphicBlock> block,
                                     c2_nsecs_t timeout,
                                     MfxC2FrameOut* wrapper);

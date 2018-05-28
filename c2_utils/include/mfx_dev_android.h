@@ -23,9 +23,9 @@ public:
     virtual mfxStatus Init() override;
     virtual mfxStatus Close() override;
 
-    virtual MfxFrameAllocator* GetFrameAllocator() override { return nullptr; }
-    virtual MfxFrameConverter* GetFrameConverter() override { return nullptr; }
-    virtual MfxFramePoolAllocator* GetFramePoolAllocator() override { return nullptr; }
+    virtual std::shared_ptr<MfxFrameAllocator> GetFrameAllocator() override { return nullptr; }
+    virtual std::shared_ptr<MfxFrameConverter> GetFrameConverter() override { return nullptr; }
+    virtual std::shared_ptr<MfxFramePoolAllocator> GetFramePoolAllocator() override { return nullptr; }
 
     virtual mfxStatus InitMfxSession(MFXVideoSession* session) override;
 };
