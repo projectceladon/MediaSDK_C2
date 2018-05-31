@@ -1,17 +1,44 @@
-LOCAL_PATH:= $(call my-dir)
+# =============================================================================
+# DOCUMENTATION GENERATION
+# =============================================================================
+C2_ROOT := $(call my-dir)
 
-include $(CLEAR_VARS)
+C2_DOCS_ROOT := $(OUT_DIR)/target/common/docs/codec2
 
-LOCAL_SRC_FILES := C2.cpp
+C2_OUT_TEMP := $(PRODUCT_OUT)/gen/ETC/Codec2-docs_intermediates
 
-LOCAL_C_INCLUDES := \
-    $(TOP)/frameworks/av/media/libstagefright/codec2/include \
-    $(TOP)/frameworks/native/include/media/hardware
+C2_DOXY := $(or $(shell command -v doxygen),\
+		$(shell command -v /Applications/Doxygen.app/Contents/Resources/doxygen))
 
-LOCAL_CFLAGS := -Werror -Wall
-LOCAL_CLANG := true
-LOCAL_SANITIZE := unsigned-integer-overflow signed-integer-overflow
+check-doxygen:
+ifndef C2_DOXY
+	$(error 'doxygen is not available')
+endif
 
-LOCAL_MODULE:= libstagefright_codec2_mfx # as module conflicts with the one from android O tree
+$(C2_OUT_TEMP)/doxy-api.config: $(C2_ROOT)/docs/doxygen.config
+	# only document include directory, no internal sections
+	sed 's/\(^INPUT *=.*\)/\1include\//; \
+	s/\(^INTERNAL_DOCS *= *\).*/\1NO/; \
+	s/\(^ENABLED_SECTIONS *=.*\)INTERNAL\(.*\).*/\1\2/; \
+	s:\(^OUTPUT_DIRECTORY *= \)out:\1'$(OUT_DIR)':;' \
+		$(C2_ROOT)/docs/doxygen.config > $@
 
-#include $(BUILD_SHARED_LIBRARY) currently no need for this module
+$(C2_OUT_TEMP)/doxy-internal.config: $(C2_ROOT)/docs/doxygen.config
+	sed 's:\(^OUTPUT_DIRECTORY *= \)out\(.*\)api:\1'$(OUT_DIR)'\2internal:;' \
+		$(C2_ROOT)/docs/doxygen.config > $@
+
+docs-api: $(C2_OUT_TEMP)/doxy-api.config check-doxygen
+	echo API docs are building in $(C2_DOCS_ROOT)/api
+	rm -rf $(C2_DOCS_ROOT)/api
+	mkdir -p $(C2_DOCS_ROOT)/api
+	$(C2_DOXY) $(C2_OUT_TEMP)/doxy-api.config
+
+docs-internal: $(C2_OUT_TEMP)/doxy-internal.config check-doxygen
+	echo Internal docs are building in $(C2_DOCS_ROOT)/internal
+	rm -rf $(C2_DOCS_ROOT)/internal
+	mkdir -p $(C2_DOCS_ROOT)/internal
+	$(C2_DOXY) $(C2_OUT_TEMP)/doxy-internal.config
+
+docs-all: docs-api docs-internal
+
+include $(call all-makefiles-under,$(call my-dir))

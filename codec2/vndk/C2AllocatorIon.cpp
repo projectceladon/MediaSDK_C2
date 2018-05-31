@@ -172,7 +172,6 @@ private:
             }
             // C2_CHECK(bufferFd < 0);
             // C2_CHECK(buffer < 0);
-            mVector.resize(capacity);
         }
     }
 
@@ -223,11 +222,6 @@ public:
     c2_status_t map(size_t offset, size_t size, C2MemoryUsage usage, C2Fence *fence, void **addr) {
         (void)fence; // TODO: wait for fence
         *addr = nullptr;
-
-        if (mIonFd < 0) {
-            *addr = mVector.data() + offset;
-            return C2_OK;
-        }
         if (!mMappings.empty()) {
             ALOGV("multiple map");
             // TODO: technically we should return DUPLICATE here, but our block views don't
@@ -281,10 +275,7 @@ public:
     }
 
     c2_status_t unmap(void *addr, size_t size, C2Fence *fence) {
-        if (mIonFd < 0) {
-            return C2_OK;
-        }
-         if (mMapFd < 0 || mMappings.empty()) {
+        if (mMapFd < 0 || mMappings.empty()) {
             return C2_NOT_FOUND;
         }
         for (auto it = mMappings.begin(); it != mMappings.end(); ++it) {
@@ -326,7 +317,7 @@ public:
     }
 
     c2_status_t status() const {
-        return C2_OK/*mInit*/;
+        return mInit;
     }
 
     const C2Handle *handle() const {
@@ -354,7 +345,6 @@ private:
         size_t size;
     };
     std::list<Mapping> mMappings;
-    std::vector<uint8_t> mVector;
 };
 
 c2_status_t C2AllocationIon::map(
@@ -441,9 +431,9 @@ c2_status_t C2AllocatorIon::newLinearAllocation(
     }
 
     allocation->reset();
-    // if (mInit != C2_OK) {
-    //     return mInit;
-    // }
+    if (mInit != C2_OK) {
+        return mInit;
+    }
 
     // get align, heapMask and flags
     //size_t align = 1;
@@ -460,7 +450,7 @@ c2_status_t C2AllocatorIon::newLinearAllocation(
 #endif
 
     std::shared_ptr<C2AllocationIon> alloc
-        = std::make_shared<C2AllocationIon>(dup(mIonFd), capacity, align, heapMask, flags, mTraits ? mTraits->id : C2Allocator::id_t {} );
+        = std::make_shared<C2AllocationIon>(dup(mIonFd), capacity, align, heapMask, flags, mTraits->id);
     c2_status_t ret = alloc->status();
     if (ret == C2_OK) {
         *allocation = alloc;

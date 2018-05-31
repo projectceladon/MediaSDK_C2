@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,21 @@
  * limitations under the License.
  */
 
-//#define LOG_NDEBUG 0
-#define LOG_TAG "C2Config"
-#include <utils/Log.h>
+#ifndef C2UTILS_DEBUG_INTERFACE_H_
+#define C2UTILS_DEBUG_INTERFACE_H_
 
-/**
- * Define and initialize global config field descriptors in this cpp file
- */
-#define __C2_GENERATE_GLOBAL_VARS__
-#include <C2Config.h>
+#include <util/C2Debug-base.h>
+#include <util/C2InterfaceUtils.h>
+
+#include <iostream>
+
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const C2SupportedRange<T> &i);
+
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const C2SupportedValueSet<T> &i);
+
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const C2FieldSupportedValuesHelper<T> &i);
+
+#endif  // C2UTILS_DEBUG_INTERFACE_H_
