@@ -152,6 +152,7 @@ enum c2_blocking_t : int32_t {
 #define C2_ALLOW_OVERFLOW __attribute__((no_sanitize("integer")))
 #define C2_CONST    __attribute__((const))
 #define C2_HIDE     __attribute__((visibility("hidden")))
+#define C2_INLINE   inline C2_HIDE
 #define C2_INTERNAL __attribute__((internal_linkage))
 #define C2_PACK     __attribute__((packed))
 #define C2_PURE     __attribute__((pure))
@@ -175,6 +176,15 @@ enum c2_blocking_t : int32_t {
         return (field & mask) == (other.field & (mask)); \
     } \
     DEFINE_OTHER_COMPARISON_OPERATORS(type)
+
+#define DEFINE_ENUM_OPERATORS(etype) \
+    inline constexpr etype operator|(etype a, etype b) { return (etype)(std::underlying_type<etype>::type(a) | std::underlying_type<etype>::type(b)); } \
+    inline constexpr etype &operator|=(etype &a, etype b) { a = (etype)(std::underlying_type<etype>::type(a) | std::underlying_type<etype>::type(b)); return a; } \
+    inline constexpr etype operator&(etype a, etype b) { return (etype)(std::underlying_type<etype>::type(a) & std::underlying_type<etype>::type(b)); } \
+    inline constexpr etype &operator&=(etype &a, etype b) { a = (etype)(std::underlying_type<etype>::type(a) & std::underlying_type<etype>::type(b)); return a; } \
+    inline constexpr etype operator^(etype a, etype b) { return (etype)(std::underlying_type<etype>::type(a) ^ std::underlying_type<etype>::type(b)); } \
+    inline constexpr etype &operator^=(etype &a, etype b) { a = (etype)(std::underlying_type<etype>::type(a) ^ std::underlying_type<etype>::type(b)); return a; } \
+    inline constexpr etype operator~(etype a) { return (etype)(~std::underlying_type<etype>::type(a)); }
 
 template<typename T, typename B>
 class C2_HIDE c2_cntr_t;

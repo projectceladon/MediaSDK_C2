@@ -1347,8 +1347,18 @@ struct C2Rect {
     constexpr inline C2Rect(uint32_t width_, uint32_t height_)
         : C2Rect(width_, height_, 0, 0) { }
 
+    /// deprecated. Usage C2Rect(width, height).at(left, top)
+    /// for now allow both (left, top, width, height) and (width, height, left, right)
+    /// construction, assuming correct values
     constexpr inline C2Rect(uint32_t width_, uint32_t height_, uint32_t left_, uint32_t top_)
-        : left(left_), top(top_), width(width_), height(height_) { }
+        : left(left_ < width_ ? left_ : width_),
+          top(top_ < height_ ? top_ : height_),
+          width(left_ > width_ ? left_ : width_),
+          height(top_ > height_ ? top_ : height_) { }
+
+    constexpr C2Rect inline at(uint32_t left_, uint32_t top_) const {
+        return C2Rect(width, height, left_, top_);
+    }
 
     // utility methods
 
