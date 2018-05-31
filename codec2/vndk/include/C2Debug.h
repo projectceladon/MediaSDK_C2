@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
-//#define LOG_NDEBUG 0
-#define LOG_TAG "C2Config"
-#include <utils/Log.h>
+#ifndef C2UTILS_DEBUG_H_
+#define C2UTILS_DEBUG_H_
 
-/**
- * Define and initialize global config field descriptors in this cpp file
- */
-#define __C2_GENERATE_GLOBAL_VARS__
-#include <C2Config.h>
+#include <util/C2Debug-log.h>
+
+// To allow arbitrary ordering of C2Debug.h and API headers and to keep debug utilities separately
+// from the API definitions, we provide API header specific debug headers.
+#ifdef C2PARAM_H_
+#include <util/C2Debug-param.h>
+#endif
+
+#endif  // C2UTILS_DEBUG_H_
