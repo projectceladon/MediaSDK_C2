@@ -159,7 +159,7 @@ struct C2_HIDE _C2FlexHelper<S[],
  * \brief Helper class to check flexible struct requirements and add common operations.
  *
  * Features:
- *  - expose CORE_INDEX and FIELD_LIST (this is normally inherited from the struct, but flexible
+ *  - expose CORE_INDEX and FieldList (this is normally inherited from the struct, but flexible
  *    structs cannot be base classes and thus inherited from)
  *  - disable copy assignment and construction (TODO: this is already done in the FLEX macro for the
  *    flexible struct, so may not be needed here)
@@ -844,6 +844,9 @@ private:
  *           C2MyIntegerPortParamTuning;
  *
  * They contain a single member (value or values) that is described as "value" or "values".
+ *
+ * These structures don't define a core index, and as such, they cannot be used in structure
+ * declarations. Use type[] instead, such as int32_t field[].
  */
 /// A 32-bit signed integer parameter in value, described as "value"
 typedef C2SimpleValueStruct<int32_t> C2Int32Value;
@@ -870,7 +873,6 @@ typedef C2SimpleValueStruct<uint8_t[]> C2BlobValue;
 /// A string flexible parameter in value, described as "value"
 typedef C2SimpleValueStruct<char[]> C2StringValue;
 
-#if 1
 template<typename T>
 const std::vector<C2FieldDescriptor> C2SimpleValueStruct<T>::FieldList() {
     return { DESCRIBE_C2FIELD(value, "value") };
@@ -883,21 +885,6 @@ template<typename T>
 const std::vector<C2FieldDescriptor> C2SimpleArrayStruct<T>::FieldList() {
     return { DESCRIBE_C2FIELD(values, "values") };
 }
-#else
-// This seem to be able to be handled by the template above
-DESCRIBE_TEMPLATED_C2STRUCT(C2SimpleValueStruct<int32_t>, { C2FIELD(value, "value") });
-DESCRIBE_TEMPLATED_C2STRUCT(C2SimpleValueStruct<uint32_t>, { C2FIELD(value, "value") });
-DESCRIBE_TEMPLATED_C2STRUCT(C2SimpleValueStruct<int64_t>, { C2FIELD(value, "value") });
-DESCRIBE_TEMPLATED_C2STRUCT(C2SimpleValueStruct<uint64_t>, { C2FIELD(value, "value") });
-DESCRIBE_TEMPLATED_C2STRUCT(C2SimpleValueStruct<float>, { C2FIELD(value, "value") });
-DESCRIBE_TEMPLATED_C2STRUCT(C2SimpleValueStruct<uint8_t[]>, { C2FIELD(value, "value") });
-DESCRIBE_TEMPLATED_C2STRUCT(C2SimpleValueStruct<char[]>, { C2FIELD(value, "value") });
-DESCRIBE_TEMPLATED_C2STRUCT(C2SimpleArrayStruct<int32_t>, { C2FIELD(values, "values") });
-DESCRIBE_TEMPLATED_C2STRUCT(C2SimpleArrayStruct<uint32_t>, { C2FIELD(values, "values") });
-DESCRIBE_TEMPLATED_C2STRUCT(C2SimpleArrayStruct<int64_t>, { C2FIELD(values, "values") });
-DESCRIBE_TEMPLATED_C2STRUCT(C2SimpleArrayStruct<uint64_t>, { C2FIELD(values, "values") });
-DESCRIBE_TEMPLATED_C2STRUCT(C2SimpleArrayStruct<float>, { C2FIELD(values, "values") });
-#endif
 
 /// @}
 

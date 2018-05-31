@@ -288,6 +288,9 @@ public:
         /// constructor/conversion from uint32_t
         inline Index(uint32_t index) : Type(index) { }
 
+        /// copy constructor
+        inline Index(const Index &index) = default;
+
         // no conversion from uint64_t
         inline Index(uint64_t index) = delete;
 
@@ -443,7 +446,7 @@ public:
     // otherwise, do not copy anything, and return false.
     inline bool updateFrom(const C2Param &other) {
         if (other._mSize <= _mSize && other._mIndex == _mIndex && _mSize > 0) {
-            memcpy(this, &other, _mSize);
+            memcpy(this, &other, other._mSize);
             return true;
         }
         return false;
@@ -701,6 +704,9 @@ struct C2ParamField {
     inline C2ParamField(S* param)
         : _mIndex(param->index()), _mFieldId(0u, param->size()) { }
 
+    /** Copy constructor. */
+    inline C2ParamField(const C2ParamField &other) = default;
+
     /**
      * Equality operator.
      */
@@ -755,6 +761,10 @@ public:
         Primitive(float value)       : fp(value)  { }
 
         Primitive() : u64(0) { }
+
+        inline bool operator==(const Primitive &other) const {
+            return u64 == other.u64;
+        }
 
         /** gets value out of the union */
         template<typename T> const T &ref() const;
@@ -1097,6 +1107,7 @@ public:
         IS_READ_ONLY  = 1u << 3, ///< parameter is publicly read-only
         IS_HIDDEN     = 1u << 4, ///< parameter shall not be visible to clients
         IS_INTERNAL   = 1u << 5, ///< parameter shall not be used by framework (other than testing)
+        IS_CONST      = 1u << 6 | IS_READ_ONLY, ///< parameter is publicly const (hence read-only)
     };
 
     inline C2ParamDescriptor(
@@ -1121,6 +1132,9 @@ private:
 
     friend struct _C2ParamInspector;
 };
+
+DEFINE_ENUM_OPERATORS(::C2ParamDescriptor::attrib_t)
+
 
 /// \ingroup internal
 /// Define a structure without CORE_INDEX.
@@ -1290,24 +1304,22 @@ public: \
    TRICKY: use namespace declaration to handle closing bracket that is normally after
    these macros. */
 #define C2FIELD(member, name)
-/// \deprecated
-#define C2SOLE_FIELD(member, name)
 /// Define a structure with matching CORE_INDEX and start describing its fields.
 /// This must be at the end of the structure definition.
 #define DEFINE_AND_DESCRIBE_C2STRUCT(name) \
-    DEFINE_C2STRUCT(name) }  C2_PACK; namespace ignored {
+    DEFINE_C2STRUCT(name) }  C2_PACK; namespace {
 /// Define a flexible structure with matching CORE_INDEX and start describing its fields.
 /// This must be at the end of the structure definition.
 #define DEFINE_AND_DESCRIBE_FLEX_C2STRUCT(name, flexMember) \
-    DEFINE_FLEX_C2STRUCT(name, flexMember) } C2_PACK; namespace ignored {
+    DEFINE_FLEX_C2STRUCT(name, flexMember) } C2_PACK; namespace {
 /// Define a base structure (with no CORE_INDEX) and start describing its fields.
 /// This must be at the end of the structure definition.
 #define DEFINE_AND_DESCRIBE_BASE_C2STRUCT(name) \
-    DEFINE_BASE_C2STRUCT(name) } C2_PACK; namespace ignored {
+    DEFINE_BASE_C2STRUCT(name) } C2_PACK; namespace {
 /// Define a flexible base structure (with no CORE_INDEX) and start describing its fields.
 /// This must be at the end of the structure definition.
 #define DEFINE_AND_DESCRIBE_BASE_FLEX_C2STRUCT(name, flexMember) \
-    DEFINE_BASE_FLEX_C2STRUCT(name, flexMember) } C2_PACK; namespace ignored {
+    DEFINE_BASE_FLEX_C2STRUCT(name, flexMember) } C2_PACK; namespace {
 /// \endif
 #endif
 
@@ -1512,5 +1524,10 @@ struct C2ParamFieldValues {
 };
 
 /// @}
+
+// include debug header for C2Params.h if C2Debug.h was already included
+#ifdef C2UTILS_DEBUG_H_
+#include <util/C2Debug-param.h>
+#endif
 
 #endif  // C2PARAM_H_

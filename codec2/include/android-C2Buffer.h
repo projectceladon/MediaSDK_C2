@@ -29,6 +29,8 @@ namespace android {
  * Android platform buffer/memory usage bits.
  */
 struct C2AndroidMemoryUsage : public C2MemoryUsage {
+    inline C2AndroidMemoryUsage(const C2MemoryUsage &usage) : C2MemoryUsage(usage) { }
+
 // public:
     /**
      * Reuse gralloc flags where possible, as Codec 2.0 API only uses bits 0 and 1.

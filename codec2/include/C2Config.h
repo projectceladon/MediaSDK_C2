@@ -60,13 +60,20 @@ enum C2ParamIndexKind : C2Param::type_index_t {
     kParamIndexStreamCount,
     kParamIndexFormat,
     kParamIndexBlockPools,
+    kParamIndexUsage,
     kParamIndexBitrate,
 
     kParamIndexMaxVideoSizeHint,
     kParamIndexVideoSizeTuning,
+    kParamIndexFrameRate,
 
     kParamIndexCsd,
     kParamIndexPictureTypeMask,
+
+    kParamIndexSampleRate,
+    kParamIndexChannelCount,
+
+    kParamIndexAacStreamFormat,
 
     // video info
 
@@ -86,7 +93,6 @@ C2ENUM(C2DomainKind, uint32_t,
 
 typedef C2GlobalParam<C2Info, C2SimpleValueStruct<C2DomainKind>, kParamIndexDomain> C2ComponentDomainInfo;
 // typedef C2GlobalParam<C2Info, C2Uint32Value, kParamIndexDomain> C2ComponentDomainInfo;
-//DESCRIBE_TEMPLATED_C2STRUCT(C2SimpleValueStruct<C2DomainKind>, { C2FIELD(mValue, "value") });
 
 // read-only
 typedef C2GlobalParam<C2Info, C2Uint32Array, kParamIndexSupportedParams> C2SupportedParamsInfo;
@@ -116,6 +122,8 @@ typedef C2GlobalParam<C2Info, C2Uint32Value, kParamIndexTemporal> C2ComponentTem
 /// port configuration
 
 typedef C2PortParam<C2Tuning, C2StringValue, kParamIndexMime> C2PortMimeConfig;
+constexpr char C2_NAME_INPUT_PORT_MIME_SETTING[]  = "mediatype.input";
+constexpr char C2_NAME_OUTPUT_PORT_MIME_SETTING[] = "mediatype.output";
 
 typedef C2PortParam<C2Tuning, C2Uint32Value, kParamIndexStreamCount> C2PortStreamCountConfig;
 
@@ -128,8 +136,14 @@ C2ENUM(C2FormatKind, uint32_t,
 )
 
 typedef C2StreamParam<C2Tuning, C2Uint32Value, kParamIndexFormat> C2StreamFormatConfig;
+constexpr char C2_NAME_INPUT_STREAM_FORMAT_SETTING[]  = "format.input";
+constexpr char C2_NAME_OUTPUT_STREAM_FORMAT_SETTING[] = "format.output";
 
 typedef C2PortParam<C2Tuning, C2Uint64Array, kParamIndexBlockPools> C2PortBlockPoolsTuning;
+
+// read-only
+typedef C2StreamParam<C2Tuning, C2Uint64Value, kParamIndexUsage> C2StreamUsageTuning;
+constexpr char C2_NAME_INPUT_STREAM_USAGE_SETTING[] = "usage.input";
 
 // encoder bitrate [IN]
 typedef C2StreamParam<C2Tuning, C2Uint32Value, kParamIndexBitrate> C2BitrateTuning;
@@ -142,6 +156,24 @@ C2ENUM(C2PictureTypeMask, uint32_t,
 )
 
 typedef C2StreamParam<C2Info, C2Uint32Value, kParamIndexPictureTypeMask> C2StreamPictureTypeMaskInfo;
+
+// audio encoder sample rate [IN]
+typedef C2StreamParam<C2Info, C2Uint32Value, kParamIndexSampleRate> C2StreamSampleRateInfo;
+constexpr char C2_NAME_STREAM_SAMPLE_RATE_SETTING[] = "raw.sample-rate";
+
+// audio encoder channel count [IN]
+typedef C2StreamParam<C2Info, C2Uint32Value, kParamIndexChannelCount> C2StreamChannelCountInfo;
+constexpr char C2_NAME_STREAM_CHANNEL_COUNT_SETTING[] = "raw.channel-count";
+
+// aac encoder stream format [IN]
+C2ENUM(C2AacStreamFormatKind, uint32_t,
+    C2AacStreamFormatRaw,
+    C2AacStreamFormatAdts,
+    C2AacStreamFormatOther,
+)
+typedef C2StreamParam<C2Info, C2Uint32Value, kParamIndexAacStreamFormat> C2StreamAacFormatInfo;
+constexpr char C2_NAME_STREAM_AAC_FORMAT_SETTING[] = "coded.aac-stream-format";
+
 
 /*
    Component description fields:
@@ -246,6 +278,10 @@ struct C2BaseTuning {
 //   - critical parameters? (interlaced? profile? level?)
 
 struct C2VideoSizeStruct {
+    inline C2VideoSizeStruct() = default;
+    inline C2VideoSizeStruct(int32_t width_, int32_t height_)
+        : width(width_), height(height_) {}
+
     int32_t width;     ///< video width
     int32_t height;    ///< video height
 
@@ -256,13 +292,19 @@ struct C2VideoSizeStruct {
 
 // video size for video decoder [OUT]
 typedef C2StreamParam<C2Info, C2VideoSizeStruct, kParamIndexVideoSize> C2VideoSizeStreamInfo;
+constexpr char C2_NAME_STREAM_VIDEO_SIZE_INFO[] = "raw.size";
 
 // max video size for video decoder [IN]
 typedef C2PortParam<C2Setting, C2VideoSizeStruct, kParamIndexMaxVideoSizeHint> C2MaxVideoSizeHintPortSetting;
 
 // video encoder size [IN]
 typedef C2StreamParam<C2Tuning, C2VideoSizeStruct, kParamIndexVideoSizeTuning> C2VideoSizeStreamTuning;
+constexpr char C2_NAME_STREAM_VIDEO_SIZE_SETTING[] = "raw.size";
+
+// video encoder frame rate [IN]
+typedef C2StreamParam<C2Info, C2FloatValue, kParamIndexFrameRate> C2StreamFrameRateInfo;
+constexpr char C2_NAME_STREAM_FRAME_RATE_SETTING[] = "coded.frame-rate";
 
 /// @}
 
-#endif
+#endif  // C2CONFIG_H_
