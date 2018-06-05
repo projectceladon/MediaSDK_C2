@@ -64,7 +64,7 @@ cc_library_shared {
     shared_libs: [
         "liblog",
         "libstagefright_codec2",
-        "libstagefright_codec2_vndk",
+        "libstagefright_codec2_vndk_mfx",
         "libstagefright_foundation",
 	"libutils",
     ],
@@ -81,6 +81,16 @@ cc_library_shared {
     },
 
     ldflags: ["-Wl,-Bsymbolic"],
+}
+
+cc_library_headers {
+    name: "codec2_headers",
+
+    export_include_dirs = [
+        "include",
+    ],
+
+    vendor_available: true,
 }
 
 subdirs = [
