@@ -53,7 +53,8 @@ libmfx_c2_store.so,\
 libmfx_mock_c2_components.so,\
 libmfx_c2_components_pure.so,\
 libmfx_c2_components_sw.so,\
-libmfx_c2_components_hw.so
+libmfx_c2_components_hw.so,\
+libmfxhw${bitness}.so
 
 execs=mfx_c2_store_unittests,mfx_c2_components_unittests,mfx_c2_mock_unittests
 
@@ -63,6 +64,7 @@ system_libs="\
 libstagefright_codec2_vndk_mfx.so \
 android.hardware.media.bufferpool@1.0.so \
 libstagefright_bufferpool@1.0.so \
+libstagefright_bufferqueue_helper.so \
 libhidltransport.so \
 libhidlbase.so \
 libhwbinder.so \
