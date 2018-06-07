@@ -600,7 +600,7 @@ c2_status_t C2AllocatorGralloc::Impl::newGraphicAllocation(
             height,
             1u,  // layerCount
             (PixelFormat)format,
-            grallocUsage,
+            BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN,
         },
         0u,  // stride placeholder
     };
