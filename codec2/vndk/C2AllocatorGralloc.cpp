@@ -260,7 +260,7 @@ public:
     virtual c2_status_t unmap(
             uint8_t **addr /* nonnull */, C2Rect rect, C2Fence *fence /* nullable */) override;
     virtual C2Allocator::id_t getAllocatorId() const override { return mAllocatorId; }
-    virtual const C2Handle *handle() const override { return mLockedHandle ? : mHandle; }
+    virtual const C2Handle *handle() const override { return /*mLockedHandle ? :*/ mHandle; }
     virtual bool equals(const std::shared_ptr<const C2GraphicAllocation> &other) const override;
 
     // internal methods
