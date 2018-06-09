@@ -55,9 +55,9 @@ std::vector<C2ParamDescriptor> DefaultC2Params()
     return param;
 }
 
-static std::vector<C2ParamDescriptor> h264_params_desc = DefaultC2Param();
+static std::vector<C2ParamDescriptor> h264_params_desc = DefaultC2Params();
 
-static std::vector<C2ParamDescriptor> h265_params_desc = DefaultC2Param();
+static std::vector<C2ParamDescriptor> h265_params_desc = DefaultC2Params();
 
 namespace {
 
