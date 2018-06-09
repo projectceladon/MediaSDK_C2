@@ -251,7 +251,7 @@ BufferPoolClient::Impl::Impl(const sp<IAccessor> &accessor)
 ResultStatus BufferPoolClient::Impl::allocate(
         const std::vector<uint8_t> &params,
         std::shared_ptr<_C2BlockPoolData> *buffer) {
-    if (!mLocal || mLocalConnection == nullptr || !mValid) {
+    if (!mLocal || !mLocalConnection || !mValid) {
         return ResultStatus::CRITICAL_ERROR;
     }
     BufferId bufferId;
@@ -465,7 +465,7 @@ bool BufferPoolClient::Impl::syncReleased() {
 ResultStatus BufferPoolClient::Impl::allocateBufferHandle(
         const std::vector<uint8_t>& params, BufferId *bufferId,
         native_handle_t** handle) {
-    if (mLocalConnection != nullptr) {
+    if (mLocalConnection) {
         const native_handle_t* allocHandle = NULL;
         ResultStatus status = mLocalConnection->allocate(
                 params, bufferId, &allocHandle);
