@@ -20,6 +20,7 @@ using namespace android;
 
 c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& frame_converter,
                                std::shared_ptr<C2GraphicBlock> block,
+                               const mfxFrameInfo& info,
                                c2_nsecs_t timeout,
                                MfxC2FrameOut* wrapper)
 {
@@ -29,6 +30,12 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
 
     do {
         if (nullptr == wrapper) {
+            res = C2_BAD_VALUE;
+            break;
+        }
+
+        if ( (info.Width && info.Width > block->width()) ||
+             (info.Height && info.Height > block->height()) ) {
             res = C2_BAD_VALUE;
             break;
         }
@@ -57,7 +64,7 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
             }
 
             InitMfxNV12FrameHW(timestamp, frame_index,
-                mem_id, block->width(), block->height(),
+                mem_id, block->width(), block->height(), info,
                 mfx_frame.get());
         } else {
             std::unique_ptr<C2GraphicView> view;
@@ -69,7 +76,7 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
             const uint32_t stride = wrapper->c2_graphic_view_->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
             InitMfxNV12FrameSW(timestamp, frame_index,
                 wrapper->c2_graphic_view_->data(),
-                block->width(), block->height(), stride,
+                block->width(), block->height(), stride, info,
                 mfx_frame.get());
         }
 

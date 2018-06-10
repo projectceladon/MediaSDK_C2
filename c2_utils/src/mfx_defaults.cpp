@@ -24,6 +24,20 @@ void mfx_set_defaults_mfxFrameInfo(mfxFrameInfo* info)
 
     if (!info) return;
     memset(info, 0, sizeof(mfxFrameInfo));
+
+    info->BitDepthLuma = 8;
+    info->BitDepthChroma = 8;
+    info->FourCC = MFX_FOURCC_NV12;
+    info->ChromaFormat = MFX_CHROMAFORMAT_YUV420;
+    info->Width = 320;
+    info->Height = 240;
+    info->CropX = 0;
+    info->CropY = 0;
+    info->CropW = 320;
+    info->CropH = 240;
+    info->FrameRateExtN = 30;
+    info->FrameRateExtD = 1;
+    info->PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
 }
 
 void mfx_set_defaults_mfxVideoParam_dec(mfxVideoParam* params)
@@ -33,6 +47,8 @@ void mfx_set_defaults_mfxVideoParam_dec(mfxVideoParam* params)
 
     if (!params) return;
     CodecId = params->mfx.CodecId;
+
+    mfx_set_defaults_mfxFrameInfo(&params->mfx.FrameInfo);
 
     memset(params, 0, sizeof(mfxVideoParam));
     params->AsyncDepth = 0;
@@ -117,8 +133,9 @@ mfxStatus mfx_set_defaults_mfxVideoParam_enc(mfxVideoParam* params)
         memset(params, 0, sizeof(mfxVideoParam));
         params->mfx.CodecId = CodecId;
         params->mfx.NumThread = 0;
-        params->mfx.FrameInfo.FrameRateExtD = 1;
-        params->mfx.FrameInfo.FrameRateExtN = 30;
+
+        mfx_set_defaults_mfxFrameInfo(&params->mfx.FrameInfo);
+
         switch (params->mfx.CodecId)
         {
         case MFX_CODEC_AVC:
@@ -165,14 +182,11 @@ mfxStatus mfx_set_defaults_mfxVideoParam_enc(mfxVideoParam* params)
             params->mfx.CodecLevel = MFX_LEVEL_HEVC_6;
             params->mfx.TargetUsage = MFX_TARGETUSAGE_BEST_SPEED;
             params->mfx.FrameInfo.PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
-            params->mfx.FrameInfo.ChromaFormat = MFX_CHROMAFORMAT_YUV420; // YUV420, need set because HEVCe doesn't support MONOCHROME
             res = mfx_set_RateControlMethod(MFX_RATECONTROL_CBR, params);
             params->mfx.GopPicSize = 16;
             params->mfx.GopRefDist = 1;
             params->mfx.NumSlice = 1;
             params->mfx.NumRefFrame = 1;
-            params->mfx.FrameInfo.Width = 320; // WA for HEVCe Query: resolution shouldn't be
-            params->mfx.FrameInfo.Height = 240; // 0, because used for initialize device
             break;
         default:
             break;

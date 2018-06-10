@@ -425,7 +425,8 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         }
 
         MfxC2FrameIn mfx_frame;
-        res = MfxC2FrameIn::Create(frame_converter, input, TIMEOUT_NS, &mfx_frame);
+
+        res = MfxC2FrameIn::Create(frame_converter, input, video_params_config_.mfx.FrameInfo, TIMEOUT_NS, &mfx_frame);
         if(C2_OK != res) break;
 
         if(nullptr == encoder_) {
