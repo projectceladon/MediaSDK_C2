@@ -16,23 +16,17 @@ mfxVersion g_required_mfx_version = { {MFX_VERSION_MINOR, MFX_VERSION_MAJOR} };
 
 static void InitMfxNV12FrameHeader(
     uint64_t timestamp, uint64_t frame_index,
-    uint32_t width, uint32_t height, mfxFrameSurface1* mfx_frame)
+    uint32_t width, uint32_t height, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    mfx_frame->Info.BitDepthLuma = 8;
-    mfx_frame->Info.BitDepthChroma = 8;
-    mfx_frame->Info.FourCC = MFX_FOURCC_NV12;
-    mfx_frame->Info.ChromaFormat = MFX_CHROMAFORMAT_YUV420;
+    mfx_frame->Info = info;//apply component's mfxFrameInfo
     mfx_frame->Info.Width = width;
     mfx_frame->Info.Height = height;
     mfx_frame->Info.CropX = 0;
     mfx_frame->Info.CropY = 0;
     mfx_frame->Info.CropW = width;
     mfx_frame->Info.CropH = height;
-    mfx_frame->Info.FrameRateExtN = 30;
-    mfx_frame->Info.FrameRateExtD = 1;
-    mfx_frame->Info.PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
 
     mfx_frame->Data.TimeStamp = TimestampC2ToMfx(timestamp);
 
@@ -42,13 +36,11 @@ static void InitMfxNV12FrameHeader(
 void InitMfxNV12FrameSW(
     uint64_t timestamp, uint64_t frame_index,
     const uint8_t *const *data,
-    uint32_t width, uint32_t height, uint32_t stride, mfxFrameSurface1* mfx_frame)
+    uint32_t width, uint32_t height, uint32_t stride, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    memset(mfx_frame, 0, sizeof(mfxFrameSurface1));
-
-    InitMfxNV12FrameHeader(timestamp, frame_index, width, height, mfx_frame);
+    InitMfxNV12FrameHeader(timestamp, frame_index, width, height, info, mfx_frame);
 
     mfx_frame->Data.MemType = MFX_MEMTYPE_SYSTEM_MEMORY;
 
@@ -63,13 +55,11 @@ void InitMfxNV12FrameSW(
 void InitMfxNV12FrameHW(
     uint64_t timestamp, uint64_t frame_index,
     mfxMemId mem_id,
-    uint32_t width, uint32_t height, mfxFrameSurface1* mfx_frame)
+    uint32_t width, uint32_t height, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    memset(mfx_frame, 0, sizeof(mfxFrameSurface1));
-
-    InitMfxNV12FrameHeader(timestamp, frame_index, width, height, mfx_frame);
+    InitMfxNV12FrameHeader(timestamp, frame_index, width, height, info, mfx_frame);
 
     mfx_frame->Data.MemType = MFX_MEMTYPE_EXTERNAL_FRAME;
     mfx_frame->Data.MemId = mem_id;

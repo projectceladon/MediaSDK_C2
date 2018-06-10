@@ -667,7 +667,7 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
         }
         if (it == surfaces_.end()) {
             // haven't been used for decoding yet
-            res = MfxC2FrameOut::Create(converter, out_block, TIMEOUT_NS, frame_out);
+            res = MfxC2FrameOut::Create(converter, out_block, video_params_.mfx.FrameInfo, TIMEOUT_NS, frame_out);
             if (C2_OK != res) break;
 
             // put to map

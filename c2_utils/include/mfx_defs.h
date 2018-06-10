@@ -135,9 +135,9 @@ std::vector<T> MakeVector(T&& item)
 void InitMfxNV12FrameSW(
     uint64_t timestamp, uint64_t frame_index,
     const uint8_t *const *data,
-    uint32_t width, uint32_t height, uint32_t stride, mfxFrameSurface1* mfx_frame);
+    uint32_t width, uint32_t height, uint32_t stride, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame);
 
 void InitMfxNV12FrameHW(
     uint64_t timestamp, uint64_t frame_index,
     mfxMemId mem_id,
-    uint32_t width, uint32_t height, mfxFrameSurface1* mfx_frame);
+    uint32_t width, uint32_t height, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame);

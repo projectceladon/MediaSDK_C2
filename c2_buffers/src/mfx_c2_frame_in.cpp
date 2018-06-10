@@ -29,7 +29,7 @@ MfxC2FrameIn::~MfxC2FrameIn()
 }
 
 c2_status_t MfxC2FrameIn::Create(std::shared_ptr<MfxFrameConverter> frame_converter,
-    C2FrameData& buf_pack, c2_nsecs_t timeout, MfxC2FrameIn* wrapper)
+    C2FrameData& buf_pack, const mfxFrameInfo& info, c2_nsecs_t timeout, MfxC2FrameIn* wrapper)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -44,6 +44,12 @@ c2_status_t MfxC2FrameIn::Create(std::shared_ptr<MfxFrameConverter> frame_conver
         std::unique_ptr<C2ConstGraphicBlock> c_graph_block;
         res = GetC2ConstGraphicBlock(buf_pack, &c_graph_block);
         if(C2_OK != res) break;
+
+        if ( (info.Width && info.Width > c_graph_block->width()) ||
+             (info.Height && info.Height > c_graph_block->height()) ) {
+            res = C2_BAD_VALUE;
+            break;
+        }
 
         std::unique_ptr<mfxFrameSurface1> unique_mfx_frame =
             std::make_unique<mfxFrameSurface1>();
@@ -61,7 +67,7 @@ c2_status_t MfxC2FrameIn::Create(std::shared_ptr<MfxFrameConverter> frame_conver
             }
 
             InitMfxNV12FrameHW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
-                mem_id, c_graph_block->width(), c_graph_block->height(),
+                mem_id, c_graph_block->width(), c_graph_block->height(), info,
                 unique_mfx_frame.get());
         } else {
             res = MapConstGraphicBlock(*c_graph_block, timeout, &wrapper->c2_graphic_view_);
@@ -69,7 +75,7 @@ c2_status_t MfxC2FrameIn::Create(std::shared_ptr<MfxFrameConverter> frame_conver
 
             const uint32_t stride = wrapper->c2_graphic_view_->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
             InitMfxNV12FrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
-                wrapper->c2_graphic_view_->data(), c_graph_block->width(), c_graph_block->height(), stride,
+                wrapper->c2_graphic_view_->data(), c_graph_block->width(), c_graph_block->height(), stride, info,
                 unique_mfx_frame.get());
         }
 
