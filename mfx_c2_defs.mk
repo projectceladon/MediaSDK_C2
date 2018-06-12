@@ -48,6 +48,10 @@ MFX_C2_CFLAGS += \
 
 ifeq ($(BOARD_USES_GRALLOC1),true)
   MFX_C2_CFLAGS += -DMFX_C2_USE_GRALLOC_1
+  ifneq ($(filter MFX_P ,$(MFX_ANDROID_VERSION)),)
+      # plugins should use PRIME buffer descriptor since Android P
+      MFX_C2_CFLAGS += -DMFX_C2_USE_PRIME
+  endif
 endif
 
 #  Security

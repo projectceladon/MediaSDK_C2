@@ -54,8 +54,9 @@ private:
     mfxStatus MapGrallocBufferToSurface(buffer_handle_t gralloc_buffer, bool decode_target,
         mfxU32* fourcc, VASurfaceID* surface);
 
-    mfxStatus CreateNV12SurfaceFromGralloc(buffer_handle_t gralloc_buffer, bool decode_target,
-        const MfxGrallocModule::BufferDetails& buffer_details, VASurfaceID* surface);
+    mfxStatus CreateNV12SurfaceFromGralloc(const MfxGrallocModule::BufferDetails& buffer_details,
+        bool decode_target,
+        VASurfaceID* surface);
 
     void FreeMemId();
 private:

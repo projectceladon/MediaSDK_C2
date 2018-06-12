@@ -30,12 +30,24 @@ public:
 public:
     struct BufferDetails
     {
+        buffer_handle_t handle;
+        int32_t prime;
         int width;
         int height;
         int format;
         uint32_t pitch;
         uint32_t allocWidth;
         uint32_t allocHeight;
+        BufferDetails():
+            handle(nullptr),
+            prime(-1),
+            width(0),
+            height(0),
+            format(0),
+            pitch(0),
+            allocWidth(0),
+            allocHeight(0)
+        {}
     };
 
 public:
@@ -62,6 +74,7 @@ protected:
             func_ = (FuncType)gr_device->getFunction(gr_device, FuncId);
             return func_ != nullptr;
         }
+        bool operator==(FuncType const &right) { return func_ == right; }
     };
 
     gralloc1_device_t* gralloc1_dev_ {};
@@ -69,6 +82,9 @@ protected:
     Gralloc1Func<GRALLOC1_PFN_GET_FORMAT, GRALLOC1_FUNCTION_GET_FORMAT> gr_get_format_;
     Gralloc1Func<GRALLOC1_PFN_GET_DIMENSIONS, GRALLOC1_FUNCTION_GET_DIMENSIONS> gr_get_dimensions_;
     Gralloc1Func<GRALLOC1_PFN_GET_STRIDE, GRALLOC1_FUNCTION_GET_STRIDE> gr_get_stride_;
+#ifdef MFX_C2_USE_PRIME
+    Gralloc1Func<GRALLOC1_PFN_GET_PRIME, (gralloc1_function_descriptor_t)GRALLOC1_FUNCTION_GET_PRIME> gr_get_prime_;
+#endif
 #else
     gralloc_module_t* gralloc_module_ {};
 #endif
