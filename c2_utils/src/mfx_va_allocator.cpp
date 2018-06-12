@@ -16,11 +16,16 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include "mfx_debug.h"
 #include "mfx_msdk_debug.h"
 #include "va/va_android.h"
+#ifdef MFX_C2_USE_GRALLOC_1
+    #include "va/va_drmcommon.h"
+#endif
 
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_va_allocator"
 
 #define va_to_mfx_status(sts) ((VA_STATUS_SUCCESS == sts) ? MFX_ERR_NONE : MFX_ERR_UNKNOWN)
+
+#define IS_PRIME_VALID(prime) ((prime >= 0) ? true : false)
 
 static unsigned int ConvertMfxFourccToVAFormat(mfxU32 fourcc)
 {
@@ -422,16 +427,17 @@ void MfxVaFrameAllocator::FreeAllMappings()
     mapped_va_surfaces_.clear();
 }
 
-mfxStatus MfxVaFrameAllocator::CreateNV12SurfaceFromGralloc(buffer_handle_t gralloc_buffer, bool decode_target,
-    const MfxGrallocModule::BufferDetails& buffer_details, VASurfaceID* surface)
+mfxStatus MfxVaFrameAllocator::CreateNV12SurfaceFromGralloc(const MfxGrallocModule::BufferDetails& buffer_details,
+    bool decode_target,
+    VASurfaceID* surface)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     mfxStatus mfx_res = MFX_ERR_NONE;
 
-    MFX_DEBUG_TRACE_P(gralloc_buffer);
-
     const MfxGrallocModule::BufferDetails & info = buffer_details;
+    MFX_DEBUG_TRACE_P(info.handle);
+    MFX_DEBUG_TRACE_I32(info.prime);
     MFX_DEBUG_TRACE_I32(info.width);
     MFX_DEBUG_TRACE_I32(info.height);
     MFX_DEBUG_TRACE_I32(info.allocWidth);
@@ -453,14 +459,22 @@ mfxStatus MfxVaFrameAllocator::CreateNV12SurfaceFromGralloc(buffer_handle_t gral
     surfExtBuf.pitches[0] = info.pitch;
     surfExtBuf.num_planes = 2;
     surfExtBuf.num_buffers = 1;
-    surfExtBuf.buffers = (uintptr_t *)&gralloc_buffer;
-    surfExtBuf.flags = VA_SURFACE_ATTRIB_MEM_TYPE_ANDROID_GRALLOC;
+    if (IS_PRIME_VALID(info.prime)) {
+        surfExtBuf.buffers = (uintptr_t *)&info.prime;
+        surfExtBuf.flags = VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME;
+    } else {
+        surfExtBuf.buffers = (uintptr_t *)&info.handle;
+        surfExtBuf.flags = VA_SURFACE_ATTRIB_MEM_TYPE_ANDROID_GRALLOC;
+    }
 
     attribs[0].type = (VASurfaceAttribType)VASurfaceAttribMemoryType;
     attribs[0].flags = VA_SURFACE_ATTRIB_SETTABLE;
     attribs[0].value.type = VAGenericValueTypeInteger;
-    attribs[0].value.value.i = VA_SURFACE_ATTRIB_MEM_TYPE_ANDROID_GRALLOC;
-
+    if (IS_PRIME_VALID(info.prime)) {
+        attribs[0].value.value.i = VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME;
+    } else  {
+        attribs[0].value.value.i = VA_SURFACE_ATTRIB_MEM_TYPE_ANDROID_GRALLOC;
+    }
     attribs[1].type = (VASurfaceAttribType)VASurfaceAttribExternalBufferDescriptor;
     attribs[1].flags = VA_SURFACE_ATTRIB_SETTABLE;
     attribs[1].value.type = VAGenericValueTypePointer;
@@ -496,7 +510,7 @@ mfxStatus MfxVaFrameAllocator::MapGrallocBufferToSurface(buffer_handle_t gralloc
             }
         }
 
-        MfxGrallocModule::BufferDetails buffer_details {};
+        MfxGrallocModule::BufferDetails buffer_details;
         c2_status_t sts = gralloc_module_->GetBufferDetails(gralloc_buffer, &buffer_details);
         if(C2_OK != sts) {
             mfx_res = MFX_ERR_INVALID_HANDLE;
@@ -504,7 +518,7 @@ mfxStatus MfxVaFrameAllocator::MapGrallocBufferToSurface(buffer_handle_t gralloc
         }
 
         if (buffer_details.format == HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL) {
-            mfx_res = CreateNV12SurfaceFromGralloc(gralloc_buffer, decode_target, buffer_details, surface);
+            mfx_res = CreateNV12SurfaceFromGralloc(buffer_details, decode_target, surface);
             *fourcc = ConvertVAFourccToMfxFormat(ConvertGrallocFourccToVAFormat(buffer_details.format));
         } else {
             // Other formats are unsupported for now,

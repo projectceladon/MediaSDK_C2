@@ -68,6 +68,15 @@ c2_status_t MfxGrallocModule::Init()
                 gr_get_format_.Acquire(gralloc1_dev_) &&
                 gr_get_dimensions_.Acquire(gralloc1_dev_) &&
                 gr_get_stride_.Acquire(gralloc1_dev_);
+#ifdef MFX_C2_USE_PRIME
+            if (gr_get_prime_.Acquire(gralloc1_dev_)) {
+                MFX_DEBUG_TRACE_MSG("Use PRIME");
+            } else {
+                MFX_DEBUG_TRACE_MSG("Use GRALLOC");
+            }
+#else
+            MFX_DEBUG_TRACE_MSG("Use GRALLOC");
+#endif
 
             if (!functions_acquired) {
                 res = C2_CORRUPTED;
@@ -90,19 +99,37 @@ c2_status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handle,
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
+
 #ifdef MFX_C2_USE_GRALLOC_1
-        int32_t errGetFormat     = (*gr_get_format_)(gralloc1_dev_, handle, &(details->format));
-        int32_t errGetStride     = (*gr_get_stride_)(gralloc1_dev_, handle, &(details->pitch));
+        int format {};
+        int32_t errGetFormat = (*gr_get_format_)(gralloc1_dev_, handle, &(format));
+
+        uint32_t pitch {};
+        int32_t errGetStride = (*gr_get_stride_)(gralloc1_dev_, handle, &(pitch));
+
+        int32_t prime {-1};
+        int32_t errGetPrime = GRALLOC1_ERROR_NONE;
+#ifdef MFX_C2_USE_PRIME
+        if (!(gr_get_prime_ == nullptr)) {
+            errGetPrime = (*gr_get_prime_)(gralloc1_dev_, handle, (uint32_t*)(&(prime)));
+        }
+#endif
+
         uint32_t width {};
         uint32_t height {};
         int32_t errGetDimensions = (*gr_get_dimensions_)(gralloc1_dev_, handle, &width, &height);
 
         if (GRALLOC1_ERROR_NONE == errGetFormat &&
             GRALLOC1_ERROR_NONE == errGetStride &&
-            GRALLOC1_ERROR_NONE == errGetDimensions)
+            GRALLOC1_ERROR_NONE == errGetDimensions &&
+            GRALLOC1_ERROR_NONE == errGetPrime)
         {
+            details->handle = handle;
+            details->prime = prime;
             details->width = details->allocWidth = width;
             details->height = details->allocHeight = height;
+            details->format = format;
+            details->pitch = pitch;
         }
         else
         {
@@ -136,6 +163,7 @@ c2_status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handle,
         MFX_DEBUG_TRACE_MSG("Failed to get BO_INFO");
         res = C2_CORRUPTED;
     } else {
+        details->handle = handle;
         details->width = info.width;
         details->height = info.height;
         details->format = info.format;
@@ -293,7 +321,7 @@ c2_status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** dat
 
     if (!layout) res = C2_BAD_VALUE;
 
-    BufferDetails details {};
+    BufferDetails details;
     if (C2_OK == res) {
         res = GetBufferDetails(handle, &details);
     }
