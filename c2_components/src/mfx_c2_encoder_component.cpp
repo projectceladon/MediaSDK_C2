@@ -68,6 +68,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, int flags, Enc
             MfxC2ParamReflector& pr = param_reflector_;
 
             pr.RegisterParam<C2RateControlSetting>("RateControl");
+            pr.RegisterParam<C2FrameRateSetting::output>("FrameRate");
             pr.RegisterParam<C2BitrateTuning::output>("Bitrate");
 
             pr.RegisterParam<C2FrameQPSetting>("FrameQP");
@@ -657,6 +658,14 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
             }
             break;
         }
+        case kParamIndexFrameRate: {
+            if (nullptr == *dst) {
+                *dst = new C2FrameRateSetting::output();
+            }
+            C2FrameRateSetting* framerate = (C2FrameRateSetting*)*dst;
+            framerate->value = (float)src->mfx.FrameInfo.FrameRateExtN / src->mfx.FrameInfo.FrameRateExtD;
+            break;
+        }
         case kParamIndexBitrate: {
             if (nullptr == *dst) {
                 *dst = new C2BitrateTuning::output();
@@ -879,6 +888,12 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 if(MFX_ERR_NONE != sts) {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
                 }
+                break;
+            }
+            case kParamIndexFrameRate: {
+                float framerate_value = static_cast<const C2FrameRateSetting*>(param)->value;
+                video_params_config_.mfx.FrameInfo.FrameRateExtN = uint64_t(framerate_value * 1000); // keep 3 sign after dot
+                video_params_config_.mfx.FrameInfo.FrameRateExtD = 1000;
                 break;
             }
             case kParamIndexBitrate:

@@ -44,6 +44,7 @@ std::vector<C2ParamDescriptor> DefaultC2Params()
     std::vector<C2ParamDescriptor> param =
     {
         { false, "RateControl", C2RateControlSetting::PARAM_TYPE },
+        { false, "FrameRate", C2FrameRateSetting::output::PARAM_TYPE },
         { false, "Bitrate", C2BitrateTuning::output::PARAM_TYPE },
         { false, "FrameQP", C2FrameQPSetting::PARAM_TYPE },
         { false, "IntraRefresh", C2IntraRefreshTuning::PARAM_TYPE },
@@ -108,6 +109,7 @@ static C2ParamValues GetDefaultValues(const char * component_name)
     mfx_set_defaults_mfxVideoParam_enc(&video_params);
 
     default_values.Append(new C2RateControlSetting(MfxRateControlToC2(video_params.mfx.RateControlMethod)));
+    default_values.Append(new C2FrameRateSetting::output(0/*stream*/, C2FloatValue((float)video_params.mfx.FrameInfo.FrameRateExtN / video_params.mfx.FrameInfo.FrameRateExtD)));
     default_values.Append(new C2BitrateTuning::output(0/*stream*/, video_params.mfx.TargetKbps));
     default_values.Append(Invalidate(new C2FrameQPSetting()));
     return default_values;
@@ -545,8 +547,11 @@ TEST(MfxEncoderComponent, StaticBitrate)
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         C2RateControlSetting param_rate_control;
-        param_rate_control.value = C2RateControlCBR;
+        C2FrameRateSetting::output param_framerate;
         C2BitrateTuning::output param_bitrate;
+
+        param_rate_control.value = C2RateControlCBR;
+        param_framerate.value = FRAME_RATE;
 
         // these bit rates handles accurately for low res (320x240) and significant frame count (150)
         const uint32_t bitrates[] = { 100, 500, 1000 };
@@ -559,7 +564,7 @@ TEST(MfxEncoderComponent, StaticBitrate)
 
             param_bitrate.value = bitrates[test_index];
 
-            std::vector<C2Param*> params = { &param_rate_control, &param_bitrate };
+            std::vector<C2Param*> params = { &param_rate_control, &param_framerate, &param_bitrate };
             std::vector<std::unique_ptr<C2SettingResult>> failures;
             c2_blocking_t may_block {};
 
@@ -942,9 +947,14 @@ TEST(MfxEncoderComponent, DynamicBitrate)
         (void)comp;
 
         C2RateControlSetting param_rate_control;
+        C2FrameRateSetting::output param_framerate;
+
         param_rate_control.value = C2RateControlVBR;
-        std::vector<C2Param*> static_params { &param_rate_control };
+        param_framerate.value = FRAME_RATE;
+
+        std::vector<C2Param*> static_params { &param_rate_control, &param_framerate };
         std::vector<std::unique_ptr<C2SettingResult>> failures;
+
         c2_blocking_t may_block {};
         c2_status_t sts = comp_intf->config_vb(static_params, may_block, &failures);
         EXPECT_EQ(sts, C2_OK);
@@ -1124,5 +1134,85 @@ TEST(MfxEncoderComponent, CodecProfileAndLevel)
             bool stream_ok = comp_desc.test_stream_profile_level(test_run, std::move(bitstream), &error_message);
             EXPECT_TRUE(stream_ok) << error_message;
         }
+    }); // ForEveryComponent
+}
+
+// Specifies various values for frame rate,
+// checks they are queried back fine,
+// check real FrameRate using size of encoded stream
+TEST(MfxEncoderComponent, FrameRate)
+{
+    ForEveryComponent<ComponentDesc>(g_components_desc,
+        [] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+
+        std::vector<char> bitstream;
+        struct TestRunDescription
+        {
+            float expected_framerate;
+            size_t stream_len;
+        };
+        TestRunDescription test_runs[2] = { { 25.0, 0 }, { 50.0, 0 } };
+        const uint32_t CONST_BITRATE = 300;
+
+        C2BitrateTuning::output param_bitrate;
+        C2RateControlSetting param_rate_control;
+
+        param_bitrate.value = CONST_BITRATE;
+        param_rate_control.value = C2RateControlCBR;
+
+        std::vector<std::unique_ptr<C2SettingResult>> failures;
+        std::vector<C2Param*> static_params = { &param_rate_control, &param_bitrate };
+
+        c2_blocking_t may_block {};
+
+        c2_status_t sts = comp_intf->config_vb(static_params, may_block, &failures);
+        EXPECT_EQ(sts, C2_OK);
+        EXPECT_EQ(failures.size(), 0ul);
+
+        for (auto test_run : test_runs) {
+
+            StripeGenerator stripe_generator;
+            NoiseGenerator noise_generator;
+
+            C2FrameRateSetting::output param_framerate;
+            param_framerate.value = test_run.expected_framerate;
+            std::vector<C2Param*> dynamic_params = { &param_framerate };
+
+            GTestBinaryWriter writer(std::ostringstream()
+                << comp_intf->getName() << "-" << test_run.expected_framerate << ".out");
+
+            sts = comp_intf->config_vb(dynamic_params, may_block, &failures);
+            EXPECT_EQ(sts, C2_OK);
+            EXPECT_EQ(failures.size(), 0ul);
+
+            C2ParamValues query_expected;
+            query_expected.Append(new C2FrameRateSetting::output(0/*stream*/, C2FloatValue(test_run.expected_framerate)));
+
+            sts = comp_intf->query_vb(query_expected.GetStackPointers(),
+                {}, may_block, nullptr);
+            EXPECT_EQ(sts, C2_OK);
+            query_expected.CheckStackValues();
+
+            EncoderConsumer::OnFrame on_frame =
+                [&] (const C2Worklet&, const uint8_t* data, size_t length) {
+
+                const char* ch_data = (const char*)data;
+                std::copy(ch_data, ch_data + length, std::back_inserter(bitstream));
+                test_run.stream_len += length;
+                writer.Write(data, length);
+            };
+
+            std::shared_ptr<EncoderConsumer> validator =
+                std::make_shared<EncoderConsumer>(on_frame, FRAME_COUNT);
+
+            Encode(FRAME_COUNT, false/*system memory*/, comp, validator,
+                { &stripe_generator, &noise_generator } );
+
+            float real_framerate = (CONST_BITRATE * FRAME_COUNT * 1000.0) /
+                (test_run.stream_len * 8);
+            EXPECT_TRUE(abs(real_framerate - test_run.expected_framerate) < test_run.expected_framerate * 0.2)
+                << "Expected framerate: " << test_run.expected_framerate << " Actual: " << real_framerate;
+        }
+
     }); // ForEveryComponent
 }

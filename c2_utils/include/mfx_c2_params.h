@@ -52,6 +52,8 @@ typedef C2PortParam<C2Setting, C2Uint32Value, kParamIndexProfile>::output C2Prof
 
 typedef C2PortParam<C2Setting, C2Uint32Value, kParamIndexLevel>::output C2LevelSetting;
 
+typedef C2StreamParam<C2Setting, C2FloatValue, kParamIndexFrameRate> C2FrameRateSetting;
+
 struct C2ProfileLevelStruct {
     uint32_t profile;
     uint32_t level;
