@@ -9,9 +9,8 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 *********************************************************************************/
 
 #include "test_components.h"
-
-#include "ipp.h"
 #include <sstream>
+#include <src/zlib.h>
 
 void CRC32Generator::AddData(uint32_t width, uint32_t height, const uint8_t* data, size_t length)
 {
@@ -22,7 +21,7 @@ void CRC32Generator::AddData(uint32_t width, uint32_t height, const uint8_t* dat
             cur_width_ = width;
             cur_height_ = height;
         }
-        ippsCRC32_8u(data, length, &crc32_.back());
+        crc32_.back() = crc32(crc32_.back(), data, length);
     }
 }
 

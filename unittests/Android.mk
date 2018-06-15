@@ -23,12 +23,9 @@ LOCAL_CFLAGS := $(MFX_C2_CFLAGS)
 
 LOCAL_LDFLAGS := $(MFX_C2_LDFLAGS)
 
-LOCAL_STATIC_LIBRARIES := libippdc_l libippcore_l \
-    libgtest
+LOCAL_STATIC_LIBRARIES := libgtest libz
 LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_store
 LOCAL_HEADER_LIBRARIES := $(MFX_C2_HEADER_LIBRARIES)
-LOCAL_HEADER_LIBRARIES_32 := libmdp_msdk_ipp_32_headers
-LOCAL_HEADER_LIBRARIES_64 := libmdp_msdk_ipp_64_headers
 
 LOCAL_MULTILIB := both
 LOCAL_MODULE_TAGS := optional
@@ -66,9 +63,7 @@ LOCAL_LDFLAGS := $(MFX_C2_LDFLAGS)
 
 LOCAL_STATIC_LIBRARIES := \
     libmfx_c2_utils \
-    libippdc_l \
-    libippcore_l \
-    libgtest \
+    libgtest libz \
     $(MFX_C2_STATIC_LIBS)
 
 LOCAL_SHARED_LIBRARIES := \
@@ -78,8 +73,6 @@ LOCAL_SHARED_LIBRARIES := \
     $(MFX_C2_SHARED_LIBS)
 
 LOCAL_HEADER_LIBRARIES := $(MFX_C2_HEADER_LIBRARIES)
-LOCAL_HEADER_LIBRARIES_32 := libmdp_msdk_ipp_32_headers
-LOCAL_HEADER_LIBRARIES_64 := libmdp_msdk_ipp_64_headers
 
 LOCAL_MULTILIB := both
 LOCAL_MODULE_TAGS := optional
@@ -125,9 +118,7 @@ define build_mock_unittests
   LOCAL_LDFLAGS := $$(MFX_C2_LDFLAGS)
 
   LOCAL_STATIC_LIBRARIES := \
-    libippdc_l \
-    libippcore_l \
-    libgtest \
+    libgtest libz \
     $(MFX_C2_STATIC_LIBS)
 
   LOCAL_SHARED_LIBRARIES := \
@@ -151,8 +142,6 @@ define build_mock_unittests
   endif
 
   LOCAL_HEADER_LIBRARIES := $$(MFX_C2_HEADER_LIBRARIES)
-  LOCAL_HEADER_LIBRARIES_32 := libmdp_msdk_ipp_32_headers
-  LOCAL_HEADER_LIBRARIES_64 := libmdp_msdk_ipp_64_headers
 
   LOCAL_MULTILIB := both
   LOCAL_MODULE_TAGS := optional
