@@ -883,13 +883,14 @@ public:
                 C2PlanarLayout layout {};
                 c2_status_t res = gr_allocator->LockFrame(handles[i], data, &layout);
                 EXPECT_EQ(res, C2_OK);
+                if (C2_OK == res) {
+                    CheckNV12PlaneLayout(WIDTH, HEIGHT, layout, data);
 
-                CheckNV12PlaneLayout(WIDTH, HEIGHT, layout, data);
+                    gr_mem_operation(i, layout, data);
 
-                gr_mem_operation(i, layout, data);
-
-                res = gr_allocator->UnlockFrame(handles[i]);
-                EXPECT_EQ(res, C2_OK);
+                    res = gr_allocator->UnlockFrame(handles[i]);
+                    EXPECT_EQ(res, C2_OK);
+                }
             };
         };
     };
@@ -902,10 +903,11 @@ public:
                 C2Acquirable<C2GraphicView> acquirable = gr_blocks[i]->map();
                 C2GraphicView view = acquirable.get();
                 EXPECT_EQ(view.error(), C2_OK);
+                if (C2_OK == view.error()) {
+                    CheckNV12PlaneLayout(WIDTH, HEIGHT, view.layout(), view.data());
 
-                CheckNV12PlaneLayout(WIDTH, HEIGHT, view.layout(), view.data());
-
-                gr_mem_operation(i, view.layout(), view.data());
+                    gr_mem_operation(i, view.layout(), view.data());
+                }
             };
         };
     };
@@ -935,13 +937,14 @@ public:
                 mfxFrameData frame_data {};
                 mfxStatus sts = allocator->LockFrame(mfx_mem_ids[i], &frame_data);
                 EXPECT_EQ(MFX_ERR_NONE, sts);
+                if (MFX_ERR_NONE == sts) {
+                    CheckMfxFrameData(MFX_FOURCC_NV12, WIDTH, HEIGHT, hw_memory, locked, frame_data);
 
-                CheckMfxFrameData(MFX_FOURCC_NV12, WIDTH, HEIGHT, hw_memory, locked, frame_data);
+                    va_mem_operation(i, frame_info, frame_data);
 
-                va_mem_operation(i, frame_info, frame_data);
-
-                sts = allocator->UnlockFrame(mfx_mem_ids[i], &frame_data);
-                EXPECT_EQ(MFX_ERR_NONE, sts);
+                    sts = allocator->UnlockFrame(mfx_mem_ids[i], &frame_data);
+                    EXPECT_EQ(MFX_ERR_NONE, sts);
+                }
             }
         };
     };
@@ -1193,12 +1196,13 @@ TEST(MfxFramePoolAllocator, RetainHandles)
         for (size_t i = 0; i < FRAME_COUNT; ++i) {
             c2_blocks[i] = pool_allocator->Alloc();
             EXPECT_NE(c2_blocks[i], nullptr);
-
-            const C2Handle* c2_handle = c2_blocks[i]->handle();
-            mfxHDL mfx_handle {};
-            mfxStatus sts = allocator->GetFrameHDL(response.mids[i], &mfx_handle);
-            EXPECT_EQ(sts, MFX_ERR_NONE);
-            handleC2ToMfx[c2_handle] = mfx_handle;
+            if (c2_blocks[i]) {
+                const C2Handle* c2_handle = c2_blocks[i]->handle();
+                mfxHDL mfx_handle {};
+                mfxStatus sts = allocator->GetFrameHDL(response.mids[i], &mfx_handle);
+                EXPECT_EQ(sts, MFX_ERR_NONE);
+                handleC2ToMfx[c2_handle] = mfx_handle;
+            }
         }
         EXPECT_EQ(handleC2ToMfx.size(), FRAME_COUNT);
     };
@@ -1217,13 +1221,14 @@ TEST(MfxFramePoolAllocator, RetainHandles)
         for (size_t i = 0; i < FRAME_COUNT; ++i) {
             c2_blocks[i] = pool_allocator->Alloc();
             EXPECT_NE(c2_blocks[i], nullptr);
+            if (c2_blocks[i]) {
+                const C2Handle* c2_handle = c2_blocks[i]->handle();
+                mfxHDL mfx_handle {};
+                mfxStatus sts = allocator->GetFrameHDL(response.mids[i], &mfx_handle);
+                EXPECT_EQ(sts, MFX_ERR_NONE);
 
-            const C2Handle* c2_handle = c2_blocks[i]->handle();
-            mfxHDL mfx_handle {};
-            mfxStatus sts = allocator->GetFrameHDL(response.mids[i], &mfx_handle);
-            EXPECT_EQ(sts, MFX_ERR_NONE);
-
-            EXPECT_EQ(handleC2ToMfx[c2_handle], mfx_handle);
+                EXPECT_EQ(handleC2ToMfx[c2_handle], mfx_handle);
+            }
         }
     };
 
@@ -1232,9 +1237,10 @@ TEST(MfxFramePoolAllocator, RetainHandles)
         for (size_t i = 0; i < FRAME_COUNT; ++i) {
             c2_blocks_2[i] = pool_allocator->Alloc();
             EXPECT_NE(c2_blocks_2[i], nullptr);
-
-            const C2Handle* c2_handle = c2_blocks_2[i]->handle();
-            EXPECT_EQ(handleC2ToMfx.find(c2_handle), handleC2ToMfx.end());
+            if(c2_blocks_2[i]) {
+                const C2Handle* c2_handle = c2_blocks_2[i]->handle();
+                EXPECT_EQ(handleC2ToMfx.find(c2_handle), handleC2ToMfx.end());
+            }
         }
     };
 
