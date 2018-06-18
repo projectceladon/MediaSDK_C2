@@ -97,7 +97,7 @@ adb wait-for-device
 
 if [ -z "$gtest_filter" ]
 then
-    gtest_filter='.*'
+    gtest_filter='*'
 fi
 
 adb shell 'cd '${device_dir}'; \

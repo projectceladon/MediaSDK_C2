@@ -9,7 +9,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 *********************************************************************************/
 
 #include "test_components.h"
-#include "gtest_emulation.h"
+
 #include "ipp.h"
 #include <sstream>
 

@@ -28,7 +28,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 // from AOSP frameworks/av/media/libstagefright/codec2/tests/vndk/C2BufferTest.cpp
 // and modified then.
 
-#include "gtest_emulation.h"
+#include <gtest/gtest.h>
 #include "mfx_defs.h"
 
 #include <C2Buffer.h>
@@ -154,7 +154,7 @@ TEST(C2BufferTest, GraphicBlockPoolTest) {
 
     std::shared_ptr<C2BlockPool> blockPool(test.makeGraphicBlockPool());
 
-    auto fill_planes = [] (std::shared_ptr<C2GraphicBlock> block) {
+    auto fill_planes = [&] (std::shared_ptr<C2GraphicBlock> block) {
 
         C2Acquirable<C2GraphicView> graphicViewHolder = block->map();
         C2GraphicView graphicView = graphicViewHolder.get();
@@ -181,7 +181,7 @@ TEST(C2BufferTest, GraphicBlockPoolTest) {
         fillPlane({ kWidth / 4, kHeight / 4, kWidth / 2, kHeight / 2 }, vInfo, v, 0x56);
     };
 
-    auto verify_planes = [] (std::shared_ptr<C2GraphicBlock> block) {
+    auto verify_planes = [&] (std::shared_ptr<C2GraphicBlock> block) {
 
         C2Fence fence;
         C2ConstGraphicBlock constBlock = block->share(

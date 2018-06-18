@@ -9,7 +9,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 *********************************************************************************/
 
 #include "mfx_c2_defs.h"
-#include "gtest_emulation.h"
+#include <gtest/gtest.h>
 #include "test_components.h"
 #include "mfx_c2_utils.h"
 #include "mfx_c2_component.h"
@@ -236,9 +236,9 @@ protected:
         (void)component;
 
         for(std::unique_ptr<C2Work>& work : workItems) {
-            EXPECT_EQ(work->workletsProcessed, 1);
+            EXPECT_EQ(work->workletsProcessed, 1u);
             EXPECT_EQ(work->result, C2_OK);
-            EXPECT_EQ(work->worklets.size(), 1);
+            EXPECT_EQ(work->worklets.size(), 1u);
             if (work->worklets.size() >= 1) {
 
                 std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
@@ -262,8 +262,8 @@ protected:
                 if(nullptr != graphic_block) {
 
                     C2Rect crop = graphic_block->crop();
-                    EXPECT_NE(crop.width, 0);
-                    EXPECT_NE(crop.height, 0);
+                    EXPECT_NE(crop.width, 0u);
+                    EXPECT_NE(crop.height, 0u);
 
                     std::unique_ptr<const C2GraphicView> c_graph_view;
                     sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &c_graph_view);

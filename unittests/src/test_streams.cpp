@@ -10,7 +10,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 
 #include "test_streams.h"
 #include <map>
-#include "gtest_emulation.h"
+#include <gtest/gtest.h>
 #include "mfx_legacy_defs.h"
 
 std::unique_ptr<StreamReader> StreamReader::Create(const std::vector<const StreamDescription*>& streams)

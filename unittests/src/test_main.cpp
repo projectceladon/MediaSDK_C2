@@ -8,7 +8,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
-#include "gtest_emulation.h"
+#include <gtest/gtest.h>
 #include "test_components.h"
 
 #include <iostream>

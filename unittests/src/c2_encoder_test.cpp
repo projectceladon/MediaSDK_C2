@@ -9,7 +9,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 *********************************************************************************/
 
 #include "mfx_c2_defs.h"
-#include "gtest_emulation.h"
+#include <gtest/gtest.h>
 #include "test_components.h"
 #include "test_streams.h"
 #include "test_params.h"
@@ -267,7 +267,7 @@ protected:
         (void)component;
 
         for(std::unique_ptr<C2Work>& work : workItems) {
-            EXPECT_EQ(work->workletsProcessed, 1) << NAMED(frame_expected_);
+            EXPECT_EQ(work->workletsProcessed, 1u) << NAMED(frame_expected_);
             EXPECT_EQ(work->result, C2_OK);
 
             std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
@@ -301,7 +301,7 @@ protected:
                 if (nullptr != read_view) {
                     const uint8_t* raw  = read_view->data();
                     EXPECT_NE(raw, nullptr);
-                    EXPECT_NE(linear_block->size(), 0);
+                    EXPECT_NE(linear_block->size(), 0u);
 
                     if(nullptr != raw) {
                         on_frame_(*worklet, raw + linear_block->offset(), linear_block->size());
@@ -517,7 +517,7 @@ TEST(MfxEncoderComponent, UnsupportedParam)
         c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
         EXPECT_EQ(sts, C2_BAD_INDEX);
 
-        EXPECT_EQ(failures.size(), 1);
+        EXPECT_EQ(failures.size(), 1ul);
 
         if(failures.size() >= 1) {
             std::unique_ptr<C2SettingResult>& set_res = failures.front();
@@ -672,7 +672,7 @@ TEST(MfxEncoderComponent, StaticFrameQP)
         c2_blocking_t may_block {};
         c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
         EXPECT_EQ(sts, C2_OK);
-        EXPECT_EQ(failures.size(), 0);
+        EXPECT_EQ(failures.size(), 0ul);
 
         struct TestRun {
             uint32_t qp;
@@ -713,9 +713,9 @@ TEST(MfxEncoderComponent, StaticFrameQP)
             c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
             EXPECT_EQ(sts, test_run.expected_result);
             if(test_run.expected_result == C2_OK) {
-                EXPECT_EQ(failures.size(), 0);
+                EXPECT_EQ(failures.size(), 0ul);
             } else {
-                EXPECT_EQ(failures.size(), 3);
+                EXPECT_EQ(failures.size(), 3ul);
                 EXPECT_TRUE(failures.size() > 0 && failures[0]->field.paramOrField == C2ParamField(&param_qp, &C2FrameQPSetting::qp_i));
                 EXPECT_TRUE(failures.size() > 1 && failures[1]->field.paramOrField == C2ParamField(&param_qp, &C2FrameQPSetting::qp_p));
                 EXPECT_TRUE(failures.size() > 2 && failures[2]->field.paramOrField == C2ParamField(&param_qp, &C2FrameQPSetting::qp_b));
@@ -725,11 +725,11 @@ TEST(MfxEncoderComponent, StaticFrameQP)
                     EXPECT_NE(set_res->field.values, nullptr);
                     if(nullptr != set_res->field.values) {
                         EXPECT_EQ(set_res->field.values->type, C2FieldSupportedValues::RANGE);
-                        EXPECT_EQ(set_res->field.values->range.min.u32, 1);
-                        EXPECT_EQ(set_res->field.values->range.max.u32, 51);
-                        EXPECT_EQ(set_res->field.values->range.step.u32, 1);
-                        EXPECT_EQ(set_res->field.values->range.num.u32, 1);
-                        EXPECT_EQ(set_res->field.values->range.denom.u32, 1);
+                        EXPECT_EQ(set_res->field.values->range.min.u32, 1ul);
+                        EXPECT_EQ(set_res->field.values->range.max.u32, 51u);
+                        EXPECT_EQ(set_res->field.values->range.step.u32, 1u);
+                        EXPECT_EQ(set_res->field.values->range.num.u32, 1u);
+                        EXPECT_EQ(set_res->field.values->range.denom.u32, 1u);
                     }
                     EXPECT_TRUE(set_res->conflicts.empty());
                 }
@@ -894,9 +894,9 @@ TEST(MfxEncoderComponent, IntraRefresh)
                             c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
 
                             EXPECT_EQ(sts, C2_OK);
-                            EXPECT_EQ(failures.size(), 0);
+                            EXPECT_EQ(failures.size(), 0ul);
                         } else {
-                            ASSERT_EQ(work->worklets.size(), 1);
+                            ASSERT_EQ(work->worklets.size(), 1ul);
                             C2Worklet* worklet = work->worklets.front().get();
                             ASSERT_NE(worklet, nullptr);
                             worklet->tunings.push_back(std::move(intra_refresh));
@@ -948,7 +948,7 @@ TEST(MfxEncoderComponent, DynamicBitrate)
         c2_blocking_t may_block {};
         c2_status_t sts = comp_intf->config_vb(static_params, may_block, &failures);
         EXPECT_EQ(sts, C2_OK);
-        EXPECT_EQ(failures.size(), 0);
+        EXPECT_EQ(failures.size(), 0ul);
 
         const uint32_t TEST_FRAME_COUNT = FRAME_COUNT * 2;
 
@@ -979,7 +979,7 @@ TEST(MfxEncoderComponent, DynamicBitrate)
 
             c2_status_t sts = comp_intf->config_vb(dynamic_params, may_block, &failures);
             EXPECT_EQ(sts, C2_OK);
-            EXPECT_EQ(failures.size(), 0);
+            EXPECT_EQ(failures.size(), 0ul);
 
             BeforeQueueWork before_queue_work = [&] (uint32_t frame_index, C2Work* work) {
 
@@ -991,9 +991,9 @@ TEST(MfxEncoderComponent, DynamicBitrate)
                         c2_status_t sts = comp_intf->config_vb(dynamic_params, may_block, &failures);
 
                         EXPECT_EQ(sts, C2_OK);
-                        EXPECT_EQ(failures.size(), 0);
+                        EXPECT_EQ(failures.size(), 0ul);
                     } else {
-                        ASSERT_EQ(work->worklets.size(), 1);
+                        ASSERT_EQ(work->worklets.size(), 1ul);
                         C2Worklet* worklet = work->worklets.front().get();
                         ASSERT_NE(worklet, nullptr);
                         worklet->tunings.push_back(std::move(param_bitrate));
@@ -1044,7 +1044,7 @@ TEST(MfxEncoderComponent, ProfileLevelInfo)
         c2_status_t res = comp_intf->query_vb(
             {} , { C2ProfileLevelInfo::output::PARAM_TYPE }, may_block, &heap_params);
         EXPECT_EQ(res, C2_OK);
-        EXPECT_EQ(heap_params.size(), 1);
+        EXPECT_EQ(heap_params.size(), 1ul);
 
         if (heap_params.size() > 0) {
             C2Param* param = heap_params[0].get();
@@ -1082,7 +1082,7 @@ TEST(MfxEncoderComponent, CodecProfileAndLevel)
 
             #define TEST_RUN_NAME std::hex << "0x" << test_run.profile << "-0x" << test_run.level
 
-            SCOPED_TRACE(TEST_RUN_NAME);
+            SCOPED_TRACE(testing::Message() << TEST_RUN_NAME);
 
             GTestBinaryWriter writer(std::ostringstream()
                 << comp_intf->getName() << "-" << TEST_RUN_NAME << ".out");
@@ -1095,7 +1095,7 @@ TEST(MfxEncoderComponent, CodecProfileAndLevel)
             c2_blocking_t may_block {};
             c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
             EXPECT_EQ(sts, C2_OK);
-            EXPECT_EQ(failures.size(), 0);
+            EXPECT_EQ(failures.size(), 0ul);
 
             C2ParamValues query_expected;
             query_expected.Append(new C2ProfileSetting(test_run.profile));
