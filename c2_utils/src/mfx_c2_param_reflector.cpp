@@ -48,6 +48,64 @@ struct _C2ParamInspector
     }
 };
 
+inline size_t GetSize(C2FieldDescriptor::type_t type)
+{
+    switch (type) {
+        case C2FieldDescriptor::INT32: {
+            return sizeof(int32_t);
+        }
+        case C2FieldDescriptor::UINT32: {
+            return sizeof(uint32_t);
+        }
+        case C2FieldDescriptor::FLOAT: {
+            return sizeof(float);
+        }
+        default: // other constraints not supported yet
+            return 0;
+    }
+}
+
+inline bool CheckRange(const C2FieldSupportedValues& supported, C2FieldDescriptor::type_t type, const uint8_t* ptr_val)
+{
+    if(supported.type != C2FieldSupportedValues::RANGE)
+        return false;
+    switch (type) {
+        case C2FieldDescriptor::INT32: {
+            int32_t min = supported.range.min.i32;
+            int32_t max = supported.range.max.i32;
+            const int32_t val = *(const int32_t*)ptr_val;
+
+            if(val < min || val > max) {
+                return false;
+            }
+            break;
+        }
+        case C2FieldDescriptor::UINT32: {
+            uint32_t min = supported.range.min.u32;
+            uint32_t max = supported.range.max.u32;
+            const uint32_t val = *(const uint32_t*)ptr_val;
+
+            if(val < min || val > max) {
+                return false;
+            }
+            break;
+        }
+        case C2FieldDescriptor::FLOAT: {
+            float min = supported.range.min.fp;
+            float max = supported.range.max.fp;
+            const float val = *(const float*)ptr_val;
+
+            if(val < min || val > max) {
+                return false;
+            }
+            break;
+        }
+        default: // other constraints not supported yet
+            return false;
+    }
+    return true;
+}
+
 bool MfxC2ParamReflector::ValidateParam(const C2Param* param,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures)
 {
@@ -74,55 +132,48 @@ bool MfxC2ParamReflector::ValidateParam(const C2Param* param,
             const C2FieldDescriptor& field_desc = *it_field;
             MFX_DEBUG_TRACE_STREAM(std::hex << NAMED((uint32_t)field_desc.type()));
 
-            switch(field_desc.type()) {
-                case C2FieldDescriptor::INT32:
-                case C2FieldDescriptor::UINT32: {
+            if(field_desc.type() == C2FieldDescriptor::INT32 ||
+               field_desc.type() == C2FieldDescriptor::UINT32 ||
+               field_desc.type() == C2FieldDescriptor::FLOAT) {
 
-                    // C2ParamField measures offset in C2Param structure,
-                    // C2FieldDescriptor, in turn, in embedded data struct.
-                    // So sizeof(C2Param) should be added to offset before search.
+                // C2ParamField measures offset in C2Param structure,
+                // C2FieldDescriptor, in turn, in embedded data struct.
+                // So sizeof(C2Param) should be added to offset before search.
 
-                    C2ParamField param_field = _C2ParamInspector::CreateParamField(param->index(),
-                        _C2ParamInspector::getOffset(field_desc) + sizeof(C2Param), sizeof(uint32_t));
+                C2ParamField param_field = _C2ParamInspector::CreateParamField(param->index(),
+                    _C2ParamInspector::getOffset(field_desc) + sizeof(C2Param), GetSize(field_desc.type()));
 
-                    MFX_DEBUG_TRACE_STREAM("Looking for C2ParamField:"
-                        << std::hex << " index: " << _C2ParamInspector::getIndex(param_field)
-                        << std::dec << " offset: " << _C2ParamInspector::getOffset(param_field)
-                        << " size: " << _C2ParamInspector::getSize(param_field));
+                MFX_DEBUG_TRACE_STREAM("Looking for C2ParamField:"
+                    << std::hex << " index: " << _C2ParamInspector::getIndex(param_field)
+                    << std::dec << " offset: " << _C2ParamInspector::getOffset(param_field)
+                    << " size: " << _C2ParamInspector::getSize(param_field));
 
-                    auto it_supported = params_supported_values_.find(param_field);
-                    if(it_supported != params_supported_values_.end()) {
-                        const C2FieldSupportedValues& supported = it_supported->second;
-                        switch(supported.type) {
-                            case C2FieldSupportedValues::RANGE: {
-                                uint32_t min = supported.range.min.u32;
-                                uint32_t max = supported.range.max.u32;
-                                const uint8_t* ptr_val = (const uint8_t*)param
-                                    + sizeof(C2Param) + _C2ParamInspector::getOffset(field_desc);
-                                const uint32_t val = *(const uint32_t*)ptr_val;
-
-                                if(val < min || val > max) {
-                                    res = false;
-                                    failures->push_back(MakeC2SettingResult(param_field,
-                                        C2SettingResult::BAD_VALUE, {}, &supported));
-                                }
-                                break;
+                auto it_supported = params_supported_values_.find(param_field);
+                if(it_supported != params_supported_values_.end()) {
+                   const C2FieldSupportedValues& supported = it_supported->second;
+                   switch(supported.type) {
+                        case C2FieldSupportedValues::RANGE: {
+                           const uint8_t* ptr_val = (const uint8_t*)param
+                               + sizeof(C2Param) + _C2ParamInspector::getOffset(field_desc);
+                            if(!CheckRange(supported, field_desc.type(), ptr_val)) {
+                               res = false;
+                               failures->push_back(MakeC2SettingResult(param_field,
+                                   C2SettingResult::BAD_VALUE, {}, &supported));
                             }
-                            default: // other constraints not supported yet
-                                res = false;
-                                failures->push_back(MakeC2SettingResult(param_field,
-                                    C2SettingResult::BAD_TYPE));
-                                break;
+                            break;
                         }
-                    }
-
-                    break;
+                        default: // other constraints not supported yet
+                            res = false;
+                            failures->push_back(MakeC2SettingResult(param_field,
+                               C2SettingResult::BAD_TYPE));
+                            break;
+                   }
                 }
-                default:
-                    MFX_DEBUG_TRACE_MSG("other types not supported yet");
-                    res = false;
-                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE));
-                    break;
+
+            } else {
+                MFX_DEBUG_TRACE_MSG("other types not supported yet");
+                res = false;
+                failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE));
             }
         }
 
