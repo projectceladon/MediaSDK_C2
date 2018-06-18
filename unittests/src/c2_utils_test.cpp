@@ -8,7 +8,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
-#include "gtest_emulation.h"
+#include <gtest/gtest.h>
 #include "mfx_cmd_queue.h"
 #include "mfx_pool.h"
 #include "mfx_gralloc_allocator.h"
@@ -304,7 +304,7 @@ static void CheckNV12PlaneLayout(uint16_t width, uint16_t height, const C2Planar
     using Info = C2PlaneInfo;
 
     EXPECT_EQ(layout.type, Layout::TYPE_YUV);
-    EXPECT_EQ(layout.numPlanes, 3);
+    EXPECT_EQ(layout.numPlanes, 3u);
 
     std::map<Layout::plane_index_t, Info::channel_t> expected_channels = {
         {  Layout::PLANE_Y, Info::CHANNEL_Y },
@@ -316,11 +316,11 @@ static void CheckNV12PlaneLayout(uint16_t width, uint16_t height, const C2Planar
         EXPECT_EQ(layout.planes[index].channel, expected_channels[index]);
         EXPECT_EQ(layout.planes[index].colInc, index == Layout::PLANE_Y ? 1 : 2);
         EXPECT_TRUE(layout.planes[index].rowInc >= width);
-        EXPECT_EQ(layout.planes[index].colSampling, index == Layout::PLANE_Y ? 1 : 2);
-        EXPECT_EQ(layout.planes[index].rowSampling, index == Layout::PLANE_Y ? 1 : 2);
-        EXPECT_EQ(layout.planes[index].bitDepth, 8);
-        EXPECT_EQ(layout.planes[index].allocatedDepth, 8);
-        EXPECT_EQ(layout.planes[index].rightShift, 0);
+        EXPECT_EQ(layout.planes[index].colSampling, index == Layout::PLANE_Y ? 1u : 2u);
+        EXPECT_EQ(layout.planes[index].rowSampling, index == Layout::PLANE_Y ? 1u : 2u);
+        EXPECT_EQ(layout.planes[index].bitDepth, 8u);
+        EXPECT_EQ(layout.planes[index].allocatedDepth, 8u);
+        EXPECT_EQ(layout.planes[index].rightShift, 0u);
         EXPECT_EQ(layout.planes[index].endianness, C2PlaneInfo::NATIVE);
 
         EXPECT_NE(data[index], nullptr);
@@ -476,20 +476,20 @@ TEST(MfxGrallocAllocator, BufferKeepsContents)
 
     const int WIDTH = 600;
     const int HEIGHT = 400;
-    const int FRAME_COUNT = 3;
+    const size_t FRAME_COUNT = 3;
 
     if (allocator) {
 
         buffer_handle_t handle[FRAME_COUNT] {};
         c2_status_t res;
 
-        for (int i = 0; i < FRAME_COUNT; ++i) {
+        for (size_t i = 0; i < FRAME_COUNT; ++i) {
             res = allocator->Alloc(WIDTH, HEIGHT, &handle[i]);
             EXPECT_EQ(res, C2_OK);
             EXPECT_NE(handle, nullptr);
         }
 
-        for (int i = 0; i < FRAME_COUNT; ++i) {
+        for (size_t i = 0; i < FRAME_COUNT; ++i) {
             uint8_t* data[C2PlanarLayout::MAX_NUM_PLANES] {};
             C2PlanarLayout layout {};
             res = allocator->LockFrame(handle[i], data, &layout);
@@ -503,7 +503,7 @@ TEST(MfxGrallocAllocator, BufferKeepsContents)
             EXPECT_EQ(res, C2_OK);
         }
 
-        for (int i = 0; i < FRAME_COUNT; ++i) {
+        for (size_t i = 0; i < FRAME_COUNT; ++i) {
             uint8_t* data[C2PlanarLayout::MAX_NUM_PLANES] {};
             C2PlanarLayout layout {};
             res = allocator->LockFrame(handle[i], data, &layout);
@@ -517,7 +517,7 @@ TEST(MfxGrallocAllocator, BufferKeepsContents)
             EXPECT_EQ(res, C2_OK);
         }
 
-        for (int i = 0; i < FRAME_COUNT; ++i) {
+        for (size_t i = 0; i < FRAME_COUNT; ++i) {
             res = allocator->Free(handle[i]);
             EXPECT_EQ(res, C2_OK);
         }
@@ -820,7 +820,7 @@ public:
 public:
     // gralloc allocation step
     Step gr_alloc = [this] (MfxGrallocAllocator* gr_allocator, MfxFrameAllocator*, MfxFrameConverter*) {
-        for (int i = 0; i < FRAME_COUNT; ++i) {
+        for (size_t i = 0; i < FRAME_COUNT; ++i) {
             c2_status_t res = gr_allocator->Alloc(WIDTH, HEIGHT, &handles[i]);
             EXPECT_EQ(res, C2_OK);
             EXPECT_NE(handles[i], nullptr);
@@ -841,7 +841,7 @@ public:
         EXPECT_NE(c2_allocator, nullptr);
 
         if (c2_allocator) {
-            for (int i = 0; i < FRAME_COUNT; ++i) {
+            for (size_t i = 0; i < FRAME_COUNT; ++i) {
                 res = c2_allocator->fetchGraphicBlock(
                     WIDTH, HEIGHT,
                     HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL,
@@ -860,7 +860,7 @@ public:
     // gralloc deallocation step
     Step gr_free = [this] (MfxGrallocAllocator* gr_allocator, MfxFrameAllocator*, MfxFrameConverter*) {
 
-        for (int i = 0; i < FRAME_COUNT; ++i) {
+        for (size_t i = 0; i < FRAME_COUNT; ++i) {
             c2_status_t res = gr_allocator->Free(handles[i]);
             EXPECT_EQ(res, C2_OK);
         }
@@ -869,7 +869,7 @@ public:
     // c2 deallocation step
     Step c2_free = [this] (MfxGrallocAllocator*, MfxFrameAllocator*, MfxFrameConverter*) {
 
-        for (int i = 0; i < FRAME_COUNT; ++i) {
+        for (size_t i = 0; i < FRAME_COUNT; ++i) {
             gr_blocks[i] = nullptr;
         }
     };
@@ -878,7 +878,7 @@ public:
     Step do_gr_mem_operation(GrMemOperation gr_mem_operation) {
         return [&] (MfxGrallocAllocator* gr_allocator, MfxFrameAllocator*, MfxFrameConverter*) {
 
-            for (int i = 0; i < FRAME_COUNT; ++i) {
+            for (size_t i = 0; i < FRAME_COUNT; ++i) {
                 uint8_t* data[C2PlanarLayout::MAX_NUM_PLANES] {};
                 C2PlanarLayout layout {};
                 c2_status_t res = gr_allocator->LockFrame(handles[i], data, &layout);
@@ -898,7 +898,7 @@ public:
     Step do_c2_mem_operation(GrMemOperation gr_mem_operation) {
         return [&] (MfxGrallocAllocator*, MfxFrameAllocator*, MfxFrameConverter*) {
 
-            for (int i = 0; i < FRAME_COUNT; ++i) {
+            for (size_t i = 0; i < FRAME_COUNT; ++i) {
                 C2Acquirable<C2GraphicView> acquirable = gr_blocks[i]->map();
                 C2GraphicView view = acquirable.get();
                 EXPECT_EQ(view.error(), C2_OK);
@@ -913,7 +913,7 @@ public:
     // gralloc to va wiring step
     Step gr_convert_to_va = [this] (MfxGrallocAllocator*, MfxFrameAllocator*, MfxFrameConverter* converter) {
 
-        for (int i = 0; i < FRAME_COUNT; ++i) {
+        for (size_t i = 0; i < FRAME_COUNT; ++i) {
             bool decode_target { false };
             mfxStatus mfx_sts = converter->ConvertGrallocToVa(handles[i], decode_target, &mfx_mem_ids[i]);
             EXPECT_EQ(MFX_ERR_NONE, mfx_sts);
@@ -931,7 +931,7 @@ public:
             mfxFrameInfo frame_info {};
             InitFrameInfo(MFX_FOURCC_NV12, WIDTH, HEIGHT, &frame_info);
 
-            for (int i = 0; i < FRAME_COUNT; ++i) {
+            for (size_t i = 0; i < FRAME_COUNT; ++i) {
                 mfxFrameData frame_data {};
                 mfxStatus sts = allocator->LockFrame(mfx_mem_ids[i], &frame_data);
                 EXPECT_EQ(MFX_ERR_NONE, sts);
@@ -1164,7 +1164,7 @@ static void MfxFramePoolAllocatorTest(const std::vector<MfxFramePoolAllocatorTes
 // 7) Check all handles are new.
 TEST(MfxFramePoolAllocator, RetainHandles)
 {
-    const int FRAME_COUNT = 10;
+    const size_t FRAME_COUNT = 10;
     const int WIDTH = 1920;
     const int HEIGHT = 1080;
     const mfxU32 FOURCC = MFX_FOURCC_NV12;
@@ -1190,7 +1190,7 @@ TEST(MfxFramePoolAllocator, RetainHandles)
     };
 
     auto pool_alloc = [&] (MfxFrameAllocator* allocator, MfxFramePoolAllocator* pool_allocator) {
-        for (int i = 0; i < FRAME_COUNT; ++i) {
+        for (size_t i = 0; i < FRAME_COUNT; ++i) {
             c2_blocks[i] = pool_allocator->Alloc();
             EXPECT_NE(c2_blocks[i], nullptr);
 
@@ -1204,7 +1204,7 @@ TEST(MfxFramePoolAllocator, RetainHandles)
     };
 
     auto pool_free = [&] (MfxFrameAllocator*, MfxFramePoolAllocator*) {
-        for (int i = 0; i < FRAME_COUNT; ++i) {
+        for (size_t i = 0; i < FRAME_COUNT; ++i) {
             c2_blocks[i].reset();
         }
     };
@@ -1214,7 +1214,7 @@ TEST(MfxFramePoolAllocator, RetainHandles)
     };
 
     auto alloc_retains_handles = [&] (MfxFrameAllocator* allocator, MfxFramePoolAllocator* pool_allocator) {
-        for (int i = 0; i < FRAME_COUNT; ++i) {
+        for (size_t i = 0; i < FRAME_COUNT; ++i) {
             c2_blocks[i] = pool_allocator->Alloc();
             EXPECT_NE(c2_blocks[i], nullptr);
 
@@ -1229,7 +1229,7 @@ TEST(MfxFramePoolAllocator, RetainHandles)
 
     auto alloc_another_handles = [&] (MfxFrameAllocator*, MfxFramePoolAllocator* pool_allocator) {
         std::shared_ptr<C2GraphicBlock> c2_blocks_2[FRAME_COUNT];
-        for (int i = 0; i < FRAME_COUNT; ++i) {
+        for (size_t i = 0; i < FRAME_COUNT; ++i) {
             c2_blocks_2[i] = pool_allocator->Alloc();
             EXPECT_NE(c2_blocks_2[i], nullptr);
 

@@ -8,7 +8,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
-#include "gtest_emulation.h"
+#include <gtest/gtest.h>
 #include "mfx_frame_constructor.h"
 #include "streams/h264/aud_mw_e.264.h"
 #include "streams/h265/AMVP_A_MTK_4.bit.h"
@@ -110,7 +110,7 @@ TEST(FrameConstructor, PassEverything)
 
     for (const TestCase& test_case : g_test_cases) {
 
-        SCOPED_TRACE("Test case: " << test_case.description);
+        SCOPED_TRACE(testing::Message() << "Test case: " << test_case.description);
 
         std::shared_ptr<IMfxC2FrameConstructor> frame_constructor =
             MfxC2FrameConstructorFactory::CreateFrameConstructor(test_case.type);
@@ -186,7 +186,7 @@ TEST(FrameConstructor, Reset)
 {
     for(const auto& test_stream : test_streams) {
 
-        SCOPED_TRACE("Stream: " << test_stream.description);
+        SCOPED_TRACE(testing::Message() << "Stream: " << test_stream.description);
 
         const StreamDescription& stream = test_stream.stream_desc;
 
@@ -214,7 +214,7 @@ TEST(FrameConstructor, Reset)
 
         for(const auto& test_case : test_cases) {
 
-            SCOPED_TRACE("Case: " << test_case.description);
+            SCOPED_TRACE(testing::Message() << "Case: " << test_case.description);
 
             std::shared_ptr<IMfxC2FrameConstructor> frame_constructor =
                 MfxC2FrameConstructorFactory::CreateFrameConstructor(test_stream.type);
@@ -294,13 +294,13 @@ TEST(FrameConstructor, SaveHeaders)
 {
     for(const auto& test_stream : test_streams) {
 
-        SCOPED_TRACE("Stream: " << test_stream.description);
+        SCOPED_TRACE(testing::Message() << "Stream: " << test_stream.description);
 
         const StreamDescription& stream = test_stream.stream_desc;
 
         for(bool read_all : { true, false }) {
 
-            SCOPED_TRACE("Case: " <<
+            SCOPED_TRACE(testing::Message() << "Case: " <<
                 (read_all ? "Read whole mfxBitstream" : "Leave some data in mfxBitstream"));
 
             size_t feed_size = 100;

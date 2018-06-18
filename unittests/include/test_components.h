@@ -22,8 +22,8 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include <cmath>
 
 #include <C2Component.h>
+#include <gtest/gtest.h>
 #include "mfx_c2_component.h"
-#include "gtest_emulation.h"
 
 // Collection of binary buffers hashes.
 // The purpose is to check if component outputs differ between runs or the same.
@@ -35,11 +35,11 @@ public:
         std::basic_string<uint8_t> s(data, length);
         data_.emplace_back(std::hash<std::basic_string<uint8_t>>()(s));
     }
-    bool operator==(const BinaryChunks& other)
+    bool operator==(const BinaryChunks& other) const
     {
         return data_ == other.data_;
     }
-    bool operator!=(const BinaryChunks& other)
+    bool operator!=(const BinaryChunks& other) const
     {
         return data_ != other.data_;
     }
@@ -162,16 +162,17 @@ std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name, ComponentDe
     std::shared_ptr<MfxC2Component> result = ComponentsCache::GetInstance()->GetComponent(name);
     if (result == nullptr) {
         const ComponentDesc* desc = GetComponentDesc(name, components_desc);
-        ASSERT_NE(desc, nullptr);
+        EXPECT_NE(desc, nullptr);
+        if (desc) {
+            c2_status_t status = C2_OK;
+            MfxC2Component* mfx_component = MfxCreateC2Component(name, desc->flags, &status);
 
-        c2_status_t status = C2_OK;
-        MfxC2Component* mfx_component = MfxCreateC2Component(name, desc->flags, &status);
-
-        EXPECT_EQ(status, desc->creation_status);
-        if(desc->creation_status == C2_OK) {
-            EXPECT_NE(mfx_component, nullptr);
-            result = std::shared_ptr<MfxC2Component>(mfx_component);
-            ComponentsCache::GetInstance()->PutComponent(name, result);
+            EXPECT_EQ(status, desc->creation_status);
+            if(desc->creation_status == C2_OK) {
+                EXPECT_NE(mfx_component, nullptr);
+                result = std::shared_ptr<MfxC2Component>(mfx_component);
+                ComponentsCache::GetInstance()->PutComponent(name, result);
+            }
         }
     }
     return result;

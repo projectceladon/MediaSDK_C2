@@ -16,7 +16,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 
 #include "mfx_c2_defs.h"
 #include "mfx_c2_utils.h"
-#include "gtest_emulation.h"
+#include <gtest/gtest.h>
 #include "mfx_c2_component.h"
 #include "mfx_c2_components_registry.h"
 #include "mfx_c2_mock_component.h"
@@ -234,8 +234,6 @@ public:
     MockOutputValidator(C2BufferData::Type output_type)
         : output_type_(output_type)
     {
-        ASSERT_TRUE(output_type_ == C2BufferData::LINEAR ||
-            output_type_ == C2BufferData::GRAPHIC);
     }
     // future ready when validator got all expected frames
     std::future<void> GetFuture()
@@ -251,9 +249,9 @@ protected:
         (void)component;
 
         for(std::unique_ptr<C2Work>& work : workItems) {
-            EXPECT_EQ(work->workletsProcessed, 1);
+            EXPECT_EQ(work->workletsProcessed, 1u);
             EXPECT_EQ(work->result, C2_OK);
-            EXPECT_EQ(work->worklets.size(), 1);
+            EXPECT_EQ(work->worklets.size(), 1u);
             if (work->worklets.size() >= 1) {
 
                 std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
@@ -289,7 +287,7 @@ protected:
 
                         CheckFilledBuffer(raw, frame_index);
                     }
-                } else {
+                } else if(output_type_ == C2BufferData::GRAPHIC) {
                     c2_status_t sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
                     EXPECT_EQ(sts, C2_OK);
                     if(nullptr != graphic_block) {
@@ -303,6 +301,8 @@ protected:
                         EXPECT_NE(raw, nullptr);
                         CheckFilledBuffer(raw[0], frame_index);
                     }
+                } else {
+                    ADD_FAILURE() << "unexpected value of output_type_";
                 }
             }
         }

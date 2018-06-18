@@ -9,7 +9,6 @@ include $(MFX_C2_HOME)/mfx_c2_defs.mk
 
 LOCAL_SRC_FILES := \
     src/c2_store_test.cpp \
-    src/gtest_emulation.cpp \
     src/test_components.cpp \
     src/test_main.cpp
 
@@ -24,7 +23,8 @@ LOCAL_CFLAGS := $(MFX_C2_CFLAGS)
 
 LOCAL_LDFLAGS := $(MFX_C2_LDFLAGS)
 
-LOCAL_STATIC_LIBRARIES := libippdc_l libippcore_l
+LOCAL_STATIC_LIBRARIES := libippdc_l libippcore_l \
+    libgtest
 LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_store
 LOCAL_HEADER_LIBRARIES := $(MFX_C2_HEADER_LIBRARIES)
 LOCAL_HEADER_LIBRARIES_32 := libmdp_msdk_ipp_32_headers
@@ -49,7 +49,6 @@ LOCAL_SRC_FILES := \
     $(STREAM_CPP_FILES:$(LOCAL_PATH)/%=%) \
     src/c2_decoder_test.cpp \
     src/c2_encoder_test.cpp \
-    src/gtest_emulation.cpp \
     src/test_components.cpp \
     src/test_streams.cpp \
     src/test_main.cpp
@@ -69,6 +68,7 @@ LOCAL_STATIC_LIBRARIES := \
     libmfx_c2_utils \
     libippdc_l \
     libippcore_l \
+    libgtest \
     $(MFX_C2_STATIC_LIBS)
 
 LOCAL_SHARED_LIBRARIES := \
@@ -104,7 +104,6 @@ define build_mock_unittests
       src/c2_mock_component_test.cpp \
       src/c2_utils_test.cpp \
       src/c2_vndk_test.cpp \
-      src/gtest_emulation.cpp \
       src/test_components.cpp \
       src/test_streams.cpp \
       src/test_frame_constructor.cpp \
@@ -128,6 +127,7 @@ define build_mock_unittests
   LOCAL_STATIC_LIBRARIES := \
     libippdc_l \
     libippcore_l \
+    libgtest \
     $(MFX_C2_STATIC_LIBS)
 
   LOCAL_SHARED_LIBRARIES := \
