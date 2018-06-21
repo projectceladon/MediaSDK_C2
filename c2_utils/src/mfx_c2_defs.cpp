@@ -11,24 +11,23 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include "mfx_defs.h"
 #include "mfx_c2_defs.h"
 #include "mfx_c2_params.h"
-#include "mfx_legacy_defs.h"
 
 using namespace android;
 
 const C2ProfileLevelStruct g_h264_profile_levels[] =
 {
-    { LEGACY_VIDEO_AVCProfileBaseline, LEGACY_VIDEO_AVCLevel51 },
-    { LEGACY_VIDEO_AVCProfileMain, LEGACY_VIDEO_AVCLevel51 },
-    // { LEGACY_VIDEO_AVCProfileExtended, LEGACY_VIDEO_AVCLevel51 }, not supported by Media SDK
-    { LEGACY_VIDEO_AVCProfileHigh, LEGACY_VIDEO_AVCLevel51 }
+    { PROFILE_AVC_BASELINE, LEVEL_AVC_5_1 },
+    { PROFILE_AVC_MAIN, LEVEL_AVC_5_1 },
+    // { PROFILE_AVC_EXTENDED, LEVEL_AVC_5_1 }, not supported by Media SDK
+    { PROFILE_AVC_HIGH, LEVEL_AVC_5_1 }
 };
 
 const size_t g_h264_profile_levels_count = MFX_GET_ARRAY_SIZE(g_h264_profile_levels);
 
 const C2ProfileLevelStruct g_h265_profile_levels[] =
 {
-    { LEGACY_VIDEO_HEVCProfileMain, LEGACY_VIDEO_HEVCLevel51 },
-    /*{ LEGACY_VIDEO_HEVCProfileMain10, LEGACY_VIDEO_HEVCLevel51 }, supports only 8 bit (see caps.BitDepth8Only)*/
+    { PROFILE_HEVC_MAIN, LEVEL_HEVC_MAIN_5_1 },
+    /*{ PROFILE_HEVC_MAIN_10, LEVEL_HEVC_MAIN_5_1 }, supports only 8 bit (see caps.BitDepth8Only)*/
 };
 
 const size_t g_h265_profile_levels_count = MFX_GET_ARRAY_SIZE(g_h265_profile_levels);

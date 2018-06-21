@@ -11,7 +11,6 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include "test_streams.h"
 #include <map>
 #include <gtest/gtest.h>
-#include "mfx_legacy_defs.h"
 
 std::unique_ptr<StreamReader> StreamReader::Create(const std::vector<const StreamDescription*>& streams)
 {
@@ -155,36 +154,36 @@ bool TestAvcStreamProfileLevel(const C2ProfileLevelStruct& profile_level, std::v
         uint16_t sps_constraints;
     };
 
-    const std::map<uint32_t, SpsProfile> profile_to_sps = {
-        { LEGACY_VIDEO_AVCProfileBaseline, { 66, AvcSequenceParameterSet::Constraint::SET_1 } },
-        { LEGACY_VIDEO_AVCProfileMain, { 77, 0 } },
-        { LEGACY_VIDEO_AVCProfileExtended, { 88, 0 } },
-        { LEGACY_VIDEO_AVCProfileHigh, { 100, 0 } },
+    const std::map<C2Config::profile_t, SpsProfile> profile_to_sps = {
+        { PROFILE_AVC_BASELINE, { 66, AvcSequenceParameterSet::Constraint::SET_1 } },
+        { PROFILE_AVC_MAIN, { 77, 0 } },
+        { PROFILE_AVC_EXTENDED, { 88, 0 } },
+        { PROFILE_AVC_HIGH, { 100, 0 } },
     };
 
     struct TestLevel {
         const char* name;
-        LEGACY_VIDEO_AVCLEVELTYPE level;
+        C2Config::level_t level;
         uint16_t sps_level;
     };
 
-    const std::map<uint32_t, uint16_t> level_to_sps = {
-        { LEGACY_VIDEO_AVCLevel1, 1 },
-        { LEGACY_VIDEO_AVCLevel1b, 9 },
-        { LEGACY_VIDEO_AVCLevel11, 11 },
-        { LEGACY_VIDEO_AVCLevel12, 12 },
-        { LEGACY_VIDEO_AVCLevel13, 13 },
-        { LEGACY_VIDEO_AVCLevel2, 20 },
-        { LEGACY_VIDEO_AVCLevel21, 21 },
-        { LEGACY_VIDEO_AVCLevel22, 22 },
-        { LEGACY_VIDEO_AVCLevel3, 30 },
-        { LEGACY_VIDEO_AVCLevel31, 31 },
-        { LEGACY_VIDEO_AVCLevel32, 32 },
-        { LEGACY_VIDEO_AVCLevel4, 40 },
-        { LEGACY_VIDEO_AVCLevel41, 41 },
-        { LEGACY_VIDEO_AVCLevel42, 42 },
-        { LEGACY_VIDEO_AVCLevel5, 50 },
-        { LEGACY_VIDEO_AVCLevel51, 51 },
+    const std::map<C2Config::level_t, uint16_t> level_to_sps = {
+        { LEVEL_AVC_1, 1 },
+        { LEVEL_AVC_1B, 9 },
+        { LEVEL_AVC_1_1, 11 },
+        { LEVEL_AVC_1_2, 12 },
+        { LEVEL_AVC_1_3, 13 },
+        { LEVEL_AVC_2, 20 },
+        { LEVEL_AVC_2_1, 21 },
+        { LEVEL_AVC_2_2, 22 },
+        { LEVEL_AVC_3, 30 },
+        { LEVEL_AVC_3_1, 31 },
+        { LEVEL_AVC_3_2, 32 },
+        { LEVEL_AVC_4, 40 },
+        { LEVEL_AVC_4_1, 41 },
+        { LEVEL_AVC_4_2, 42 },
+        { LEVEL_AVC_5, 50 },
+        { LEVEL_AVC_5_1, 51 },
     };
 
     std::ostringstream oss;
@@ -220,31 +219,31 @@ bool TestHevcStreamProfileLevel(const C2ProfileLevelStruct& profile_level, std::
         uint16_t sps_profile;
     };
 
-    const std::map<uint32_t, SpsProfile> profile_to_sps = {
-        { LEGACY_VIDEO_HEVCProfileMain, { 1 } },
-        { LEGACY_VIDEO_HEVCProfileMain10, { 2 } },
+    const std::map<C2Config::profile_t, SpsProfile> profile_to_sps = {
+        { PROFILE_HEVC_MAIN, { 1 } },
+        { PROFILE_HEVC_MAIN_10, { 2 } },
     };
 
     struct TestLevel {
         const char* name;
-        LEGACY_VIDEO_HEVCLEVELTYPE level;
+        C2Config::level_t level;
         uint16_t sps_level;
     };
 
-    const std::map<uint32_t, uint16_t> level_to_sps = {
-        { LEGACY_VIDEO_HEVCLevel1, 10 },
-        { LEGACY_VIDEO_HEVCLevel2, 20 },
-        { LEGACY_VIDEO_HEVCLevel121, 21 },
-        { LEGACY_VIDEO_HEVCLevel3, 30 },
-        { LEGACY_VIDEO_HEVCLevel31, 31 },
-        { LEGACY_VIDEO_HEVCCLevel40, 40 },
-        { LEGACY_VIDEO_HEVCLevel41, 41 },
-        { LEGACY_VIDEO_HEVCLevel50, 50 },
-        { LEGACY_VIDEO_HEVCLevel51, 51 },
-        { LEGACY_VIDEO_HEVCLevel52, 52 },
-        { LEGACY_VIDEO_HEVCLevel60, 60 },
-        { LEGACY_VIDEO_HEVCLevel61, 61 },
-        { LEGACY_VIDEO_HEVCLevel62, 62 },
+    const std::map<C2Config::level_t, uint16_t> level_to_sps = {
+        { LEVEL_HEVC_MAIN_1, 10 },
+        { LEVEL_HEVC_MAIN_2, 20 },
+        { LEVEL_HEVC_MAIN_2_1, 21 },
+        { LEVEL_HEVC_MAIN_3, 30 },
+        { LEVEL_HEVC_MAIN_3_1, 31 },
+        { LEVEL_HEVC_MAIN_4, 40 },
+        { LEVEL_HEVC_MAIN_4_1, 41 },
+        { LEVEL_HEVC_MAIN_5, 50 },
+        { LEVEL_HEVC_MAIN_5_1, 51 },
+        { LEVEL_HEVC_MAIN_5_2, 52 },
+        { LEVEL_HEVC_MAIN_6, 60 },
+        { LEVEL_HEVC_MAIN_6_1, 61 },
+        { LEVEL_HEVC_MAIN_6_2, 62 },
     };
 
     std::ostringstream oss;
