@@ -63,21 +63,21 @@ std::unique_ptr<C2SettingResult> FindC2Param(
     const std::vector<std::shared_ptr<C2ParamDescriptor>>& params_desc,
     const C2Param* param);
 
-bool AvcProfileAndroidToMfx(uint32_t android_value, mfxU16* mfx_value);
+bool AvcProfileAndroidToMfx(C2Config::profile_t android_value, mfxU16* mfx_value);
 
-bool AvcProfileMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value);
+bool AvcProfileMfxToAndroid(mfxU16 mfx_value, C2Config::profile_t* android_value);
 
-bool AvcLevelAndroidToMfx(uint32_t android_value, mfxU16* mfx_value);
+bool AvcLevelAndroidToMfx(C2Config::level_t android_value, mfxU16* mfx_value);
 
-bool AvcLevelMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value);
+bool AvcLevelMfxToAndroid(mfxU16 mfx_value, C2Config::level_t* android_value);
 
-bool HevcProfileAndroidToMfx(uint32_t android_value, mfxU16* mfx_value);
+bool HevcProfileAndroidToMfx(C2Config::profile_t android_value, mfxU16* mfx_value);
 
-bool HevcProfileMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value);
+bool HevcProfileMfxToAndroid(mfxU16 mfx_value, C2Config::profile_t* android_value);
 
-bool HevcLevelAndroidToMfx(uint32_t android_value, mfxU16* mfx_value);
+bool HevcLevelAndroidToMfx(C2Config::level_t android_value, mfxU16* mfx_value);
 
-bool HevcLevelMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value);
+bool HevcLevelMfxToAndroid(mfxU16 mfx_value, C2Config::level_t* android_value);
 
 void InitNV12PlaneLayout(int32_t pitch, C2PlanarLayout* layout);
 

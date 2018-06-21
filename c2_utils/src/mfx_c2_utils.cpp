@@ -11,7 +11,6 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_utils.h"
 #include "mfx_debug.h"
 #include "mfx_c2_debug.h"
-#include "mfx_legacy_defs.h"
 
 using namespace android;
 
@@ -316,101 +315,97 @@ std::unique_ptr<C2SettingResult> FindC2Param(
     return res;
 }
 
-static const std::pair<LEGACY_VIDEO_AVCPROFILETYPE, mfxU16> g_h264_profiles[] =
+static const std::pair<C2Config::profile_t, mfxU16> g_h264_profiles[] =
 {
-    { LEGACY_VIDEO_AVCProfileBaseline, MFX_PROFILE_AVC_CONSTRAINED_BASELINE },
-    { LEGACY_VIDEO_AVCProfileMain, MFX_PROFILE_AVC_MAIN },
-    { LEGACY_VIDEO_AVCProfileExtended, MFX_PROFILE_AVC_EXTENDED },
-    { LEGACY_VIDEO_AVCProfileHigh, MFX_PROFILE_AVC_HIGH }
-    /* LEGACY_VIDEO_AVCProfileHigh10, LEGACY_VIDEO_AVCProfileHigh422, LEGACY_VIDEO_AVCProfileHigh444
+    { PROFILE_AVC_BASELINE, MFX_PROFILE_AVC_CONSTRAINED_BASELINE },
+    { PROFILE_AVC_MAIN, MFX_PROFILE_AVC_MAIN },
+    { PROFILE_AVC_EXTENDED, MFX_PROFILE_AVC_EXTENDED },
+    { PROFILE_AVC_HIGH, MFX_PROFILE_AVC_HIGH }
+    /* PROFILE_AVC_HIGH_10, PROFILE_AVC_HIGH_422, PROFILE_AVC_HIGH_444
     are not supported */
 };
 
-static const std::pair<LEGACY_VIDEO_AVCLEVELTYPE, mfxU16> g_h264_levels[] =
+static const std::pair<C2Config::level_t, mfxU16> g_h264_levels[] =
 {
-    { LEGACY_VIDEO_AVCLevel1,  MFX_LEVEL_AVC_1 },
-    { LEGACY_VIDEO_AVCLevel1b, MFX_LEVEL_AVC_1b },
-    { LEGACY_VIDEO_AVCLevel11, MFX_LEVEL_AVC_11 },
-    { LEGACY_VIDEO_AVCLevel12, MFX_LEVEL_AVC_12 },
-    { LEGACY_VIDEO_AVCLevel13, MFX_LEVEL_AVC_13 },
-    { LEGACY_VIDEO_AVCLevel2,  MFX_LEVEL_AVC_2 },
-    { LEGACY_VIDEO_AVCLevel21, MFX_LEVEL_AVC_21 },
-    { LEGACY_VIDEO_AVCLevel22, MFX_LEVEL_AVC_22 },
-    { LEGACY_VIDEO_AVCLevel3,  MFX_LEVEL_AVC_3 },
-    { LEGACY_VIDEO_AVCLevel31, MFX_LEVEL_AVC_31 },
-    { LEGACY_VIDEO_AVCLevel32, MFX_LEVEL_AVC_32 },
-    { LEGACY_VIDEO_AVCLevel4,  MFX_LEVEL_AVC_4 },
-    { LEGACY_VIDEO_AVCLevel41, MFX_LEVEL_AVC_41 },
-    { LEGACY_VIDEO_AVCLevel42, MFX_LEVEL_AVC_42 },
-    { LEGACY_VIDEO_AVCLevel5,  MFX_LEVEL_AVC_5 },
-    { LEGACY_VIDEO_AVCLevel51, MFX_LEVEL_AVC_51 }
+    { LEVEL_AVC_1,  MFX_LEVEL_AVC_1 },
+    { LEVEL_AVC_1B, MFX_LEVEL_AVC_1b },
+    { LEVEL_AVC_1_1, MFX_LEVEL_AVC_11 },
+    { LEVEL_AVC_1_2, MFX_LEVEL_AVC_12 },
+    { LEVEL_AVC_1_3, MFX_LEVEL_AVC_13 },
+    { LEVEL_AVC_2,  MFX_LEVEL_AVC_2 },
+    { LEVEL_AVC_2_1, MFX_LEVEL_AVC_21 },
+    { LEVEL_AVC_2_2, MFX_LEVEL_AVC_22 },
+    { LEVEL_AVC_3,  MFX_LEVEL_AVC_3 },
+    { LEVEL_AVC_3_1, MFX_LEVEL_AVC_31 },
+    { LEVEL_AVC_3_2, MFX_LEVEL_AVC_32 },
+    { LEVEL_AVC_4,  MFX_LEVEL_AVC_4 },
+    { LEVEL_AVC_4_1, MFX_LEVEL_AVC_41 },
+    { LEVEL_AVC_4_2, MFX_LEVEL_AVC_42 },
+    { LEVEL_AVC_5,  MFX_LEVEL_AVC_5 },
+    { LEVEL_AVC_5_1, MFX_LEVEL_AVC_51 }
 };
 
-static const std::pair<LEGACY_VIDEO_HEVCPROFILETYPE, mfxU16> g_h265_profiles[] =
+static const std::pair<C2Config::profile_t, mfxU16> g_h265_profiles[] =
 {
-    { LEGACY_VIDEO_HEVCProfileMain,  MFX_PROFILE_HEVC_MAIN },
-    { LEGACY_VIDEO_HEVCProfileMain10, MFX_PROFILE_HEVC_MAIN10 }
-    /* LEGACY_VIDEO_HEVCProfileMainSp, LEGACY_VIDEO_HEVCProfileRext, LEGACY_VIDEO_HEVCProfileScc
+    { PROFILE_HEVC_MAIN,  MFX_PROFILE_HEVC_MAIN },
+    { PROFILE_HEVC_MAIN_10, MFX_PROFILE_HEVC_MAIN10 }
+    /* PROFILE_HEVC_MAINSP, PROFILE_HEVC_REXT, PROFILE_HEVC_SCC
     are not supported */
 };
 
-static const std::pair<LEGACY_VIDEO_HEVCLEVELTYPE, mfxU16> g_h265_levels[] =
+static const std::pair<C2Config::level_t, mfxU16> g_h265_levels[] =
 {
-    { LEGACY_VIDEO_HEVCLevel1, MFX_LEVEL_HEVC_1 },
-    { LEGACY_VIDEO_HEVCLevel2, MFX_LEVEL_HEVC_2},
-    { LEGACY_VIDEO_HEVCLevel121, MFX_LEVEL_HEVC_21 },
-    { LEGACY_VIDEO_HEVCLevel3, MFX_LEVEL_HEVC_3 },
-    { LEGACY_VIDEO_HEVCLevel31, MFX_LEVEL_HEVC_31 },
-    { LEGACY_VIDEO_HEVCCLevel40, MFX_LEVEL_HEVC_4 },
-    { LEGACY_VIDEO_HEVCLevel41, MFX_LEVEL_HEVC_41 },
-    { LEGACY_VIDEO_HEVCLevel50, MFX_LEVEL_HEVC_5 },
-    { LEGACY_VIDEO_HEVCLevel51, MFX_LEVEL_HEVC_51 },
-    { LEGACY_VIDEO_HEVCLevel52, MFX_LEVEL_HEVC_52 },
-    { LEGACY_VIDEO_HEVCLevel60, MFX_LEVEL_HEVC_6 },
-    { LEGACY_VIDEO_HEVCLevel61, MFX_LEVEL_HEVC_61 },
-    { LEGACY_VIDEO_HEVCLevel62, MFX_LEVEL_HEVC_62 }
+    { LEVEL_HEVC_MAIN_1, MFX_LEVEL_HEVC_1 },
+    { LEVEL_HEVC_MAIN_2, MFX_LEVEL_HEVC_2},
+    { LEVEL_HEVC_MAIN_2_1, MFX_LEVEL_HEVC_21 },
+    { LEVEL_HEVC_MAIN_3, MFX_LEVEL_HEVC_3 },
+    { LEVEL_HEVC_MAIN_3_1, MFX_LEVEL_HEVC_31 },
+    { LEVEL_HEVC_MAIN_4, MFX_LEVEL_HEVC_4 },
+    { LEVEL_HEVC_MAIN_4_1, MFX_LEVEL_HEVC_41 },
+    { LEVEL_HEVC_MAIN_5, MFX_LEVEL_HEVC_5 },
+    { LEVEL_HEVC_MAIN_5_1, MFX_LEVEL_HEVC_51 },
+    { LEVEL_HEVC_MAIN_5_2, MFX_LEVEL_HEVC_52 },
+    { LEVEL_HEVC_MAIN_6, MFX_LEVEL_HEVC_6 },
+    { LEVEL_HEVC_MAIN_6_1, MFX_LEVEL_HEVC_61 },
+    { LEVEL_HEVC_MAIN_6_2, MFX_LEVEL_HEVC_62 }
 };
 
-bool AvcProfileAndroidToMfx(uint32_t android_value, mfxU16* mfx_value)
+bool AvcProfileAndroidToMfx(C2Config::profile_t android_value, mfxU16* mfx_value)
 {
-    return FirstToSecond(g_h264_profiles,
-        static_cast<LEGACY_VIDEO_AVCPROFILETYPE>(android_value), mfx_value);
+    return FirstToSecond(g_h264_profiles, android_value, mfx_value);
 }
 
-bool AvcProfileMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value)
+bool AvcProfileMfxToAndroid(mfxU16 mfx_value, C2Config::profile_t* android_value)
 {
     return SecondToFirst(g_h264_profiles, mfx_value, android_value);
 }
 
-bool AvcLevelAndroidToMfx(uint32_t android_value, mfxU16* mfx_value)
+bool AvcLevelAndroidToMfx(C2Config::level_t android_value, mfxU16* mfx_value)
 {
-    return FirstToSecond(g_h264_levels,
-        static_cast<LEGACY_VIDEO_AVCLEVELTYPE>(android_value), mfx_value);
+    return FirstToSecond(g_h264_levels, android_value, mfx_value);
 }
 
-bool AvcLevelMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value)
+bool AvcLevelMfxToAndroid(mfxU16 mfx_value, C2Config::level_t* android_value)
 {
     return SecondToFirst(g_h264_levels, mfx_value, android_value);
 }
 
-bool HevcProfileAndroidToMfx(uint32_t android_value, mfxU16* mfx_value)
+bool HevcProfileAndroidToMfx(C2Config::profile_t android_value, mfxU16* mfx_value)
 {
-    return FirstToSecond(g_h265_profiles,
-        static_cast<LEGACY_VIDEO_HEVCPROFILETYPE>(android_value), mfx_value);
+    return FirstToSecond(g_h265_profiles, android_value, mfx_value);
 }
 
-bool HevcProfileMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value)
+bool HevcProfileMfxToAndroid(mfxU16 mfx_value, C2Config::profile_t* android_value)
 {
     return SecondToFirst(g_h265_profiles, mfx_value, android_value);
 }
 
-bool HevcLevelAndroidToMfx(uint32_t android_value, mfxU16* mfx_value)
+bool HevcLevelAndroidToMfx(C2Config::level_t android_value, mfxU16* mfx_value)
 {
-    return FirstToSecond(g_h265_levels,
-        static_cast<LEGACY_VIDEO_HEVCLEVELTYPE>(android_value), mfx_value);
+    return FirstToSecond(g_h265_levels, android_value, mfx_value);
 }
 
-bool HevcLevelMfxToAndroid(mfxU16 mfx_value, uint32_t* android_value)
+bool HevcLevelMfxToAndroid(mfxU16 mfx_value, C2Config::level_t* android_value)
 {
     return SecondToFirst(g_h265_levels, mfx_value, android_value);
 }
