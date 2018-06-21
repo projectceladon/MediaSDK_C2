@@ -25,7 +25,7 @@ using ::android::base::StringPrintf;
 /* --------------------------------- ReflectorHelper --------------------------------- */
 
 void C2ReflectorHelper::addStructDescriptors(
-        std::vector<C2StructDescriptor> &structs, _C2Tuple<> *) {
+        std::vector<C2StructDescriptor> &structs, _Tuple<> *) {
     std::lock_guard<std::mutex> lock(_mMutex);
     for (C2StructDescriptor &strukt : structs) {
         // TODO: check if structure descriptions conflict with existing ones
@@ -563,9 +563,10 @@ size_t C2InterfaceHelper::GetBaseOffset(const std::shared_ptr<C2ParamReflector> 
             offset = fieldOffset + (offset - fieldOffset) % fieldSize;
             if (field.type() >= C2FieldDescriptor::STRUCT_FLAG) {
                 // this offset is within a field
-                return fieldOffset + GetBaseOffset(
+                offset = GetBaseOffset(
                         reflector, field.type() & ~C2FieldDescriptor::STRUCT_FLAG,
                         offset - fieldOffset);
+                return ~offset ? fieldOffset + offset : offset;
             }
         }
     }
@@ -785,7 +786,13 @@ c2_status_t C2InterfaceHelper::querySupportedValues(
         }
         size_t offs = GetBaseOffset(
                 mReflector, ix,
-                _C2ParamInspector::GetOffset(query.field()) - sizeof(C2Param)) + sizeof(C2Param);
+                _C2ParamInspector::GetOffset(query.field()) - sizeof(C2Param));
+        if (~offs == 0) {
+            C2_LOG(VERBOSE) << "field could not be found";
+            query.status = C2_NOT_FOUND;
+            continue;
+        }
+        offs += sizeof(C2Param);
         C2_LOG(VERBOSE) << "field resolved to "
                 << StringPrintf("@%02zx+%02x", offs, _C2ParamInspector::GetSize(query.field()));
         std::shared_ptr<FieldHelper> field =

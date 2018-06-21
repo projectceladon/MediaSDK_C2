@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "bufferpool"
+#define LOG_TAG "BufferPoolClient"
 //#define LOG_NDEBUG 0
 
-#include <inttypes.h>
 #include <thread>
 #include <utils/Log.h>
 #include "BufferPoolClient.h"
@@ -30,9 +29,9 @@ namespace bufferpool {
 namespace V1_0 {
 namespace implementation {
 
-static constexpr int64_t kReceiveTimeoutUs = 5000; // 5ms
+static constexpr int64_t kReceiveTimeoutUs = 1000000; // 100ms
 static constexpr int kPostMaxRetry = 3;
-static constexpr int kCacheTtlUs = 500000; // TODO: tune
+static constexpr int kCacheTtlUs = 1000000; // TODO: tune
 
 class BufferPoolClient::Impl
         : public std::enable_shared_from_this<BufferPoolClient::Impl> {
@@ -45,6 +44,10 @@ public:
         return mValid;
     }
 
+    bool isLocal() {
+        return mValid && mLocal;
+    }
+
     ConnectionId getConnectionId() {
         return mConnectionId;
     }
@@ -53,12 +56,16 @@ public:
         return mAccessor;
     }
 
+    bool isActive(int64_t *lastTransactionUs, bool clearCache);
+
     ResultStatus allocate(const std::vector<uint8_t> &params,
-                         std::shared_ptr<_C2BlockPoolData> *buffer);
+                          native_handle_t **handle,
+                          std::shared_ptr<BufferPoolData> *buffer);
 
     ResultStatus receive(
             TransactionId transactionId, BufferId bufferId,
-            int64_t timestampUs, std::shared_ptr<_C2BlockPoolData> *buffer);
+            int64_t timestampUs,
+            native_handle_t **handle, std::shared_ptr<BufferPoolData> *buffer);
 
     void postBufferRelease(BufferId bufferId);
 
@@ -75,6 +82,8 @@ private:
             BufferId bufferId, TransactionId transactionId, bool result);
 
     bool syncReleased();
+
+    void evictCaches(bool clearCache = false);
 
     ResultStatus allocateBufferHandle(
             const std::vector<uint8_t>& params, BufferId *bufferId,
@@ -95,13 +104,28 @@ private:
     sp<IConnection> mRemoteConnection;
     uint32_t mSeqId;
     ConnectionId mConnectionId;
+    int64_t mLastEvictCacheUs;
 
     // CachedBuffers
-    struct {
+    struct BufferCache {
         std::mutex mLock;
-        bool creating;
+        bool mCreating;
         std::condition_variable mCreateCv;
         std::map<BufferId, std::unique_ptr<ClientBuffer>> mBuffers;
+        int mActive;
+        int64_t mLastChangeUs;
+
+        BufferCache() : mCreating(false), mActive(0), mLastChangeUs(getTimestampNow()) {}
+
+        void incActive_l() {
+            ++mActive;
+            mLastChangeUs = getTimestampNow();
+        }
+
+        void decActive_l() {
+            --mActive;
+            mLastChangeUs = getTimestampNow();
+        }
     } mCache;
 
     // FMQ - release notifier
@@ -118,7 +142,7 @@ struct BufferPoolClient::Impl::BlockPoolDataDtor {
     BlockPoolDataDtor(const std::shared_ptr<BufferPoolClient::Impl> &impl)
             : mImpl(impl) {}
 
-    void operator()(_C2BlockPoolData *buffer) {
+    void operator()(BufferPoolData *buffer) {
         BufferId id = buffer->mId;
         delete buffer;
 
@@ -135,17 +159,20 @@ private:
     bool mInvalidated; // TODO: implement
     int64_t mExpireUs;
     bool mHasCache;
+    ConnectionId mConnectionId;
     BufferId mId;
     native_handle_t *mHandle;
-    std::weak_ptr<_C2BlockPoolData> mCache;
+    std::weak_ptr<BufferPoolData> mCache;
 
     void updateExpire() {
         mExpireUs = getTimestampNow() + kCacheTtlUs;
     }
 
 public:
-    ClientBuffer(BufferId id, native_handle_t *handle)
-            : mInvalidated(false), mHasCache(false), mId(id), mHandle(handle) {
+    ClientBuffer(
+            ConnectionId connectionId, BufferId id, native_handle_t *handle)
+            : mInvalidated(false), mHasCache(false),
+              mConnectionId(connectionId), mId(id), mHandle(handle) {
         (void)mInvalidated;
         mExpireUs = getTimestampNow() + kCacheTtlUs;
     }
@@ -166,31 +193,30 @@ public:
         return mHasCache;
     }
 
-    std::shared_ptr<_C2BlockPoolData> fetchCache() {
+    std::shared_ptr<BufferPoolData> fetchCache(native_handle_t **pHandle) {
         if (mHasCache) {
-            std::shared_ptr<_C2BlockPoolData> cache = mCache.lock();
+            std::shared_ptr<BufferPoolData> cache = mCache.lock();
             if (cache) {
-                updateExpire();
+                *pHandle = mHandle;
             }
             return cache;
         }
         return nullptr;
     }
 
-    std::shared_ptr<_C2BlockPoolData> createCache(
-            const std::shared_ptr<BufferPoolClient::Impl> &impl) {
+    std::shared_ptr<BufferPoolData> createCache(
+            const std::shared_ptr<BufferPoolClient::Impl> &impl,
+            native_handle_t **pHandle) {
         if (!mHasCache) {
             // Allocates a raw ptr in order to avoid sending #postBufferRelease
             // from deleter, in case of native_handle_clone failure.
-            _C2BlockPoolData *ptr = new _C2BlockPoolData(
-                    mId, native_handle_clone(mHandle));
-            if (ptr && ptr->mHandle != NULL) {
-                std::shared_ptr<_C2BlockPoolData>
-                        cache(ptr, BlockPoolDataDtor(impl));
+            BufferPoolData *ptr = new BufferPoolData(mConnectionId, mId);
+            if (ptr) {
+                std::shared_ptr<BufferPoolData> cache(ptr, BlockPoolDataDtor(impl));
                 if (cache) {
                     mCache = cache;
                     mHasCache = true;
-                    updateExpire();
+                    *pHandle = mHandle;
                     return cache;
                 }
             }
@@ -204,6 +230,7 @@ public:
     bool onCacheRelease() {
         if (mHasCache) {
             // TODO: verify mCache is not valid;
+            updateExpire();
             mHasCache = false;
             return true;
         }
@@ -212,11 +239,11 @@ public:
 };
 
 BufferPoolClient::Impl::Impl(const sp<Accessor> &accessor)
-    : mLocal(true), mAccessor(accessor), mSeqId(0) {
-    mValid = false;
+    : mLocal(true), mValid(false), mAccessor(accessor), mSeqId(0),
+      mLastEvictCacheUs(getTimestampNow()) {
     const QueueDescriptor *fmqDesc;
     ResultStatus status = accessor->connect(
-            &mLocalConnection, &mConnectionId, &fmqDesc);
+            &mLocalConnection, &mConnectionId, &fmqDesc, true);
     if (status == ResultStatus::OK) {
         mReleasing.mStatusChannel =
                 std::make_unique<BufferStatusChannel>(*fmqDesc);
@@ -226,14 +253,14 @@ BufferPoolClient::Impl::Impl(const sp<Accessor> &accessor)
 }
 
 BufferPoolClient::Impl::Impl(const sp<IAccessor> &accessor)
-    : mLocal(false), mAccessor(accessor), mSeqId(0) {
-    mValid = false;
-    bool& valid = mValid;
+    : mLocal(false), mValid(false), mAccessor(accessor), mSeqId(0),
+      mLastEvictCacheUs(getTimestampNow()) {
+    bool valid = false;
     sp<IConnection>& outConnection = mRemoteConnection;
     ConnectionId& id = mConnectionId;
     std::unique_ptr<BufferStatusChannel>& outChannel =
             mReleasing.mStatusChannel;
-    accessor->connect(
+    Return<void> transResult = accessor->connect(
             [&valid, &outConnection, &id, &outChannel]
             (ResultStatus status, sp<IConnection> connection,
              ConnectionId connectionId, const QueueDescriptor& desc) {
@@ -246,11 +273,27 @@ BufferPoolClient::Impl::Impl(const sp<IAccessor> &accessor)
                     }
                 }
             });
+    mValid = transResult.isOk() && valid;
+}
+
+bool BufferPoolClient::Impl::isActive(int64_t *lastTransactionUs, bool clearCache) {
+    {
+        std::lock_guard<std::mutex> lock(mCache.mLock);
+        syncReleased();
+        evictCaches(clearCache);
+        *lastTransactionUs = mCache.mLastChangeUs;
+    }
+    if (mValid && mLocal && mLocalConnection) {
+        mLocalConnection->cleanUp(clearCache);
+        return true;
+    }
+    return mCache.mActive > 0;
 }
 
 ResultStatus BufferPoolClient::Impl::allocate(
         const std::vector<uint8_t> &params,
-        std::shared_ptr<_C2BlockPoolData> *buffer) {
+        native_handle_t **pHandle,
+        std::shared_ptr<BufferPoolData> *buffer) {
     if (!mLocal || !mLocalConnection || !mValid) {
         return ResultStatus::CRITICAL_ERROR;
     }
@@ -262,25 +305,29 @@ ResultStatus BufferPoolClient::Impl::allocate(
         if (handle) {
             std::unique_lock<std::mutex> lock(mCache.mLock);
             syncReleased();
+            evictCaches();
             auto cacheIt = mCache.mBuffers.find(bufferId);
             if (cacheIt != mCache.mBuffers.end()) {
                 // TODO: verify it is recycled. (not having active ref)
                 mCache.mBuffers.erase(cacheIt);
             }
             auto clientBuffer = std::make_unique<ClientBuffer>(
-                    bufferId, handle);
+                    mConnectionId, bufferId, handle);
             if (clientBuffer) {
                 auto result = mCache.mBuffers.insert(std::make_pair(
                         bufferId, std::move(clientBuffer)));
                 if (result.second) {
                     *buffer = result.first->second->createCache(
-                            shared_from_this());
+                            shared_from_this(), pHandle);
+                    if (*buffer) {
+                        mCache.incActive_l();
+                    }
                 }
             }
         }
         if (!*buffer) {
-            ALOGV("client cache creation failure %d: %" PRId64,
-                  handle != NULL, mConnectionId);
+            ALOGV("client cache creation failure %d: %lld",
+                  handle != NULL, (long long)mConnectionId);
             status = ResultStatus::NO_MEMORY;
             postBufferRelease(bufferId);
         }
@@ -290,7 +337,8 @@ ResultStatus BufferPoolClient::Impl::allocate(
 
 ResultStatus BufferPoolClient::Impl::receive(
         TransactionId transactionId, BufferId bufferId, int64_t timestampUs,
-        std::shared_ptr<_C2BlockPoolData> *buffer) {
+        native_handle_t **pHandle,
+        std::shared_ptr<BufferPoolData> *buffer) {
     if (!mValid) {
         return ResultStatus::CRITICAL_ERROR;
     }
@@ -305,26 +353,30 @@ ResultStatus BufferPoolClient::Impl::receive(
     while(1) {
         std::unique_lock<std::mutex> lock(mCache.mLock);
         syncReleased();
+        evictCaches();
         auto cacheIt = mCache.mBuffers.find(bufferId);
         if (cacheIt != mCache.mBuffers.end()) {
             if (cacheIt->second->hasCache()) {
-                *buffer = cacheIt->second->fetchCache();
+                *buffer = cacheIt->second->fetchCache(pHandle);
                 if (!*buffer) {
                     // check transfer time_out
                     lock.unlock();
                     std::this_thread::yield();
                     continue;
                 }
-                ALOGV("client receive from reference %" PRId64, mConnectionId);
+                ALOGV("client receive from reference %lld", (long long)mConnectionId);
                 break;
             } else {
-                *buffer = cacheIt->second->createCache(shared_from_this());
-                ALOGV("client receive from cache %" PRId64, mConnectionId);
+                *buffer = cacheIt->second->createCache(shared_from_this(), pHandle);
+                if (*buffer) {
+                    mCache.incActive_l();
+                }
+                ALOGV("client receive from cache %lld", (long long)mConnectionId);
                 break;
             }
         } else {
-            if (!mCache.creating) {
-                mCache.creating = true;
+            if (!mCache.mCreating) {
+                mCache.mCreating = true;
                 lock.unlock();
                 native_handle_t* handle = NULL;
                 status = fetchBufferHandle(transactionId, bufferId, &handle);
@@ -332,14 +384,17 @@ ResultStatus BufferPoolClient::Impl::receive(
                 if (status == ResultStatus::OK) {
                     if (handle) {
                         auto clientBuffer = std::make_unique<ClientBuffer>(
-                                bufferId, handle);
+                                mConnectionId, bufferId, handle);
                         if (clientBuffer) {
                             auto result = mCache.mBuffers.insert(
                                     std::make_pair(bufferId, std::move(
                                             clientBuffer)));
                             if (result.second) {
                                 *buffer = result.first->second->createCache(
-                                        shared_from_this());
+                                        shared_from_this(), pHandle);
+                                if (*buffer) {
+                                    mCache.incActive_l();
+                                }
                             }
                         }
                     }
@@ -347,7 +402,7 @@ ResultStatus BufferPoolClient::Impl::receive(
                         status = ResultStatus::NO_MEMORY;
                     }
                 }
-                mCache.creating = false;
+                mCache.mCreating = false;
                 lock.unlock();
                 mCache.mCreateCv.notify_all();
                 break;
@@ -357,8 +412,11 @@ ResultStatus BufferPoolClient::Impl::receive(
     }
     bool posted = postReceiveResult(bufferId, transactionId,
                                       *buffer ? true : false);
-    ALOGV("client receive %" PRId64 " - %u : %s (%d)", mConnectionId, bufferId,
+    ALOGV("client receive %lld - %u : %s (%d)", (long long)mConnectionId, bufferId,
           *buffer ? "ok" : "fail", posted);
+    if (mValid && mLocal && mLocalConnection) {
+        mLocalConnection->cleanUp(false);
+    }
     if (*buffer) {
         if (!posted) {
             buffer->reset();
@@ -381,13 +439,20 @@ void BufferPoolClient::Impl::postBufferRelease(BufferId bufferId) {
 bool BufferPoolClient::Impl::postSend(
         BufferId bufferId, ConnectionId receiver,
         TransactionId *transactionId, int64_t *timestampUs) {
-    std::lock_guard<std::mutex> lock(mReleasing.mLock);
-    *timestampUs = getTimestampNow();
-    *transactionId = (mConnectionId << 32) | mSeqId++;
-    // TODO: retry, add timeout, target?
-    return  mReleasing.mStatusChannel->postBufferStatusMessage(
-            *transactionId, bufferId, BufferStatus::TRANSFER_TO, mConnectionId,
-            receiver, mReleasing.mReleasingIds, mReleasing.mReleasedIds);
+    bool ret = false;
+    {
+        std::lock_guard<std::mutex> lock(mReleasing.mLock);
+        *timestampUs = getTimestampNow();
+        *transactionId = (mConnectionId << 32) | mSeqId++;
+        // TODO: retry, add timeout, target?
+        ret =  mReleasing.mStatusChannel->postBufferStatusMessage(
+                *transactionId, bufferId, BufferStatus::TRANSFER_TO, mConnectionId,
+                receiver, mReleasing.mReleasingIds, mReleasing.mReleasedIds);
+    }
+    if (mValid && mLocal && mLocalConnection) {
+        mLocalConnection->cleanUp(false);
+    }
+    return ret;
 }
 
 bool BufferPoolClient::Impl::postReceive(
@@ -437,29 +502,44 @@ bool BufferPoolClient::Impl::syncReleased() {
     }
     if (mReleasing.mReleasedIds.size() > 0) {
         for (BufferId& id: mReleasing.mReleasedIds) {
-            ALOGV("client release buffer %" PRId64 " - %u", mConnectionId, id);
+            ALOGV("client release buffer %lld - %u", (long long)mConnectionId, id);
             auto found = mCache.mBuffers.find(id);
             if (found != mCache.mBuffers.end()) {
-                if (!found->second->onCacheRelease()) {
+                if (found->second->onCacheRelease()) {
+                    mCache.decActive_l();
+                } else {
                     // should not happen!
-                    ALOGW("client %" PRId64 "cache release status inconsitent!",
-                          mConnectionId);
-                }
-                if (found->second->expire()) {
-                    ALOGV("client evict buffer from cache %" PRId64 " - %u",
-                          mConnectionId, id);
-                    mCache.mBuffers.erase(found);
+                    ALOGW("client %lld cache release status inconsitent!",
+                          (long long)mConnectionId);
                 }
             } else {
                 // should not happen!
-                ALOGW("client %" PRId64 "cache status inconsitent!",
-                      mConnectionId);
+                ALOGW("client %lld cache status inconsitent!", (long long)mConnectionId);
             }
         }
         mReleasing.mReleasedIds.clear();
         return true;
     }
     return false;
+}
+
+// should have mCache.mLock
+void BufferPoolClient::Impl::evictCaches(bool clearCache) {
+    int64_t now = getTimestampNow();
+    if (now >= mLastEvictCacheUs + kCacheTtlUs || clearCache) {
+        size_t evicted = 0;
+        for (auto it = mCache.mBuffers.begin(); it != mCache.mBuffers.end();) {
+            if (!it->second->hasCache() && (it->second->expire() || clearCache)) {
+                it = mCache.mBuffers.erase(it);
+                ++evicted;
+            } else {
+                ++it;
+            }
+        }
+        ALOGV("cache count %lld : total %zu, active %d, evicted %zu",
+              (long long)mConnectionId, mCache.mBuffers.size(), mCache.mActive, evicted);
+        mLastEvictCacheUs = now;
+    }
 }
 
 ResultStatus BufferPoolClient::Impl::allocateBufferHandle(
@@ -472,8 +552,8 @@ ResultStatus BufferPoolClient::Impl::allocateBufferHandle(
         if (status == ResultStatus::OK) {
             *handle = native_handle_clone(allocHandle);
         }
-        ALOGV("client allocate result %" PRId64 "%d : %u clone %p",
-              mConnectionId, status == ResultStatus::OK,
+        ALOGV("client allocate result %lld %d : %u clone %p",
+              (long long)mConnectionId, status == ResultStatus::OK,
               *handle ? *bufferId : 0 , *handle);
         return status;
     }
@@ -490,7 +570,7 @@ ResultStatus BufferPoolClient::Impl::fetchBufferHandle(
         connection = mRemoteConnection;
     }
     ResultStatus status;
-    connection->fetch(
+    Return<void> transResult = connection->fetch(
             transactionId, bufferId,
             [&status, &handle]
             (ResultStatus outStatus, Buffer outBuffer) {
@@ -500,7 +580,7 @@ ResultStatus BufferPoolClient::Impl::fetchBufferHandle(
                             outBuffer.buffer.getNativeHandle());
                 }
             });
-    return status;
+    return transResult.isOk() ? status : ResultStatus::CRITICAL_ERROR;
 }
 
 
@@ -520,6 +600,18 @@ bool BufferPoolClient::isValid() {
     return mImpl && mImpl->isValid();
 }
 
+bool BufferPoolClient::isLocal() {
+    return mImpl && mImpl->isLocal();
+}
+
+bool BufferPoolClient::isActive(int64_t *lastTransactionUs, bool clearCache) {
+    if (!isValid()) {
+        *lastTransactionUs = 0;
+        return false;
+    }
+    return mImpl->isActive(lastTransactionUs, clearCache);
+}
+
 ConnectionId BufferPoolClient::getConnectionId() {
     if (isValid()) {
         return mImpl->getConnectionId();
@@ -537,25 +629,26 @@ ResultStatus BufferPoolClient::getAccessor(sp<IAccessor> *accessor) {
 
 ResultStatus BufferPoolClient::allocate(
         const std::vector<uint8_t> &params,
-        std::shared_ptr<_C2BlockPoolData> *buffer) {
+        native_handle_t **handle,
+        std::shared_ptr<BufferPoolData> *buffer) {
     if (isValid()) {
-        return mImpl->allocate(params, buffer);
+        return mImpl->allocate(params, handle, buffer);
     }
     return ResultStatus::CRITICAL_ERROR;
 }
 
 ResultStatus BufferPoolClient::receive(
         TransactionId transactionId, BufferId bufferId, int64_t timestampUs,
-        std::shared_ptr<_C2BlockPoolData> *buffer) {
+        native_handle_t **handle, std::shared_ptr<BufferPoolData> *buffer) {
     if (isValid()) {
-        return mImpl->receive(transactionId, bufferId, timestampUs, buffer);
+        return mImpl->receive(transactionId, bufferId, timestampUs, handle, buffer);
     }
     return ResultStatus::CRITICAL_ERROR;
 }
 
 ResultStatus BufferPoolClient::postSend(
         ConnectionId receiverId,
-        const std::shared_ptr<_C2BlockPoolData> &buffer,
+        const std::shared_ptr<BufferPoolData> &buffer,
         TransactionId *transactionId,
         int64_t *timestampUs) {
     if (isValid()) {

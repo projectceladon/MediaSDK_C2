@@ -21,9 +21,9 @@
 #include <C2AllocatorIon.h>
 #include <C2Buffer.h>
 #include <C2PlatformSupport.h>
-#include <ClientManager.h>
 #include <android-base/logging.h>
 #include <binder/ProcessState.h>
+#include <bufferpool/ClientManager.h>
 #include <hidl/HidlSupport.h>
 #include <hidl/HidlTransportSupport.h>
 #include <hidl/LegacySupport.h>
@@ -37,12 +37,12 @@
 using android::C2AllocatorIon;
 using android::C2PlatformAllocatorStore;
 using android::hardware::hidl_handle;
-using android::hardware::media::bufferpool::V1_0::IAccessor;
 using android::hardware::media::bufferpool::V1_0::ResultStatus;
 using android::hardware::media::bufferpool::V1_0::implementation::BufferId;
 using android::hardware::media::bufferpool::V1_0::implementation::ClientManager;
 using android::hardware::media::bufferpool::V1_0::implementation::ConnectionId;
 using android::hardware::media::bufferpool::V1_0::implementation::TransactionId;
+using android::hardware::media::bufferpool::BufferPoolData;
 
 namespace {
 
@@ -57,6 +57,7 @@ class BufferpoolSingleTest : public ::testing::Test {
  public:
   virtual void SetUp() override {
     ResultStatus status;
+    mConnectionValid = false;
 
     mManager = ClientManager::getInstance();
     ASSERT_NE(mManager, nullptr);
@@ -71,18 +72,17 @@ class BufferpoolSingleTest : public ::testing::Test {
     status = mManager->create(mAllocator, &mConnectionId);
     ASSERT_TRUE(status == ResultStatus::OK);
 
-    status = mManager->getAccessor(mConnectionId, &mAccessor);
-    ASSERT_TRUE(status == ResultStatus::OK && (bool)mAccessor);
+    mConnectionValid = true;
 
-    ConnectionId& receiverId = mReceiverId;
-    mManager->registerSender(
-        mAccessor,
-        [&status, &receiverId](ResultStatus hidlStatus, ConnectionId hidlId) {
-          status = hidlStatus;
-          receiverId = hidlId;
-        });
+    status = mManager->registerSender(mManager, mConnectionId, &mReceiverId);
     ASSERT_TRUE(status == ResultStatus::ALREADY_EXISTS &&
-                receiverId == mConnectionId);
+                mReceiverId == mConnectionId);
+  }
+
+  virtual void TearDown() override {
+    if (mConnectionValid) {
+      mManager->close(mConnectionId);
+    }
   }
 
  protected:
@@ -91,8 +91,8 @@ class BufferpoolSingleTest : public ::testing::Test {
   }
 
   android::sp<ClientManager> mManager;
-  android::sp<IAccessor> mAccessor;
   std::shared_ptr<BufferPoolAllocator> mAllocator;
+  bool mConnectionValid;
   ConnectionId mConnectionId;
   ConnectionId mReceiverId;
 
@@ -106,9 +106,10 @@ TEST_F(BufferpoolSingleTest, AllocateBuffer) {
   std::vector<uint8_t> vecParams;
   getVtsAllocatorParams(&vecParams);
 
-  std::shared_ptr<_C2BlockPoolData> buffer[kNumAllocationTest];
+  std::shared_ptr<BufferPoolData> buffer[kNumAllocationTest];
+  native_handle_t *allocHandle = nullptr;
   for (int i = 0; i < kNumAllocationTest; ++i) {
-    status = mManager->allocate(mConnectionId, vecParams, &buffer[i]);
+    status = mManager->allocate(mConnectionId, vecParams, &allocHandle, &buffer[i]);
     ASSERT_TRUE(status == ResultStatus::OK);
   }
   for (int i = 0; i < kNumAllocationTest; ++i) {
@@ -128,8 +129,9 @@ TEST_F(BufferpoolSingleTest, RecycleBuffer) {
 
   BufferId bid[kNumRecycleTest];
   for (int i = 0; i < kNumRecycleTest; ++i) {
-    std::shared_ptr<_C2BlockPoolData> buffer;
-    status = mManager->allocate(mConnectionId, vecParams, &buffer);
+    std::shared_ptr<BufferPoolData> buffer;
+    native_handle_t *allocHandle = nullptr;
+    status = mManager->allocate(mConnectionId, vecParams, &allocHandle, &buffer);
     ASSERT_TRUE(status == ResultStatus::OK);
     bid[i] = buffer->mId;
   }
@@ -145,18 +147,19 @@ TEST_F(BufferpoolSingleTest, TransferBuffer) {
   ResultStatus status;
   std::vector<uint8_t> vecParams;
   getVtsAllocatorParams(&vecParams);
-  std::shared_ptr<_C2BlockPoolData> sbuffer, rbuffer;
+  std::shared_ptr<BufferPoolData> sbuffer, rbuffer;
+  native_handle_t *allocHandle = nullptr;
+  native_handle_t *recvHandle = nullptr;
 
   TransactionId transactionId;
   int64_t postUs;
 
-  status = mManager->allocate(mConnectionId, vecParams, &sbuffer);
+  status = mManager->allocate(mConnectionId, vecParams, &allocHandle, &sbuffer);
   ASSERT_TRUE(status == ResultStatus::OK);
-  status = mManager->postSend(mConnectionId, mReceiverId, sbuffer,
-                              &transactionId, &postUs);
+  status = mManager->postSend(mReceiverId, sbuffer, &transactionId, &postUs);
   ASSERT_TRUE(status == ResultStatus::OK);
   status = mManager->receive(mReceiverId, transactionId, sbuffer->mId, postUs,
-                             &rbuffer);
+                             &recvHandle, &rbuffer);
   EXPECT_TRUE(status == ResultStatus::OK);
 }
 

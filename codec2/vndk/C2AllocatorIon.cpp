@@ -22,13 +22,18 @@
 
 #include <ion/ion.h>
 #include <sys/mman.h>
-#include <unistd.h>
+#include <unistd.h> // getpagesize, size_t, close, dup
 
 #include <C2AllocatorIon.h>
 #include <C2Buffer.h>
+#include <C2Debug.h>
 #include <C2ErrnoUtils.h>
 
 namespace android {
+
+namespace {
+    constexpr size_t USAGE_LRU_CACHE_SIZE = 1024;
+}
 
 /* size_t <=> int(lo), int(hi) conversions */
 constexpr inline int size2intLo(size_t s) {
@@ -172,7 +177,6 @@ private:
             }
             // C2_CHECK(bufferFd < 0);
             // C2_CHECK(buffer < 0);
-            mVector.resize(capacity);
         }
     }
 
@@ -209,6 +213,9 @@ public:
         int bufferFd = -1;
         ion_user_handle_t buffer = -1;
         int ret = ion_alloc(ionFd, size, align, heapMask, flags, &buffer);
+        ALOGV("ion_alloc(ionFd = %d, size = %zu, align = %zu, prot = %d, flags = %d) "
+              "returned (%d) ; buffer = %d",
+              ionFd, size, align, heapMask, flags, ret, buffer);
         if (ret == 0) {
             // get buffer fd for native handle constructor
             ret = ion_share(ionFd, buffer, &bufferFd);
@@ -223,11 +230,6 @@ public:
     c2_status_t map(size_t offset, size_t size, C2MemoryUsage usage, C2Fence *fence, void **addr) {
         (void)fence; // TODO: wait for fence
         *addr = nullptr;
-
-        if (mIonFd < 0) {
-            *addr = mVector.data() + offset;
-            return C2_OK;
-        }
         if (!mMappings.empty()) {
             ALOGV("multiple map");
             // TODO: technically we should return DUPLICATE here, but our block views don't
@@ -240,13 +242,12 @@ public:
         }
 
         int prot = PROT_NONE;
-        int flags = MAP_PRIVATE;
+        int flags = MAP_SHARED;
         if (usage.expected & C2MemoryUsage::CPU_READ) {
             prot |= PROT_READ;
         }
         if (usage.expected & C2MemoryUsage::CPU_WRITE) {
             prot |= PROT_WRITE;
-            flags = MAP_SHARED;
         }
 
         size_t alignmentBytes = offset % PAGE_SIZE;
@@ -258,6 +259,9 @@ public:
         if (mMapFd == -1) {
             int ret = ion_map(mIonFd, mBuffer, mapSize, prot,
                               flags, mapOffset, (unsigned char**)&map.addr, &mMapFd);
+            ALOGV("ion_map(ionFd = %d, handle = %d, size = %zu, prot = %d, flags = %d, "
+                  "offset = %zu) returned (%d)",
+                  mIonFd, mBuffer, mapSize, prot, flags, mapOffset, ret);
             if (ret) {
                 mMapFd = -1;
                 map.addr = *addr = nullptr;
@@ -267,6 +271,9 @@ public:
             }
         } else {
             map.addr = mmap(nullptr, mapSize, prot, flags, mMapFd, mapOffset);
+            ALOGV("mmap(size = %zu, prot = %d, flags = %d, mapFd = %d, offset = %zu) "
+                  "returned (%d)",
+                  mapSize, prot, flags, mMapFd, mapOffset, errno);
             if (map.addr == MAP_FAILED) {
                 map.addr = *addr = nullptr;
                 err = c2_map_errno<EINVAL>(errno);
@@ -281,10 +288,8 @@ public:
     }
 
     c2_status_t unmap(void *addr, size_t size, C2Fence *fence) {
-        if (mIonFd < 0) {
-            return C2_OK;
-        }
-         if (mMapFd < 0 || mMappings.empty()) {
+        if (mMapFd < 0 || mMappings.empty()) {
+            ALOGD("tried to unmap unmapped buffer");
             return C2_NOT_FOUND;
         }
         for (auto it = mMappings.begin(); it != mMappings.end(); ++it) {
@@ -294,14 +299,17 @@ public:
             }
             int err = munmap(it->addr, it->size);
             if (err != 0) {
+                ALOGD("munmap failed");
                 return c2_map_errno<EINVAL>(errno);
             }
             if (fence) {
                 *fence = C2Fence(); // not using fences
             }
             (void)mMappings.erase(it);
+            ALOGV("successfully unmapped: %d", mBuffer);
             return C2_OK;
         }
+        ALOGD("unmap failed to find specified map");
         return C2_BAD_VALUE;
     }
 
@@ -326,7 +334,7 @@ public:
     }
 
     c2_status_t status() const {
-        return C2_OK/*mInit*/;
+        return mInit;
     }
 
     const C2Handle *handle() const {
@@ -354,7 +362,6 @@ private:
         size_t size;
     };
     std::list<Mapping> mMappings;
-    std::vector<uint8_t> mVector;
 };
 
 c2_status_t C2AllocationIon::map(
@@ -410,9 +417,11 @@ C2AllocatorIon::C2AllocatorIon(id_t id)
         default:        mInit = c2_map_errno<EACCES>(errno); break;
         }
     } else {
-        C2MemoryUsage minUsage = { 0, 0 }, maxUsage = { ~(uint64_t)0, ~(uint64_t)0 };
+        C2MemoryUsage minUsage = { 0, 0 };
+        C2MemoryUsage maxUsage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
         Traits traits = { "android.allocator.ion", id, LINEAR, minUsage, maxUsage };
         mTraits = std::make_shared<Traits>(traits);
+        mBlockSize = ::getpagesize();
     }
 }
 
@@ -423,15 +432,72 @@ C2AllocatorIon::~C2AllocatorIon() {
 }
 
 C2Allocator::id_t C2AllocatorIon::getId() const {
+    std::lock_guard<std::mutex> lock(mUsageMapperLock);
     return mTraits->id;
 }
 
 C2String C2AllocatorIon::getName() const {
+    std::lock_guard<std::mutex> lock(mUsageMapperLock);
     return mTraits->name;
 }
 
 std::shared_ptr<const C2Allocator::Traits> C2AllocatorIon::getTraits() const {
+    std::lock_guard<std::mutex> lock(mUsageMapperLock);
     return mTraits;
+}
+
+void C2AllocatorIon::setUsageMapper(
+        const UsageMapperFn &mapper, uint64_t minUsage, uint64_t maxUsage, uint64_t blockSize) {
+    std::lock_guard<std::mutex> lock(mUsageMapperLock);
+    mUsageMapperCache.clear();
+    mUsageMapperLru.clear();
+    mUsageMapper = mapper;
+    Traits traits = {
+        mTraits->name, mTraits->id, LINEAR,
+        C2MemoryUsage(minUsage), C2MemoryUsage(maxUsage)
+    };
+    mTraits = std::make_shared<Traits>(traits);
+    mBlockSize = blockSize;
+}
+
+std::size_t C2AllocatorIon::MapperKeyHash::operator()(const MapperKey &k) const {
+    return std::hash<uint64_t>{}(k.first) ^ std::hash<size_t>{}(k.second);
+}
+
+c2_status_t C2AllocatorIon::mapUsage(
+        C2MemoryUsage usage, size_t capacity, size_t *align, unsigned *heapMask, unsigned *flags) {
+    std::lock_guard<std::mutex> lock(mUsageMapperLock);
+    c2_status_t res = C2_OK;
+    // align capacity
+    capacity = (capacity + mBlockSize - 1) & ~(mBlockSize - 1);
+    MapperKey key = std::make_pair(usage.expected, capacity);
+    auto entry = mUsageMapperCache.find(key);
+    if (entry == mUsageMapperCache.end()) {
+        if (mUsageMapper) {
+            res = mUsageMapper(usage, capacity, align, heapMask, flags);
+        } else {
+            *align = 0; // TODO make this 1
+            *heapMask = ~0; // default mask
+            *flags = 0; // default flags
+            res = C2_NO_INIT;
+        }
+        // add usage to cache
+        MapperValue value = std::make_tuple(*align, *heapMask, *flags, res);
+        mUsageMapperLru.emplace_front(key, value);
+        mUsageMapperCache.emplace(std::make_pair(key, mUsageMapperLru.begin()));
+        if (mUsageMapperCache.size() > USAGE_LRU_CACHE_SIZE) {
+            // remove LRU entry
+            MapperKey lruKey = mUsageMapperLru.front().first;
+            mUsageMapperCache.erase(lruKey);
+            mUsageMapperLru.pop_back();
+        }
+    } else {
+        // move entry to MRU
+        mUsageMapperLru.splice(mUsageMapperLru.begin(), mUsageMapperLru, entry->second);
+        const MapperValue &value = entry->second->second;
+        std::tie(*align, *heapMask, *flags, res) = value;
+    }
+    return res;
 }
 
 c2_status_t C2AllocatorIon::newLinearAllocation(
@@ -441,27 +507,21 @@ c2_status_t C2AllocatorIon::newLinearAllocation(
     }
 
     allocation->reset();
-    // if (mInit != C2_OK) {
-    //     return mInit;
-    // }
+    if (mInit != C2_OK) {
+        return mInit;
+    }
 
-    // get align, heapMask and flags
-    //size_t align = 1;
     size_t align = 0;
     unsigned heapMask = ~0;
     unsigned flags = 0;
-    //TODO
-    (void) usage;
-#if 0
-    int err = mUsageMapper(usage, capacity, &align, &heapMask, &flags);
-    if (err < 0) {
-        return c2_map_errno<EINVAL, ENOMEM, EACCES>(-err);
+    c2_status_t ret = mapUsage(usage, capacity, &align, &heapMask, &flags);
+    if (ret && ret != C2_NO_INIT) {
+        return ret;
     }
-#endif
 
     std::shared_ptr<C2AllocationIon> alloc
-        = std::make_shared<C2AllocationIon>(dup(mIonFd), capacity, align, heapMask, flags, mTraits ? mTraits->id : C2Allocator::id_t {} );
-    c2_status_t ret = alloc->status();
+        = std::make_shared<C2AllocationIon>(dup(mIonFd), capacity, align, heapMask, flags, mTraits->id);
+    ret = alloc->status();
     if (ret == C2_OK) {
         *allocation = alloc;
     }

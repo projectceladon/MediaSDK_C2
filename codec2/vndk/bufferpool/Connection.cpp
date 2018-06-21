@@ -65,6 +65,11 @@ ResultStatus Connection::allocate(
     return ResultStatus::CRITICAL_ERROR;
 }
 
+void Connection::cleanUp(bool clearCache) {
+    if (mInitialized && mAccessor) {
+        mAccessor->cleanUp(clearCache);
+    }
+}
 
 // Methods from ::android::hidl::base::V1_0::IBase follow.
 

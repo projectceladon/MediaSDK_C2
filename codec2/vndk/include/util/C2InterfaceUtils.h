@@ -815,13 +815,23 @@ public:
      */
     C2SettingConflictsBuilder(C2ParamFieldValues &&conflict);
 
-    // TODO: add plus()
+    /**
+     * Adds a conflict to the current list of conflicts and returns this
+     */
+    C2SettingConflictsBuilder& with(C2ParamFieldValues &&conflict);
 
     /**
      * Gets the current list of conflicts (and moves them out of this builder.)
      * (this is why it is not const)
      */
     std::vector<C2ParamFieldValues> retrieveConflicts();
+
+    /**
+     * Returns whether the current list is empty.
+     */
+    inline bool empty() const { return _mConflicts.empty(); }
+
+    inline operator bool() const { return empty(); }
 
 private:
     std::vector<C2ParamFieldValues> _mConflicts;
@@ -839,27 +849,24 @@ struct C2SettingResultBuilder {
     static C2SettingResult ReadOnly(const C2ParamField &param);
 
     /**
-     * Creates a bad-value setting result failure.
+     * Creates a bad-value or infoinformational bad-value setting result failure.
      *
      * This does not take FSV as the value is outside of the possible values. As such, there are no
      * conflicts for this case either.
      */
-    static C2SettingResult BadValue(const C2ParamField &paramField);
+    static C2SettingResult BadValue(const C2ParamField &paramField, bool isInfo = false);
 
     /**
-     * Creates a conflict setting result failure.
+     * Creates a conflict (or informational conflict) setting result failure.
      *
      * This takes FSV so use paramFieldValues and optional conflicts.
      */
     static C2SettingResult Conflict(
-            C2ParamFieldValues &&paramFieldValues, C2SettingConflictsBuilder &conflicts);
+            C2ParamFieldValues &&paramFieldValues, C2SettingConflictsBuilder &conflicts,
+            bool isInfo = false);
 
     // TODO: retrieve results
 
-    /**
-     * Creates an informational conflict setting result failure with no explanation.
-     */
-    //C2SettingResultBuilder(const C2ParamField &paramField);
 
 private:
     C2ParamField _mParamField;
@@ -876,6 +883,7 @@ private:
 struct C2SettingResultsBuilder {
     C2SettingResultsBuilder(const C2SettingResultsBuilder&) = delete;
     C2SettingResultsBuilder(C2SettingResultsBuilder&&) = default;
+    C2SettingResultsBuilder &operator=(C2SettingResultsBuilder&&) = default;
 
     /** \returns (default) successful result with no details. */
     inline static C2SettingResultsBuilder Ok() {

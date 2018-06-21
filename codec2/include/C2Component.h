@@ -26,6 +26,7 @@
 #include <vector>
 #include <functional>
 
+#include <C2Enum.h>
 #include <C2Param.h>
 #include <C2Work.h>
 
@@ -385,9 +386,18 @@ public:
     virtual c2_status_t setListener_vb(
             const std::shared_ptr<Listener> &listener, c2_blocking_t mayBlock) = 0;
 
+    /// component domain (e.g. audio or video)
     enum domain_t : uint32_t;
+
+    /// component kind (e.g. encoder, decoder or filter)
     enum kind_t : uint32_t;
+
+    /// component rank. This number is used to determine component ordering (the lower the sooner)
+    /// in the component list.
     typedef uint32_t rank_t;
+
+    /// component attributes
+    enum attrib_t : uint64_t;
 
     /**
      * Information about a component.
@@ -395,9 +405,9 @@ public:
     struct Traits {
     // public:
         C2String name; ///< name of the component
-        domain_t domain; ///< component domain (e.g. audio or video)
-        kind_t kind; ///< component kind (e.g. encoder, decoder or filter)
-        rank_t rank; ///< rank used to determine component ordering (the lower the sooner)
+        domain_t domain; ///< component domain
+        kind_t kind; ///< component kind
+        rank_t rank; ///< component rank
         C2String mediaType; ///< media type supported by the component
 
         /**
@@ -654,6 +664,19 @@ public:
 
     virtual ~C2Component() = default;
 };
+
+C2ENUM(C2Component::kind_t, uint32_t,
+    KIND_OTHER,
+    KIND_DECODER,
+    KIND_ENCODER
+);
+
+C2ENUM(C2Component::domain_t, uint32_t,
+    DOMAIN_OTHER,
+    DOMAIN_VIDEO,
+    DOMAIN_AUDIO,
+    DOMAIN_IMAGE
+);
 
 class C2FrameInfoParser {
 public:
