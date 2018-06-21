@@ -39,7 +39,8 @@ struct AllocationDtor {
 
 ResultStatus VtsBufferPoolAllocator::allocate(
     const std::vector<uint8_t> &params,
-    std::shared_ptr<BufferPoolAllocation> *alloc) {
+    std::shared_ptr<BufferPoolAllocation> *alloc,
+    size_t *allocSize) {
   Params ionParams;
   memcpy(&ionParams, params.data(), std::min(sizeof(Params), params.size()));
 
@@ -52,6 +53,7 @@ ResultStatus VtsBufferPoolAllocator::allocate(
       *alloc = std::shared_ptr<BufferPoolAllocation>(
           ptr, AllocationDtor(linearAlloc));
       if (*alloc) {
+        *allocSize = ionParams.data.capacity;
         return ResultStatus::OK;
       }
       delete ptr;

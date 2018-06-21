@@ -23,16 +23,24 @@
 #include <C2BufferPriv.h>
 #include <C2BqBufferPriv.h>
 #include <C2Component.h>
+#include <C2Config.h>
+#include <C2PlatformStorePluginLoader.h>
 #include <C2PlatformSupport.h>
 #include <util/C2InterfaceHelper.h>
 
 #include <dlfcn.h>
+#include <unistd.h> // getpagesize
 
 #include <map>
 #include <memory>
 #include <mutex>
 
 namespace android {
+
+/**
+ * Returns the preferred component store in this process to access its interface.
+ */
+std::shared_ptr<C2ComponentStore> GetPreferredCodec2ComponentStore();
 
 /**
  * The platform allocator store provides basic allocator-types for the framework based on ion and
@@ -44,9 +52,7 @@ namespace android {
  */
 class C2PlatformAllocatorStoreImpl : public C2PlatformAllocatorStore {
 public:
-    C2PlatformAllocatorStoreImpl(
-        /* ionmapper */
-    );
+    C2PlatformAllocatorStoreImpl();
 
     virtual c2_status_t fetchAllocator(
             id_t id, std::shared_ptr<C2Allocator> *const allocator) override;
@@ -60,12 +66,25 @@ public:
         return "android.allocator-store";
     }
 
+    void setComponentStore(std::shared_ptr<C2ComponentStore> store);
+
+    ~C2PlatformAllocatorStoreImpl() override = default;
+
 private:
     /// returns a shared-singleton ion allocator
     std::shared_ptr<C2Allocator> fetchIonAllocator();
 
     /// returns a shared-singleton gralloc allocator
     std::shared_ptr<C2Allocator> fetchGrallocAllocator();
+
+    /// returns a shared-singleton bufferqueue supporting gralloc allocator
+    std::shared_ptr<C2Allocator> fetchBufferQueueAllocator();
+
+    /// component store to use
+    std::mutex _mComponentStoreSetLock; // protects the entire updating _mComponentStore and its
+                                        // dependencies
+    std::mutex _mComponentStoreReadLock; // must protect only read/write of _mComponentStore
+    std::shared_ptr<C2ComponentStore> _mComponentStore;
 };
 
 C2PlatformAllocatorStoreImpl::C2PlatformAllocatorStoreImpl() {
@@ -86,6 +105,10 @@ c2_status_t C2PlatformAllocatorStoreImpl::fetchAllocator(
         *allocator = fetchGrallocAllocator();
         break;
 
+    case C2PlatformAllocatorStore::BUFFERQUEUE:
+        *allocator = fetchBufferQueueAllocator();
+        break;
+
     default:
         return C2_NOT_FOUND;
     }
@@ -95,14 +118,96 @@ c2_status_t C2PlatformAllocatorStoreImpl::fetchAllocator(
     return C2_OK;
 }
 
+namespace {
+
+std::mutex gIonAllocatorMutex;
+std::weak_ptr<C2AllocatorIon> gIonAllocator;
+
+void UseComponentStoreForIonAllocator(
+        const std::shared_ptr<C2AllocatorIon> allocator,
+        std::shared_ptr<C2ComponentStore> store) {
+    C2AllocatorIon::UsageMapperFn mapper;
+    uint64_t minUsage = 0;
+    uint64_t maxUsage = C2MemoryUsage(C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE).expected;
+    size_t blockSize = getpagesize();
+
+    // query min and max usage as well as block size via supported values
+    C2StoreIonUsageInfo usageInfo;
+    std::vector<C2FieldSupportedValuesQuery> query = {
+        C2FieldSupportedValuesQuery::Possible(C2ParamField::Make(usageInfo, usageInfo.usage)),
+        C2FieldSupportedValuesQuery::Possible(C2ParamField::Make(usageInfo, usageInfo.capacity)),
+    };
+    c2_status_t res = store->querySupportedValues_sm(query);
+    if (res == C2_OK) {
+        if (query[0].status == C2_OK) {
+            const C2FieldSupportedValues &fsv = query[0].values;
+            if (fsv.type == C2FieldSupportedValues::FLAGS && !fsv.values.empty()) {
+                minUsage = fsv.values[0].u64;
+                maxUsage = 0;
+                for (C2Value::Primitive v : fsv.values) {
+                    maxUsage |= v.u64;
+                }
+            }
+        }
+        if (query[1].status == C2_OK) {
+            const C2FieldSupportedValues &fsv = query[1].values;
+            if (fsv.type == C2FieldSupportedValues::RANGE && fsv.range.step.u32 > 0) {
+                blockSize = fsv.range.step.u32;
+            }
+        }
+
+        mapper = [store](C2MemoryUsage usage, size_t capacity,
+                         size_t *align, unsigned *heapMask, unsigned *flags) -> c2_status_t {
+            if (capacity > UINT32_MAX) {
+                return C2_BAD_VALUE;
+            }
+            C2StoreIonUsageInfo usageInfo = { usage.expected, capacity };
+            std::vector<std::unique_ptr<C2SettingResult>> failures; // TODO: remove
+            c2_status_t res = store->config_sm({&usageInfo}, &failures);
+            if (res == C2_OK) {
+                *align = usageInfo.minAlignment;
+                *heapMask = usageInfo.heapMask;
+                *flags = usageInfo.allocFlags;
+            }
+            return res;
+        };
+    }
+
+    allocator->setUsageMapper(mapper, minUsage, maxUsage, blockSize);
+}
+
+}
+
+void C2PlatformAllocatorStoreImpl::setComponentStore(std::shared_ptr<C2ComponentStore> store) {
+    // technically this set lock is not needed, but is here for safety in case we add more
+    // getter orders
+    std::lock_guard<std::mutex> lock(_mComponentStoreSetLock);
+    {
+        std::lock_guard<std::mutex> lock(_mComponentStoreReadLock);
+        _mComponentStore = store;
+    }
+    std::shared_ptr<C2AllocatorIon> allocator;
+    {
+        std::lock_guard<std::mutex> lock(gIonAllocatorMutex);
+        allocator = gIonAllocator.lock();
+    }
+    if (allocator) {
+        UseComponentStoreForIonAllocator(allocator, store);
+    }
+}
+
 std::shared_ptr<C2Allocator> C2PlatformAllocatorStoreImpl::fetchIonAllocator() {
-    static std::mutex mutex;
-    static std::weak_ptr<C2Allocator> ionAllocator;
-    std::lock_guard<std::mutex> lock(mutex);
-    std::shared_ptr<C2Allocator> allocator = ionAllocator.lock();
+    std::lock_guard<std::mutex> lock(gIonAllocatorMutex);
+    std::shared_ptr<C2AllocatorIon> allocator = gIonAllocator.lock();
     if (allocator == nullptr) {
+        std::shared_ptr<C2ComponentStore> componentStore;
+        {
+            std::lock_guard<std::mutex> lock(_mComponentStoreReadLock);
+            componentStore = _mComponentStore;
+        }
         allocator = std::make_shared<C2AllocatorIon>(C2PlatformAllocatorStore::ION);
-        ionAllocator = allocator;
+        UseComponentStoreForIonAllocator(allocator, componentStore);
+        gIonAllocator = allocator;
     }
     return allocator;
 }
@@ -119,8 +224,62 @@ std::shared_ptr<C2Allocator> C2PlatformAllocatorStoreImpl::fetchGrallocAllocator
     return allocator;
 }
 
+std::shared_ptr<C2Allocator> C2PlatformAllocatorStoreImpl::fetchBufferQueueAllocator() {
+    static std::mutex mutex;
+    static std::weak_ptr<C2Allocator> grallocAllocator;
+    std::lock_guard<std::mutex> lock(mutex);
+    std::shared_ptr<C2Allocator> allocator = grallocAllocator.lock();
+    if (allocator == nullptr) {
+        allocator = std::make_shared<C2AllocatorGralloc>(
+                C2PlatformAllocatorStore::BUFFERQUEUE, true);
+        grallocAllocator = allocator;
+    }
+    return allocator;
+}
+
+namespace {
+    std::mutex gPreferredComponentStoreMutex;
+    std::shared_ptr<C2ComponentStore> gPreferredComponentStore;
+
+    std::mutex gPlatformAllocatorStoreMutex;
+    std::weak_ptr<C2PlatformAllocatorStoreImpl> gPlatformAllocatorStore;
+}
+
 std::shared_ptr<C2AllocatorStore> GetCodec2PlatformAllocatorStore() {
-    return std::make_shared<C2PlatformAllocatorStoreImpl>();
+    std::lock_guard<std::mutex> lock(gPlatformAllocatorStoreMutex);
+    std::shared_ptr<C2PlatformAllocatorStoreImpl> store = gPlatformAllocatorStore.lock();
+    if (store == nullptr) {
+        store = std::make_shared<C2PlatformAllocatorStoreImpl>();
+        store->setComponentStore(GetPreferredCodec2ComponentStore());
+        gPlatformAllocatorStore = store;
+    }
+    return store;
+}
+
+void SetPreferredCodec2ComponentStore(std::shared_ptr<C2ComponentStore> componentStore) {
+    static std::mutex mutex;
+    std::lock_guard<std::mutex> lock(mutex); // don't interleve set-s
+
+    // update preferred store
+    {
+        std::lock_guard<std::mutex> lock(gPreferredComponentStoreMutex);
+        gPreferredComponentStore = componentStore;
+    }
+
+    // update platform allocator's store as well if it is alive
+    std::shared_ptr<C2PlatformAllocatorStoreImpl> allocatorStore;
+    {
+        std::lock_guard<std::mutex> lock(gPlatformAllocatorStoreMutex);
+        allocatorStore = gPlatformAllocatorStore.lock();
+    }
+    if (allocatorStore) {
+        allocatorStore->setComponentStore(componentStore);
+    }
+}
+
+std::shared_ptr<C2ComponentStore> GetPreferredCodec2ComponentStore() {
+    std::lock_guard<std::mutex> lock(gPreferredComponentStoreMutex);
+    return gPreferredComponentStore ? gPreferredComponentStore : GetCodec2PlatformComponentStore();
 }
 
 namespace {
@@ -141,30 +300,52 @@ public:
 
         switch(allocatorId) {
             case C2PlatformAllocatorStore::ION:
+            case C2AllocatorStore::DEFAULT_LINEAR:
                 res = allocatorStore->fetchAllocator(
                         C2AllocatorStore::DEFAULT_LINEAR, &allocator);
                 if (res == C2_OK) {
-                    std::shared_ptr<C2PooledBlockPool> ptr =
+                    std::shared_ptr<C2BlockPool> ptr =
                             std::make_shared<C2PooledBlockPool>(
                                     allocator, poolId);
                     *pool = ptr;
-                    mIonBlockPools[poolId] = ptr;
+                    mBlockPools[poolId] = ptr;
                     mComponents[poolId] = component;
                 }
                 break;
             case C2PlatformAllocatorStore::GRALLOC:
+            case C2AllocatorStore::DEFAULT_GRAPHIC:
                 res = allocatorStore->fetchAllocator(
                         C2AllocatorStore::DEFAULT_GRAPHIC, &allocator);
                 if (res == C2_OK) {
-                    std::shared_ptr<C2BufferQueueBlockPool> ptr =
+                    std::shared_ptr<C2BlockPool> ptr =
+                        std::make_shared<C2PooledBlockPool>(allocator, poolId);
+                    *pool = ptr;
+                    mBlockPools[poolId] = ptr;
+                    mComponents[poolId] = component;
+                }
+                break;
+            case C2PlatformAllocatorStore::BUFFERQUEUE:
+                res = allocatorStore->fetchAllocator(
+                        C2PlatformAllocatorStore::BUFFERQUEUE, &allocator);
+                if (res == C2_OK) {
+                    std::shared_ptr<C2BlockPool> ptr =
                             std::make_shared<C2BufferQueueBlockPool>(
                                     allocator, poolId);
                     *pool = ptr;
-                    mBqBlockPools[poolId] = ptr;
+                    mBlockPools[poolId] = ptr;
                     mComponents[poolId] = component;
                 }
                 break;
             default:
+                // Try to create block pool from platform store plugins.
+                std::shared_ptr<C2BlockPool> ptr;
+                res = C2PlatformStorePluginLoader::GetInstance()->createBlockPool(
+                        allocatorId, poolId, &ptr);
+                if (res == C2_OK) {
+                    *pool = ptr;
+                    mBlockPools[poolId] = ptr;
+                    mComponents[poolId] = component;
+                }
                 break;
         }
         return res;
@@ -181,53 +362,18 @@ public:
             C2BlockPool::local_id_t blockPoolId,
             std::shared_ptr<const C2Component> component,
             std::shared_ptr<C2BlockPool> *pool) {
-        // TODO: use one iterator for mulitple blockpool type scalability.
+        // TODO: use one iterator for multiple blockpool type scalability.
         std::shared_ptr<C2BlockPool> ptr;
-        auto ionIt = mIonBlockPools.find(blockPoolId);
-        if (ionIt != mIonBlockPools.end()) {
-            ptr = ionIt->second.lock();
+        auto it = mBlockPools.find(blockPoolId);
+        if (it != mBlockPools.end()) {
+            ptr = it->second.lock();
             if (!ptr) {
-                mIonBlockPools.erase(ionIt);
+                mBlockPools.erase(it);
                 mComponents.erase(blockPoolId);
             } else {
                 auto found = mComponents.find(blockPoolId);
                 if (component == found->second.lock()) {
                     *pool = ptr;
-                    return true;
-                }
-            }
-        }
-        auto bqIt = mBqBlockPools.find(blockPoolId);
-        if (bqIt != mBqBlockPools.end()) {
-            ptr = bqIt->second.lock();
-            if (!ptr) {
-                mBqBlockPools.erase(bqIt);
-                mComponents.erase(blockPoolId);
-            } else {
-                auto found = mComponents.find(blockPoolId);
-                if (component == found->second.lock()) {
-                    *pool = ptr;
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    bool setBufferQueue(
-            C2BlockPool::local_id_t blockPoolId,
-            std::shared_ptr<const C2Component> component,
-            const sp<HGraphicBufferProducer> &producer) {
-        auto bqIt = mBqBlockPools.find(blockPoolId);
-        if (bqIt != mBqBlockPools.end()) {
-            std::shared_ptr<C2BufferQueueBlockPool> pool = bqIt->second.lock();
-            if (!pool) {
-                mBqBlockPools.erase(bqIt);
-                mComponents.erase(blockPoolId);
-            } else {
-                auto found = mComponents.find(blockPoolId);
-                if (component == found->second.lock()) {
-                    pool->configureProducer(producer);
                     return true;
                 }
             }
@@ -237,9 +383,8 @@ public:
 
 private:
     C2BlockPool::local_id_t mBlockPoolSeqId;
-    std::map<C2BlockPool::local_id_t, std::weak_ptr<C2PooledBlockPool>> mIonBlockPools;
-    std::map<C2BlockPool::local_id_t, std::weak_ptr<C2BufferQueueBlockPool>> mBqBlockPools;
 
+    std::map<C2BlockPool::local_id_t, std::weak_ptr<C2BlockPool>> mBlockPools;
     std::map<C2BlockPool::local_id_t, std::weak_ptr<const C2Component>> mComponents;
 };
 
@@ -253,9 +398,6 @@ c2_status_t GetCodec2BlockPool(
         C2BlockPool::local_id_t id, std::shared_ptr<const C2Component> component,
         std::shared_ptr<C2BlockPool> *pool) {
     pool->reset();
-    if (!component) {
-        return C2_BAD_VALUE;
-    }
     std::lock_guard<std::mutex> lock(sBlockPoolCacheMutex);
     std::shared_ptr<C2AllocatorStore> allocatorStore = GetCodec2PlatformAllocatorStore();
     std::shared_ptr<C2Allocator> allocator;
@@ -283,7 +425,7 @@ c2_status_t GetCodec2BlockPool(
     // TODO: remove this. this is temporary
     case C2BlockPool::PLATFORM_START:
         res = sBlockPoolCache->_createBlockPool(
-                C2PlatformAllocatorStore::GRALLOC, component, id, pool);
+                C2PlatformAllocatorStore::BUFFERQUEUE, component, id, pool);
         break;
     default:
         break;
@@ -296,9 +438,6 @@ c2_status_t CreateCodec2BlockPool(
         std::shared_ptr<const C2Component> component,
         std::shared_ptr<C2BlockPool> *pool) {
     pool->reset();
-    if (!component) {
-        return C2_BAD_VALUE;
-    }
 
     std::lock_guard<std::mutex> lock(sBlockPoolCacheMutex);
     return sBlockPoolCache->createBlockPool(allocatorId, component, pool);
@@ -445,6 +584,37 @@ private:
         std::string mLibPath; ///< library path (or name)
     };
 
+    struct Interface : public C2InterfaceHelper {
+        std::shared_ptr<C2StoreIonUsageInfo> mIonUsageInfo;
+
+        Interface(std::shared_ptr<C2ReflectorHelper> reflector)
+            : C2InterfaceHelper(reflector) {
+            setDerivedInstance(this);
+
+            struct Setter {
+                static C2R setIonUsage(bool /* mayBlock */, C2P<C2StoreIonUsageInfo> &me) {
+                    me.set().heapMask = ~0;
+                    me.set().allocFlags = 0;
+                    me.set().minAlignment = 0;
+                    return C2R::Ok();
+                }
+            };
+
+            addParameter(
+                DefineParam(mIonUsageInfo, "ion-usage")
+                .withDefault(new C2StoreIonUsageInfo())
+                .withFields({
+                    C2F(mIonUsageInfo, usage).flags({C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE}),
+                    C2F(mIonUsageInfo, capacity).inRange(0, UINT32_MAX, 1024),
+                    C2F(mIonUsageInfo, heapMask).any(),
+                    C2F(mIonUsageInfo, allocFlags).flags({}),
+                    C2F(mIonUsageInfo, minAlignment).equalTo(0)
+                })
+                .withSetter(Setter::setIonUsage)
+                .build());
+        }
+    };
+
     /**
      * Retrieves the component loader for a component.
      *
@@ -466,6 +636,7 @@ private:
 
     std::map<C2String, ComponentLoader> mComponents; ///< list of components
     std::shared_ptr<C2ReflectorHelper> mReflector;
+    Interface mInterface;
 };
 
 c2_status_t C2PlatformComponentStore::ComponentModule::init(std::string libPath) {
@@ -573,6 +744,22 @@ std::shared_ptr<const C2Component::Traits> C2PlatformComponentStore::ComponentMo
             traits->mediaType = mediaTypeConfig->m.value;
             // TODO: get this properly.
             traits->rank = 0x200;
+
+            // TODO: define these values properly
+            bool decoder = (traits->name.find("decoder") != std::string::npos);
+            traits->kind =
+                    decoder ? C2Component::KIND_DECODER :
+                    encoder ? C2Component::KIND_ENCODER :
+                    C2Component::KIND_OTHER;
+            if (strncmp(traits->mediaType.c_str(), "audio/", 6) == 0) {
+                traits->domain = C2Component::DOMAIN_AUDIO;
+            } else if (strncmp(traits->mediaType.c_str(), "video/", 6) == 0) {
+                traits->domain = C2Component::DOMAIN_VIDEO;
+            } else if (strncmp(traits->mediaType.c_str(), "image/", 6) == 0) {
+                traits->domain = C2Component::DOMAIN_IMAGE;
+            } else {
+                traits->domain = C2Component::DOMAIN_OTHER;
+            }
         }
 
         mTraits = traits;
@@ -581,35 +768,37 @@ std::shared_ptr<const C2Component::Traits> C2PlatformComponentStore::ComponentMo
 }
 
 C2PlatformComponentStore::C2PlatformComponentStore()
-    : mReflector(std::make_shared<C2ReflectorHelper>()) {
+    : mReflector(std::make_shared<C2ReflectorHelper>()),
+      mInterface(mReflector) {
     // TODO: move this also into a .so so it can be updated
-    mComponents.emplace("c2.google.avc.decoder", "libstagefright_soft_c2avcdec.so");
-    mComponents.emplace("c2.google.avc.encoder", "libstagefright_soft_c2avcenc.so");
-    mComponents.emplace("c2.google.aac.decoder", "libstagefright_soft_c2aacdec.so");
-    mComponents.emplace("c2.google.aac.encoder", "libstagefright_soft_c2aacenc.so");
-    mComponents.emplace("c2.google.amrnb.decoder", "libstagefright_soft_c2amrnbdec.so");
-    mComponents.emplace("c2.google.amrnb.encoder", "libstagefright_soft_c2amrnbenc.so");
-    mComponents.emplace("c2.google.amrwb.decoder", "libstagefright_soft_c2amrwbdec.so");
-    mComponents.emplace("c2.google.amrwb.encoder", "libstagefright_soft_c2amrwbenc.so");
-    mComponents.emplace("c2.google.hevc.decoder", "libstagefright_soft_c2hevcdec.so");
-    mComponents.emplace("c2.google.g711.alaw.decoder", "libstagefright_soft_c2g711alawdec.so");
-    mComponents.emplace("c2.google.g711.mlaw.decoder", "libstagefright_soft_c2g711mlawdec.so");
-    mComponents.emplace("c2.google.mpeg2.decoder", "libstagefright_soft_c2mpeg2dec.so");
-    mComponents.emplace("c2.google.h263.decoder", "libstagefright_soft_c2h263dec.so");
-    mComponents.emplace("c2.google.h263.encoder", "libstagefright_soft_c2h263enc.so");
-    mComponents.emplace("c2.google.mpeg4.decoder", "libstagefright_soft_c2mpeg4dec.so");
-    mComponents.emplace("c2.google.mpeg4.encoder", "libstagefright_soft_c2mpeg4enc.so");
-    mComponents.emplace("c2.google.mp3.decoder", "libstagefright_soft_c2mp3dec.so");
-    mComponents.emplace("c2.google.vorbis.decoder", "libstagefright_soft_c2vorbisdec.so");
-    mComponents.emplace("c2.google.opus.decoder", "libstagefright_soft_c2opusdec.so");
-    mComponents.emplace("c2.google.vp8.decoder", "libstagefright_soft_c2vp8dec.so");
-    mComponents.emplace("c2.google.vp9.decoder", "libstagefright_soft_c2vp9dec.so");
-    mComponents.emplace("c2.google.vp8.encoder", "libstagefright_soft_c2vp8enc.so");
-    mComponents.emplace("c2.google.vp9.encoder", "libstagefright_soft_c2vp9enc.so");
-    mComponents.emplace("c2.google.raw.decoder", "libstagefright_soft_c2rawdec.so");
-    mComponents.emplace("c2.google.flac.decoder", "libstagefright_soft_c2flacdec.so");
-    mComponents.emplace("c2.google.flac.encoder", "libstagefright_soft_c2flacenc.so");
-    mComponents.emplace("c2.google.gsm.decoder", "libstagefright_soft_c2gsmdec.so");
+    mComponents.emplace("c2.android.avc.decoder", "libstagefright_soft_c2avcdec.so");
+    mComponents.emplace("c2.android.avc.encoder", "libstagefright_soft_c2avcenc.so");
+    mComponents.emplace("c2.android.aac.decoder", "libstagefright_soft_c2aacdec.so");
+    mComponents.emplace("c2.android.aac.encoder", "libstagefright_soft_c2aacenc.so");
+    mComponents.emplace("c2.android.amrnb.decoder", "libstagefright_soft_c2amrnbdec.so");
+    mComponents.emplace("c2.android.amrnb.encoder", "libstagefright_soft_c2amrnbenc.so");
+    mComponents.emplace("c2.android.amrwb.decoder", "libstagefright_soft_c2amrwbdec.so");
+    mComponents.emplace("c2.android.amrwb.encoder", "libstagefright_soft_c2amrwbenc.so");
+    mComponents.emplace("c2.android.hevc.decoder", "libstagefright_soft_c2hevcdec.so");
+    mComponents.emplace("c2.android.g711.alaw.decoder", "libstagefright_soft_c2g711alawdec.so");
+    mComponents.emplace("c2.android.g711.mlaw.decoder", "libstagefright_soft_c2g711mlawdec.so");
+    mComponents.emplace("c2.android.mpeg2.decoder", "libstagefright_soft_c2mpeg2dec.so");
+    mComponents.emplace("c2.android.h263.decoder", "libstagefright_soft_c2h263dec.so");
+    mComponents.emplace("c2.android.h263.encoder", "libstagefright_soft_c2h263enc.so");
+    mComponents.emplace("c2.android.mpeg4.decoder", "libstagefright_soft_c2mpeg4dec.so");
+    mComponents.emplace("c2.android.mpeg4.encoder", "libstagefright_soft_c2mpeg4enc.so");
+    mComponents.emplace("c2.android.mp3.decoder", "libstagefright_soft_c2mp3dec.so");
+    mComponents.emplace("c2.android.vorbis.decoder", "libstagefright_soft_c2vorbisdec.so");
+    mComponents.emplace("c2.android.opus.decoder", "libstagefright_soft_c2opusdec.so");
+    mComponents.emplace("c2.android.vp8.decoder", "libstagefright_soft_c2vp8dec.so");
+    mComponents.emplace("c2.android.vp9.decoder", "libstagefright_soft_c2vp9dec.so");
+    mComponents.emplace("c2.android.vp8.encoder", "libstagefright_soft_c2vp8enc.so");
+    mComponents.emplace("c2.android.vp9.encoder", "libstagefright_soft_c2vp9enc.so");
+    mComponents.emplace("c2.android.raw.decoder", "libstagefright_soft_c2rawdec.so");
+    mComponents.emplace("c2.android.flac.decoder", "libstagefright_soft_c2flacdec.so");
+    mComponents.emplace("c2.android.flac.encoder", "libstagefright_soft_c2flacenc.so");
+    mComponents.emplace("c2.android.gsm.decoder", "libstagefright_soft_c2gsmdec.so");
+    mComponents.emplace("c2.android.xaac.decoder", "libstagefright_soft_c2xaacdec.so");
 }
 
 c2_status_t C2PlatformComponentStore::copyBuffer(
@@ -623,17 +812,13 @@ c2_status_t C2PlatformComponentStore::query_sm(
         const std::vector<C2Param*> &stackParams,
         const std::vector<C2Param::Index> &heapParamIndices,
         std::vector<std::unique_ptr<C2Param>> *const heapParams) const {
-    // there are no supported configs
-    (void)heapParams;
-    return stackParams.empty() && heapParamIndices.empty() ? C2_OK : C2_BAD_INDEX;
+    return mInterface.query(stackParams, heapParamIndices, C2_MAY_BLOCK, heapParams);
 }
 
 c2_status_t C2PlatformComponentStore::config_sm(
         const std::vector<C2Param*> &params,
         std::vector<std::unique_ptr<C2SettingResult>> *const failures) {
-    // there are no supported configs
-    (void)failures;
-    return params.empty() ? C2_OK : C2_BAD_INDEX;
+    return mInterface.config(params, C2_MAY_BLOCK, failures);
 }
 
 std::vector<std::shared_ptr<const C2Component::Traits>> C2PlatformComponentStore::listComponents() {
@@ -700,15 +885,12 @@ c2_status_t C2PlatformComponentStore::createInterface(
 
 c2_status_t C2PlatformComponentStore::querySupportedParams_nb(
         std::vector<std::shared_ptr<C2ParamDescriptor>> *const params) const {
-    // there are no supported config params
-    (void)params;
-    return C2_OK;
+    return mInterface.querySupportedParams(params);
 }
 
 c2_status_t C2PlatformComponentStore::querySupportedValues_sm(
         std::vector<C2FieldSupportedValuesQuery> &fields) const {
-    // there are no supported config params
-    return fields.empty() ? C2_OK : C2_BAD_INDEX;
+    return mInterface.querySupportedValues(fields, C2_MAY_BLOCK);
 }
 
 C2String C2PlatformComponentStore::getName() const {

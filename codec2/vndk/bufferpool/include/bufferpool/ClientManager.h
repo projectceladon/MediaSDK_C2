@@ -21,7 +21,7 @@
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
 #include <memory>
-#include <BufferPoolTypes.h>
+#include "BufferPoolTypes.h"
 
 namespace android {
 namespace hardware {
@@ -63,6 +63,24 @@ struct ClientManager : public IClientManager {
                         ConnectionId *pConnectionId);
 
     /**
+     * Register a created connection as sender for remote process.
+     *
+     * @param receiver      The remote receiving process.
+     * @param senderId      A local connection which will send buffers to.
+     * @param receiverId    Id of the created receiving connection on the receiver
+     *                      process.
+     *
+     * @return OK when the receiving connection is successfully created on the
+     *         receiver process.
+     *         NOT_FOUND when the sender connection was not found.
+     *         ALREADY_EXISTS the receiving connection is already made.
+     *         CRITICAL_ERROR otherwise.
+     */
+    ResultStatus registerSender(const sp<IClientManager> &receiver,
+                                ConnectionId senderId,
+                                ConnectionId *receiverId);
+
+    /**
      * Closes the specified connection.
      *
      * @param connectionId  The id of the connection.
@@ -78,6 +96,8 @@ struct ClientManager : public IClientManager {
      *
      * @param connectionId  The id of the connection.
      * @param params        The allocation parameters.
+     * @param handle        The native handle to the allocated buffer. handle
+     *                      should be cloned before use.
      * @param buffer        The allocated buffer.
      *
      * @return OK when a buffer was allocated successfully.
@@ -87,7 +107,8 @@ struct ClientManager : public IClientManager {
      */
     ResultStatus allocate(ConnectionId connectionId,
                           const std::vector<uint8_t> &params,
-                          std::shared_ptr<_C2BlockPoolData> *buffer);
+                          native_handle_t **handle,
+                          std::shared_ptr<BufferPoolData> *buffer);
 
     /**
      * Receives a buffer for the transaction.
@@ -96,6 +117,8 @@ struct ClientManager : public IClientManager {
      * @param transactionId The id for the transaction.
      * @param bufferId      The id for the buffer.
      * @param timestampUs   The timestamp of the buffer is being sent.
+     * @param handle        The native handle to the allocated buffer. handle
+     *                      should be cloned before use.
      * @param buffer        The received buffer.
      *
      * @return OK when a buffer was received successfully.
@@ -107,13 +130,13 @@ struct ClientManager : public IClientManager {
                          TransactionId transactionId,
                          BufferId bufferId,
                          int64_t timestampUs,
-                         std::shared_ptr<_C2BlockPoolData> *buffer);
+                          native_handle_t **handle,
+                         std::shared_ptr<BufferPoolData> *buffer);
 
     /**
      * Posts a buffer transfer transaction to the buffer pool. Sends a buffer
      * to other remote clients(connection) after this call has been succeeded.
      *
-     * @param connectionId  The id of the sending connection.
      * @param receiverId    The id of the receiving connection.
      * @param buffer        to transfer
      * @param transactionId Id of the transfer transaction.
@@ -124,22 +147,15 @@ struct ClientManager : public IClientManager {
      *         NOT_FOUND when the sending connection was not found.
      *         CRITICAL_ERROR otherwise.
      */
-    ResultStatus postSend(ConnectionId connectionId,
-                          ConnectionId receiverId,
-                          const std::shared_ptr<_C2BlockPoolData> &buffer,
+    ResultStatus postSend(ConnectionId receiverId,
+                          const std::shared_ptr<BufferPoolData> &buffer,
                           TransactionId *transactionId,
                           int64_t *timestampUs);
 
-    /** Gets a buffer pool for the specified connection.
-     *
-     * @param connectionId  The id of the connection.
-     * @param accessor      The buffer pool for the specified connection.
-     * @return OK when a buffer pool was found for the connection.
-     *         NOT_FOUND when the specified connection was not found.
-     *         CRITICAL_ERROR otherwise.
+    /**
+     *  Time out inactive lingering connections and close.
      */
-    ResultStatus getAccessor(ConnectionId connectionId,
-                             sp<IAccessor> *accessor);
+    void cleanUp();
 
     /** Destructs the manager of buffer pool clients.  */
     ~ClientManager();
@@ -152,9 +168,6 @@ private:
 
     ClientManager();
 };
-
-// FIXME: most likely delete, this is only for passthrough implementations
-// extern "C" IClientManager* HIDL_FETCH_IClientManager(const char* name);
 
 }  // namespace implementation
 }  // namespace V1_0

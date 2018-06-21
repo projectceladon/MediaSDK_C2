@@ -55,8 +55,7 @@ public:
                        BufferId bufferId,
                        const native_handle_t** handle);
 
-    /** Processes pending buffer status messages */
-    void sync();
+    void cleanUp(bool clearCache);
 
 private:
     // ConnectionId = pid : (timestamp_created + seqId)
@@ -76,6 +75,8 @@ private:
     private:
         std::mutex mMutex;
         int64_t mTimestampUs;
+        int64_t mLastCleanUpUs;
+        int64_t mLastLogUs;
         BufferId mSeq;
         BufferStatusObserver mObserver;
 
@@ -94,9 +95,81 @@ private:
         std::map<BufferId, std::unique_ptr<InternalBuffer>> mBuffers;
         std::set<BufferId> mFreeBuffers;
 
+        /// Buffer pool statistics which tracks allocation and transfer statistics.
+        struct Stats {
+            /// Total size of allocations which are used or available to use.
+            /// (bytes or pixels)
+            size_t mSizeCached;
+            /// # of cached buffers which are used or available to use.
+            size_t mBuffersCached;
+            /// Total size of allocations which are currently used. (bytes or pixels)
+            size_t mSizeInUse;
+            /// # of currently used buffers
+            size_t mBuffersInUse;
+
+            /// # of allocations called on bufferpool. (# of fetched from BlockPool)
+            size_t mTotalAllocations;
+            /// # of allocations that were served from the cache.
+            /// (# of allocator alloc prevented)
+            size_t mTotalRecycles;
+            /// # of buffer transfers initiated.
+            size_t mTotalTransfers;
+            /// # of transfers that had to be fetched.
+            size_t mTotalFetches;
+
+            Stats()
+                : mSizeCached(0), mBuffersCached(0), mSizeInUse(0), mBuffersInUse(0),
+                  mTotalAllocations(0), mTotalRecycles(0), mTotalTransfers(0), mTotalFetches(0) {}
+
+            /// A new buffer is allocated on an allocation request.
+            void onBufferAllocated(size_t allocSize) {
+                mSizeCached += allocSize;
+                mBuffersCached++;
+
+                mSizeInUse += allocSize;
+                mBuffersInUse++;
+
+                mTotalAllocations++;
+            }
+
+            /// A buffer is evicted and destroyed.
+            void onBufferEvicted(size_t allocSize) {
+                mSizeCached -= allocSize;
+                mBuffersCached--;
+            }
+
+            /// A buffer is recycled on an allocation request.
+            void onBufferRecycled(size_t allocSize) {
+                mSizeInUse += allocSize;
+                mBuffersInUse++;
+
+                mTotalAllocations++;
+                mTotalRecycles++;
+            }
+
+            /// A buffer is available to be recycled.
+            void onBufferUnused(size_t allocSize) {
+                mSizeInUse -= allocSize;
+                mBuffersInUse--;
+            }
+
+            /// A buffer transfer is initiated.
+            void onBufferSent() {
+                mTotalTransfers++;
+            }
+
+            /// A buffer fetch is invoked by a buffer transfer.
+            void onBufferFetched() {
+                mTotalFetches++;
+            }
+        } mStats;
+
     public:
         /** Creates a buffer pool. */
         BufferPool();
+
+        /** Destroys a buffer pool. */
+        ~BufferPool();
 
         /**
          * Processes all pending buffer status messages, and returns the result.
@@ -185,10 +258,11 @@ private:
                 BufferId *pId, const native_handle_t **handle);
 
         /**
-         * Creates a new buffer.
+         * Adds a newly allocated buffer to bufferpool.
          *
-         * @param allocator the buffer allocator
-         * @param params    the allocator parameters
+         * @param alloc     the newly allocated buffer.
+         * @param allocSize the size of the newly allocated buffer.
+         * @param params    the allocation parameters.
          * @param pId       the buffer id for the newly allocated buffer.
          * @param handle    the native handle for the newly allocated buffer.
          *
@@ -196,10 +270,21 @@ private:
          *         NO_MEMORY when there is no memory.
          *         CRITICAL_ERROR otherwise.
          */
-        ResultStatus getNewBuffer(
-                const std::shared_ptr<BufferPoolAllocator> &allocator,
-                const std::vector<uint8_t> &params, BufferId *pId,
+        ResultStatus addNewBuffer(
+                const std::shared_ptr<BufferPoolAllocation> &alloc,
+                const size_t allocSize,
+                const std::vector<uint8_t> &params,
+                BufferId *pId,
                 const native_handle_t **handle);
+
+        /**
+         * Processes pending buffer status messages and performs periodic cache
+         * cleaning.
+         *
+         * @param clearCache    if clearCache is true, it frees all buffers
+         *                      waiting to be recycled.
+         */
+        void cleanUp(bool clearCache = false);
 
         friend class Accessor::Impl;
     } mBufferPool;

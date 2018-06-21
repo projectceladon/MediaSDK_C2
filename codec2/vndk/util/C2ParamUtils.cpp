@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define __C2_GENERATE_GLOBAL_VARS__ // to be able to implement the methods defined
+#include <C2Enum.h>
 #include <util/C2Debug-log.h>
 #include <util/C2ParamUtils.h>
 
@@ -57,7 +59,7 @@ static size_t countMatching(C2StringLiteral a, const C2String &b) {
 // C2__yo => c2-yo
 
 //static
-C2String C2ParamUtils::camelCaseToDashed(C2String name) {
+C2String _C2EnumUtils::camelCaseToDashed(C2String name) {
     enum {
         kNone = '.',
         kLower = 'a',
@@ -114,7 +116,7 @@ C2String C2ParamUtils::camelCaseToDashed(C2String name) {
 }
 
 //static
-std::vector<C2String> C2ParamUtils::sanitizeEnumValueNames(
+std::vector<C2String> _C2EnumUtils::sanitizeEnumValueNames(
         const std::vector<C2StringLiteral> names,
         C2StringLiteral _prefix) {
     std::vector<C2String> sanitizedNames;
@@ -163,7 +165,7 @@ std::vector<C2String> C2ParamUtils::sanitizeEnumValueNames(
         C2String sanitized = C2String(s, underscores - extraUnderscores);
         sanitized.append(s + prefix.size() + underscores +
                     (upperCasePrefix && s[prefix.size() + underscores] == '_'));
-        sanitizedNames.push_back(C2ParamUtils::camelCaseToDashed(sanitized));
+        sanitizedNames.push_back(camelCaseToDashed(sanitized));
     }
 
     for (C2String s : sanitizedNames) {
@@ -174,7 +176,7 @@ std::vector<C2String> C2ParamUtils::sanitizeEnumValueNames(
 }
 
 //static
-std::vector<C2String> C2ParamUtils::parseEnumValuesFromString(C2StringLiteral value) {
+std::vector<C2String> _C2EnumUtils::parseEnumValuesFromString(C2StringLiteral value) {
     std::vector<C2String> foundNames;
     size_t pos = 0, len = strlen(value);
     do {

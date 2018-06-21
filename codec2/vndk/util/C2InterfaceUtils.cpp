@@ -25,10 +25,7 @@
 #include <C2Param.h>
 #include <C2ParamDef.h>
 #include <C2ParamInternal.h>
-#include <util/C2ParamUtils.h>
 #include <util/C2InterfaceUtils.h>
-#include <C2Work.h>
-#include <C2Component.h>
 
 #include <cmath>
 #include <limits>
@@ -258,7 +255,10 @@ template class C2SupportedFlags<uint64_t>;
  */
 template<typename T>
 bool C2SupportedValueSet<T>::contains(T value) const {
-    return std::find(_mValues.cbegin(), _mValues.cend(), C2Value::Primitive(value)) != _mValues.cend();
+    return std::find_if(_mValues.cbegin(), _mValues.cend(),
+            [value](const C2Value::Primitive &p) -> bool {
+                return value == p.ref<ValueType>();
+            }) != _mValues.cend();
 }
 
 template<typename T>
@@ -624,6 +624,11 @@ C2SettingConflictsBuilder::C2SettingConflictsBuilder(C2ParamFieldValues &&confli
     _mConflicts.emplace_back(std::move(conflict));
 }
 
+C2SettingConflictsBuilder& C2SettingConflictsBuilder::with(C2ParamFieldValues &&conflict) {
+    _mConflicts.emplace_back(std::move(conflict));
+    return *this;
+}
+
 std::vector<C2ParamFieldValues> C2SettingConflictsBuilder::retrieveConflicts() {
     return std::move(_mConflicts);
 }
@@ -634,23 +639,26 @@ C2SettingResult C2SettingResultBuilder::ReadOnly(const C2ParamField &param) {
     return C2SettingResult { C2SettingResult::READ_ONLY, { param }, { } };
 }
 
-C2SettingResult C2SettingResultBuilder::BadValue(const C2ParamField &paramField) {
-    return { C2SettingResult::BAD_VALUE, { paramField }, { } };
+C2SettingResult C2SettingResultBuilder::BadValue(const C2ParamField &paramField, bool isInfo) {
+    return { isInfo ? C2SettingResult::INFO_BAD_VALUE : C2SettingResult::BAD_VALUE,
+             { paramField }, { } };
 }
 
 C2SettingResult C2SettingResultBuilder::Conflict(
-        C2ParamFieldValues &&paramFieldValues, C2SettingConflictsBuilder &conflicts) {
-    return C2SettingResult {
-        C2SettingResult::CONFLICT, std::move(paramFieldValues), conflicts.retrieveConflicts()
-    };
+        C2ParamFieldValues &&paramFieldValues, C2SettingConflictsBuilder &conflicts, bool isInfo) {
+    C2_CHECK(!conflicts.empty());
+    if (isInfo) {
+        return C2SettingResult {
+            C2SettingResult::INFO_CONFLICT,
+            std::move(paramFieldValues), conflicts.retrieveConflicts()
+        };
+    } else {
+        return C2SettingResult {
+            C2SettingResult::CONFLICT,
+            std::move(paramFieldValues), conflicts.retrieveConflicts()
+        };
+    }
 }
-
-/*
-C2SettingResultBuilder::C2SettingResultBuilder(const C2ParamField &paramField)
-    : _mParamField(paramField),
-      _mResult{ C2SettingResult::INFO_CONFLICT, { paramField }, { } } {
-}
-*/
 
 C2SettingResultsBuilder::C2SettingResultsBuilder(C2SettingResult &&result)
         : _mStatus(C2_BAD_VALUE) {

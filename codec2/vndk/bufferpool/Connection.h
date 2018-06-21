@@ -18,9 +18,9 @@
 #define ANDROID_HARDWARE_MEDIA_BUFFERPOOL_V1_0_CONNECTION_H
 
 #include <android/hardware/media/bufferpool/1.0/IConnection.h>
+#include <bufferpool/BufferPoolTypes.h>
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
-#include <BufferPoolTypes.h>
 #include "Accessor.h"
 
 namespace android {
@@ -59,6 +59,15 @@ struct Connection : public IConnection {
     ResultStatus allocate(const std::vector<uint8_t> &params,
                           BufferId *bufferId, const native_handle_t **handle);
 
+    /**
+     * Processes pending buffer status messages and performs periodic cache cleaning
+     * from bufferpool.
+     *
+     * @param clearCache    if clearCache is true, bufferpool frees all buffers
+     *                      waiting to be recycled.
+     */
+    void cleanUp(bool clearCache);
+
     /** Destructs a connection. */
     ~Connection();
 
@@ -79,9 +88,6 @@ private:
     sp<Accessor> mAccessor;
     ConnectionId mConnectionId;
 };
-
-// FIXME: most likely delete, this is only for passthrough implementations
-// extern "C" IConnection* HIDL_FETCH_IConnection(const char* name);
 
 }  // namespace implementation
 }  // namespace V1_0

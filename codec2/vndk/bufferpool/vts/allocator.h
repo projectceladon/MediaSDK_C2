@@ -17,7 +17,7 @@
 #ifndef VTS_VNDK_HIDL_BUFFERPOOL_V1_0_ALLOCATOR_H
 #define VTS_VNDK_HIDL_BUFFERPOOL_V1_0_ALLOCATOR_H
 
-#include <BufferPoolTypes.h>
+#include <bufferpool/BufferPoolTypes.h>
 
 using android::hardware::media::bufferpool::V1_0::ResultStatus;
 using android::hardware::media::bufferpool::V1_0::implementation::
@@ -34,7 +34,8 @@ class VtsBufferPoolAllocator : public BufferPoolAllocator {
   ~VtsBufferPoolAllocator() override {}
 
   ResultStatus allocate(const std::vector<uint8_t> &params,
-                        std::shared_ptr<BufferPoolAllocation> *alloc) override;
+                        std::shared_ptr<BufferPoolAllocation> *alloc,
+                        size_t *allocSize) override;
 
   bool compatible(const std::vector<uint8_t> &newParams,
                   const std::vector<uint8_t> &oldParams) override;

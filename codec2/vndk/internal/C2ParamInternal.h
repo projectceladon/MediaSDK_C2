@@ -80,6 +80,13 @@ struct C2_HIDE _C2ParamInspector {
         return C2ParamField(index, field._mOffset, field._mSize);
     }
 
+    inline static
+    void TrimParam(C2Param *param, uint32_t newSize) {
+        if (param && *param && param->size() > newSize && newSize >= sizeof(C2Param)) {
+            param->_mSize = newSize;
+        }
+    }
+
     inline static void AddNamedValues(
             C2FieldDescriptor &fd, C2FieldDescriptor::NamedValuesType &&namedValues) {
         fd._mNamedValues = std::move(namedValues);

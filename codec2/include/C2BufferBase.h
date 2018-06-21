@@ -43,7 +43,7 @@ struct C2MemoryUsage {
     /**
      * Buffer read usage.
      */
-    enum Read : uint64_t {
+    enum read_t : uint64_t {
         /** Buffer is read by the CPU. */
         CPU_READ        = 1 << 0,
         /**
@@ -58,7 +58,7 @@ struct C2MemoryUsage {
     /**
      * Buffer write usage.
      */
-    enum Write : uint64_t {
+    enum write_t : uint64_t {
         /** Buffer is writted to by the CPU. */
         CPU_WRITE        = 1 << 2,
         /**
