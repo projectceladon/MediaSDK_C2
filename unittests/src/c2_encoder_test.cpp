@@ -1143,7 +1143,7 @@ TEST(MfxEncoderComponent, CodecProfileAndLevel)
 TEST(MfxEncoderComponent, FrameRate)
 {
     ForEveryComponent<ComponentDesc>(g_components_desc,
-        [] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+        [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         std::vector<char> bitstream;
         struct TestRunDescription
