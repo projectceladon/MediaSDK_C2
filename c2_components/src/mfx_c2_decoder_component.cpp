@@ -730,6 +730,8 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
                 mfx_sts = DecodeFrame(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(),
                     std::move(frame_out));
+
+                if (!c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get()->DataLength) break;
             } while (mfx_sts == MFX_ERR_NONE || mfx_sts == MFX_ERR_MORE_SURFACE);
 
             if (MFX_ERR_MORE_DATA == mfx_sts) {
@@ -768,6 +770,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         if (C2_OK != res) break; // if loop above was interrupted by C2 error
 
         if (MFX_ERR_NONE != mfx_sts) {
+            MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
             res = MfxStatusToC2(mfx_sts);
             break;
         }
