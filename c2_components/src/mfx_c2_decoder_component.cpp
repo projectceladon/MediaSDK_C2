@@ -52,6 +52,10 @@ MfxC2DecoderComponent::~MfxC2DecoderComponent()
 
     FreeDecoder();
 
+    if (c2_bitstream_) {
+        c2_bitstream_->Reset();
+    }
+
     session_.Close();
 }
 
@@ -154,6 +158,10 @@ c2_status_t MfxC2DecoderComponent::DoStop()
     c2_allocator_ = nullptr;
 
     FreeDecoder();
+
+    if (c2_bitstream_) {
+        c2_bitstream_->Reset();
+    }
 
     return C2_OK;
 }
