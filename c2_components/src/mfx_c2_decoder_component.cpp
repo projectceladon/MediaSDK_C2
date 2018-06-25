@@ -162,20 +162,26 @@ mfxStatus MfxC2DecoderComponent::InitSession()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    mfxStatus mfx_res = session_.Init(mfx_implementation_, &g_required_mfx_version);
-    MFX_DEBUG_TRACE_I32(g_required_mfx_version.Major);
-    MFX_DEBUG_TRACE_I32(g_required_mfx_version.Minor);
+    mfxStatus mfx_res = MFX_ERR_NONE;
 
-    if(mfx_res == MFX_ERR_NONE) {
-        mfxStatus sts = session_.QueryIMPL(&mfx_implementation_);
-        MFX_DEBUG_TRACE__mfxStatus(sts);
+    do {
+        mfx_res = session_.Init(mfx_implementation_, &g_required_mfx_version);
+        if (MFX_ERR_NONE != mfx_res) {
+            MFX_DEBUG_TRACE_MSG("MFXVideoSession::Init failed");
+            break;
+        }
+        MFX_DEBUG_TRACE_I32(g_required_mfx_version.Major);
+        MFX_DEBUG_TRACE_I32(g_required_mfx_version.Minor);
+
+        mfx_res = session_.QueryIMPL(&mfx_implementation_);
+        if (MFX_ERR_NONE != mfx_res) break;
         MFX_DEBUG_TRACE_I32(mfx_implementation_);
 
         mfx_res = device_->InitMfxSession(&session_);
-    } else {
-        MFX_DEBUG_TRACE_MSG("MFXVideoSession::Init failed");
-        MFX_DEBUG_TRACE__mfxStatus(mfx_res);
-    }
+
+    } while (false);
+
+    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }
 
