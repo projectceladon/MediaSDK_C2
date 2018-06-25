@@ -737,15 +737,13 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 }
             }
 
+            mfxBitstream *bs = c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get();
             MfxC2FrameOut frame_out;
             do {
                 res = AllocateFrame(&frame_out);
                 if (C2_OK != res) break;
 
-                mfx_sts = DecodeFrame(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(),
-                    std::move(frame_out));
-
-                if (!c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get()->DataLength) break;
+                mfx_sts = DecodeFrame(bs, std::move(frame_out));
             } while (mfx_sts == MFX_ERR_NONE || mfx_sts == MFX_ERR_MORE_SURFACE);
 
             if (MFX_ERR_MORE_DATA == mfx_sts) {
