@@ -41,6 +41,8 @@ public:
     MfxC2BitstreamIn(MfxC2FrameConstructorType fc_type);
     virtual ~MfxC2BitstreamIn();
 
+    virtual c2_status_t Reset();
+
     virtual std::shared_ptr<IMfxC2FrameConstructor> GetFrameConstructor() { return frame_constructor_; }
     // Maps c2 linear block and can leave it in mapped state until
     // frame_view freed or frame_view->Release is called.

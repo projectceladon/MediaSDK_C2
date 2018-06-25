@@ -31,6 +31,22 @@ MfxC2BitstreamIn::~MfxC2BitstreamIn()
     MFX_DEBUG_TRACE_FUNC;
 }
 
+c2_status_t MfxC2BitstreamIn::Reset()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    c2_status_t res = C2_OK;
+
+    do {
+        mfxStatus mfx_res = frame_constructor_->Reset();
+        res = MfxStatusToC2(mfx_res);
+        if(C2_OK != res) break;
+    } while(false);
+
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
+    return res;
+}
+
 c2_status_t MfxC2BitstreamIn::AppendFrame(C2FrameData& buf_pack, c2_nsecs_t timeout,
     std::unique_ptr<FrameView>* frame_view)
 {
