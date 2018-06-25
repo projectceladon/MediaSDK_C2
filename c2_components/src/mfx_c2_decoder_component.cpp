@@ -792,8 +792,15 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
     } while(false); // fake loop to have a cleanup point there
 
-    if (C2_OK != res && nullptr != work) { // notify listener in case of failure only
-        NotifyWorkDone(std::move(work), res);
+    if (C2_OK != res) { // notify listener in case of failure only
+        if (nullptr != work) {
+            NotifyWorkDone(std::move(work), res);
+        } else if (!works_queue_.empty()) {
+            NotifyWorkDone(std::move(works_queue_.front()), res);
+            works_queue_.pop();
+        } else {
+            MFX_DEBUG_TRACE_STREAM("Not found C2Work to return error result!!!");
+        }
     }
 }
 
