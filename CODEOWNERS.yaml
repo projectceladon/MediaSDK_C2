@@ -1,0 +1,17 @@
+__default_reviewers__:
+- olga.a.kasatkina@intel.com
+- dmitry.brazhkin@intel.com
+- alexey.s.kokoshnikov@intel.com
+- denis.volkov@intel.com
+- alexeyx.dulaev@intel.com
+- dmitry.v.rogozhkin@intel.com
+
+codeowners:
+  paths:
+  - CODEOWNERS.yaml
+  reviewers:
+  - alexander.dydychkin@intel.com
+  - dmitry.kozlov@intel.com
+  - alexander.zhogov@intel.com
+  - eugene.ponomarev@intel.com
+
