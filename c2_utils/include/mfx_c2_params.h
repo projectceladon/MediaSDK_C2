@@ -11,7 +11,6 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #pragma once
 
 #include <C2Config.h>
-#include <C2ParamDef.h>
 
 enum C2ParamIndexKindVendor : uint32_t {
 
