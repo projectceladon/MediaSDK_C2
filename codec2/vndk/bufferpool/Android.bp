@@ -19,9 +19,14 @@ cc_library_vndk_mfx {
         "libcutils",
         "libfmq",
         "libhidlbase",
+        "libhwbinder",
         "libhidltransport",
         "liblog",
         "libutils",
+        "android.hardware.media.bufferpool@1.0",
+    ],
+    export_shared_lib_headers: [
+        "libfmq",
         "android.hardware.media.bufferpool@1.0",
     ],
 }

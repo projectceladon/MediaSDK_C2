@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "bufferpool"
+#define LOG_TAG "BufferPoolAccessor"
 //#define LOG_NDEBUG 0
 
-#include <inttypes.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -32,20 +31,30 @@ namespace bufferpool {
 namespace V1_0 {
 namespace implementation {
 
+namespace {
+    static constexpr int64_t kCleanUpDurationUs = 500000; // TODO tune 0.5 sec
+    static constexpr int64_t kLogDurationUs = 5000000; // 5 secs
+
+    static constexpr size_t kMinAllocBytesForEviction = 1024*1024*15;
+    static constexpr size_t kMinBufferCountForEviction = 40;
+}
+
 // Buffer structure in bufferpool process
 struct InternalBuffer {
     BufferId mId;
     size_t mOwnerCount;
     size_t mTransactionCount;
     const std::shared_ptr<BufferPoolAllocation> mAllocation;
+    const size_t mAllocSize;
     const std::vector<uint8_t> mConfig;
 
     InternalBuffer(
             BufferId id,
             const std::shared_ptr<BufferPoolAllocation> &alloc,
+            const size_t allocSize,
             const std::vector<uint8_t> &allocConfig)
             : mId(id), mOwnerCount(0), mTransactionCount(0),
-            mAllocation(alloc), mConfig(allocConfig) {}
+            mAllocation(alloc), mAllocSize(allocSize), mConfig(allocConfig) {}
 
     const native_handle_t *handle() {
         return mAllocation->handle();
@@ -118,7 +127,6 @@ bool contains(std::map<T, std::set<U>> *mapOfSet, T key, U value) {
     return false;
 }
 
-
 int32_t Accessor::Impl::sPid = getpid();
 uint32_t Accessor::Impl::sSeqId = time(NULL);
 
@@ -134,16 +142,20 @@ ResultStatus Accessor::Impl::connect(
         ConnectionId *pConnectionId, const QueueDescriptor** fmqDescPtr) {
     sp<Connection> newConnection = new Connection();
     ResultStatus status = ResultStatus::CRITICAL_ERROR;
-    if (newConnection) {
+    {
         std::lock_guard<std::mutex> lock(mBufferPool.mMutex);
-        ConnectionId id = (int64_t)sPid << 32 | sSeqId;
-        status = mBufferPool.mObserver.open(id, fmqDescPtr);
-        if (status == ResultStatus::OK) {
-            newConnection->initialize(accessor, id);
-            *connection = newConnection;
-            *pConnectionId = id;
-            ++sSeqId;
+        if (newConnection) {
+            ConnectionId id = (int64_t)sPid << 32 | sSeqId;
+            status = mBufferPool.mObserver.open(id, fmqDescPtr);
+            if (status == ResultStatus::OK) {
+                newConnection->initialize(accessor, id);
+                *connection = newConnection;
+                *pConnectionId = id;
+                ++sSeqId;
+            }
         }
+        mBufferPool.processStatusMessages();
+        mBufferPool.cleanUp();
     }
     return status;
 }
@@ -153,17 +165,27 @@ ResultStatus Accessor::Impl::close(ConnectionId connectionId) {
     mBufferPool.processStatusMessages();
     mBufferPool.handleClose(connectionId);
     mBufferPool.mObserver.close(connectionId);
+    // Since close# will be called after all works are finished, it is OK to
+    // evict unused buffers.
+    mBufferPool.cleanUp(true);
     return ResultStatus::OK;
 }
 
 ResultStatus Accessor::Impl::allocate(
         ConnectionId connectionId, const std::vector<uint8_t>& params,
         BufferId *bufferId, const native_handle_t** handle) {
-    std::lock_guard<std::mutex> lock(mBufferPool.mMutex);
+    std::unique_lock<std::mutex> lock(mBufferPool.mMutex);
     mBufferPool.processStatusMessages();
     ResultStatus status = ResultStatus::OK;
     if (!mBufferPool.getFreeBuffer(mAllocator, params, bufferId, handle)) {
-        status = mBufferPool.getNewBuffer(mAllocator, params, bufferId, handle);
+        lock.unlock();
+        std::shared_ptr<BufferPoolAllocation> alloc;
+        size_t allocSize;
+        status = mAllocator->allocate(params, &alloc, &allocSize);
+        lock.lock();
+        if (status == ResultStatus::OK) {
+            status = mBufferPool.addNewBuffer(alloc, allocSize, params, bufferId, handle);
+        }
         ALOGV("create a buffer %d : %u %p",
               status == ResultStatus::OK, *bufferId, *handle);
     }
@@ -171,6 +193,7 @@ ResultStatus Accessor::Impl::allocate(
         // TODO: handle ownBuffer failure
         mBufferPool.handleOwnBuffer(connectionId, *bufferId);
     }
+    mBufferPool.cleanUp();
     return status;
 }
 
@@ -189,23 +212,48 @@ ResultStatus Accessor::Impl::fetch(
             found->second->mStatus = BufferStatus::TRANSFER_FETCH;
             auto bufferIt = mBufferPool.mBuffers.find(bufferId);
             if (bufferIt != mBufferPool.mBuffers.end()) {
+                mBufferPool.mStats.onBufferFetched();
                 *handle = bufferIt->second->handle();
                 return ResultStatus::OK;
             }
         }
     }
+    mBufferPool.cleanUp();
     return ResultStatus::CRITICAL_ERROR;
 }
 
-void Accessor::Impl::sync() {
-    // TODO: periodic jobs
+void Accessor::Impl::cleanUp(bool clearCache) {
     // transaction timeout, buffer cacheing TTL handling
     std::lock_guard<std::mutex> lock(mBufferPool.mMutex);
     mBufferPool.processStatusMessages();
+    mBufferPool.cleanUp(clearCache);
 }
 
 Accessor::Impl::Impl::BufferPool::BufferPool()
-        : mTimestampUs(getTimestampNow()), mSeq(0) {}
+    : mTimestampUs(getTimestampNow()),
+      mLastCleanUpUs(mTimestampUs),
+      mLastLogUs(mTimestampUs),
+      mSeq(0) {}
+
+
+// Statistics helper
+template<typename T, typename S>
+int percentage(T base, S total) {
+    return int(total ? 0.5 + 100. * static_cast<S>(base) / total : 0);
+}
+
+Accessor::Impl::Impl::BufferPool::~BufferPool() {
+    std::lock_guard<std::mutex> lock(mMutex);
+    ALOGD("Destruction - bufferpool %p "
+          "cached: %zu/%zuM, %zu/%d%% in use; "
+          "allocs: %zu, %d%% recycled; "
+          "transfers: %zu, %d%% unfetced",
+          this, mStats.mBuffersCached, mStats.mSizeCached >> 20,
+          mStats.mBuffersInUse, percentage(mStats.mBuffersInUse, mStats.mBuffersCached),
+          mStats.mTotalAllocations, percentage(mStats.mTotalRecycles, mStats.mTotalAllocations),
+          mStats.mTotalTransfers,
+          percentage(mStats.mTotalTransfers - mStats.mTotalFetches, mStats.mTotalTransfers));
+}
 
 bool Accessor::Impl::BufferPool::handleOwnBuffer(
         ConnectionId connectionId, BufferId bufferId) {
@@ -227,6 +275,7 @@ bool Accessor::Impl::BufferPool::handleReleaseBuffer(
         iter->second->mOwnerCount--;
         if (iter->second->mOwnerCount == 0 &&
                 iter->second->mTransactionCount == 0) {
+            mStats.onBufferUnused(iter->second->mAllocSize);
             mFreeBuffers.insert(bufferId);
         }
     }
@@ -257,6 +306,7 @@ bool Accessor::Impl::BufferPool::handleTransferTo(const BufferStatusMessage &mes
         return true;
     }
     // TODO: verify there is target connection Id
+    mStats.onBufferSent();
     mTransactions.insert(std::make_pair(
             message.transactionId,
             std::make_unique<TransactionStatus>(message, mTimestampUs)));
@@ -270,6 +320,7 @@ bool Accessor::Impl::BufferPool::handleTransferFrom(const BufferStatusMessage &m
     auto found = mTransactions.find(message.transactionId);
     if (found == mTransactions.end()) {
         // TODO: is it feasible to check ownership here?
+        mStats.onBufferSent();
         mTransactions.insert(std::make_pair(
                 message.transactionId,
                 std::make_unique<TransactionStatus>(message, mTimestampUs)));
@@ -301,14 +352,16 @@ bool Accessor::Impl::BufferPool::handleTransferResult(const BufferStatusMessage 
             bufferIter->second->mTransactionCount--;
             if (bufferIter->second->mOwnerCount == 0
                 && bufferIter->second->mTransactionCount == 0) {
+                mStats.onBufferUnused(bufferIter->second->mAllocSize);
                 mFreeBuffers.insert(message.bufferId);
             }
+            mTransactions.erase(found);
         }
-        ALOGV("transfer finished %" PRIu64 " %u - %d", message.transactionId,
+        ALOGV("transfer finished %llu %u - %d", (unsigned long long)message.transactionId,
               message.bufferId, deleted);
         return deleted;
     }
-    ALOGV("transfer not found %" PRIu64 " %u", message.transactionId,
+    ALOGV("transfer not found %llu %u", (unsigned long long)message.transactionId,
           message.bufferId);
     return false;
 }
@@ -348,9 +401,8 @@ void Accessor::Impl::BufferPool::processStatusMessages() {
                 break;
         }
         if (ret == false) {
-            ALOGW("buffer status message processing failure - message : %d "
-                  "connection : %" PRId64,
-                  message.newStatus, message.connectionId);
+            ALOGW("buffer status message processing failure - message : %d connection : %lld",
+                  message.newStatus, (long long)message.connectionId);
         }
     }
     messages.clear();
@@ -368,6 +420,7 @@ bool Accessor::Impl::BufferPool::handleClose(ConnectionId connectionId) {
                 if (bufferIter->second->mOwnerCount == 0 &&
                         bufferIter->second->mTransactionCount == 0) {
                     // TODO: handle freebuffer insert fail
+                    mStats.onBufferUnused(bufferIter->second->mAllocSize);
                     mFreeBuffers.insert(bufferId);
                 }
             }
@@ -390,6 +443,7 @@ bool Accessor::Impl::BufferPool::handleClose(ConnectionId connectionId) {
                 if (bufferIter->second->mOwnerCount == 0 &&
                     bufferIter->second->mTransactionCount == 0) {
                     // TODO: handle freebuffer insert fail
+                    mStats.onBufferUnused(bufferIter->second->mAllocSize);
                     mFreeBuffers.insert(bufferId);
                 }
                 mTransactions.erase(iter);
@@ -413,6 +467,7 @@ bool Accessor::Impl::BufferPool::getFreeBuffer(
     if (bufferIt != mFreeBuffers.end()) {
         BufferId id = *bufferIt;
         mFreeBuffers.erase(bufferIt);
+        mStats.onBufferRecycled(mBuffers[id]->mAllocSize);
         *handle = mBuffers[id]->handle();
         *pId = id;
         ALOGV("recycle a buffer %u %p", id, *handle);
@@ -421,30 +476,60 @@ bool Accessor::Impl::BufferPool::getFreeBuffer(
     return false;
 }
 
-ResultStatus Accessor::Impl::BufferPool::getNewBuffer(
-        const std::shared_ptr<BufferPoolAllocator> &allocator,
-        const std::vector<uint8_t> &params, BufferId *pId,
+ResultStatus Accessor::Impl::BufferPool::addNewBuffer(
+        const std::shared_ptr<BufferPoolAllocation> &alloc,
+        const size_t allocSize,
+        const std::vector<uint8_t> &params,
+        BufferId *pId,
         const native_handle_t** handle) {
-    std::shared_ptr<BufferPoolAllocation> alloc;
-    ResultStatus status = allocator->allocate(params, &alloc);
 
-    if (status == ResultStatus::OK) {
-        BufferId bufferId = mSeq++;
-        std::unique_ptr<InternalBuffer> buffer =
-                std::make_unique<InternalBuffer>(
-                        bufferId, alloc, params);
-        if (buffer) {
-            auto res = mBuffers.insert(std::make_pair(
-                    bufferId, std::move(buffer)));
-            if (res.second) {
-                *handle = alloc->handle();
-                *pId = bufferId;
-                return ResultStatus::OK;
+    BufferId bufferId = mSeq++;
+    std::unique_ptr<InternalBuffer> buffer =
+            std::make_unique<InternalBuffer>(
+                    bufferId, alloc, allocSize, params);
+    if (buffer) {
+        auto res = mBuffers.insert(std::make_pair(
+                bufferId, std::move(buffer)));
+        if (res.second) {
+            mStats.onBufferAllocated(allocSize);
+            *handle = alloc->handle();
+            *pId = bufferId;
+            return ResultStatus::OK;
+        }
+    }
+    return ResultStatus::NO_MEMORY;
+}
+
+void Accessor::Impl::BufferPool::cleanUp(bool clearCache) {
+    if (clearCache || mTimestampUs > mLastCleanUpUs + kCleanUpDurationUs) {
+        mLastCleanUpUs = mTimestampUs;
+        if (mTimestampUs > mLastLogUs + kLogDurationUs) {
+            mLastLogUs = mTimestampUs;
+            ALOGD("bufferpool %p : %zu(%zu size) total buffers - "
+                  "%zu(%zu size) used buffers - %zu/%zu (recycle/alloc) - "
+                  "%zu/%zu (fetch/transfer)",
+                  this, mStats.mBuffersCached, mStats.mSizeCached,
+                  mStats.mBuffersInUse, mStats.mSizeInUse,
+                  mStats.mTotalRecycles, mStats.mTotalAllocations,
+                  mStats.mTotalFetches, mStats.mTotalTransfers);
+        }
+        for (auto freeIt = mFreeBuffers.begin(); freeIt != mFreeBuffers.end();) {
+            if (!clearCache && mStats.mSizeCached < kMinAllocBytesForEviction
+                    && mBuffers.size() < kMinBufferCountForEviction) {
+                break;
+            }
+            auto it = mBuffers.find(*freeIt);
+            if (it != mBuffers.end() &&
+                    it->second->mOwnerCount == 0 && it->second->mTransactionCount == 0) {
+                mStats.onBufferEvicted(it->second->mAllocSize);
+                mBuffers.erase(it);
+                freeIt = mFreeBuffers.erase(freeIt);
+            } else {
+                ++freeIt;
+                ALOGW("bufferpool inconsistent!");
             }
         }
-        return ResultStatus::NO_MEMORY;
     }
-    return status;
 }
 
 }  // namespace implementation

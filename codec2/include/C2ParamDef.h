@@ -66,26 +66,17 @@ struct C2_HIDE _C2CoreIndexHelper_impl
     static std::false_type TestCoreIndex(...);
 };
 
-/// Helper template that verifies a type's CORE_INDEX and creates it if the type does not have one.
-template<typename S, int CoreIndex,
-        bool HasBase=decltype(_C2CoreIndexHelper_impl::TestCoreIndex<S>(0))::value>
-struct C2_HIDE _C2CoreIndexOverride {
-    // TODO: what if we allow structs without CORE_INDEX?
-    static_assert(CoreIndex == S::CORE_INDEX, "CORE_INDEX differs from structure");
-};
+/// Macro that defines and thus overrides a type's CORE_INDEX for a setting
+#define _C2_CORE_INDEX_OVERRIDE(coreIndex) \
+public: \
+    enum : uint32_t { CORE_INDEX = coreIndex };
 
-/// Specialization for types without a CORE_INDEX.
-template<typename S, int CoreIndex>
-struct C2_HIDE _C2CoreIndexOverride<S, CoreIndex, false> {
-public:
-    enum : uint32_t {
-        CORE_INDEX = CoreIndex, ///< CORE_INDEX override.
-    };
-};
 
-/// Helper template that adds a CORE_INDEX to a type if it does not have one.
+/// Helper template that adds a CORE_INDEX to a type if it does not have one (for testing)
 template<typename S, int CoreIndex>
-struct C2_HIDE _C2AddCoreIndex : public S, public _C2CoreIndexOverride<S, CoreIndex> {};
+struct C2_HIDE _C2AddCoreIndex : public S {
+    _C2_CORE_INDEX_OVERRIDE(CoreIndex)
+};
 
 /**
  * \brief Helper class to check struct requirements for parameters.
@@ -108,7 +99,7 @@ public:
 
 protected:
     enum : uint32_t {
-        FLEX_SIZE = 0, // TODO: is this still needed? this may be confusing.
+        FLEX_SIZE = 0,
     };
 };
 
@@ -132,6 +123,11 @@ struct C2_HIDE _C2Flexible
 /// Shorthand for std::enable_if
 #define ENABLE_IF(cond) typename std::enable_if<cond>::type
 
+template<typename T, typename V=void>
+struct C2_HIDE _c2_enable_if_type {
+    typedef V type;
+};
+
 /// Helper template that exposes the flexible subtype of a struct.
 template<typename S, typename E=void>
 struct C2_HIDE _C2FlexHelper {
@@ -139,12 +135,12 @@ struct C2_HIDE _C2FlexHelper {
     enum : uint32_t { FLEX_SIZE = 0 };
 };
 
-/// Specialization for flexible types.
+/// Specialization for flexible types. This only works if _FlexMemberType is public.
 template<typename S>
 struct C2_HIDE _C2FlexHelper<S,
-        typename std::enable_if<!std::is_void<typename S::flexMemberType>::value>::type> {
-    typedef typename _C2FlexHelper<typename S::flexMemberType>::FlexType FlexType;
-    enum : uint32_t { FLEX_SIZE = _C2FlexHelper<typename S::flexMemberType>::FLEX_SIZE };
+        typename _c2_enable_if_type<typename S::_FlexMemberType>::type> {
+    typedef typename _C2FlexHelper<typename S::_FlexMemberType>::FlexType FlexType;
+    enum : uint32_t { FLEX_SIZE = _C2FlexHelper<typename S::_FlexMemberType>::FLEX_SIZE };
 };
 
 /// Specialization for flex arrays.
@@ -227,31 +223,37 @@ protected:
 
 /**
  * Define flexible allocators (AllocShared or AllocUnique) for flexible params.
- *  - P::AllocXyz(flexCount, args...): allocate for given flex-count.
- *  - P::AllocXyz(args..., T[]): allocate for size of (and with) init array.
- *  - P::AllocXyz(T[]): allocate for size of (and with) init array with no other args.
- *  - P::AllocXyz(args..., std::initializer_list<T>): allocate for size of (and with) initializer
- *    list.
+ *  - P::AllocXyz(flexCount, args...): allocate for given flex-count. This maps to
+ *          T(flexCount, args...)\
+ *
+ * Clang does not support args... followed by templated param as args... eats it. Hence,
+ * provide specializations where the initializer replaces the flexCount.
+ *
+ * Specializations that deduce flexCount:
+ *  - P::AllocXyz(T[], args...): allocate for size of (and with) init array.
+ *  - P::AllocXyz(std::initializer_list<T>, args...): allocate for size of (and with) initializer
+ *            list.
+ *  - P::AllocXyz(std::vector<T>, args...): allocate for size of (and with) init vector.
+ *  These specializations map to T(flexCount = size-of-init, args..., init)
  */
 #define DEFINE_FLEXIBLE_ALLOC(_Type, S, ptr, Ptr) \
     template<typename ...Args> \
     inline static std::ptr##_ptr<_Type> Alloc##Ptr(size_t flexCount, const Args(&... args)) { \
         return std::ptr##_ptr<_Type>(new(flexCount) _Type(flexCount, args...)); \
     } \
-    /* NOTE: unfortunately this is not supported by clang yet */ \
-    template<typename ...Args, typename U=typename S::FlexType, unsigned N> \
-    inline static std::ptr##_ptr<_Type> Alloc##Ptr(const Args(&... args), const U(&init)[N]) { \
-        return std::ptr##_ptr<_Type>(new(N) _Type(N, args..., init)); \
-    } \
-    /* so for now, specialize for no args */ \
-    template<typename U=typename S::FlexType, unsigned N> \
-    inline static std::ptr##_ptr<_Type> Alloc##Ptr(const U(&init)[N]) { \
-        return std::ptr##_ptr<_Type>(new(N) _Type(N, init)); \
+    template<typename ...Args, typename U=typename S::FlexType> \
+    inline static std::ptr##_ptr<_Type> Alloc##Ptr( \
+            const std::initializer_list<U> &init, const Args(&... args)) { \
+        return std::ptr##_ptr<_Type>(new(init.size()) _Type(init.size(), args..., init)); \
     } \
     template<typename ...Args, typename U=typename S::FlexType> \
     inline static std::ptr##_ptr<_Type> Alloc##Ptr( \
-            const Args(&... args), const std::initializer_list<U> &init) { \
+            const std::vector<U> &init, const Args(&... args)) { \
         return std::ptr##_ptr<_Type>(new(init.size()) _Type(init.size(), args..., init)); \
+    } \
+    template<typename ...Args, typename U=typename S::FlexType, unsigned N> \
+    inline static std::ptr##_ptr<_Type> Alloc##Ptr(const U(&init)[N], const Args(&... args)) { \
+        return std::ptr##_ptr<_Type>(new(N) _Type(N, args..., init)); \
     } \
 
 /**
@@ -274,18 +276,18 @@ protected:
     C2_DO_NOT_COPY(cls) \
 private: \
     C2PARAM_MAKE_FRIENDS \
-    /* default constructor with flexCount */ \
-    inline cls(size_t) : cls() {} \
     /** \if 0 */ \
     template<typename, typename> friend struct _C2FlexHelper; \
-    typedef decltype(m) flexMemberType; \
 public: \
-    /* constexpr static flexMemberType cls::* flexMember = &cls::m; */ \
-    typedef typename _C2FlexHelper<flexMemberType>::FlexType FlexType; \
+    typedef decltype(m) _FlexMemberType; \
+    /* default constructor with flexCount */ \
+    inline cls(size_t) : cls() {} \
+    /* constexpr static _FlexMemberType cls::* flexMember = &cls::m; */ \
+    typedef typename _C2FlexHelper<_FlexMemberType>::FlexType FlexType; \
     static_assert(\
             !std::is_void<FlexType>::value, \
             "member is not flexible, or a flexible array of a flexible type"); \
-    enum : uint32_t { FLEX_SIZE = _C2FlexHelper<flexMemberType>::FLEX_SIZE }; \
+    enum : uint32_t { FLEX_SIZE = _C2FlexHelper<_FlexMemberType>::FLEX_SIZE }; \
     /** \endif */ \
 
 /// @}
@@ -306,8 +308,9 @@ public: \
  * structures.
  */
 template<typename T, typename S, int ParamIndex=S::CORE_INDEX, class Flex=void>
-struct C2_HIDE C2GlobalParam : public T, public S, public _C2CoreIndexOverride<S, ParamIndex>,
+struct C2_HIDE C2GlobalParam : public T, public S,
         public _C2StructCheck<S, ParamIndex, T::PARAM_KIND | T::Type::DIR_GLOBAL> {
+    _C2_CORE_INDEX_OVERRIDE(ParamIndex)
 private:
     typedef C2GlobalParam<T, S, ParamIndex> _Type;
 
@@ -372,8 +375,9 @@ public:
  * unspecified port expose a setPort method, and add an initial port parameter to the constructor.
  */
 template<typename T, typename S, int ParamIndex=S::CORE_INDEX, class Flex=void>
-struct C2_HIDE C2PortParam : public T, public S, public _C2CoreIndexOverride<S, ParamIndex>,
+struct C2_HIDE C2PortParam : public T, public S,
         private _C2StructCheck<S, ParamIndex, T::PARAM_KIND | T::Index::DIR_UNDEFINED> {
+    _C2_CORE_INDEX_OVERRIDE(ParamIndex)
 private:
     typedef C2PortParam<T, S, ParamIndex> _Type;
 
@@ -390,8 +394,9 @@ public:
     DEFINE_CAST_OPERATORS(_Type)
 
     /// Specialization for an input port parameter.
-    struct input : public T, public S, public _C2CoreIndexOverride<S, ParamIndex>,
+    struct input : public T, public S,
             public _C2StructCheck<S, ParamIndex, T::PARAM_KIND | T::Index::DIR_INPUT> {
+        _C2_CORE_INDEX_OVERRIDE(ParamIndex)
         /// Wrapper around base structure's constructor.
         template<typename ...Args>
         inline input(const Args(&... args)) : T(sizeof(_Type), input::PARAM_TYPE), S(args...) { }
@@ -401,8 +406,9 @@ public:
     };
 
     /// Specialization for an output port parameter.
-    struct output : public T, public S, public _C2CoreIndexOverride<S, ParamIndex>,
+    struct output : public T, public S,
             public _C2StructCheck<S, ParamIndex, T::PARAM_KIND | T::Index::DIR_OUTPUT> {
+        _C2_CORE_INDEX_OVERRIDE(ParamIndex)
         /// Wrapper around base structure's constructor.
         template<typename ...Args>
         inline output(const Args(&... args)) : T(sizeof(_Type), output::PARAM_TYPE), S(args...) { }
@@ -508,9 +514,10 @@ public:
  * parameter to the constructor.
  */
 template<typename T, typename S, int ParamIndex=S::CORE_INDEX, class Flex=void>
-struct C2_HIDE C2StreamParam : public T, public S, public _C2CoreIndexOverride<S, ParamIndex>,
+struct C2_HIDE C2StreamParam : public T, public S,
         private _C2StructCheck<S, ParamIndex,
                 T::PARAM_KIND | T::Index::IS_STREAM_FLAG | T::Index::DIR_UNDEFINED> {
+    _C2_CORE_INDEX_OVERRIDE(ParamIndex)
 private:
     typedef C2StreamParam<T, S, ParamIndex> _Type;
 
@@ -531,9 +538,11 @@ public:
     DEFINE_CAST_OPERATORS(_Type)
 
     /// Specialization for an input stream parameter.
-    struct input : public T, public S, public _C2CoreIndexOverride<S, ParamIndex>,
+    struct input : public T, public S,
             public _C2StructCheck<S, ParamIndex,
                     T::PARAM_KIND | T::Index::IS_STREAM_FLAG | T::Type::DIR_INPUT> {
+        _C2_CORE_INDEX_OVERRIDE(ParamIndex)
+
         /// Default constructor. Stream-ID is undefined.
         inline input() : T(sizeof(_Type), input::PARAM_TYPE) { }
         /// Wrapper around base structure's constructor while also specifying stream-ID.
@@ -547,9 +556,11 @@ public:
     };
 
     /// Specialization for an output stream parameter.
-    struct output : public T, public S, public _C2CoreIndexOverride<S, ParamIndex>,
+    struct output : public T, public S,
             public _C2StructCheck<S, ParamIndex,
                     T::PARAM_KIND | T::Index::IS_STREAM_FLAG | T::Type::DIR_OUTPUT> {
+        _C2_CORE_INDEX_OVERRIDE(ParamIndex)
+
         /// Default constructor. Stream-ID is undefined.
         inline output() : T(sizeof(_Type), output::PARAM_TYPE) { }
         /// Wrapper around base structure's constructor while also specifying stream-ID.
@@ -685,7 +696,8 @@ struct C2MemoryBlock {
     virtual const T *data() const = 0; // TODO: should this be friend access only in some C2Memory module?
     /// \returns a pointer to the start of this block. Care must be taken to not read or write
     /// outside the block.
-    inline T *data() { return const_cast<T*>(data()); }
+    inline T *data() { return const_cast<T*>(const_cast<const C2MemoryBlock*>(this)->data()); }
+
 protected:
     // TODO: for now it should never be deleted as C2MemoryBlock
     virtual ~C2MemoryBlock() = default;
@@ -743,6 +755,22 @@ struct _C2ValueArrayHelper {
         }
     }
 
+    /// Initialize a flexible array using a vector.
+    template<typename T>
+    static void init(T(&array)[], size_t arrayLen, const std::vector<T> &init) {
+        size_t ix = 0;
+        // reserve last element for terminal 0 for strings
+        if (arrayLen && std::is_same<T, char>::value) {
+            --arrayLen;
+        }
+        for (const T &item : init) {
+            if (ix == arrayLen) {
+                break;
+            }
+            array[ix++] = item;
+        }
+    }
+
     /// Initialize a flexible array using another flexible array.
     template<typename T, unsigned N>
     static void init(T(&array)[], size_t arrayLen, const T(&str)[N]) {
@@ -751,7 +779,7 @@ struct _C2ValueArrayHelper {
             --arrayLen;
         }
         if (arrayLen) {
-            strncpy(array, str, std::min(arrayLen, (size_t)N));
+            memcpy(array, str, std::min(arrayLen, (size_t)N) * sizeof(T));
         }
     }
 };
@@ -780,6 +808,10 @@ private:
     }
 
     inline C2SimpleValueStruct(size_t flexCount, const std::initializer_list<T> &init) {
+        _C2ValueArrayHelper::init(value, flexCount, init);
+    }
+
+    inline C2SimpleValueStruct(size_t flexCount, const std::vector<T> &init) {
         _C2ValueArrayHelper::init(value, flexCount, init);
     }
 
@@ -820,6 +852,12 @@ private:
     /// Construct from an initializer list.
     /// Used only by the flexible parameter allocators (AllocUnique & AllocShared).
     inline C2SimpleArrayStruct(size_t flexCount, const std::initializer_list<T> &init) {
+        _C2ValueArrayHelper::init(values, flexCount, init);
+    }
+
+    /// Construct from an vector.
+    /// Used only by the flexible parameter allocators (AllocUnique & AllocShared).
+    inline C2SimpleArrayStruct(size_t flexCount, const std::vector<T> &init) {
         _C2ValueArrayHelper::init(values, flexCount, init);
     }
 

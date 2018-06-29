@@ -852,8 +852,8 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
                 MFX_DEBUG_TRACE_I32(mfx_surface->Data.Locked);
                 MFX_DEBUG_TRACE_I64(mfx_surface->Data.TimeStamp);
 
-                const C2Rect rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH,
-                                mfx_surface->Info.CropX, mfx_surface->Info.CropY);
+                const C2Rect rect = C2Rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH)
+                    .at(mfx_surface->Info.CropX, mfx_surface->Info.CropY);
 
                 std::shared_ptr<C2GraphicBlock> block = work_output.frame_.GetC2GraphicBlock();
                 C2ConstGraphicBlock const_graphic = block->share(rect, event.fence());

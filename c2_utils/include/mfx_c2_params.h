@@ -11,16 +11,13 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #pragma once
 
 #include <C2Config.h>
-#include <C2ParamDef.h>
 
 enum C2ParamIndexKindVendor : uint32_t {
 
     kParamIndexRateControl = C2Param::TYPE_INDEX_VENDOR_START,
     kParamIndexProfile,
     kParamIndexLevel,
-    kParamIndexProfileLevel,
     kParamIndexFrameQP,
-    kParamIndexIntraRefresh,
     kParamIndexMemoryType,
 };
 
@@ -53,15 +50,6 @@ typedef C2PortParam<C2Setting, C2Uint32Value, kParamIndexProfile>::output C2Prof
 typedef C2PortParam<C2Setting, C2Uint32Value, kParamIndexLevel>::output C2LevelSetting;
 
 typedef C2StreamParam<C2Setting, C2FloatValue, kParamIndexFrameRate> C2FrameRateSetting;
-
-struct C2ProfileLevelStruct {
-    uint32_t profile;
-    uint32_t level;
-
-    DEFINE_AND_DESCRIBE_C2STRUCT(ProfileLevel)
-    C2FIELD(profile, "Profile")
-    C2FIELD(level, "Level")
-};
 
 typedef C2PortParam<C2Info, C2SimpleArrayStruct<C2ProfileLevelStruct>, kParamIndexProfileLevel> C2ProfileLevelInfo;
 

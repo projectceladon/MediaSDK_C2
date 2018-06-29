@@ -15,7 +15,6 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_debug.h"
 #include "mfx_c2_components_registry.h"
 #include "mfx_c2_utils.h"
-#include "mfx_legacy_defs.h"
 #include "mfx_c2_params.h"
 #include "mfx_defaults.h"
 #include "C2PlatformSupport.h"
@@ -702,19 +701,22 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
             if (nullptr == *dst) {
                 *dst = new C2ProfileSetting();
             }
-            C2ProfileSetting* setting = static_cast<C2ProfileSetting*>(*dst);
+            C2Config::profile_t profile {};
             bool set_res = false;
             switch (encoder_type_) {
                 case ENCODER_H264:
-                    set_res = AvcProfileMfxToAndroid(video_params_config_.mfx.CodecProfile, &setting->value);
+                    set_res = AvcProfileMfxToAndroid(video_params_config_.mfx.CodecProfile, &profile);
                     break;
                 case ENCODER_H265:
-                    set_res = HevcProfileMfxToAndroid(video_params_config_.mfx.CodecProfile, &setting->value);
+                    set_res = HevcProfileMfxToAndroid(video_params_config_.mfx.CodecProfile, &profile);
                     break;
                 default:
                     break;
             }
-            if (!set_res) {
+            if (set_res) {
+                C2ProfileSetting* setting = static_cast<C2ProfileSetting*>(*dst);
+                setting->value = profile;
+            } else {
                 res = C2_CORRUPTED;
             }
             break;
@@ -723,19 +725,22 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
             if (nullptr == *dst) {
                 *dst = new C2LevelSetting();
             }
-            C2LevelSetting* setting = static_cast<C2LevelSetting*>(*dst);
+            C2Config::level_t level {};
             bool set_res = false;
             switch (encoder_type_) {
                 case ENCODER_H264:
-                    set_res = AvcLevelMfxToAndroid(video_params_config_.mfx.CodecLevel, &setting->value);
+                    set_res = AvcLevelMfxToAndroid(video_params_config_.mfx.CodecLevel, &level);
                     break;
                 case ENCODER_H265:
-                    set_res = HevcLevelMfxToAndroid(video_params_config_.mfx.CodecLevel, &setting->value);
+                    set_res = HevcLevelMfxToAndroid(video_params_config_.mfx.CodecLevel, &level);
                     break;
                 default:
                     break;
             }
-            if (!set_res) {
+            if (set_res) {
+                C2LevelSetting* setting = static_cast<C2LevelSetting*>(*dst);
+                setting->value = level;
+            } else {
                 res = C2_CORRUPTED;
             }
             break;
@@ -986,13 +991,14 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
             }
             case kParamIndexProfile: {
                 const C2ProfileSetting* profile_setting = static_cast<const C2ProfileSetting*>(param);
+                C2Config::profile_t profile = static_cast<C2Config::profile_t>(profile_setting->value);
                 bool set_res = false;
                 switch (encoder_type_) {
                     case ENCODER_H264:
-                        set_res = AvcProfileAndroidToMfx(profile_setting->value, &video_params_config_.mfx.CodecProfile);
+                        set_res = AvcProfileAndroidToMfx(profile, &video_params_config_.mfx.CodecProfile);
                         break;
                     case ENCODER_H265:
-                        set_res = HevcProfileAndroidToMfx(profile_setting->value, &video_params_config_.mfx.CodecProfile);
+                        set_res = HevcProfileAndroidToMfx(profile, &video_params_config_.mfx.CodecProfile);
                         break;
                     default:
                         break;
@@ -1005,13 +1011,14 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
             }
             case kParamIndexLevel: {
                 const C2LevelSetting* setting = static_cast<const C2LevelSetting*>(param);
+                C2Config::level_t level = static_cast<C2Config::level_t>(setting->value);
                 bool set_res = false;
                 switch (encoder_type_) {
                     case ENCODER_H264:
-                        set_res = AvcLevelAndroidToMfx(setting->value, &video_params_config_.mfx.CodecLevel);
+                        set_res = AvcLevelAndroidToMfx(level, &video_params_config_.mfx.CodecLevel);
                         break;
                     case ENCODER_H265:
-                        set_res = HevcLevelAndroidToMfx(setting->value, &video_params_config_.mfx.CodecLevel);
+                        set_res = HevcLevelAndroidToMfx(level, &video_params_config_.mfx.CodecLevel);
                         break;
                     default:
                         break;

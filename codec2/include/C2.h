@@ -154,7 +154,7 @@ enum c2_blocking_t : int32_t {
 #define C2_HIDE     __attribute__((visibility("hidden")))
 #define C2_INLINE   inline C2_HIDE
 #define C2_INTERNAL __attribute__((internal_linkage))
-#define C2_PACK     __attribute__((packed))
+#define C2_PACK     __attribute__((aligned(4)))
 #define C2_PURE     __attribute__((pure))
 
 #define DEFINE_OTHER_COMPARISON_OPERATORS(type) \

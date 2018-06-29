@@ -18,6 +18,7 @@
 #define ANDROID_HARDWARE_MEDIA_BUFFERPOOL_V1_0_BUFFERSTATUS_H
 
 #include <android/hardware/media/bufferpool/1.0/types.h>
+#include <bufferpool/BufferPoolTypes.h>
 #include <fmq/MessageQueue.h>
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
@@ -25,7 +26,6 @@
 #include <mutex>
 #include <vector>
 #include <list>
-#include <BufferPoolTypes.h>
 
 namespace android {
 namespace hardware {
@@ -75,7 +75,7 @@ public:
 };
 
 /**
- * An FMQ for a buffer pool client. buffer ownership/status change messages
+ * An FMQ for a buffer pool client. Buffer ownership/status change messages
  * are sent via the fmq to the buffer pool.
  */
 class BufferStatusChannel {

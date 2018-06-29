@@ -18,15 +18,15 @@
 
 #define C2WORK_H_
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <C2Param.h>
 #include <C2Buffer.h>
-#include <C2Config.h>
+#include <C2Param.h>
 
 #include <memory>
 #include <list>
 #include <vector>
+
+#include <stdint.h>
+#include <stdbool.h>
 
 /// \defgroup work Work and data processing
 /// @{
@@ -45,17 +45,24 @@ struct C2SettingResult {
         MISMATCH,   ///< parameter mismatches input data
 
         /* field failures below */
-        BAD_VALUE,  ///< parameter does not accept value for the field at all
-        CONFLICT,   ///< parameter field value is in conflict with an/other setting(s)
+        BAD_VALUE,  ///< strict parameter does not accept value for the field at all
+        CONFLICT,   ///< strict parameter field value is in conflict with an/other setting(s)
 
         /// parameter field is out of range due to other settings (this failure mode
         /// can only be used for strict calculated parameters)
         UNSUPPORTED,
 
+        /// field does not access the requested parameter value at all. It has been corrected to
+        /// the closest supported value. This failure mode is provided to give guidance as to what
+        /// are the currently supported values for this field (which may be a subset of the at-all-
+        /// potential values)
+        INFO_BAD_VALUE,
+
         /// requested parameter value is in conflict with an/other setting(s)
         /// and has been corrected to the closest supported value. This failure
-        /// mode is given to provide suggestion to the client as to how to
-        /// enable the requested parameter value.
+        /// mode is given to provide guidance as to what are the currently supported values as well
+        /// as to optionally provide suggestion to the client as to how to enable the requested
+        /// parameter value.
         INFO_CONFLICT,
     };
 

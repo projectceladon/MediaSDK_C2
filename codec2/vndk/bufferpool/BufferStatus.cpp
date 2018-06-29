@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "bufferpool"
+#define LOG_TAG "BufferPoolStatus"
 //#define LOG_NDEBUG 0
 
-#include <inttypes.h>
 #include <time.h>
 #include "BufferStatus.h"
 
@@ -77,10 +76,10 @@ void BufferStatusObserver::getBufferStatusChanges(std::vector<BufferStatusMessag
         size_t avail = it->second->availableToRead();
         while (avail > 0) {
             if (!it->second->read(&message, 1)) {
-                // Since avaliable # of reads are already confiremd,
+                // Since avaliable # of reads are already confirmed,
                 // this should not happen.
-                // TODO: error handling (supurious client?)
-                ALOGW("FMQ message cannot be read from %" PRId64, it->first);
+                // TODO: error handling (spurious client?)
+                ALOGW("FMQ message cannot be read from %lld", (long long)it->first);
                 return;
             }
             message.connectionId = it->first;
@@ -119,10 +118,10 @@ void BufferStatusChannel::postBufferRelease(
             message.bufferId = id;
             message.connectionId = connectionId;
             if (!mBufferStatusQueue->write(&message, 1)) {
-                // Since avaliable # of writes are already confiremd,
+                // Since avaliable # of writes are already confirmed,
                 // this should not happen.
                 // TODO: error handing?
-                ALOGW("FMQ message cannot be sent from %" PRId64, connectionId);
+                ALOGW("FMQ message cannot be sent from %lld", (long long)connectionId);
                 return;
             }
             pending.pop_front();
@@ -146,11 +145,10 @@ bool BufferStatusChannel::postBufferStatusMessage(
                 release.bufferId = id;
                 release.connectionId = connectionId;
                 if (!mBufferStatusQueue->write(&release, 1)) {
-                    // Since avaliable # of writes are already confiremd,
+                    // Since avaliable # of writes are already confirmed,
                     // this should not happen.
                     // TODO: error handling?
-                    ALOGW("FMQ message cannot be sent from %" PRId64,
-                          connectionId);
+                    ALOGW("FMQ message cannot be sent from %lld", (long long)connectionId);
                     return false;
                 }
                 pending.pop_front();
@@ -164,9 +162,9 @@ bool BufferStatusChannel::postBufferStatusMessage(
             // TODO : timesatamp
             message.timestampUs = 0;
             if (!mBufferStatusQueue->write(&message, 1)) {
-                // Since avaliable # of writes are already confiremd,
+                // Since avaliable # of writes are already confirmed,
                 // this should not happen.
-                ALOGW("FMQ message cannot be sent from %" PRId64, connectionId);
+                ALOGW("FMQ message cannot be sent from %lld", (long long)connectionId);
                 return false;
             }
             return true;

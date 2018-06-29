@@ -20,6 +20,7 @@
 #include <functional>
 
 #include <C2Buffer.h>
+#include <android/hardware/media/bufferpool/1.0/IAccessor.h>
 
 class C2BasicLinearBlockPool : public C2BlockPool {
 public:
@@ -90,7 +91,29 @@ public:
             C2MemoryUsage usage,
             std::shared_ptr<C2LinearBlock> *block /* nonnull */) override;
 
-    // TODO: fetchGraphicBlock, fetchCircularBlock
+    virtual c2_status_t fetchGraphicBlock(
+            uint32_t width,
+            uint32_t height,
+            uint32_t format,
+            C2MemoryUsage usage,
+            std::shared_ptr<C2GraphicBlock> *block) override;
+
+    /**
+     * Retrieves the connection Id for underlying bufferpool
+     */
+    int64_t getConnectionId();
+
+    /**
+     * Retrieves the accessor which is used by underlying bufferpool. (It can be
+     * passed to receiving process.)
+     *
+     * \param accessor          IAccessor will be written to this out parameter.
+     *
+     * \return true             IAcessor is writen successfully.
+     * \return false            IAccessor is not written.
+     */
+    bool getAccessor(android::sp<android::hardware::media::bufferpool::V1_0::IAccessor> *accessor);
+
 private:
     const std::shared_ptr<C2Allocator> mAllocator;
     const local_id_t mLocalId;

@@ -35,19 +35,23 @@ struct C2AndroidMemoryUsage : public C2MemoryUsage {
     /**
      * Reuse gralloc flags where possible, as Codec 2.0 API only uses bits 0 and 1.
      */
-    enum Consumer : uint64_t {
+    enum consumer_t : uint64_t {
         RENDERSCRIPT_READ = GRALLOC_USAGE_RENDERSCRIPT,
         HW_TEXTURE_READ   = GRALLOC_USAGE_HW_TEXTURE,
         HW_COMPOSER_READ  = GRALLOC_USAGE_HW_COMPOSER,
+        // gralloc does not define a video decoder read usage flag, so use encoder for
+        // now
         HW_CODEC_READ     = GRALLOC_USAGE_HW_VIDEO_ENCODER,
         READ_PROTECTED    = GRALLOC_USAGE_PROTECTED,
     };
 
-    enum Producer : uint64_t {
+    enum producer_t : uint64_t {
         RENDERSCRIPT_WRITE = GRALLOC_USAGE_RENDERSCRIPT,
         HW_TEXTURE_WRITE   = GRALLOC_USAGE_HW_RENDER,
         HW_COMPOSER_WRITE  = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_RENDER,
         HW_CODEC_WRITE     = GRALLOC_USAGE_HW_VIDEO_ENCODER,
+        // gralloc does not define a write protected usage flag, so use read protected
+        // now
         WRITE_PROTECTED    = GRALLOC_USAGE_PROTECTED,
     };
 

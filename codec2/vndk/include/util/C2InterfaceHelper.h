@@ -18,7 +18,6 @@
 #define C2UTILS_INTERFACE_HELPER_H_
 
 #include <C2Component.h>
-#include <util/C2ParamUtils.h> // for _C2Tuple
 #include <util/C2InterfaceUtils.h>
 
 #include <map>
@@ -60,7 +59,7 @@ public:
     template<typename... Params>
     C2_INLINE void addStructDescriptors() {
         std::vector<C2StructDescriptor> structs;
-        addStructDescriptors(structs, (_C2Tuple<Params...> *)nullptr);
+        addStructDescriptors(structs, (_Tuple<Params...> *)nullptr);
     }
 
     /**
@@ -71,13 +70,16 @@ public:
     void addStructDescriptor(C2StructDescriptor &&strukt);
 
 private:
+    template<typename... Params>
+    class C2_HIDE _Tuple { };
+
     /**
      * Adds support for describing the given descriptors.
      *
      * \param structs List of structure descriptors to add support for
      */
-    C2_HIDE void addStructDescriptors(
-            std::vector<C2StructDescriptor> &structs, _C2Tuple<> *);
+    void addStructDescriptors(
+            std::vector<C2StructDescriptor> &structs, _Tuple<> *);
 
     /**
      * Utility method that adds support for describing the given descriptors in a recursive manner
@@ -89,9 +91,9 @@ private:
      */
     template<typename T, typename... Params>
     C2_INLINE void addStructDescriptors(
-            std::vector<C2StructDescriptor> &structs, _C2Tuple<T, Params...> *) {
+            std::vector<C2StructDescriptor> &structs, _Tuple<T, Params...> *) {
         structs.emplace_back((T*)nullptr);
-        addStructDescriptors(structs, (_C2Tuple<Params...> *)nullptr);
+        addStructDescriptors(structs, (_Tuple<Params...> *)nullptr);
     }
 
     mutable std::mutex _mMutex;
@@ -253,6 +255,10 @@ public:
          */
         C2ParamFieldValuesBuilder<T> mustBe();
 
+        operator C2ParamField() const {
+            return _mField;
+        }
+
         // TODO
         C2R validatePossible(const T &value __unused) const {
             /// TODO
@@ -391,9 +397,16 @@ public:
             // this must fall either within sizeof(T) + FLEX_SIZE or param->size()
             // size_t size = sizeof(field);
             // mParam may be null
-            size_t baseOffs = GetBaseOffset(
-                    _mReflector, T::CORE_INDEX, offs - sizeof(C2Param)) + sizeof(C2Param);
             size_t baseSize = sizeof(typename std::remove_extent<S>::type);
+            size_t baseOffs = GetBaseOffset(
+                    _mReflector, T::CORE_INDEX, offs - sizeof(C2Param));
+            if (~baseOffs == 0) {
+                // C2_LOG(FATAL) << "unknown field at offset " << offs << " size " << sizeof(S)
+                //       << " base-size " << baseSize;
+                // __builtin_trap();
+            } else {
+                baseOffs += sizeof(C2Param);
+            }
 
             std::shared_ptr<FieldHelper> helper = _mHelper->findField(baseOffs, baseSize);
             return FieldType<S>(helper, _mTypedParam->index());
@@ -610,7 +623,7 @@ public:
         inline ParamBuilder &calculatedAs(
                 C2R (*fn)(bool, C2P<T> &, const C2P<Deps> &...), std::shared_ptr<Deps>& ... deps) {
             attrib() |= attrib_t::IS_READ_ONLY;
-            return withSetter(fn, std::forward(deps...));
+            return withSetter(fn, std::forward<decltype(deps)>(deps)...);
         }
 
         inline std::shared_ptr<ParamHelper> build() {
@@ -718,7 +731,9 @@ protected:
 #define C2F(spParam, field) \
     C2ParamFieldValuesBuilder< \
             typename _c2_reduce_enum_to_underlying_type< \
-                    typename std::remove_extent<decltype(spParam->field)>::type>::type>( \
-                            C2ParamField(spParam.get(), &spParam->field))
+                    typename std::remove_reference< \
+                            typename std::remove_extent< \
+                                    decltype(spParam->field)>::type>::type>::type>( \
+                                            C2ParamField(spParam.get(), &spParam->field))
 
 #endif  // C2UTILS_INTERFACE_HELPER_H_

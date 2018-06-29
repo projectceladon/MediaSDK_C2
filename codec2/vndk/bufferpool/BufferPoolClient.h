@@ -18,10 +18,10 @@
 #define ANDROID_HARDWARE_MEDIA_BUFFERPOOL_V1_0_BUFFERPOOLCLIENT_H
 
 #include <memory>
-#include <cutils/native_handle.h>
 #include <android/hardware/media/bufferpool/1.0/IAccessor.h>
 #include <android/hardware/media/bufferpool/1.0/IConnection.h>
-#include <BufferPoolTypes.h>
+#include <bufferpool/BufferPoolTypes.h>
+#include <cutils/native_handle.h>
 #include "Accessor.h"
 
 namespace android {
@@ -63,20 +63,26 @@ public:
 private:
     bool isValid();
 
+    bool isLocal();
+
+    bool isActive(int64_t *lastTransactionUs, bool clearCache);
+
     ConnectionId getConnectionId();
 
     ResultStatus getAccessor(sp<IAccessor> *accessor);
 
     ResultStatus allocate(const std::vector<uint8_t> &params,
-                          std::shared_ptr<_C2BlockPoolData> *buffer);
+                          native_handle_t **handle,
+                          std::shared_ptr<BufferPoolData> *buffer);
 
     ResultStatus receive(TransactionId transactionId,
                          BufferId bufferId,
                          int64_t timestampUs,
-                         std::shared_ptr<_C2BlockPoolData> *buffer);
+                         native_handle_t **handle,
+                         std::shared_ptr<BufferPoolData> *buffer);
 
     ResultStatus postSend(ConnectionId receiver,
-                          const std::shared_ptr<_C2BlockPoolData> &buffer,
+                          const std::shared_ptr<BufferPoolData> &buffer,
                           TransactionId *transactionId,
                           int64_t *timestampUs);
 

@@ -13,6 +13,8 @@ cc_library_headers {
     vendor_available: true,
 }
 
+// !!!DO NOT DEPEND ON THIS SHARED LIBRARY DIRECTLY!!!
+// use libstagefright_codec2-impl-defaults instead
 cc_library_vndk_mfx {
     name: "libstagefright_codec2_vndk_mfx",
     vendor_available: true,
@@ -25,12 +27,14 @@ cc_library_vndk_mfx {
         "C2AllocatorGralloc.cpp",
         "C2Buffer.cpp",
         "C2Config.cpp",
+        "C2PlatformStorePluginLoader.cpp",
         "C2Store.cpp",
         "platform/C2BqBuffer.cpp",
         "util/C2Debug.cpp",
         "util/C2InterfaceHelper.cpp",
         "util/C2InterfaceUtils.cpp",
         "util/C2ParamUtils.cpp",
+        "v4l2/C2VdaBqBlockPool.cpp",
     ],
 
     export_include_dirs: [
@@ -39,6 +43,7 @@ cc_library_vndk_mfx {
 
     export_shared_lib_headers: [
         "libbase",
+        "android.hardware.media.bufferpool@1.0",
     ],
 
     local_include_dirs: [
@@ -83,6 +88,32 @@ cc_library_vndk_mfx {
         "-Wall",
         "-std=c++14",
     ],
+}
+
+// public dependency for implementing Codec 2 components
+cc_defaults {
+    name: "libstagefright_codec2-impl-defaults",
+
+    shared_libs: [
+        "libbase", // for C2_LOG
+        "liblog", // for ALOG
+        "libstagefright_codec2",
+        "libstagefright_codec2_vndk",
+        "libutils",
+    ],
+}
+
+// public dependency for implementing Codec 2 framework utilities
+// THIS IS ONLY FOR FRAMEWORK USE ONLY
+cc_defaults {
+    name: "libstagefright_codec2-internal-defaults",
+    defaults: ["libstagefright_codec2-impl-defaults"],
+
+    shared_libs: [
+        "libcutils", // for properties
+    ],
+
+    // TODO: separate internal headers so they can be exposed here
 }
 
 bootstrap_go_package {

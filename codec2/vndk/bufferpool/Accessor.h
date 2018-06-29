@@ -18,10 +18,12 @@
 #define ANDROID_HARDWARE_MEDIA_BUFFERPOOL_V1_0_ACCESSOR_H
 
 #include <android/hardware/media/bufferpool/1.0/IAccessor.h>
+#include <bufferpool/BufferPoolTypes.h>
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
-#include <BufferPoolTypes.h>
 #include "BufferStatus.h"
+
+#include <set>
 
 namespace android {
 namespace hardware {
@@ -38,7 +40,38 @@ using ::android::hardware::Return;
 using ::android::hardware::Void;
 using ::android::sp;
 
+struct Accessor;
 struct Connection;
+
+/**
+ * Receives death notifications from remote connections.
+ * On death notifications, the connections are closed and used resources
+ * are released.
+ */
+struct ConnectionDeathRecipient : public hardware::hidl_death_recipient {
+    /**
+     * Registers a newly connected connection from remote processes.
+     */
+    void add(int64_t connectionId, const sp<Accessor> &accessor);
+
+    /**
+     * Removes a connection.
+     */
+    void remove(int64_t connectionId);
+
+    void addCookieToConnection(uint64_t cookie, int64_t connectionId);
+
+    virtual void serviceDied(
+            uint64_t /* cookie */,
+            const wp<::android::hidl::base::V1_0::IBase>& /* who */
+            ) override;
+
+private:
+    std::mutex mLock;
+    std::map<uint64_t, std::set<int64_t>>  mCookieToConnections;
+    std::map<int64_t, uint64_t> mConnectionToCookie;
+    std::map<int64_t, const wp<Accessor>> mAccessors;
+};
 
 /**
  * A buffer pool accessor which enables a buffer pool to communicate with buffer
@@ -61,7 +94,7 @@ struct Accessor : public IAccessor {
     /** Returns whether the accessor is valid. */
     bool isValid();
 
-    /** Allocates a buffer form a buffer pool.
+    /** Allocates a buffer from a buffer pool.
      *
      * @param connectionId  the connection id of the client.
      * @param params        the allocation parameters.
@@ -105,6 +138,8 @@ struct Accessor : public IAccessor {
      * @param pConnectionId the id of the created connection
      * @param fmqDescPtr    FMQ descriptor for shared buffer status message
      *                      queue between a buffer pool and the client.
+     * @param local         true when a connection request comes from local process,
+     *                      false otherwise.
      *
      * @return OK when a connection is successfully made.
      *         NO_MEMORY when there is no memory.
@@ -112,7 +147,7 @@ struct Accessor : public IAccessor {
      */
     ResultStatus connect(
             sp<Connection> *connection, ConnectionId *pConnectionId,
-            const QueueDescriptor** fmqDescPtr);
+            const QueueDescriptor** fmqDescPtr, bool local);
 
     /**
      * Closes the specified connection to the client.
@@ -124,13 +159,24 @@ struct Accessor : public IAccessor {
      */
     ResultStatus close(ConnectionId connectionId);
 
+    /**
+     * Processes pending buffer status messages and perfoms periodic cache
+     * cleaning.
+     *
+     * @param clearCache    if clearCache is true, it frees all buffers waiting
+     *                      to be recycled.
+     */
+    void cleanUp(bool clearCache);
+
+    /**
+     * Gets a hidl_death_recipient for remote connection death.
+     */
+    static sp<ConnectionDeathRecipient> getConnectionDeathRecipient();
+
 private:
     class Impl;
     std::unique_ptr<Impl> mImpl;
 };
-
-// FIXME: most likely delete, this is only for passthrough implementations
-// extern "C" IAccessor* HIDL_FETCH_IAccessor(const char* name);
 
 }  // namespace implementation
 }  // namespace V1_0

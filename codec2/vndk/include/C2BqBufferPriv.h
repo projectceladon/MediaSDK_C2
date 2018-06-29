@@ -43,6 +43,15 @@ public:
             C2MemoryUsage usage,
             std::shared_ptr<C2GraphicBlock> *block /* nonnull */) override;
 
+    typedef std::function<void(uint64_t producer, int32_t slot, int64_t nsecs)> OnRenderCallback;
+
+    /**
+     * Sets render callback.
+     *
+     * \param renderCallbak callback to call for all dequeue buffer.
+     */
+    void setRenderCallback(const OnRenderCallback &renderCallback = OnRenderCallback());
+
     /**
      * Configures an IGBP in order to create blocks. A newly created block is
      * dequeued from the configured IGBP. Unique Id of IGBP and the slot number of
@@ -51,15 +60,18 @@ public:
      * Since zero is not used for Unique Id of IGBP, if IGBP is not configured or producer
      * is configured as nullptr, unique id which is bundled in native_handle is zero.
      *
-     * @param producer      the IGBP, which will be used to fetch blocks
+     * \param producer      the IGBP, which will be used to fetch blocks
      */
-    void configureProducer(const android::sp<android::HGraphicBufferProducer> &producer);
+    virtual void configureProducer(const android::sp<android::HGraphicBufferProducer> &producer);
+
 private:
     const std::shared_ptr<C2Allocator> mAllocator;
     const local_id_t mLocalId;
 
     class Impl;
-    std::unique_ptr<Impl> mImpl;
+    std::shared_ptr<Impl> mImpl;
+
+    friend struct C2BufferQueueBlockPoolData;
 };
 
 #endif // STAGEFRIGHT_CODEC2_BUFFER_PRIV_H_
