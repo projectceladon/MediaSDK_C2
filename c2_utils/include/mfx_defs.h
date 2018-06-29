@@ -67,6 +67,8 @@ extern mfxVersion g_required_mfx_version;
 
 #define EXPORT __attribute__((visibility("default")))
 
+#define MFX_HIDE __attribute__((visibility("hidden")))
+
 #define NAMED(value) #value << ": " << (value) << "; "
 
 inline uint32_t MakeUint32(uint16_t high, uint16_t low)
