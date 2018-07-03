@@ -76,6 +76,21 @@ namespace {
             const C2ProfileLevelStruct& profile_level, std::vector<char>&& stream, std::string* message);
         TestStreamProfileLevel* test_stream_profile_level;
     };
+
+    // This function is used by ::testing::PrintToStringParamName to give
+    // parameterized tests reasonable names instead of /1, /2, ...
+    void PrintTo(const ComponentDesc& desc, ::std::ostream* os)
+    {
+        PrintAlphaNumeric(desc.component_name, os);
+    }
+
+    class CreateEncoder : public ::testing::TestWithParam<ComponentDesc>
+    {
+    };
+    // Test fixture class called Encoder to beautify output
+    class Encoder : public ::testing::TestWithParam<ComponentDesc>
+    {
+    };
 }
 
 C2RateControlMethod MfxRateControlToC2(mfxU16 rate_control)
@@ -130,27 +145,28 @@ static ComponentDesc g_components_desc[] = {
     { "C2.h265ve", 0, C2_OK, h265_params_desc, GetDefaultValues("C2.h265ve"), C2_CORRUPTED,
         { g_h265_profile_levels, g_h265_profile_levels + g_h265_profile_levels_count },
         &TestHevcStreamProfileLevel },
+};
+
+static ComponentDesc g_invalid_components_desc[] = {
     NonExistingEncoderDesc(),
 };
 
 // Assures that all encoding components might be successfully created.
 // NonExistingEncoder cannot be created and C2_NOT_FOUND error is returned.
-TEST(MfxEncoderComponent, Create)
+TEST_P(CreateEncoder, Create)
 {
-    for(const auto& desc : g_components_desc) {
+    const ComponentDesc& desc = GetParam();
 
-        std::shared_ptr<MfxC2Component> encoder =
-            GetCachedComponent(desc.component_name, g_components_desc);
+    std::shared_ptr<MfxC2Component> encoder = GetCachedComponent(desc);
 
-        EXPECT_EQ(encoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;
-    }
+    EXPECT_EQ(encoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;
 }
 
 // Checks that all successfully created encoding components expose C2ComponentInterface
 // and return correct information once queried (component name).
-TEST(MfxEncoderComponent, intf)
+TEST_P(Encoder, intf)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         EXPECT_EQ(comp_intf->getName(), desc.component_name);
@@ -400,9 +416,9 @@ static void Encode(
 // ./mfx_transcoder64 h264 -i ./C2.h264ve.input.yuv -o ./C2-2222.h264 -nv12 -h 480 -w 640 -f 30
 // -cbr -b 2222000 -CodecProfile 578 -CodecLevel 51 -TargetUsage 7 -hw
 // -GopPicSize 15 -GopRefDist 1 -PicStruct 0 -NumSlice 1 -crc
-TEST(MfxEncoderComponent, EncodeBitExact)
+TEST_P(Encoder, EncodeBitExact)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         const int TESTS_COUNT = 5;
@@ -447,9 +463,9 @@ TEST(MfxEncoderComponent, EncodeBitExact)
 // Checks the correctness of all encoding components state machine.
 // The component should be able to start from STOPPED (initial) state,
 // stop from RUNNING state. Otherwise, C2_BAD_STATE should be returned.
-TEST(MfxEncoderComponent, State)
+TEST_P(Encoder, State)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr) {
 
         c2_status_t sts = C2_OK;
@@ -471,9 +487,9 @@ TEST(MfxEncoderComponent, State)
 // Checks list of actually supported parameters by all encoding components.
 // Parameters order doesn't matter.
 // For every parameter index, name, required and persistent fields are checked.
-TEST(MfxEncoderComponent, getSupportedParams)
+TEST_P(Encoder, getSupportedParams)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         std::vector<std::shared_ptr<C2ParamDescriptor>> params_actual;
@@ -501,9 +517,9 @@ TEST(MfxEncoderComponent, getSupportedParams)
 // Tests if all encoding components handle config_vb with not existing parameter correctly.
 // It should return individual C2SettingResult failure structure with
 // initialized fields and aggregate status value.
-TEST(MfxEncoderComponent, UnsupportedParam)
+TEST_P(Encoder, UnsupportedParam)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [] (const ComponentDesc&, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         const uint32_t kParamIndexUnsupported = C2Param::TYPE_INDEX_VENDOR_START + 1000;
@@ -532,7 +548,7 @@ TEST(MfxEncoderComponent, UnsupportedParam)
             EXPECT_EQ(set_res->failure, C2SettingResult::BAD_TYPE);
             EXPECT_TRUE(set_res->conflicts.empty());
         }
-    } ); // ForEveryComponent
+    } ); // CallComponentTest
 }
 
 // Synthetic input frame sequence is generated for encoder.
@@ -541,9 +557,9 @@ TEST(MfxEncoderComponent, UnsupportedParam)
 // This sequence is encoded with different bitrates.
 // Expected bitstream size could be calculated from bitrate set, fps, frame count.
 // Actual bitstream size is checked to be no more 10% differ from expected.
-TEST(MfxEncoderComponent, StaticBitrate)
+TEST_P(Encoder, StaticBitrate)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         C2RateControlSetting param_rate_control;
@@ -596,15 +612,15 @@ TEST(MfxEncoderComponent, StaticBitrate)
                 << " for bitrate " << bitrates[test_index] << " kbit";
 
         }
-    }); // ForEveryComponent
+    }); // CallComponentTest
 }
 
 // Performs encoding of the same generated YUV input
 // with different rate control methods: CBR and CQP.
 // Outputs should differ.
-TEST(MfxEncoderComponent, StaticRateControlMethod)
+TEST_P(Encoder, StaticRateControlMethod)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         C2RateControlSetting param_rate_control;
@@ -649,7 +665,7 @@ TEST(MfxEncoderComponent, StaticRateControlMethod)
                 EXPECT_NE(binary[i], binary[j]) << "Pass " << i << " equal to " << j;
             }
         }
-    }); // ForEveryComponent
+    }); // CallComponentTest
 }
 
 // Tests FrameQP setting (stopped state only).
@@ -659,9 +675,9 @@ TEST(MfxEncoderComponent, StaticRateControlMethod)
 // output bitstream smaller size when QP grows.
 // If qp value is invalid, then config_vb error is expected,
 // bitstream must be bit exact with previous run.
-TEST(MfxEncoderComponent, StaticFrameQP)
+TEST_P(Encoder, StaticFrameQP)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         C2RateControlSetting param_rate_control;
@@ -770,17 +786,17 @@ TEST(MfxEncoderComponent, StaticFrameQP)
                 prev_valid_qp = test_run.qp;
             }
         }
-    }); // ForEveryComponent
+    }); // CallComponentTest
 }
 
 // Queries param values and verify correct defaults.
 // Does check before encoding (STOPPED state), during encoding on every frame,
 // and after encoding.
-TEST(MfxEncoderComponent, query_vb)
+TEST_P(Encoder, query_vb)
 {
     ComponentsCache::GetInstance()->Clear(); // reset cache to re-create components and have default params there
 
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [&] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         (void)comp;
@@ -821,7 +837,7 @@ TEST(MfxEncoderComponent, query_vb)
             SCOPED_TRACE("After encode");
             check_default_values();
         }
-    }); // ForEveryComponent
+    }); // CallComponentTest
 }
 
 uint32_t CountIdrSlices(std::vector<char>&& contents, const char* component_name)
@@ -863,9 +879,9 @@ uint32_t CountIdrSlices(std::vector<char>&& contents, const char* component_name
 // Encodes the same frames multiple times, inserting IDR every N frames.
 // Checks that output bitstream contains idr frames exactly as expected.
 // It tries to request IDR frame with config_vb and with C2Work structure.
-TEST(MfxEncoderComponent, IntraRefresh)
+TEST_P(Encoder, IntraRefresh)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [&] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
         (void)comp_desc;
         (void)comp;
@@ -931,7 +947,7 @@ TEST(MfxEncoderComponent, IntraRefresh)
                     << NAMED(idr_distance);
             }
         }
-    }); // ForEveryComponent
+    }); // CallComponentTest
 }
 
 // First half of video is encoded with one bitrate, second with another.
@@ -939,9 +955,9 @@ TEST(MfxEncoderComponent, IntraRefresh)
 // Bitrate is changed with config_vb and with C2Work structure on separate passes.
 // The bitrate tuning is done in VBR mode, as it is the only mode media SDK supports
 // dynamic bitrate change.
-TEST(MfxEncoderComponent, DynamicBitrate)
+TEST_P(Encoder, DynamicBitrate)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [&] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
         (void)comp_desc;
         (void)comp;
@@ -1039,13 +1055,13 @@ TEST(MfxEncoderComponent, DynamicBitrate)
             EXPECT_TRUE(abs(real_bitrate_2 - BITRATE_2 * 1000) < BITRATE_2 * 1000 * 0.1)
                 << "Expected bitrate: " << BITRATE_2 * 1000 << " Actual: " << real_bitrate_2;
         }
-    }); // ForEveryComponent
+    }); // CallComponentTest
 }
 
 // Queries array of supported pairs (profile, level) and compares to expected array.
-TEST(MfxEncoderComponent, ProfileLevelInfo)
+TEST_P(Encoder, ProfileLevelInfo)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [&] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
         (void)comp;
 
@@ -1073,15 +1089,15 @@ TEST(MfxEncoderComponent, ProfileLevelInfo)
                 }
             }
         }
-    }); // ForEveryComponent
+    }); // CallComponentTest
 }
 
 // Specifies various values for profile and level,
 // checks they are queried back fine.
 // Encodes stream and checks sps of encoded bitstreams fit passed profile and level.
-TEST(MfxEncoderComponent, CodecProfileAndLevel)
+TEST_P(Encoder, CodecProfileAndLevel)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         for(const C2ProfileLevelStruct& test_run : comp_desc.profile_levels) {
@@ -1134,15 +1150,15 @@ TEST(MfxEncoderComponent, CodecProfileAndLevel)
             bool stream_ok = comp_desc.test_stream_profile_level(test_run, std::move(bitstream), &error_message);
             EXPECT_TRUE(stream_ok) << error_message;
         }
-    }); // ForEveryComponent
+    }); // CallComponentTest
 }
 
 // Specifies various values for frame rate,
 // checks they are queried back fine,
 // check real FrameRate using size of encoded stream
-TEST(MfxEncoderComponent, FrameRate)
+TEST_P(Encoder, FrameRate)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         std::vector<char> bitstream;
@@ -1214,5 +1230,17 @@ TEST(MfxEncoderComponent, FrameRate)
                 << "Expected framerate: " << test_run.expected_framerate << " Actual: " << real_framerate;
         }
 
-    }); // ForEveryComponent
+    }); // CallComponentTest
 }
+
+INSTANTIATE_TEST_CASE_P(MfxComponents, CreateEncoder,
+    ::testing::ValuesIn(g_components_desc),
+    ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(MfxInvalidComponents, CreateEncoder,
+    ::testing::ValuesIn(g_invalid_components_desc),
+    ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(MfxComponents, Encoder,
+    ::testing::ValuesIn(g_components_desc),
+    ::testing::PrintToStringParamName());

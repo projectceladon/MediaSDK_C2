@@ -28,7 +28,7 @@ class C2ParamValues
     using C2Param = C2Param;
 private:
     std::list<std::shared_ptr<C2Param>> expected_;
-    std::vector<std::unique_ptr<C2Param>> stack_values_;
+    std::vector<std::shared_ptr<C2Param>> stack_values_;
     std::vector<C2Param::Index> indices_;
 
 public:
@@ -36,7 +36,7 @@ public:
     void Append(ParamType* param_value)
     {
         expected_.push_back(std::shared_ptr<C2Param>((C2Param*)param_value));
-        stack_values_.push_back(std::unique_ptr<C2Param>((C2Param*)new ParamType()));
+        stack_values_.push_back(std::shared_ptr<C2Param>((C2Param*)new ParamType()));
         indices_.push_back(ParamType::PARAM_TYPE);
     }
 
@@ -45,7 +45,7 @@ public:
         // need this temp vector as cannot init vector<smth const> in one step
         std::vector<C2Param*> params;
         std::transform(stack_values_.begin(), stack_values_.end(), std::back_inserter(params),
-            [] (const std::unique_ptr<C2Param>& p) { return p.get(); } );
+            [] (const std::shared_ptr<C2Param>& p) { return p.get(); } );
 
         std::vector<C2Param*> res(params.begin(), params.end());
         return res;
@@ -58,7 +58,7 @@ public:
 
     void CheckStackValues() const
     {
-        Check(stack_values_, false);
+        Check<std::shared_ptr<C2Param>>(stack_values_, false);
     }
     // This method can be used for stack and heap values check both
     // as their collections are the same type.
@@ -66,7 +66,8 @@ public:
     // stack value parameter should be invalidated, but heap not allocated at all.
     // To distingisugh that - bool parameter skip_invalid is intriduced: when true
     // parameters are expected to be invalid are skipped from comparison.
-    void Check(const std::vector<std::unique_ptr<C2Param>>& actual, bool skip_invalid) const
+    template<typename C2ParamPtr>
+    void Check(const std::vector<C2ParamPtr>& actual, bool skip_invalid) const
     {
         if(skip_invalid) {
             EXPECT_TRUE(expected_.size() > actual.size());
@@ -87,7 +88,7 @@ public:
 
             if (actual_it != actual.end()) {
 
-                const auto& actual_item = *actual_it;
+                const C2ParamPtr& actual_item = *actual_it;
 
                 EXPECT_EQ(actual_item->index(), expected_item->index())
                     << std::hex << actual_item->index() << " instead of " << expected_item->index();
