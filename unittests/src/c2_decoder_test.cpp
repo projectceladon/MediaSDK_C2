@@ -42,6 +42,21 @@ namespace {
         std::vector<C2ParamDescriptor> params_desc;
         std::vector<std::vector<const StreamDescription*>> streams;
     };
+
+    // This function is used by ::testing::PrintToStringParamName to give
+    // parameterized tests reasonable names instead of /1, /2, ...
+    void PrintTo(const ComponentDesc& desc, ::std::ostream* os)
+    {
+        PrintAlphaNumeric(desc.component_name, os);
+    }
+
+    class CreateDecoder : public ::testing::TestWithParam<ComponentDesc>
+    {
+    };
+    // Test fixture class called Decoder to beautify output
+    class Decoder : public ::testing::TestWithParam<ComponentDesc>
+    {
+    };
 }
 
 static std::vector<std::vector<const StreamDescription*>> h264_streams =
@@ -63,27 +78,28 @@ static std::vector<std::vector<const StreamDescription*>> h265_streams =
 static ComponentDesc g_components_desc[] = {
     { "C2.h264vd", 0, C2_OK, dec_params_desc, h264_streams },
     { "C2.h265vd", 0, C2_OK, dec_params_desc, h265_streams },
+};
+
+static ComponentDesc g_invalid_components_desc[] = {
     { "C2.NonExistingDecoder", 0, C2_NOT_FOUND, {}, {} },
 };
 
 // Assures that all decoding components might be successfully created.
 // NonExistingDecoder cannot be created and C2_NOT_FOUND error is returned.
-TEST(MfxDecoderComponent, Create)
+TEST_P(CreateDecoder, Create)
 {
-    for(const auto& desc : g_components_desc) {
+    const ComponentDesc& desc = GetParam();
 
-        std::shared_ptr<MfxC2Component> decoder =
-            GetCachedComponent(desc.component_name, g_components_desc);
+    std::shared_ptr<MfxC2Component> decoder = GetCachedComponent(desc);
 
-        EXPECT_EQ(decoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;
-    }
+    EXPECT_EQ(decoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;
 }
 
 // Checks that all successfully created decoding components expose C2ComponentInterface
 // and return correct information once queried (component name).
-TEST(MfxDecoderComponent, intf)
+TEST_P(Decoder, intf)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         EXPECT_EQ(comp_intf->getName(), desc.component_name);
@@ -93,9 +109,9 @@ TEST(MfxDecoderComponent, intf)
 // Checks list of actually supported parameters by all decoding components.
 // Parameters order doesn't matter.
 // For every parameter index, name, required and persistent fields are checked.
-TEST(MfxDecoderComponent, getSupportedParams)
+TEST_P(Decoder, getSupportedParams)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         std::vector<std::shared_ptr<C2ParamDescriptor>> params_actual;
@@ -409,9 +425,9 @@ static std::string GetStreamsCombinedName(const std::vector<const StreamDescript
     return res.str();
 }
 
-TEST(MfxDecoderComponent, DecodeBitExact)
+TEST_P(Decoder, DecodeBitExact)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         const int TESTS_COUNT = 5;
@@ -458,9 +474,9 @@ TEST(MfxDecoderComponent, DecodeBitExact)
 // Checks the correctness of all decoding components state machine.
 // The component should be able to start from STOPPED (initial) state,
 // stop from RUNNING state. Otherwise, C2_BAD_STATE should be returned.
-TEST(MfxDecoderComponent, State)
+TEST_P(Decoder, State)
 {
-    ForEveryComponent<ComponentDesc>(g_components_desc,
+    CallComponentTest<ComponentDesc>(GetParam(),
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr) {
 
         c2_status_t sts = C2_OK;
@@ -478,3 +494,15 @@ TEST(MfxDecoderComponent, State)
         EXPECT_EQ(sts, C2_BAD_STATE);
     } );
 }
+
+INSTANTIATE_TEST_CASE_P(MfxComponents, CreateDecoder,
+    ::testing::ValuesIn(g_components_desc),
+    ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(MfxInvalidComponents, CreateDecoder,
+    ::testing::ValuesIn(g_invalid_components_desc),
+    ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(MfxComponents, Decoder,
+    ::testing::ValuesIn(g_components_desc),
+    ::testing::PrintToStringParamName());

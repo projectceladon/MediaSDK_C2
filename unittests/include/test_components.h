@@ -143,36 +143,20 @@ private:
     std::map<std::string, std::shared_ptr<MfxC2Component>> components_;
 };
 
-template<typename ComponentDesc, int N>
-const ComponentDesc* GetComponentDesc(const std::string& component_name, ComponentDesc (&components_desc)[N])
+template<typename ComponentDesc>
+std::shared_ptr<MfxC2Component> GetCachedComponent(const ComponentDesc& desc)
 {
-    const ComponentDesc* result = nullptr;
-    for(const auto& desc : components_desc) {
-        if(component_name == desc.component_name) {
-            result = &desc;
-            break;
-        }
-    }
-    return result;
-}
-
-template<typename ComponentDesc, int N>
-std::shared_ptr<MfxC2Component> GetCachedComponent(const char* name, ComponentDesc (&components_desc)[N])
-{
-    std::shared_ptr<MfxC2Component> result = ComponentsCache::GetInstance()->GetComponent(name);
+    std::shared_ptr<MfxC2Component> result =
+        ComponentsCache::GetInstance()->GetComponent(desc.component_name);
     if (result == nullptr) {
-        const ComponentDesc* desc = GetComponentDesc(name, components_desc);
-        EXPECT_NE(desc, nullptr);
-        if (desc) {
-            c2_status_t status = C2_OK;
-            MfxC2Component* mfx_component = MfxCreateC2Component(name, desc->flags, &status);
+        c2_status_t status = C2_OK;
+        MfxC2Component* mfx_component = MfxCreateC2Component(desc.component_name, desc.flags, &status);
 
-            EXPECT_EQ(status, desc->creation_status);
-            if(desc->creation_status == C2_OK) {
-                EXPECT_NE(mfx_component, nullptr);
-                result = std::shared_ptr<MfxC2Component>(mfx_component);
-                ComponentsCache::GetInstance()->PutComponent(name, result);
-            }
+        EXPECT_EQ(status, desc.creation_status);
+        if(desc.creation_status == C2_OK) {
+            EXPECT_NE(mfx_component, nullptr);
+            result = std::shared_ptr<MfxC2Component>(mfx_component);
+            ComponentsCache::GetInstance()->PutComponent(desc.component_name, result);
         }
     }
     return result;
@@ -185,31 +169,36 @@ template <typename Desc>
 using ComponentTest =
     std::function<void(const Desc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf)>;
 
-// Calls specified test std::function for every successfully created component.
-// Used to avoid duplicating the same loop everywhere.
-template<typename ComponentDesc, int N>
-void ForEveryComponent(
-    ComponentDesc (&components_desc)[N], ComponentTest<ComponentDesc> comp_test)
+inline void PrintAlphaNumeric(const char* text, ::std::ostream* os)
 {
-    for(const auto& desc : components_desc) {
+    for (const char* p = text; *p; ++p) {
+        // Only alphanum and underscores allowed for test names.
+        *os << (std::isalnum(*p) ? *p : '_');
+    }
+}
 
+// Calls specified test std::function for every successfully created component.
+template<typename ComponentDesc>
+void CallComponentTest(const ComponentDesc& desc, ComponentTest<ComponentDesc> comp_test)
+{
+    do {
         SCOPED_TRACE(desc.component_name);
 
-        std::shared_ptr<MfxC2Component> component = GetCachedComponent(desc.component_name, components_desc);
+        std::shared_ptr<MfxC2Component> component = GetCachedComponent(desc);
         bool creation_expected = (desc.creation_status == C2_OK);
         bool creation_actual = (component != nullptr);
 
         EXPECT_EQ(creation_actual, creation_expected) << " for " << desc.component_name;
-        if (nullptr == component) continue;
+        if (nullptr == component) break;
 
         std::shared_ptr<C2Component> c2_component = component;
         std::shared_ptr<C2ComponentInterface> c2_component_intf = c2_component->intf();
 
         EXPECT_NE(c2_component_intf, nullptr);
-        if (nullptr == c2_component_intf) continue;
+        if (nullptr == c2_component_intf) break;
 
         comp_test(desc, c2_component, c2_component_intf);
-    }
+    } while(false);
 }
 
 // Interface for filling/updating frame contents.
