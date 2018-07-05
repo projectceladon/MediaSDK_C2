@@ -352,9 +352,12 @@ inline std::vector<char> SingleStreamReader::GetRegionContents(StreamDescription
         stream_->data.begin() + end);
 }
 
-struct AvcSequenceParameterSet
+namespace HeaderParser
 {
-    uint16_t profile;
+class AvcSequenceParameterSet
+{
+public:
+    uint16_t profile_;
     enum Constraint : uint16_t {
         SET_0 = 0x80,
         SET_1 = 0x40,
@@ -362,20 +365,47 @@ struct AvcSequenceParameterSet
         SET_3 = 0x10,
         SET_4 = 0x08,
     };
-    uint16_t constraints;
-    uint16_t level;
+    uint16_t constraints_;
+    uint16_t level_;
+    float frame_rate_;
+    bool ExtractSequenceParameterSet(std::vector<char>&& bitstream);
+private:
+    void ParseVUI(const std::vector<char>& data, StreamDescription::Region* region);
 };
 
-struct HevcSequenceParameterSet
+class HevcSequenceParameterSet
 {
-    uint16_t profile;
-    uint16_t level;
+public:
+    uint8_t profile_;
+    enum Profiles : uint8_t {
+        HEVC_MAIN    = 1,
+        HEVC_MAIN_10 = 2,
+        HEVC_MAIN_SP = 1,
+        HEVC_REXT    = 4,
+        HEVC_REXT_HT = 5,
+        HEVC_MAIN_MV = 6,
+        HEVC_MAIN_SC = 7,
+        HEVC_MAIN_3D = 8,
+        HEVC_SCC     = 9,
+        HEVC_REXT_SC = 10,
+    };
+    uint16_t level_;
+    float frame_rate_;
+    bool ExtractSequenceParameterSet(std::vector<char>&& bitstream);
+private:
+    uint8_t max_sub_layers_minus1_;
+    uint32_t log2_max_pic_order_cnt_lsb_minus4_;
+    void ParsePTL(const std::vector<char>& data, StreamDescription::Region* region);
+    void ParseSLD(const std::vector<char>& data, StreamDescription::Region* region);
+    void ParseSTRPS(const std::vector<char>& data, StreamDescription::Region* region);
+    void ParseLTRPS(const std::vector<char>& data, StreamDescription::Region* region);
+    void ParseVUI(const std::vector<char>& data, StreamDescription::Region* region);
+    bool ProfileMatches(uint8_t real, uint8_t expected, uint32_t flag)
+    {
+        return (real == expected || (flag & (1 << (31 - expected))));
+    }
 };
-
-
-bool ExtractAvcSequenceParameterSet(std::vector<char>&& bitstream, AvcSequenceParameterSet* sps);
-
-bool ExtractHevcSequenceParameterSet(std::vector<char>&& bitstream, HevcSequenceParameterSet* sps);
+}
 
 bool TestAvcStreamProfileLevel(const C2ProfileLevelStruct& profile_level, std::vector<char>&& bitstream, std::string* message);
 

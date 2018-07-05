@@ -1163,13 +1163,47 @@ TEST_P(Encoder, CodecProfileAndLevel)
     }); // CallComponentTest
 }
 
+bool CheckFrameRateInStream(std::vector<char>&& contents, const float expected,  const char* component_name, std::string* message)
+{
+    std::ostringstream oss;
+    bool res = false;
+    if (!strcmp(component_name, "C2.h264ve")) {
+        HeaderParser::AvcSequenceParameterSet sps;
+        if (sps.ExtractSequenceParameterSet(std::move(contents))) {
+            if (abs(sps.frame_rate_ - expected) > 0.001) { //FrameRate setting keep 3 sign after dot
+                oss << "ERR: Wrong FrameRate in stream" << std::endl << "Expected: " << expected << " Actual: " << sps.frame_rate_ << std::endl;
+            } else {
+                res = true;
+            }
+        } else {
+            oss << "sps is not found in bitstream" << std::endl;
+        }
+    } else if (!strcmp(component_name, "C2.h265ve")) {
+        HeaderParser::HevcSequenceParameterSet sps;
+        if (sps.ExtractSequenceParameterSet(std::move(contents))) {
+            if (abs(sps.frame_rate_ - expected) > 0.001) { //FrameRate setting keep 3 sign after dot
+                oss << "ERR: Wrong FrameRate in stream" << std::endl << "Expected: " << expected << " Actual: " << sps.frame_rate_ << std::endl;
+            } else {
+                res = true;
+            }
+        } else {
+            oss << "sps is not found in bitstream" << std::endl;
+        }
+    } else {
+        res = false;
+        oss << "ERR: unknown codec" << std::endl;
+    }
+    *message = oss.str();
+    return res;
+}
+
 // Specifies various values for frame rate,
 // checks they are queried back fine,
 // check real FrameRate using size of encoded stream
 TEST_P(Encoder, FrameRate)
 {
     CallComponentTest<ComponentDesc>(GetParam(),
-        [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+        [] (const ComponentDesc& comp_desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         std::vector<char> bitstream;
         struct TestRunDescription
@@ -1233,6 +1267,10 @@ TEST_P(Encoder, FrameRate)
 
             Encode(FRAME_COUNT, false/*system memory*/, comp, validator,
                 { &stripe_generator, &noise_generator } );
+
+            std::string error_message;
+            bool stream_ok = CheckFrameRateInStream(std::move(bitstream), test_run.expected_framerate, comp_desc.component_name, &error_message);
+            EXPECT_TRUE(stream_ok) << error_message;
 
             float real_framerate = (CONST_BITRATE * FRAME_COUNT * 1000.0) /
                 (test_run.stream_len * 8);
