@@ -20,7 +20,8 @@ struct StreamDescription
     uint32_t fourcc;
     struct Region
     {
-        size_t offset;
+        size_t offset; // current byte offset in the stream
+        uint8_t bit_offset; // current bit offset in the current byte
         size_t size;
         bool Intersects(const Region& other) const {
             return offset < (other.offset + other.size) &&

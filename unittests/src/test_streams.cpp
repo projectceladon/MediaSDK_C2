@@ -90,6 +90,68 @@ std::vector<char> CombinedStreamReader::GetRegionContents(StreamDescription::Reg
     return res;
 }
 
+int32_t ReadBits(const std::vector<char>& data, StreamDescription::Region* region, uint8_t nBits /*1..32*/)
+{
+    int32_t res = 0;
+    if (nBits > 32 || nBits == 0 ||
+        (data.size() <= (region->offset + nBits / 8))) {
+        return res;
+    }
+    if ((region->bit_offset + nBits) <= 8) { //read inside one byte
+        char t_res = ((data[region->offset] & 0xFF) & (0xFF>>region->bit_offset))>>(8 - nBits - region->bit_offset);
+        region->bit_offset += nBits;
+        if (region->bit_offset == 8) {
+            region->bit_offset = 0;
+            region->offset++;
+        }
+        res = t_res;
+    } else {
+        uint32_t num_bits_for_read = nBits;
+        if (region->bit_offset) {
+            char t_res = ((data[region->offset] & 0xFF) & (0xFF>>region->bit_offset));
+            region->offset++;
+            num_bits_for_read -= 8 - region->bit_offset;
+            res = t_res<<num_bits_for_read;
+        }
+        region->bit_offset = 0;
+        while (num_bits_for_read) {
+            uint32_t tmp = 0;
+            if (num_bits_for_read >= 8) {
+                num_bits_for_read -= 8;
+                tmp = (data[region->offset] & 0xFF)<<num_bits_for_read;
+                res = res | tmp;
+                region->offset++;
+            } else {
+                tmp = ReadBits(data, region, num_bits_for_read);
+                num_bits_for_read = 0;
+                res = res | tmp;
+            }
+        }
+    }
+    return res;
+}
+
+void SkipEmulationBytes(std::vector<char>* data, StreamDescription::Region* region)
+{
+    // remove prevent code emulaton bytes
+    if (data->size() >= region->offset + region->size) {
+        const std::vector<char> delim = { 0, 0, 3 };
+        std::vector<char>::iterator pos = data->begin() + region->offset;
+        while (true) {
+            std::vector<char>::iterator end = (data->begin() + region->offset + region->size);
+            std::vector<char>::iterator found =
+                std::search(pos, end, delim.begin(), delim.end());
+            if (found != end) {
+                data->erase(found + delim.size() - 1);
+                region->size--;
+            } else {
+                return;
+            }
+            pos = found + delim.size() - 1;
+        }
+    }
+}
+
 bool ExtractAvcSequenceParameterSet(std::vector<char>&& bitstream, AvcSequenceParameterSet* sps)
 {
     StreamDescription stream {};
@@ -108,9 +170,11 @@ bool ExtractAvcSequenceParameterSet(std::vector<char>&& bitstream, AvcSequencePa
             uint8_t nal_unit_type = (uint8_t)header_byte & 0x1F;
             const uint8_t UNIT_TYPE_SPS = 7;
             if (nal_unit_type == UNIT_TYPE_SPS && region.size > start_code_len + 3) {
-                sps->profile = stream.data[region.offset + start_code_len + 1];
-                sps->constraints = stream.data[region.offset + start_code_len + 2];
-                sps->level = stream.data[region.offset + start_code_len + 3];
+                SkipEmulationBytes(&(stream.data), &region);
+                region.offset += start_code_len + 1;
+                sps->profile = ReadBits(stream.data, &region, 8);
+                sps->constraints = ReadBits(stream.data, &region, 8);
+                sps->level = ReadBits(stream.data, &region, 8);
                 sps_found = true;
                 break;
             }
@@ -136,9 +200,30 @@ bool ExtractHevcSequenceParameterSet(std::vector<char>&& bitstream, HevcSequence
             uint8_t nal_unit_type = ((uint8_t)header_byte & 0x7E) >> 1;
             const uint8_t UNIT_TYPE_SPS = 33;
             if (nal_unit_type == UNIT_TYPE_SPS && region.size > start_code_len + 17) {
-                uint8_t general_profile_idc = stream.data[region.offset + start_code_len + 2];
-                sps->profile = general_profile_idc & 0x1F;
-                sps->level = ((uint8_t)stream.data[region.offset + start_code_len + 17]) / 3;
+                SkipEmulationBytes(&(stream.data), &region);
+                region.offset += start_code_len + 2;
+                /*uint8_t video_parameter_set_id = */ReadBits(stream.data, &region, 4);
+                /*uint8_t max_sub_layers_minus1 = */ReadBits(stream.data, &region, 3);
+                /*bool temporal_id_nesting_flag = */ReadBits(stream.data, &region, 1);
+                /*uint8_t profile_space = */ReadBits(stream.data, &region, 2);
+                /*bool tier_flag = */ReadBits(stream.data, &region, 1);
+                uint8_t profile_idc = ReadBits(stream.data, &region, 5);
+                sps->profile = profile_idc;
+
+                /*uint32_t profile_compatibility_flags = */ReadBits(stream.data, &region, 32);
+                /*bool progressive_source_flag = */ReadBits(stream.data, &region, 1);
+                /*bool interlaced_source_flag = */ReadBits(stream.data, &region, 1);
+                /*bool non_packed_constraint_flag = */ReadBits(stream.data, &region, 1);
+                /*bool frame_only_constraint_flag = */ReadBits(stream.data, &region, 1);
+
+                /*uint32_t reserved_zero_43bits_0_19 =  */ReadBits(stream.data, &region, 20);
+                /*uint32_t reserved_zero_43bits_20_42 = */ReadBits(stream.data, &region, 23);
+
+                /*bool reserved_zero_bit = */ReadBits(stream.data, &region, 1);
+
+                uint8_t level_idc = ReadBits(stream.data, &region, 8);
+                sps->level = level_idc * 10 / 30;
+
                 sps_found = true;
                 break;
             }
