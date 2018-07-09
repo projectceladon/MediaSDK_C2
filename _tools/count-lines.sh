@@ -9,6 +9,6 @@ test_lines=$(find ./unittests -not -path "./unittests/streams/*" \( -name *.cpp 
 
 lines=$(find . -not -path "./codec2/*" -not -path "./unittests/streams/*" \( -name *.cpp -or -name *.h \) | xargs cat | wc -l)
 
-test_count=$(grep -r --include=*.cpp "TEST(" ./unittests/ | wc -l)
+test_count=$(grep -r --include=*.cpp -E "TEST(_P|)\(" ./unittests/ | wc -l)
 
 echo $lines';'$prod_lines';'$test_lines';'$test_count
