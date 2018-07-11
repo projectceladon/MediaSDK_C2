@@ -232,12 +232,22 @@ static void PrepareWork(uint32_t frame_index, bool last_frame, bool graphics_mem
                     EXPECT_NE(data[i], nullptr);
                 }
 
-                const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_Y].rowInc;
-                const uint32_t alloc_height =
-                    (data[C2PlanarLayout::PLANE_U] - data[C2PlanarLayout::PLANE_Y]) / stride;
+                EXPECT_EQ(FRAME_FORMAT, HAL_PIXEL_FORMAT_NV12_TILED_INTEL);
+                if (FRAME_FORMAT == HAL_PIXEL_FORMAT_NV12_TILED_INTEL) {
 
-                for(FrameGenerator* generator : generators) {
-                    generator->Apply(frame_index, data[C2PlanarLayout::PLANE_Y], FRAME_WIDTH, stride, alloc_height);
+                    const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_Y].rowInc;
+                    const uint32_t alloc_height =
+                        (data[C2PlanarLayout::PLANE_U] - data[C2PlanarLayout::PLANE_Y]) / stride;
+
+                    const size_t frame_size = stride * alloc_height * 3 / 2;
+                    // Allocate frame in system memory, generate contents there, copy to gpu memory
+                    // as direct write per pixel is very slow.
+                    std::vector<uint8_t> frame(frame_size);
+
+                    for(FrameGenerator* generator : generators) {
+                        generator->Apply(frame_index, frame.data(), FRAME_WIDTH, stride, alloc_height);
+                    }
+                    memcpy(data[C2PlanarLayout::PLANE_Y], frame.data(), frame_size);
                 }
             }
         }
