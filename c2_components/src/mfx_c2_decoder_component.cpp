@@ -50,13 +50,7 @@ MfxC2DecoderComponent::~MfxC2DecoderComponent()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    FreeDecoder();
-
-    if (c2_bitstream_) {
-        c2_bitstream_->Reset();
-    }
-
-    session_.Close();
+    Release();
 }
 
 void MfxC2DecoderComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
@@ -164,6 +158,24 @@ c2_status_t MfxC2DecoderComponent::DoStop()
     }
 
     return C2_OK;
+}
+
+c2_status_t MfxC2DecoderComponent::Release()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    c2_status_t res = C2_OK;
+
+    mfxStatus sts = session_.Close();
+    if (MFX_ERR_NONE != sts) res = MfxStatusToC2(sts);
+
+    if (device_) {
+        device_->Close();
+        if (MFX_ERR_NONE != sts) res = MfxStatusToC2(sts);
+
+        device_ = nullptr;
+    }
+    return res;
 }
 
 mfxStatus MfxC2DecoderComponent::InitSession()
@@ -351,7 +363,7 @@ c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
     return res;
 }
 
-c2_status_t MfxC2DecoderComponent::query_vb(
+c2_status_t MfxC2DecoderComponent::Query(
     const std::vector<C2Param*> &stackParams,
     const std::vector<C2Param::Index> &heapParamIndices,
     c2_blocking_t mayBlock,
@@ -460,7 +472,7 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
     }
 }
 
-c2_status_t MfxC2DecoderComponent::config_vb(const std::vector<C2Param*> &params,
+c2_status_t MfxC2DecoderComponent::Config(const std::vector<C2Param*> &params,
     c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures) {
 
@@ -477,9 +489,7 @@ c2_status_t MfxC2DecoderComponent::config_vb(const std::vector<C2Param*> &params
 
         failures->clear();
 
-        std::lock(init_decoder_mutex_, state_mutex_);
-        std::lock_guard<std::mutex> lock1(init_decoder_mutex_, std::adopt_lock);
-        std::lock_guard<std::mutex> lock2(state_mutex_, std::adopt_lock);
+        std::lock_guard<std::mutex> lock(init_decoder_mutex_);
 
         DoConfig(params, failures, true);
 
@@ -915,7 +925,7 @@ c2_status_t MfxC2DecoderComponent::ValidateWork(const std::unique_ptr<C2Work>& w
     return res;
 }
 
-c2_status_t MfxC2DecoderComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const items)
+c2_status_t MfxC2DecoderComponent::Queue(std::list<std::unique_ptr<C2Work>>* const items)
 {
     MFX_DEBUG_TRACE_FUNC;
 

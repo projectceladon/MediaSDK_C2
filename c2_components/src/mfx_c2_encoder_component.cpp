@@ -95,9 +95,7 @@ MfxC2EncoderComponent::~MfxC2EncoderComponent()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    FreeEncoder();
-
-    session_.Close();
+    Release();
 }
 
 void MfxC2EncoderComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
@@ -182,6 +180,24 @@ c2_status_t MfxC2EncoderComponent::DoStop()
     FreeEncoder();
 
     return C2_OK;
+}
+
+c2_status_t MfxC2EncoderComponent::Release()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    c2_status_t res = C2_OK;
+
+    mfxStatus sts = session_.Close();
+    if (MFX_ERR_NONE != sts) res = MfxStatusToC2(sts);
+
+    if (device_) {
+        device_->Close();
+        if (MFX_ERR_NONE != sts) res = MfxStatusToC2(sts);
+
+        device_ = nullptr;
+    }
+    return res;
 }
 
 mfxStatus MfxC2EncoderComponent::InitSession()
@@ -786,7 +802,7 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
     return res;
 }
 
-c2_status_t MfxC2EncoderComponent::query_vb(
+c2_status_t MfxC2EncoderComponent::Query(
     const std::vector<C2Param*> &stackParams,
     const std::vector<C2Param::Index> &heapParamIndices,
     c2_blocking_t mayBlock,
@@ -1044,7 +1060,7 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
     }
 }
 
-c2_status_t MfxC2EncoderComponent::config_vb(const std::vector<C2Param*> &params,
+c2_status_t MfxC2EncoderComponent::Config(const std::vector<C2Param*> &params,
     c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures) {
 
@@ -1061,9 +1077,7 @@ c2_status_t MfxC2EncoderComponent::config_vb(const std::vector<C2Param*> &params
 
         failures->clear();
 
-        std::lock(init_encoder_mutex_, state_mutex_);
-        std::lock_guard<std::mutex> lock1(init_encoder_mutex_, std::adopt_lock);
-        std::lock_guard<std::mutex> lock2(state_mutex_, std::adopt_lock);
+        std::lock_guard<std::mutex> lock(init_encoder_mutex_);
 
         DoConfig(params, failures, true);
 
@@ -1074,7 +1088,7 @@ c2_status_t MfxC2EncoderComponent::config_vb(const std::vector<C2Param*> &params
     return res;
 }
 
-c2_status_t MfxC2EncoderComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const items)
+c2_status_t MfxC2EncoderComponent::Queue(std::list<std::unique_ptr<C2Work>>* const items)
 {
     MFX_DEBUG_TRACE_FUNC;
 

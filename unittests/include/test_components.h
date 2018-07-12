@@ -125,7 +125,15 @@ public:
         components_.emplace(name, component);
     }
 
-    void Clear() { components_.clear(); }
+    void Clear()
+    {
+        for (auto& pair : components_) {
+            MfxC2Component* component = pair.second.get();
+            c2_status_t res = ((C2Component*)component)->release();
+            EXPECT_EQ(res, C2_OK);
+        }
+        components_.clear();
+    }
 
     void TearDown() override { Clear(); }
 

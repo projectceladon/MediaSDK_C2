@@ -32,12 +32,26 @@ protected:
 public:
     virtual ~MfxC2Component();
 
-private:
+private: // Non-virtual interface methods optionally overridden in descendants
     virtual c2_status_t Init() = 0;
 
     virtual c2_status_t DoStart();
 
     virtual c2_status_t DoStop();
+
+    virtual c2_status_t Release() { return C2_OK; }
+
+    virtual c2_status_t Query(const std::vector<C2Param*>&/*stackParams*/,
+        const std::vector<C2Param::Index> &/*heapParamIndices*/,
+        c2_blocking_t /*mayBlock*/,
+        std::vector<std::unique_ptr<C2Param>>* const /*heapParams*/) const { return C2_OMITTED; }
+
+    virtual c2_status_t Config(
+        const std::vector<C2Param*> &/*params*/,
+        c2_blocking_t /*mayBlock*/,
+        std::vector<std::unique_ptr<C2SettingResult>>* const /*failures*/) { return C2_OMITTED; }
+
+    virtual c2_status_t Queue(std::list<std::unique_ptr<C2Work>>* const /*items*/) { return C2_OMITTED; }
 
 protected: // C2ComponentInterface overrides
     C2String getName() const override;
@@ -95,20 +109,20 @@ protected:
 protected:
     /* State diagram:
 
-       +------- stop ------- ERROR
-       |                       ^
-       |                       |
-       |                     error
-       |                       |
-       |  +-----start ----> RUNNING
-       V  |                 | |  ^
-    STOPPED <--- stop ------+ |  |
-       ^                      |  |
-       |                 config  |
-       |                  error  |
-       |                      |  start
-       |                      V  |
-       +------- stop ------- TRIPPED
+                   +------- stop ------- ERROR
+                   |                       ^
+                   |                       |
+                   |                     error
+                   |                       |
+                   |  +-----start ----> RUNNING
+                   V  |                 | |  ^
+    RELEASED <- STOPPED <--- stop ------+ |  |
+                   ^                      |  |
+                   |                 config  |
+                   |                  error  |
+                   |                      |  start
+                   |                      V  |
+                   +------- stop ------- TRIPPED
 
     Operations permitted:
         Tunings could be applied in all states.
@@ -119,13 +133,14 @@ protected:
         STOPPED,
         RUNNING,
         TRIPPED,
-        ERROR
+        ERROR,
+        RELEASED
     };
 
 protected: // variables
     State state_ = State::STOPPED;
 
-    std::mutex state_mutex_;
+    mutable std::mutex state_mutex_;
 
     C2String name_;
 

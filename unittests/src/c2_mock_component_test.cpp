@@ -472,10 +472,19 @@ TEST(MfxMockComponent, State)
         sts = component->start();
         EXPECT_EQ(sts, C2_BAD_STATE);
 
+        sts = component->release();
+        EXPECT_EQ(sts, C2_BAD_STATE);
+
         sts = component->stop();
         EXPECT_EQ(sts, C2_OK);
 
         sts = component->stop();
         EXPECT_EQ(sts, C2_BAD_STATE);
+
+        sts = component->release();
+        EXPECT_EQ(sts, C2_OK);
+
+        sts = component->release();
+        EXPECT_EQ(sts, C2_DUPLICATE);
     }
 }
