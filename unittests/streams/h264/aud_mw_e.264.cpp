@@ -1,10 +1,20 @@
+/********************************************************************************
+
+INTEL CORPORATION PROPRIETARY INFORMATION
+This software is supplied under the terms of a license agreement or nondisclosure
+agreement with Intel Corporation and may not be copied or disclosed except in
+accordance with the terms of that agreement
+Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
+
+*********************************************************************************/
+
 #include "aud_mw_e.264.h"
 
 StreamDescription aud_mw_e_264 = {
     .name = "aud_mw_e_264",
     .fourcc = MFX_CODEC_AVC,
-    .sps = { 6, 13 }, // with delimiter
-    .pps = { 19, 8 }, // with delimiter
+    .sps = { 6, 0, 13 }, // with delimiter
+    .pps = { 19, 0, 8 }, // with delimiter
     .crc32_nv12 = 0xA5A66581,
     .data = {
         '\x00', '\x00', '\x00', '\x01', '\x09', '\x10', '\x00', '\x00', '\x00', '\x01', '\x67', '\x42', '\xE0', '\x0A', '\x96', '\x52',
