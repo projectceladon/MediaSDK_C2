@@ -1,10 +1,20 @@
+/********************************************************************************
+
+INTEL CORPORATION PROPRIETARY INFORMATION
+This software is supplied under the terms of a license agreement or nondisclosure
+agreement with Intel Corporation and may not be copied or disclosed except in
+accordance with the terms of that agreement
+Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
+
+*********************************************************************************/
+
 #include "freh9.264.h"
 
 StreamDescription freh9_264 = {
     .name = "freh9_264",
     .fourcc = MFX_CODEC_AVC,
-    .sps = { 0, 15 }, // includes heading delimiter
-    .pps = { 15, 10 }, // includes heading delimiter
+    .sps = { 0, 0, 15 }, // includes heading delimiter
+    .pps = { 15, 0, 10 }, // includes heading delimiter
     .crc32_nv12 = 0x4240C8B5,
     .data = {
         '\x00', '\x00', '\x00', '\x01', '\x27', '\x64', '\x00', '\x1E', '\xAD', '\x00', '\x1B', '\x2B', '\x05', '\x82', '\x59', '\x00',

@@ -1,10 +1,20 @@
+/********************************************************************************
+
+INTEL CORPORATION PROPRIETARY INFORMATION
+This software is supplied under the terms of a license agreement or nondisclosure
+agreement with Intel Corporation and may not be copied or disclosed except in
+accordance with the terms of that agreement
+Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
+
+*********************************************************************************/
+
 #include "CAINIT_A_SHARP_4.bit.h"
 
 StreamDescription CAINIT_A_SHARP_4_bit = {
     .name = "CAINIT_A_SHARP_4_bit",
     .fourcc = MFX_CODEC_HEVC,
-    .sps = { 29, 52 },
-    .pps = { 81, 11 },
+    .sps = { 29, 0, 52 },
+    .pps = { 81, 0, 11 },
     .crc32_nv12 = 0x4DB7BF2F,
     .data = {
         '\x00', '\x00', '\x00', '\x01', '\x40', '\x01', '\x0C', '\x01', '\xFF', '\xFF', '\x01', '\x60', '\x00', '\x00', '\x03', '\x00',
