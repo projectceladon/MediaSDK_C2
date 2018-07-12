@@ -55,27 +55,27 @@ public:
 public:
     static void RegisterClass(MfxC2ComponentsRegistry& registry);
 
-protected: // C2ComponentInterface
-    c2_status_t query_vb(
-        const std::vector<C2Param*> &stackParams,
-        const std::vector<C2Param::Index> &heapParamIndices,
-        c2_blocking_t mayBlock,
-        std::vector<std::unique_ptr<C2Param>>* const heapParams) const override;
-
-    c2_status_t config_vb(
-        const std::vector<C2Param*> &params,
-        c2_blocking_t mayBlock,
-        std::vector<std::unique_ptr<C2SettingResult>>* const failures) override;
-
-protected: // C2Component
-    c2_status_t queue_nb(std::list<std::unique_ptr<C2Work>>* const items) override;
-
 protected:
     c2_status_t Init() override;
 
     c2_status_t DoStart() override;
 
     c2_status_t DoStop() override;
+
+    c2_status_t Release() override;
+
+    c2_status_t Query(
+        const std::vector<C2Param*> &stackParams,
+        const std::vector<C2Param::Index> &heapParamIndices,
+        c2_blocking_t mayBlock,
+        std::vector<std::unique_ptr<C2Param>>* const heapParams) const override;
+
+    c2_status_t Config(
+        const std::vector<C2Param*> &params,
+        c2_blocking_t mayBlock,
+        std::vector<std::unique_ptr<C2SettingResult>>* const failures) override;
+
+    c2_status_t Queue(std::list<std::unique_ptr<C2Work>>* const items) override;
 
 private:
     c2_status_t QueryParam(const mfxVideoParam* src,

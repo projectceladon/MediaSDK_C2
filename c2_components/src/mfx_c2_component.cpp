@@ -35,6 +35,7 @@ c2_status_t MfxC2Component::DoStart()
 {
     return C2_OK;
 }
+
 c2_status_t MfxC2Component::DoStop()
 {
     return C2_OK;
@@ -64,12 +65,16 @@ c2_status_t MfxC2Component::query_vb(
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    (void)stackParams;
-    (void)heapParamIndices;
-    (void)mayBlock;
-    (void)heapParams;
+    c2_status_t res = C2_OK;
 
-    return C2_OMITTED;
+    std::lock_guard<std::mutex> lock(state_mutex_);
+
+    if (State::RELEASED != state_) {
+        res = Query(stackParams, heapParamIndices, mayBlock, heapParams);
+    } else {
+        res = C2_BAD_STATE;
+    }
+    return res;
 }
 
 c2_status_t MfxC2Component::config_vb(
@@ -79,11 +84,16 @@ c2_status_t MfxC2Component::config_vb(
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    (void)params;
-    (void)mayBlock;
-    (void)failures;
+    c2_status_t res = C2_OK;
 
-    return C2_OMITTED;
+    std::lock_guard<std::mutex> lock(state_mutex_);
+
+    if (State::RELEASED != state_) {
+        res = Config(params, mayBlock, failures);
+    } else {
+        res = C2_BAD_STATE;
+    }
+    return res;
 }
 
 c2_status_t MfxC2Component::createTunnel_sm(c2_node_id_t targetComponent)
@@ -127,9 +137,16 @@ c2_status_t MfxC2Component::queue_nb(std::list<std::unique_ptr<C2Work>>* const i
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    (void)items;
+    c2_status_t res = C2_OK;
 
-    return C2_OMITTED;
+    std::lock_guard<std::mutex> lock(state_mutex_);
+
+    if (State::RELEASED != state_) {
+        res = Queue(items);
+    } else {
+        res = C2_BAD_STATE;
+    }
+    return res;
 }
 
 c2_status_t MfxC2Component::announce_nb(const std::vector<C2WorkOutline> &items)
@@ -215,7 +232,24 @@ c2_status_t MfxC2Component::reset()
 c2_status_t MfxC2Component::release()
 {
     MFX_DEBUG_TRACE_FUNC;
-    return C2_OMITTED;
+
+    c2_status_t res = C2_OK;
+
+    std::lock_guard<std::mutex> lock(state_mutex_);
+
+    switch (state_) {
+        case State::STOPPED:
+            res = Release();
+            state_ = State::RELEASED;
+            break;
+        case State::RELEASED:
+            res = C2_DUPLICATE;
+            break;
+        default:
+            res = C2_BAD_STATE;
+            break;
+    }
+    return res;
 }
 
 std::shared_ptr<C2ComponentInterface> MfxC2Component::intf()
