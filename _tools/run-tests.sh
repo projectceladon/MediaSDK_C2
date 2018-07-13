@@ -62,13 +62,7 @@ scp $remote_server:${remote_output}vendor/\{$remote_lib/\{$libs\},bin/\{$execs\}
 
 system_libs="\
 libstagefright_codec2_vndk_mfx.so \
-android.hardware.media.bufferpool@1.0.so \
-libstagefright_bufferpool@1.0.so \
-libstagefright_bufferqueue_helper.so \
-libhidltransport.so \
-libhidlbase.so \
-libhwbinder.so \
-libbase.so"
+libstagefright_bufferpool@1.0.so"
 
 for i in $system_libs
 do
@@ -102,4 +96,4 @@ fi
 
 adb shell 'cd '${device_dir}'; \
 for exec_name in ./*unittests*; do chmod a+x $exec_name; \
-LD_LIBRARY_PATH=.:/system/'$remote_lib'/vndk-sp ./$exec_name --gtest_filter='$gtest_filter' --dump-output; done'
+LD_LIBRARY_PATH=.:/system/'$remote_lib'/vndk-28 ./$exec_name --gtest_filter='$gtest_filter' --dump-output; done'
