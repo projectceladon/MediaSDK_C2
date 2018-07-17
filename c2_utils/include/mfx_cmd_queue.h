@@ -15,6 +15,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include <functional>
 #include <queue>
 #include <thread>
+#include <atomic>
 
 #include "mfx_defs.h"
 #include "mfx_debug.h"
@@ -30,6 +31,10 @@ public:
     void Start();
 
     void Stop();
+
+    void Pause();
+
+    void Resume();
 
     void Abort();
 
@@ -49,6 +54,7 @@ private:
 private:
     std::mutex mutex_; // push/pop protection
     std::queue<MfxCmd> data_;
+    std::atomic<bool> paused_{false};
     std::condition_variable condition_; // event from push to processor
     std::thread working_thread_;
     std::mutex shutdown_mutex_; // protect if shutdown is requested simultaneously from some threads

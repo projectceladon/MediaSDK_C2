@@ -21,6 +21,37 @@ class MfxC2Component : public C2ComponentInterface,
                        public std::enable_shared_from_this<MfxC2Component>
 {
 protected:
+    /* State diagram:
+
+                   +------- stop ------- ERROR
+                   |                       ^
+                   |                       |
+                   |                     error
+                   |                       |
+                   |  +-----start ----> RUNNING
+                   V  |                 | |  ^
+    RELEASED <- STOPPED <--- stop ------+ |  |
+                   ^                      |  |
+                   |                 config  |
+                   |                  error  |
+                   |                      |  start
+                   |                      V  |
+                   +------- stop ------- TRIPPED
+
+    Operations permitted:
+        Tunings could be applied in all states.
+        Settings could be applied in STOPPED state only.
+*/
+    enum class State
+    {
+        STOPPED,
+        RUNNING,
+        TRIPPED,
+        ERROR,
+        RELEASED
+    };
+
+protected:
     MfxC2Component(const C2String& name, int flags);
     MFX_CLASS_NO_COPY(MfxC2Component)
 
@@ -37,7 +68,11 @@ private: // Non-virtual interface methods optionally overridden in descendants
 
     virtual c2_status_t DoStart();
 
-    virtual c2_status_t DoStop();
+    virtual c2_status_t DoStop(bool abort);
+
+    virtual c2_status_t Pause() { return C2_OK; }
+
+    virtual c2_status_t Resume() { return C2_OK; }
 
     virtual c2_status_t Release() { return C2_OK; }
 
@@ -106,41 +141,23 @@ protected:
 
     void NotifyWorkDone(std::unique_ptr<C2Work>&& work, c2_status_t sts);
 
-protected:
-    /* State diagram:
+    void ConfigError(const std::vector<std::shared_ptr<C2SettingResult>>& setting_result);
 
-                   +------- stop ------- ERROR
-                   |                       ^
-                   |                       |
-                   |                     error
-                   |                       |
-                   |  +-----start ----> RUNNING
-                   V  |                 | |  ^
-    RELEASED <- STOPPED <--- stop ------+ |  |
-                   ^                      |  |
-                   |                 config  |
-                   |                  error  |
-                   |                      |  start
-                   |                      V  |
-                   +------- stop ------- TRIPPED
+    void FatalError(c2_status_t error);
 
-    Operations permitted:
-        Tunings could be applied in all states.
-        Settings could be applied in STOPPED state only.
-*/
-    enum class State
-    {
-        STOPPED,
-        RUNNING,
-        TRIPPED,
-        ERROR,
-        RELEASED
-    };
+    std::unique_lock<std::mutex> AcquireStableStateLock() const;
+
+private:
+    c2_status_t CheckStateTransitionConflict(State next_state);
 
 protected: // variables
     State state_ = State::STOPPED;
-
+    State next_state_ = State::STOPPED;
+    // If next_state_ != state_ then it is a transition state.
+    // If they are equal it is a stable state.
     mutable std::mutex state_mutex_;
+
+    mutable std::condition_variable cond_state_stable_; // notified when state gets stable
 
     C2String name_;
 

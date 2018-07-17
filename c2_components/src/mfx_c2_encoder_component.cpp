@@ -165,12 +165,17 @@ c2_status_t MfxC2EncoderComponent::DoStart()
     return C2_OK;
 }
 
-c2_status_t MfxC2EncoderComponent::DoStop()
+c2_status_t MfxC2EncoderComponent::DoStop(bool abort)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    waiting_queue_.Stop();
-    working_queue_.Stop();
+    if (abort) {
+        waiting_queue_.Abort();
+        working_queue_.Abort();
+    } else {
+        waiting_queue_.Stop();
+        working_queue_.Stop();
+    }
 
     while (!pending_works_.empty()) {
         NotifyWorkDone(std::move(pending_works_.front()), C2_CANCELED);
@@ -414,7 +419,14 @@ c2_status_t MfxC2EncoderComponent::ApplyWorkTunings(C2Work& work)
         std::vector<C2Param*> params(temp.begin(), temp.end());
 
         std::vector<std::unique_ptr<C2SettingResult>> failures;
-        DoConfig(params, &failures, false);
+        {
+            // These parameters update comes with C2Work from work queue,
+            // there is no guarantee that state is not changed meanwhile
+            // in contrast to Config method protected with state mutex.
+            // So AcquireStableStateLock is needed here.
+            std::unique_lock<std::mutex> lock = AcquireStableStateLock();
+            DoConfig(params, &failures, false);
+        }
         for(auto& failure : failures) {
             worklet->failures.push_back(std::move(failure));
         }

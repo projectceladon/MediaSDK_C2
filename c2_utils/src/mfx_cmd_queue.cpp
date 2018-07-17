@@ -27,6 +27,21 @@ void MfxCmdQueue::Stop()
     Shutdown(abort);
 }
 
+void MfxCmdQueue::Pause()
+{
+    MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
+    std::lock_guard<std::mutex> lock(mutex_);
+    paused_ = true;
+}
+
+void MfxCmdQueue::Resume()
+{
+    MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
+    std::lock_guard<std::mutex> lock(mutex_);
+    paused_ = false;
+    condition_.notify_one();
+}
+
 void MfxCmdQueue::Abort()
 {
     MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
@@ -38,7 +53,7 @@ void MfxCmdQueue::WaitingPop(MfxCmd* command)
 {
     MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
     std::unique_lock<std::mutex> lock(mutex_);
-    condition_.wait(lock, [this] { return !data_.empty(); });
+    condition_.wait(lock, [this] { return !paused_ && !data_.empty(); });
     *command = data_.front();
     data_.pop();
 }
@@ -52,6 +67,7 @@ void MfxCmdQueue::Shutdown(bool abort)
             data_ = std::queue<MfxCmd>();
         }
         data_.push(MfxCmd()); // nullptr command is a stop thread command
+        paused_ = false;
         condition_.notify_one();
     }
     {

@@ -42,7 +42,7 @@ protected:
 
     c2_status_t DoStart() override;
 
-    c2_status_t DoStop() override;
+    c2_status_t DoStop(bool abort) override;
 
     c2_status_t Release() override;
 

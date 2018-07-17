@@ -165,6 +165,47 @@ TEST(MfxCmdQueue, ProcessAll)
     }
 }
 
+// Tests abstract command queue handles Pause/Resume fine.
+TEST(MfxCmdQueue, PauseResume)
+{
+    MfxCmdQueue queue;
+    queue.Start();
+
+    std::vector<size_t> result;
+    const size_t PAUSE_CMD_INDEX = CMD_COUNT / 2;
+
+    for(size_t i = 0; i < CMD_COUNT; ++i) {
+
+        std::unique_ptr<int> ptr_i = std::make_unique<int>(i);
+
+        // lambda mutable and not copy-assignable to assert MfxCmdQueue supports it
+        auto task = [ ptr_i = std::move(ptr_i), &queue, &result] () mutable {
+            result.push_back(*ptr_i);
+            if (*ptr_i == PAUSE_CMD_INDEX) {
+                queue.Pause();
+            }
+            ptr_i = nullptr;
+        };
+
+        queue.Push(std::move(task));
+    }
+    // Wait long enough to run into task with queue.Pause.
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    // Expect tasks processed till PAUSE_CMD_INDEX including.
+    EXPECT_EQ(result.size(), PAUSE_CMD_INDEX + 1);
+    for(size_t i = 0; i < result.size(); ++i) {
+        EXPECT_EQ(result[i], i);
+    }
+
+    queue.Resume();
+    queue.Stop();
+    // Resume and Stop above should complete tasks remained.
+    EXPECT_EQ(result.size(), CMD_COUNT);
+    for(size_t i = PAUSE_CMD_INDEX + 1; i < result.size(); ++i) {
+        EXPECT_EQ(result[i], i);
+    }
+}
+
 // Tests that MfxCmdQueue::Stop is waiting for the end of all pushed tasks.
 TEST(MfxCmdQueue, Stop)
 {
