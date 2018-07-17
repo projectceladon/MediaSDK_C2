@@ -137,12 +137,17 @@ c2_status_t MfxC2DecoderComponent::DoStart()
     return C2_OK;
 }
 
-c2_status_t MfxC2DecoderComponent::DoStop()
+c2_status_t MfxC2DecoderComponent::DoStop(bool abort)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    waiting_queue_.Stop();
-    working_queue_.Stop();
+    if (abort) {
+        waiting_queue_.Abort();
+        working_queue_.Abort();
+    } else {
+        waiting_queue_.Stop();
+        working_queue_.Stop();
+    }
 
     while (!works_queue_.empty()) {
         NotifyWorkDone(std::move(works_queue_.front()), C2_CANCELED);

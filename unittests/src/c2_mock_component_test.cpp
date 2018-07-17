@@ -453,6 +453,41 @@ TEST(MfxMockComponent, Decode)
     }
 }
 
+class C2ComponentStateListener : public C2Component::Listener
+{
+private:
+    void onWorkDone_nb(std::weak_ptr<C2Component>, std::list<std::unique_ptr<C2Work>>) {}
+
+    void onTripped_nb(std::weak_ptr<C2Component>,
+        std::vector<std::shared_ptr<C2SettingResult>>)
+    {
+        tripped_notified_.set_value();
+    }
+
+    void onError_nb(std::weak_ptr<C2Component>, uint32_t)
+    {
+        error_notified_.set_value();
+    }
+
+    bool WaitFor(std::promise<void>* promise)
+    {
+        bool result = (std::future_status::ready ==
+            promise->get_future().wait_for(std::chrono::seconds(1)));
+        *promise = std::promise<void>(); // prepare for next notification
+        return result;
+    }
+
+private:
+    std::promise<void> tripped_notified_;
+
+    std::promise<void> error_notified_;
+
+public:
+    bool WaitTrippedState() { return WaitFor(&tripped_notified_); }
+
+    bool WaitErrorState() { return WaitFor(&error_notified_); }
+};
+
 // Checks the correctness of mock component state machine.
 // The component should be able to start from STOPPED (initial) state,
 // stop from RUNNING state. Otherwise, C2_BAD_STATE should be returned.
@@ -465,6 +500,10 @@ TEST(MfxMockComponent, State)
     EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(component, nullptr);
     if(nullptr != component) {
+
+        std::shared_ptr<C2ComponentStateListener> state_listener =
+            std::make_shared<C2ComponentStateListener>();
+        sts = component->setListener_vb(state_listener, c2_blocking_t{});
 
         sts = component->start();
         EXPECT_EQ(sts, C2_OK);
@@ -480,6 +519,62 @@ TEST(MfxMockComponent, State)
 
         sts = component->stop();
         EXPECT_EQ(sts, C2_BAD_STATE);
+
+        sts = component->start();
+        EXPECT_EQ(sts, C2_OK);
+
+        auto trip_component = [&] () {
+            C2TrippedTuning tripped_tuning;
+            tripped_tuning.value = C2_TRUE;
+            c2_blocking_t may_block{};
+            sts = component->intf()->config_vb({&tripped_tuning}, may_block, nullptr);
+            EXPECT_EQ(sts, C2_OK);
+        };
+
+        trip_component();
+        EXPECT_TRUE(state_listener->WaitTrippedState());
+
+        sts = component->start();
+        EXPECT_EQ(sts, C2_OK);
+
+        trip_component();
+        EXPECT_TRUE(state_listener->WaitTrippedState());
+
+        sts = component->stop();
+        EXPECT_EQ(sts, C2_OK);
+
+        sts = component->start();
+        EXPECT_EQ(sts, C2_OK);
+
+        auto fail_component = [&] () {
+            std::list<std::unique_ptr<C2Work>> null_work;
+            null_work.push_back(nullptr);
+
+            sts = component->queue_nb(&null_work); // cause component error
+            EXPECT_EQ(sts, C2_OK);
+        };
+
+        fail_component();
+        EXPECT_TRUE(state_listener->WaitErrorState());
+
+        sts = component->start();
+        EXPECT_EQ(sts, C2_BAD_STATE);
+
+        sts = component->stop();
+        EXPECT_EQ(sts, C2_OK);
+
+        // Next start, fail, stop series to check for deadlock.
+        // stop right after enqueuing work leads component to process the work
+        // during stop operation, so state change (to ERROR) takes place while
+        // changing to STOPPED. That caused deadlock on MfxC2Component::state_mutex_.
+        // To prevent this MfxC2Component::next_state_ was introduced.
+        sts = component->start();
+        EXPECT_EQ(sts, C2_OK);
+
+        fail_component();
+
+        sts = component->stop();
+        EXPECT_EQ(sts, C2_OK);
 
         sts = component->release();
         EXPECT_EQ(sts, C2_OK);

@@ -53,7 +53,11 @@ protected:
 
     c2_status_t DoStart() override;
 
-    c2_status_t DoStop() override;
+    c2_status_t DoStop(bool abort) override;
+
+    c2_status_t Pause() override;
+
+    c2_status_t Resume() override;
 
 private:
     // Allocates linear block of the length as input and copies input there.

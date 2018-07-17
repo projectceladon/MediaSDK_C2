@@ -171,7 +171,13 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<C2Work>&& work)
     c2_status_t res = C2_OK;
 
     do {
-        if(work->worklets.size() != 1) {
+        if (work == nullptr) {
+            MFX_DEBUG_TRACE_MSG("work is nullptr");
+            res = C2_BAD_VALUE;
+            break;
+        }
+
+        if (work->worklets.size() != 1) {
             MFX_DEBUG_TRACE_MSG("Cannot handle multiple worklets");
             res = C2_BAD_VALUE;
             break;
@@ -181,7 +187,7 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<C2Work>&& work)
         const C2FrameData& input = work->input;
         C2FrameData& output = worklet->output;
 
-        if(worklet->output.buffers.size() != 1) {
+        if (worklet->output.buffers.size() != 1) {
             MFX_DEBUG_TRACE_MSG("Cannot handle multiple outputs");
             res = C2_BAD_VALUE;
             break;
@@ -208,7 +214,11 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
     } while(false); // fake loop to have a cleanup point there
 
-    NotifyWorkDone(std::move(work), res);
+    if (work) {
+        NotifyWorkDone(std::move(work), res);
+    } else {
+        FatalError(res);
+    }
 }
 
 c2_status_t MfxC2MockComponent::config_vb(
@@ -221,13 +231,34 @@ c2_status_t MfxC2MockComponent::config_vb(
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
-    if (params.size() == 1 && params[0]->type() == C2ProducerMemoryType::PARAM_TYPE) {
-        const C2ProducerMemoryType* param = (const C2ProducerMemoryType*)params[0];
-        producer_memory_type_ = param->value;
-        MFX_DEBUG_TRACE_I32(producer_memory_type_);
-    } else {
-        res = C2_BAD_VALUE;
+
+    for (C2Param* param : params) {
+
+        switch (C2Param::Type(param->type()).type()) {
+            case C2ProducerMemoryType::PARAM_TYPE: {
+                const C2ProducerMemoryType* memory_param = (const C2ProducerMemoryType*)param;
+                producer_memory_type_ = memory_param->value;
+                MFX_DEBUG_TRACE_I32(producer_memory_type_);
+                break;
+            }
+            case C2TrippedTuning::PARAM_TYPE: {
+                const C2TrippedTuning* tripped_tuning = (const C2TrippedTuning*)param;
+                if (tripped_tuning->value) {
+                    MFX_DEBUG_TRACE_MSG("Force component to tripped state.");
+
+                    std::vector<std::shared_ptr<C2SettingResult>> failures;
+                    failures.push_back(MakeC2SettingResult(C2ParamField(tripped_tuning), C2SettingResult::BAD_VALUE));
+                    ConfigError(failures);
+                }
+                break;
+            }
+
+            default:
+                res = C2_BAD_VALUE;
+                break;
+        }
     }
+
     return res;
 }
 
@@ -267,11 +298,33 @@ c2_status_t MfxC2MockComponent::DoStart()
     return C2_OK;
 }
 
-c2_status_t MfxC2MockComponent::DoStop()
+c2_status_t MfxC2MockComponent::DoStop(bool abort)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    cmd_queue_.Stop();
+    if (abort) {
+        cmd_queue_.Abort();
+    } else {
+        cmd_queue_.Stop();
+    }
+
+    return C2_OK;
+}
+
+c2_status_t MfxC2MockComponent::Pause()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    cmd_queue_.Pause();
+
+    return C2_OK;
+}
+
+c2_status_t MfxC2MockComponent::Resume()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    cmd_queue_.Resume();
 
     return C2_OK;
 }
