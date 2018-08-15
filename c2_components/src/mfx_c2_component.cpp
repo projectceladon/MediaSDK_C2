@@ -58,13 +58,27 @@ c2_node_id_t MfxC2Component::getId() const
     return {};
 }
 
-std::unique_lock<std::mutex> MfxC2Component::AcquireStableStateLock() const
+std::unique_lock<std::mutex> MfxC2Component::AcquireStableStateLock(bool may_block) const
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    std::unique_lock<std::mutex> lock(state_mutex_);
-    cond_state_stable_.wait(lock, [this] () { return next_state_ == state_; } );
-    return lock;
+    std::unique_lock<std::mutex> res;
+    if (may_block) {
+        std::unique_lock<std::mutex> lock(state_mutex_);
+        cond_state_stable_.wait(lock, [this] () { return next_state_ == state_; } );
+        res = std::move(lock);
+    } else {
+        // try lock state to check if current state is stable or transition
+        std::unique_lock<std::mutex> lock(state_mutex_, std::try_to_lock);
+        if (lock.owns_lock()) {
+             if (next_state_ != state_) {
+                // if locked state is transition - the method returned unlocked unique_lock as a failure
+                lock.unlock();
+            }
+        }
+        res = std::move(lock);
+    }
+    return res;
 }
 
 c2_status_t MfxC2Component::query_vb(
@@ -77,12 +91,15 @@ c2_status_t MfxC2Component::query_vb(
 
     c2_status_t res = C2_OK;
 
-    std::unique_lock<std::mutex> lock = AcquireStableStateLock();
-
-    if (State::RELEASED != state_) {
-        res = Query(stackParams, heapParamIndices, mayBlock, heapParams);
+    std::unique_lock<std::mutex> lock = AcquireStableStateLock(mayBlock == C2_MAY_BLOCK);
+    if (lock.owns_lock()) {
+        if (State::RELEASED != state_) {
+            res = Query(std::move(lock), stackParams, heapParamIndices, mayBlock, heapParams);
+        } else {
+            res = C2_BAD_STATE;
+        }
     } else {
-        res = C2_BAD_STATE;
+        res = C2_BLOCKING;
     }
     return res;
 }
@@ -96,12 +113,15 @@ c2_status_t MfxC2Component::config_vb(
 
     c2_status_t res = C2_OK;
 
-    std::unique_lock<std::mutex> lock = AcquireStableStateLock();
-
-    if (State::RELEASED != state_) {
-        res = Config(params, mayBlock, failures);
+    std::unique_lock<std::mutex> lock = AcquireStableStateLock(mayBlock == C2_MAY_BLOCK);
+    if (lock.owns_lock()) {
+        if (State::RELEASED != state_) {
+            res = Config(std::move(lock), params, mayBlock, failures);
+        } else {
+            res = C2_BAD_STATE;
+        }
     } else {
-        res = C2_BAD_STATE;
+        res = C2_BLOCKING;
     }
     return res;
 }
@@ -149,9 +169,15 @@ c2_status_t MfxC2Component::queue_nb(std::list<std::unique_ptr<C2Work>>* const i
 
     c2_status_t res = C2_OK;
 
-    std::unique_lock<std::mutex> lock = AcquireStableStateLock();
+    std::lock_guard<std::mutex> lock(state_mutex_);
 
-    if (State::RELEASED != state_) {
+    auto running = [] (State state) {
+        const State RUNNING_STATES[]{State::RUNNING, State::TRIPPED, State::ERROR};
+        return std::find(std::begin(RUNNING_STATES), std::end(RUNNING_STATES), state)
+            != std::end(RUNNING_STATES);
+    };
+
+    if (running(state_) && running(next_state_)) {
         res = Queue(items);
     } else {
         res = C2_BAD_STATE;
@@ -188,9 +214,13 @@ c2_status_t MfxC2Component::drain_nb(drain_mode_t mode)
 }
 
 // Call it under state_mutex_ protection.
-c2_status_t MfxC2Component::CheckStateTransitionConflict(State next_state)
+c2_status_t MfxC2Component::CheckStateTransitionConflict(const std::unique_lock<std::mutex>& state_lock,
+    State next_state)
 {
     MFX_DEBUG_TRACE_FUNC;
+
+    assert(state_lock.mutex() == &state_mutex_);
+    assert(state_lock.owns_lock());
 
     c2_status_t res = C2_OK;
     if (next_state_ != state_) { // transition
@@ -216,8 +246,8 @@ c2_status_t MfxC2Component::start()
     std::function<c2_status_t()> action = [] () { return C2_CORRUPTED; };
 
     { // Pre-check of state change.
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        res = CheckStateTransitionConflict(State::RUNNING);
+        std::unique_lock<std::mutex> lock(state_mutex_);
+        res = CheckStateTransitionConflict(lock, State::RUNNING);
         if (C2_OK == res) {
             switch (state_) {
                 case State::STOPPED:
@@ -262,8 +292,8 @@ c2_status_t MfxC2Component::stop()
     bool abort = false; // When stop from ERROR state all queued tasks should be abandoned.
 
     {
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        res = CheckStateTransitionConflict(State::RUNNING);
+        std::unique_lock<std::mutex> lock(state_mutex_);
+        res = CheckStateTransitionConflict(lock, State::RUNNING);
         if (C2_OK == res) {
             switch (state_) {
                 case State::RUNNING:

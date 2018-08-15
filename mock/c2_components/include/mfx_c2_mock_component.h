@@ -39,16 +39,10 @@ protected:
 public:
     static void RegisterClass(MfxC2ComponentsRegistry& registry);
 
-protected: // C2ComponentInterface
-    c2_status_t config_vb(
-        const std::vector<C2Param*> &params,
-        c2_blocking_t mayBlock,
-        std::vector<std::unique_ptr<C2SettingResult>>* const failures) override;
-
 protected: // C2Component
     c2_status_t queue_nb(std::list<std::unique_ptr<C2Work>>* const items) override;
 
-protected:
+protected:  // MfxC2Component overrides
     c2_status_t Init() override;
 
     c2_status_t DoStart() override;
@@ -58,6 +52,20 @@ protected:
     c2_status_t Pause() override;
 
     c2_status_t Resume() override;
+
+    c2_status_t Query(
+        std::unique_lock<std::mutex> state_lock,
+        const std::vector<C2Param*>&,
+        const std::vector<C2Param::Index> &,
+        c2_blocking_t,
+        std::vector<std::unique_ptr<C2Param>>* const) const override
+    { return C2_OK; } // query not needed for mock component
+
+    c2_status_t Config(
+        std::unique_lock<std::mutex> state_lock,
+        const std::vector<C2Param*> &params,
+        c2_blocking_t mayBlock,
+        std::vector<std::unique_ptr<C2SettingResult>>* const failures) override;
 
 private:
     // Allocates linear block of the length as input and copies input there.

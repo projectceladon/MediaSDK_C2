@@ -221,7 +221,8 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<C2Work>&& work)
     }
 }
 
-c2_status_t MfxC2MockComponent::config_vb(
+c2_status_t MfxC2MockComponent::Config(
+        std::unique_lock<std::mutex> state_lock,
         const std::vector<C2Param*> &params,
         c2_blocking_t mayBlock,
         std::vector<std::unique_ptr<C2SettingResult>>* const)
@@ -231,6 +232,7 @@ c2_status_t MfxC2MockComponent::config_vb(
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
+    std::vector<std::shared_ptr<C2SettingResult>> tripped_reasons;
 
     for (C2Param* param : params) {
 
@@ -245,10 +247,8 @@ c2_status_t MfxC2MockComponent::config_vb(
                 const C2TrippedTuning* tripped_tuning = (const C2TrippedTuning*)param;
                 if (tripped_tuning->value) {
                     MFX_DEBUG_TRACE_MSG("Force component to tripped state.");
-
-                    std::vector<std::shared_ptr<C2SettingResult>> failures;
-                    failures.push_back(MakeC2SettingResult(C2ParamField(tripped_tuning), C2SettingResult::BAD_VALUE));
-                    ConfigError(failures);
+                    tripped_reasons.push_back(MakeC2SettingResult(
+                        C2ParamField(tripped_tuning), C2SettingResult::BAD_VALUE));
                 }
                 break;
             }
@@ -259,6 +259,10 @@ c2_status_t MfxC2MockComponent::config_vb(
         }
     }
 
+    if (tripped_reasons.size() > 0) {
+        state_lock.unlock(); // allow state to be changed
+        ConfigError(tripped_reasons);
+    }
     return res;
 }
 

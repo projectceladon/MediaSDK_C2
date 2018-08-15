@@ -369,11 +369,13 @@ c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
 }
 
 c2_status_t MfxC2DecoderComponent::Query(
+    std::unique_lock<std::mutex> state_lock,
     const std::vector<C2Param*> &stackParams,
     const std::vector<C2Param::Index> &heapParamIndices,
     c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2Param>>* const heapParams) const
 {
+    (void)state_lock;
     (void)mayBlock;
 
     MFX_DEBUG_TRACE_FUNC;
@@ -477,10 +479,12 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
     }
 }
 
-c2_status_t MfxC2DecoderComponent::Config(const std::vector<C2Param*> &params,
+c2_status_t MfxC2DecoderComponent::Config(std::unique_lock<std::mutex> state_lock,
+    const std::vector<C2Param*> &params,
     c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures) {
 
+    (void)state_lock;
     (void)mayBlock;
 
     MFX_DEBUG_TRACE_FUNC;

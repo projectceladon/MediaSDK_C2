@@ -76,12 +76,13 @@ private: // Non-virtual interface methods optionally overridden in descendants
 
     virtual c2_status_t Release() { return C2_OK; }
 
-    virtual c2_status_t Query(const std::vector<C2Param*>&/*stackParams*/,
+    virtual c2_status_t Query(std::unique_lock<std::mutex>/*state_lock*/,
+        const std::vector<C2Param*>&/*stackParams*/,
         const std::vector<C2Param::Index> &/*heapParamIndices*/,
         c2_blocking_t /*mayBlock*/,
         std::vector<std::unique_ptr<C2Param>>* const /*heapParams*/) const { return C2_OMITTED; }
 
-    virtual c2_status_t Config(
+    virtual c2_status_t Config(std::unique_lock<std::mutex>/*state_lock*/,
         const std::vector<C2Param*> &/*params*/,
         c2_blocking_t /*mayBlock*/,
         std::vector<std::unique_ptr<C2SettingResult>>* const /*failures*/) { return C2_OMITTED; }
@@ -145,10 +146,12 @@ protected:
 
     void FatalError(c2_status_t error);
 
-    std::unique_lock<std::mutex> AcquireStableStateLock() const;
+    std::unique_lock<std::mutex> AcquireStableStateLock(bool may_block) const;
 
 private:
-    c2_status_t CheckStateTransitionConflict(State next_state);
+    c2_status_t CheckStateTransitionConflict(
+        const std::unique_lock<std::mutex>& state_lock,
+        State next_state);
 
 protected: // variables
     State state_ = State::STOPPED;

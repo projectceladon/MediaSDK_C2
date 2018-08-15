@@ -65,12 +65,14 @@ protected:
     c2_status_t Release() override;
 
     c2_status_t Query(
+        std::unique_lock<std::mutex> state_lock,
         const std::vector<C2Param*> &stackParams,
         const std::vector<C2Param::Index> &heapParamIndices,
         c2_blocking_t mayBlock,
         std::vector<std::unique_ptr<C2Param>>* const heapParams) const override;
 
     c2_status_t Config(
+        std::unique_lock<std::mutex> state_lock,
         const std::vector<C2Param*> &params,
         c2_blocking_t mayBlock,
         std::vector<std::unique_ptr<C2SettingResult>>* const failures) override;
