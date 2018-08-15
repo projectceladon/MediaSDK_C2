@@ -424,7 +424,7 @@ c2_status_t MfxC2EncoderComponent::ApplyWorkTunings(C2Work& work)
             // there is no guarantee that state is not changed meanwhile
             // in contrast to Config method protected with state mutex.
             // So AcquireStableStateLock is needed here.
-            std::unique_lock<std::mutex> lock = AcquireStableStateLock();
+            std::unique_lock<std::mutex> lock = AcquireStableStateLock(true);
             DoConfig(params, &failures, false);
         }
         for(auto& failure : failures) {
@@ -815,11 +815,13 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
 }
 
 c2_status_t MfxC2EncoderComponent::Query(
+    std::unique_lock<std::mutex> state_lock,
     const std::vector<C2Param*> &stackParams,
     const std::vector<C2Param::Index> &heapParamIndices,
     c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2Param>>* const heapParams) const
 {
+    (void)state_lock;
     (void)mayBlock;
 
     MFX_DEBUG_TRACE_FUNC;
@@ -1072,10 +1074,12 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
     }
 }
 
-c2_status_t MfxC2EncoderComponent::Config(const std::vector<C2Param*> &params,
+c2_status_t MfxC2EncoderComponent::Config(std::unique_lock<std::mutex> state_lock,
+    const std::vector<C2Param*> &params,
     c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures) {
 
+    (void)state_lock;
     (void)mayBlock;
 
     MFX_DEBUG_TRACE_FUNC;

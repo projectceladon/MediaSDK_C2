@@ -583,3 +583,63 @@ TEST(MfxMockComponent, State)
         EXPECT_EQ(sts, C2_DUPLICATE);
     }
 }
+
+// Tests mayBlock option handling of config_vb and query_vb methods.
+TEST(MfxMockComponent, ConfigQueryBlocking)
+{
+    int flags = 0;
+    c2_status_t sts = C2_OK;
+    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT_DEC, flags, &sts));
+    std::shared_ptr<C2ComponentInterface> component_intf;
+
+    EXPECT_EQ(sts, C2_OK);
+    EXPECT_NE(component, nullptr);
+    if (nullptr != component) {
+        component_intf = component->intf();
+        EXPECT_NE(component_intf, nullptr);
+    }
+
+    if (component_intf) {
+
+        // Calls config_vb and query_vb methods with specified blocking and checking result to be expected
+        auto test_config_query = [component_intf] (c2_blocking_t blocking, c2_status_t expected) {
+            C2ProducerMemoryType some_setting{C2MemoryUsage::CPU_WRITE}; // any setting supported by the component
+            c2_status_t sts = component_intf->config_vb({&some_setting}, blocking, nullptr);
+            EXPECT_EQ(sts, expected);
+            sts = component_intf->query_vb({&some_setting}, {}, blocking, {});
+            EXPECT_EQ(sts, expected);
+        };
+
+        sts = component->start();
+        EXPECT_EQ(sts, C2_OK);
+
+        for(uint32_t frame_index = 0; frame_index < FRAME_COUNT; ++frame_index) {
+            // prepare worklet and push
+            std::unique_ptr<C2Work> work;
+
+            // insert input data
+            PrepareWork(frame_index, component, &work, C2BufferData::LINEAR, C2MemoryUsage::CPU_READ);
+            std::list<std::unique_ptr<C2Work>> works;
+            works.push_back(std::move(work));
+
+            sts = component->queue_nb(&works);
+            EXPECT_EQ(sts, C2_OK);
+        }
+
+        // Call config_vb/query_vb with C2_DONT_BLOCK while the component is in stable (RUNNING) state,
+        // no internal state blocking expected, methods should be able to run momentarily, without errors.
+        test_config_query(C2_DONT_BLOCK, C2_OK);
+
+        // Run stop and simultanouesly test config_vb/query_vb methods. stop should finish enqueued tasks
+        // what takes some time to switch to STOPPED state. That transition blocks config_vb/query_vb from execution.
+        // This means that config_vb/query_vb should fail with C2_DONT_BLOCK option and succeed with C2_MAY_BLOCK.
+        std::thread another_thread([&] () {
+            test_config_query(C2_DONT_BLOCK, C2_BLOCKING);
+            test_config_query(C2_MAY_BLOCK, C2_OK);
+        });
+        sts = component->stop();
+        EXPECT_EQ(sts, C2_OK);
+
+        another_thread.join();
+    }
+}

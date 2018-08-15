@@ -355,7 +355,7 @@ static void Decode(
     std::shared_ptr<DecoderConsumer> validator,
     const std::vector<const StreamDescription*>& streams)
 {
-    c2_blocking_t may_block {};
+    c2_blocking_t may_block{C2_MAY_BLOCK};
     component->setListener_vb(validator, may_block);
 
     C2MemoryTypeSetting setting;

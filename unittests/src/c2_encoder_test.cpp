@@ -540,7 +540,7 @@ TEST_P(Encoder, UnsupportedParam)
 
         std::vector<C2Param*> params = { &setting };
         std::vector<std::unique_ptr<C2SettingResult>> failures;
-        c2_blocking_t may_block {};
+        c2_blocking_t may_block{C2_MAY_BLOCK};
 
         c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
         EXPECT_EQ(sts, C2_BAD_INDEX);
@@ -592,7 +592,7 @@ TEST_P(Encoder, StaticBitrate)
 
             std::vector<C2Param*> params = { &param_rate_control, &param_framerate, &param_bitrate };
             std::vector<std::unique_ptr<C2SettingResult>> failures;
-            c2_blocking_t may_block {};
+            c2_blocking_t may_block{C2_MAY_BLOCK};
 
             c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
             EXPECT_EQ(sts, C2_OK);
@@ -651,7 +651,7 @@ TEST_P(Encoder, StaticRateControlMethod)
 
             std::vector<C2Param*> params = { &param_rate_control };
             std::vector<std::unique_ptr<C2SettingResult>> failures;
-            c2_blocking_t may_block {};
+            c2_blocking_t may_block{C2_MAY_BLOCK};
 
             c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
             EXPECT_EQ(sts, C2_OK);
@@ -700,7 +700,7 @@ TEST_P(Encoder, StaticFrameQP)
         // and test runs where qp is set to invalid values don't work
         std::vector<std::unique_ptr<C2SettingResult>> failures;
         std::vector<C2Param*> params = { &param_rate_control };
-        c2_blocking_t may_block {};
+        c2_blocking_t may_block{C2_MAY_BLOCK};
         c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
         EXPECT_EQ(sts, C2_OK);
         EXPECT_EQ(failures.size(), 0ul);
@@ -740,7 +740,7 @@ TEST_P(Encoder, StaticFrameQP)
             param_qp.qp_b = test_run.qp;
 
             std::vector<C2Param*> params = { &param_qp };
-            c2_blocking_t may_block {};
+            c2_blocking_t may_block{C2_MAY_BLOCK};
             c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
             EXPECT_EQ(sts, test_run.expected_result);
             if(test_run.expected_result == C2_OK) {
@@ -815,7 +815,7 @@ TEST_P(Encoder, query_vb)
             // check query through stack placeholders and the same with heap allocated
             std::vector<std::unique_ptr<C2Param>> heap_params;
             const C2ParamValues& default_values = comp_desc.default_values;
-            c2_blocking_t may_block {};
+            c2_blocking_t may_block{C2_MAY_BLOCK};
             c2_status_t res = comp_intf->query_vb(default_values.GetStackPointers(),
                 default_values.GetIndices(), may_block, &heap_params);
             EXPECT_EQ(res, comp_desc.query_status);
@@ -921,7 +921,7 @@ TEST_P(Encoder, IntraRefresh)
                         if (use_config_nb) {
                             std::vector<C2Param*> params { intra_refresh.get() };
                             std::vector<std::unique_ptr<C2SettingResult>> failures;
-                            c2_blocking_t may_block {};
+                            c2_blocking_t may_block{C2_MAY_BLOCK};
                             c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
 
                             EXPECT_EQ(sts, C2_OK);
@@ -981,7 +981,7 @@ TEST_P(Encoder, DynamicBitrate)
         std::vector<C2Param*> static_params { &param_rate_control, &param_framerate };
         std::vector<std::unique_ptr<C2SettingResult>> failures;
 
-        c2_blocking_t may_block {};
+        c2_blocking_t may_block{C2_MAY_BLOCK};
         c2_status_t sts = comp_intf->config_vb(static_params, may_block, &failures);
         EXPECT_EQ(sts, C2_OK);
         EXPECT_EQ(failures.size(), 0ul);
@@ -1011,7 +1011,7 @@ TEST_P(Encoder, DynamicBitrate)
             param_bitrate->value = BITRATE_1;
 
             std::vector<C2Param*> dynamic_params = { param_bitrate.get() };
-            c2_blocking_t may_block {};
+            c2_blocking_t may_block{C2_MAY_BLOCK};
 
             c2_status_t sts = comp_intf->config_vb(dynamic_params, may_block, &failures);
             EXPECT_EQ(sts, C2_OK);
@@ -1076,7 +1076,7 @@ TEST_P(Encoder, ProfileLevelInfo)
         (void)comp;
 
         std::vector<std::unique_ptr<C2Param>> heap_params;
-        c2_blocking_t may_block {};
+        c2_blocking_t may_block{C2_MAY_BLOCK};
         c2_status_t res = comp_intf->query_vb(
             {} , { C2ProfileLevelInfo::output::PARAM_TYPE }, may_block, &heap_params);
         EXPECT_EQ(res, C2_OK);
@@ -1128,7 +1128,7 @@ TEST_P(Encoder, CodecProfileAndLevel)
             std::vector<C2Param*> params = { &param_profile, &param_level };
             std::vector<std::unique_ptr<C2SettingResult>> failures;
 
-            c2_blocking_t may_block {};
+            c2_blocking_t may_block{C2_MAY_BLOCK};
             c2_status_t sts = comp_intf->config_vb(params, may_block, &failures);
             EXPECT_EQ(sts, C2_OK);
             EXPECT_EQ(failures.size(), 0ul);
@@ -1223,7 +1223,7 @@ TEST_P(Encoder, FrameRate)
         std::vector<std::unique_ptr<C2SettingResult>> failures;
         std::vector<C2Param*> static_params = { &param_rate_control, &param_bitrate };
 
-        c2_blocking_t may_block {};
+        c2_blocking_t may_block{C2_MAY_BLOCK};
 
         c2_status_t sts = comp_intf->config_vb(static_params, may_block, &failures);
         EXPECT_EQ(sts, C2_OK);
