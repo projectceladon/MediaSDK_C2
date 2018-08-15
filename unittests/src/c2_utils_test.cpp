@@ -165,6 +165,30 @@ TEST(MfxCmdQueue, ProcessAll)
     }
 }
 
+// Tests command queue doesn't crash on invalid Start/Stop sequences.
+TEST(MfxCmdQueue, StartStop)
+{
+    {   // double start
+        MfxCmdQueue queue;
+        queue.Start();
+        queue.Start();
+    }
+    {   // double stop
+        MfxCmdQueue queue;
+        queue.Start();
+        queue.Stop();
+        queue.Stop();
+    }
+    {   // stop not started
+        MfxCmdQueue queue;
+        queue.Stop();
+    }
+    {   // destruct running queue
+        MfxCmdQueue queue;
+        queue.Start();
+    }
+}
+
 // Tests abstract command queue handles Pause/Resume fine.
 TEST(MfxCmdQueue, PauseResume)
 {
