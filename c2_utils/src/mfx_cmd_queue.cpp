@@ -14,10 +14,20 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_cmd_queue"
 
+MfxCmdQueue::~MfxCmdQueue()
+{
+    MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
+    Abort();
+}
+
 void MfxCmdQueue::Start()
 {
     MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
-    working_thread_ = std::thread(std::bind(&MfxCmdQueue::Process, this));
+
+    std::lock_guard<std::mutex> lock(thread_mutex_);
+    if(!working_thread_.joinable()) {
+        working_thread_ = std::thread(std::bind(&MfxCmdQueue::Process, this));
+    }
 }
 
 void MfxCmdQueue::Stop()
@@ -73,7 +83,7 @@ void MfxCmdQueue::Shutdown(bool abort)
     {
         // mutexed code section to not have exception in join
         // if already joined in another thread or not started
-        std::lock_guard<std::mutex> lock(shutdown_mutex_);
+        std::lock_guard<std::mutex> lock(thread_mutex_);
         if(working_thread_.joinable()) {
             working_thread_.join();
         }

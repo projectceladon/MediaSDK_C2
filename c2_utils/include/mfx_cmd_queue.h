@@ -25,6 +25,7 @@ class MfxCmdQueue
 {
 public:
     MfxCmdQueue() = default;
+    ~MfxCmdQueue();
     MFX_CLASS_NO_COPY(MfxCmdQueue);
 
 public:
@@ -54,10 +55,10 @@ private:
 private:
     std::mutex mutex_; // push/pop protection
     std::queue<MfxCmd> data_;
-    std::atomic<bool> paused_{false};
+    bool paused_{false};
     std::condition_variable condition_; // event from push to processor
     std::thread working_thread_;
-    std::mutex shutdown_mutex_; // protect if shutdown is requested simultaneously from some threads
+    std::mutex thread_mutex_; // protect thread create/join operations
 };
 
 template<class Task>
