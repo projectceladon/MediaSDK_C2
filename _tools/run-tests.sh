@@ -51,8 +51,6 @@ rm --force $local_dir/*
 libs=\
 libmfx_c2_store.so,\
 libmfx_mock_c2_components.so,\
-libmfx_c2_components_pure.so,\
-libmfx_c2_components_sw.so,\
 libmfx_c2_components_hw.so,\
 libmfxhw${bitness}.so
 
