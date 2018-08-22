@@ -776,16 +776,25 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
                 Drain();
 
+                // Clear up all queue of works after drain except last work
+                // which caused resolution change and should be used again.
+                while (works_queue_.size() > 1) {
+                    NotifyWorkDone(std::move(works_queue_.front()), C2_NOT_FOUND);
+                    works_queue_.pop();
+                }
+
                 bool resolution_change_done = false;
 
-                mfx_sts = decoder_->DecodeHeader(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(), &video_params_);
+                mfxStatus decode_header_sts = decoder_->DecodeHeader(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(), &video_params_);
+                MFX_DEBUG_TRACE__mfxStatus(decode_header_sts);
+                mfx_sts = decode_header_sts;
                 if (MFX_ERR_NONE == mfx_sts) {
                     if (video_params_.mfx.FrameInfo.Width <= max_width_ &&
                         video_params_.mfx.FrameInfo.Height <= max_height_) {
 
-                        mfxStatus reset_res = decoder_->Reset(&video_params_);
-                        MFX_DEBUG_TRACE__mfxStatus(reset_res);
-                        if (MFX_ERR_NONE == reset_res) {
+                        mfxStatus reset_sts = decoder_->Reset(&video_params_);
+                        MFX_DEBUG_TRACE__mfxStatus(reset_sts);
+                        if (MFX_ERR_NONE == reset_sts) {
                             resolution_change_done = true;
                         }
                     }

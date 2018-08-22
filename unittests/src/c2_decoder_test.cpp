@@ -210,12 +210,8 @@ public:
         const uint8_t* data, size_t length)> OnFrame;
 
 public:
-    DecoderConsumer(OnFrame on_frame)
-        :on_frame_(on_frame)
-        ,frame_submitted_(0)
-        ,frame_decoded_(0)
-    {
-    }
+    DecoderConsumer(OnFrame on_frame):
+        on_frame_(on_frame) {}
 
     // future ready when validator got all expected frames
     std::future<void> GetFuture()
@@ -227,7 +223,7 @@ public:
     {
         std::ostringstream ss;
         bool first = true;
-        for (const auto& index : frame_submitted_set_) {
+        for (const auto& index : frame_expected_set_) {
             if (!first) ss << ";";
             ss << index;
             first = false;
@@ -235,15 +231,28 @@ public:
         return ss.str();
     }
 
-    void SetSubmittedFrames(uint64_t frame_submitted)
+    void RegisterSubmittedFrame(uint64_t frame_index)
     {
-        frame_submitted_ = frame_submitted;
-
-        for (uint64_t i = 0; i < frame_submitted; ++i) {
-            frame_submitted_set_.insert(i);
-        }
+        frame_expected_set_.insert(frame_index);
     }
 
+    void ExpectFailures(int count, c2_status_t status)
+    {
+        expected_failures_[status] += count;
+    }
+    // Tests if all works expected to fail actally failed.
+    bool FailuresMatch()
+    {
+        bool res = true;
+        for (auto const& pair : expected_failures_) {
+            EXPECT_EQ(pair.second, 0) << "c2_status_t: " << pair.first << ", "
+                << "count: " << pair.second;
+            if (pair.second != 0) {
+                res = false;
+            }
+        }
+        return res;
+    }
 protected:
     void onWorkDone_nb(
         std::weak_ptr<C2Component> component,
@@ -252,75 +261,78 @@ protected:
         (void)component;
 
         for(std::unique_ptr<C2Work>& work : workItems) {
-            EXPECT_EQ(work->workletsProcessed, 1u);
-            EXPECT_EQ(work->result, C2_OK);
             EXPECT_EQ(work->worklets.size(), 1u);
-            if (work->worklets.size() >= 1) {
+            if (C2_OK == work->result) {
+                EXPECT_EQ(work->workletsProcessed, 1u);
+                if (work->worklets.size() >= 1) {
 
-                std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
-                C2FrameData& buffer_pack = worklet->output;
+                    std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
+                    C2FrameData& buffer_pack = worklet->output;
 
-                uint64_t frame_index = buffer_pack.ordinal.frameIndex.peeku();
+                    uint64_t frame_index = buffer_pack.ordinal.frameIndex.peeku();
 
-                frame_submitted_set_.erase(frame_index);
+                    EXPECT_EQ(buffer_pack.ordinal.timestamp, frame_index * FRAME_DURATION_US); // 30 fps
 
-                EXPECT_EQ(buffer_pack.ordinal.timestamp, frame_index * FRAME_DURATION_US); // 30 fps
+                    EXPECT_NE(frame_expected_set_.find(frame_index), frame_expected_set_.end())
+                        << "unexpected frame_index value" << frame_index;
 
-                EXPECT_EQ(!frame_submitted_ || (frame_index < frame_submitted_), true)
-                    << "unexpected frame_index value" << frame_index;
+                    frame_expected_set_.erase(frame_index);
 
-                ++frame_decoded_;
+                    std::unique_ptr<C2ConstGraphicBlock> graphic_block;
+                    c2_status_t sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
+                    EXPECT_EQ(sts, C2_OK);
 
-                std::unique_ptr<C2ConstGraphicBlock> graphic_block;
-                c2_status_t sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
-                EXPECT_EQ(sts, C2_OK);
+                    if(nullptr != graphic_block) {
 
-                if(nullptr != graphic_block) {
+                        C2Rect crop = graphic_block->crop();
+                        EXPECT_NE(crop.width, 0u);
+                        EXPECT_NE(crop.height, 0u);
 
-                    C2Rect crop = graphic_block->crop();
-                    EXPECT_NE(crop.width, 0u);
-                    EXPECT_NE(crop.height, 0u);
+                        std::unique_ptr<const C2GraphicView> c_graph_view;
+                        sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &c_graph_view);
+                        EXPECT_EQ(sts, C2_OK) << NAMED(sts);
+                        EXPECT_TRUE(c_graph_view);
 
-                    std::unique_ptr<const C2GraphicView> c_graph_view;
-                    sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &c_graph_view);
-                    EXPECT_EQ(sts, C2_OK) << NAMED(sts);
-                    EXPECT_TRUE(c_graph_view);
+                        if (c_graph_view) {
+                            C2PlanarLayout layout = c_graph_view->layout();
 
-                    if (c_graph_view) {
-                        C2PlanarLayout layout = c_graph_view->layout();
+                            const uint8_t* const* raw  = c_graph_view->data();
 
-                        const uint8_t* const* raw  = c_graph_view->data();
+                            EXPECT_NE(raw, nullptr);
+                            for (uint32_t i = 0; i < layout.numPlanes; ++i) {
+                                EXPECT_NE(raw[i], nullptr);
+                            }
 
-                        EXPECT_NE(raw, nullptr);
-                        for (uint32_t i = 0; i < layout.numPlanes; ++i) {
-                            EXPECT_NE(raw[i], nullptr);
-                        }
+                            std::shared_ptr<std::vector<uint8_t>> data_buffer = std::make_shared<std::vector<uint8_t>>();
+                            data_buffer->resize(crop.width * crop.height * 3 / 2);
+                            uint8_t* raw_cropped = &(data_buffer->front());
+                            uint8_t* raw_cropped_chroma = raw_cropped + crop.width * crop.height;
+                            const uint8_t* raw_chroma = raw[C2PlanarLayout::PLANE_U];
 
-                        std::shared_ptr<std::vector<uint8_t>> data_buffer = std::make_shared<std::vector<uint8_t>>();
-                        data_buffer->resize(crop.width * crop.height * 3 / 2);
-                        uint8_t* raw_cropped = &(data_buffer->front());
-                        uint8_t* raw_cropped_chroma = raw_cropped + crop.width * crop.height;
-                        const uint8_t* raw_chroma = raw[C2PlanarLayout::PLANE_U];
+                            for (uint32_t i = 0; i < crop.height; i++) {
+                                const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_Y].rowInc;
+                                memcpy(raw_cropped + i * crop.width, raw[C2PlanarLayout::PLANE_Y] + (i + crop.top) * stride + crop.left, crop.width);
+                            }
+                            for (uint32_t i = 0; i < (crop.height >> 1); i++) {
+                                const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_U].rowInc;
+                                memcpy(raw_cropped_chroma + i * crop.width, raw_chroma + (i + (crop.top >> 1)) * stride + crop.left, crop.width);
+                            }
 
-                        for (uint32_t i = 0; i < crop.height; i++) {
-                            const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_Y].rowInc;
-                            memcpy(raw_cropped + i * crop.width, raw[C2PlanarLayout::PLANE_Y] + (i + crop.top) * stride + crop.left, crop.width);
-                        }
-                        for (uint32_t i = 0; i < (crop.height >> 1); i++) {
-                            const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_U].rowInc;
-                            memcpy(raw_cropped_chroma + i * crop.width, raw_chroma + (i + (crop.top >> 1)) * stride + crop.left, crop.width);
-                        }
-
-                        if(nullptr != raw_cropped) {
-                            on_frame_(crop.width, crop.height,
-                                raw_cropped, crop.width * crop.height * 3 / 2);
+                            if(nullptr != raw_cropped) {
+                                on_frame_(crop.width, crop.height,
+                                    raw_cropped, crop.width * crop.height * 3 / 2);
+                            }
                         }
                     }
                 }
+            } else {
+                EXPECT_EQ(work->workletsProcessed, 0u);
+                EXPECT_TRUE(expected_failures_[work->result] > 0);
+                expected_failures_[work->result]--;
             }
         }
         // if collected all expected frames
-        if(frame_submitted_ && (frame_decoded_ == frame_submitted_)) {
+        if (frame_expected_set_.empty()) {
             done_.set_value();
         }
     }
@@ -343,17 +355,54 @@ protected:
 
 private:
     OnFrame on_frame_;
-    uint64_t frame_submitted_; // number of the frames submitted for decoding
-    uint64_t frame_decoded_;   // number of decoded frames
-    std::set<uint64_t> frame_submitted_set_;
+    std::set<uint64_t> frame_expected_set_;
+    std::map<c2_status_t, int> expected_failures_; // expected failures and how many times they should occur
     std::promise<void> done_;  // fire when all expected frames came
+};
+
+// interface to provide flexibility how stream is split to C2 works
+class StreamSplitter
+{
+public:
+    virtual ~StreamSplitter() = default;
+
+    virtual bool Read(std::vector<char>* part, bool* header, bool* valid) = 0;
+
+    virtual bool EndOfStream() = 0;
+};
+
+// Default StreamSplitter implementation reading by frames
+class FrameStreamSplitter : public StreamSplitter
+{
+private:
+    std::unique_ptr<StreamReader> reader;
+
+public:
+    FrameStreamSplitter(const std::vector<const StreamDescription*>& streams):
+        reader{StreamReader::Create(streams)} {}
+
+    bool Read(std::vector<char>* part, bool* header, bool* valid) override
+    {
+        StreamDescription::Region region {};
+        bool res = reader->Read(StreamReader::Slicing::Frame(), &region, header);
+        if (res) {
+            *part = reader->GetRegionContents(region);
+            *valid = true;
+        }
+        return res;
+    }
+
+    bool EndOfStream() override
+    {
+        return reader->EndOfStream();
+    }
 };
 
 static void Decode(
     bool graphics_memory,
     std::shared_ptr<C2Component> component,
     std::shared_ptr<DecoderConsumer> validator,
-    const std::vector<const StreamDescription*>& streams)
+    StreamSplitter* stream_splitter)
 {
     c2_blocking_t may_block{C2_MAY_BLOCK};
     component->setListener_vb(validator, may_block);
@@ -371,32 +420,34 @@ static void Decode(
     sts = component->start();
     EXPECT_EQ(sts, C2_OK);
 
-    std::unique_ptr<StreamReader> reader { StreamReader::Create(streams) };
     uint32_t frame_index = 0;
 
-    StreamDescription::Region region {};
     bool header = false;
+    bool valid = false;
+    std::vector<char> stream_part;
 
-    bool res = reader->Read(StreamReader::Slicing::Frame(), &region, &header);
-    while(res) {
+    while (true) {
+        bool res = stream_splitter->Read(&stream_part, &header, &valid);
+        if (!res) break;
         // prepare worklet and push
         std::unique_ptr<C2Work> work;
 
         // insert input data
-        PrepareWork(frame_index, component, &work, reader->GetRegionContents(region),
-            reader->EndOfStream(), header);
+        PrepareWork(frame_index, component, &work, stream_part,
+            stream_splitter->EndOfStream(), header);
         std::list<std::unique_ptr<C2Work>> works;
         works.push_back(std::move(work));
 
-        frame_index++;
-
-        res = reader->Read(StreamReader::Slicing::Frame(), &region, &header);
-        if (!res) {
-            validator->SetSubmittedFrames(frame_index);
+        if (valid) {
+            validator->RegisterSubmittedFrame(frame_index);
+        } else {
+            validator->ExpectFailures(1, C2_NOT_FOUND);
         }
 
         sts = component->queue_nb(&works);
         EXPECT_EQ(sts, C2_OK);
+
+        frame_index++;
     }
 
     std::future<void> future = validator->GetFuture();
@@ -404,6 +455,7 @@ static void Decode(
 
     EXPECT_EQ(future_sts, std::future_status::ready) << " decoded less frames than expected, missing: "
         << validator->GetMissingFramesList();
+    EXPECT_TRUE(validator->FailuresMatch());
 
     component->setListener_vb(nullptr, may_block);
     sts = component->stop();
@@ -456,8 +508,9 @@ TEST_P(Decoder, DecodeBitExact)
 
                 std::shared_ptr<DecoderConsumer> validator =
                     std::make_shared<DecoderConsumer>(on_frame);
+                FrameStreamSplitter stream_splitter(streams);
 
-                Decode(use_graphics_memory(i), comp, validator, streams);
+                Decode(use_graphics_memory(i), comp, validator, &stream_splitter);
 
                 std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
                 std::list<uint32_t> expected_crc;
@@ -466,6 +519,91 @@ TEST_P(Decoder, DecodeBitExact)
 
                 EXPECT_EQ(actual_crc, expected_crc) << "Pass " << i << " not equal to reference CRC32"
                     << memory_names[use_graphics_memory(i)];
+            }
+        }
+    } );
+}
+
+// Decodes streams that caused resolution change,
+// supply part of second header, it caused undefined behaviour in mediasdk decoder (264)
+// then supply completed header, expects decoder recovers and decodes stream fine.
+TEST_P(Decoder, BrokenHeader)
+{
+    class HeaderBreaker : public FrameStreamSplitter
+    {
+    public:
+        using FrameStreamSplitter::FrameStreamSplitter;
+        bool Read(std::vector<char>* part, bool* header, bool* valid) override
+        {
+            bool res{};
+            if (!frame_.empty()) {
+                res = true;
+                *part = frame_;
+                *header = true;
+                *valid = true;
+                frame_.clear();
+            } else {
+                res = FrameStreamSplitter::Read(part, header, valid);
+                if (res) {
+                    if (*header) {
+                        if (header_index_ > 0) {
+                            std::vector<char> contents = *part;
+                            *part = std::vector<char>(contents.begin(),
+                                std::min(contents.begin() + header_part_len_, contents.end()));
+                            *valid = false;
+                            frame_ = std::move(contents);
+                        }
+                        ++header_index_;
+                    }
+                }
+            }
+            return res;
+        }
+    private:
+        const int header_part_len_{5};
+        int header_index_{0};
+        std::vector<char> frame_;
+    };
+
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+
+        std::map<bool, std::string> memory_names = {
+            { false, "(system memory)" },
+            { true, "(video memory)" },
+        };
+
+        for(const std::vector<const StreamDescription*>& streams : desc.streams) {
+
+            if (streams.size() == 1) continue; // this test demands resolution change
+
+            for (bool use_graphics_memory : { false, true }) {
+
+                CRC32Generator crc_generator;
+
+                GTestBinaryWriter writer(std::ostringstream()
+                    << comp_intf->getName() << "-" << GetStreamsCombinedName(streams) << ".nv12");
+
+                DecoderConsumer::OnFrame on_frame = [&] (uint32_t width, uint32_t height,
+                    const uint8_t* data, size_t length) {
+
+                    writer.Write(data, length);
+                    crc_generator.AddData(width, height, data, length);
+                };
+
+                std::shared_ptr<DecoderConsumer> validator =
+                    std::make_shared<DecoderConsumer>(on_frame);
+                HeaderBreaker stream_splitter(streams);
+
+                Decode(use_graphics_memory, comp, validator, &stream_splitter);
+
+                std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
+                std::list<uint32_t> expected_crc;
+                std::transform(streams.begin(), streams.end(), std::back_inserter(expected_crc),
+                    [] (const StreamDescription* stream) { return stream->crc32_nv12; } );
+
+                EXPECT_EQ(actual_crc, expected_crc) << "Not equal to reference CRC32"
+                    << memory_names[use_graphics_memory];
             }
         }
     } );

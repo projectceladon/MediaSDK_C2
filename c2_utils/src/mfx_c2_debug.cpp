@@ -1,6 +1,6 @@
 /**********************************************************************************
 
-Copyright (C) 2005-2016 Intel Corporation.  All rights reserved.
+Copyright (C) 2005-2018 Intel Corporation.  All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -46,10 +46,13 @@ MFX_DEBUG_DEFINE_VALUE_DESC_PRINTF(
   MFX_DEBUG_VALUE_DESC(C2_DUPLICATE),
   MFX_DEBUG_VALUE_DESC(C2_NOT_FOUND),
   MFX_DEBUG_VALUE_DESC(C2_BAD_STATE),
+  MFX_DEBUG_VALUE_DESC(C2_BLOCKING),
+  MFX_DEBUG_VALUE_DESC(C2_CANCELED),
   MFX_DEBUG_VALUE_DESC(C2_NO_MEMORY),
   MFX_DEBUG_VALUE_DESC(C2_REFUSED),
   MFX_DEBUG_VALUE_DESC(C2_TIMED_OUT),
   MFX_DEBUG_VALUE_DESC(C2_OMITTED),
-  MFX_DEBUG_VALUE_DESC(C2_CORRUPTED))
+  MFX_DEBUG_VALUE_DESC(C2_CORRUPTED),
+  MFX_DEBUG_VALUE_DESC(C2_NO_INIT))
 
 #endif // #if MFX_DEBUG == MFX_DEBUG_YES
