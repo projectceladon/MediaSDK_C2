@@ -219,6 +219,7 @@ c2_status_t MfxC2Component::CheckStateTransitionConflict(const std::unique_lock<
 {
     MFX_DEBUG_TRACE_FUNC;
 
+    (void)state_lock;
     assert(state_lock.mutex() == &state_mutex_);
     assert(state_lock.owns_lock());
 

@@ -54,7 +54,7 @@ protected:  // MfxC2Component overrides
     c2_status_t Resume() override;
 
     c2_status_t Query(
-        std::unique_lock<std::mutex> state_lock,
+        std::unique_lock<std::mutex>,
         const std::vector<C2Param*>&,
         const std::vector<C2Param::Index> &,
         c2_blocking_t,
