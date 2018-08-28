@@ -41,16 +41,6 @@ cc_library_shared {
     ldflags: ["-Wl,-Bsymbolic"],
 }
 
-cc_library_headers {
-    name: "codec2_headers",
-
-    export_include_dirs = [
-        "include",
-    ],
-
-    vendor_available: true,
-}
-
 subdirs = [
     "tests",
     "vndk",

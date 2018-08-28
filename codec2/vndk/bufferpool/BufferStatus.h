@@ -94,6 +94,9 @@ public:
     /** Returns whether the FMQ is connected successfully. */
     bool isValid();
 
+    /** Returns whether the FMQ needs to be synced from the buffer pool */
+    bool needsSync();
+
     /**
      * Posts a buffer release message to the buffer pool.
      *
