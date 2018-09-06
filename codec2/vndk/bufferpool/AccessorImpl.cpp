@@ -128,7 +128,7 @@ bool contains(std::map<T, std::set<U>> *mapOfSet, T key, U value) {
 }
 
 int32_t Accessor::Impl::sPid = getpid();
-uint32_t Accessor::Impl::sSeqId = time(NULL);
+uint32_t Accessor::Impl::sSeqId = time(nullptr);
 
 Accessor::Impl::Impl(
         const std::shared_ptr<BufferPoolAllocator> &allocator)
@@ -484,6 +484,9 @@ ResultStatus Accessor::Impl::BufferPool::addNewBuffer(
         const native_handle_t** handle) {
 
     BufferId bufferId = mSeq++;
+    if (mSeq == Connection::SYNC_BUFFERID) {
+        mSeq = 0;
+    }
     std::unique_ptr<InternalBuffer> buffer =
             std::make_unique<InternalBuffer>(
                     bufferId, alloc, allocSize, params);

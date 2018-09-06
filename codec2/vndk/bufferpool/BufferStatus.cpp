@@ -38,6 +38,7 @@ int64_t getTimestampNow() {
 }
 
 static constexpr int kNumElementsInQueue = 1024*16;
+static constexpr int kMinElementsToSyncInQueue = 128;
 
 ResultStatus BufferStatusObserver::open(
         ConnectionId id, const QueueDescriptor** fmqDescPtr) {
@@ -48,7 +49,7 @@ ResultStatus BufferStatusObserver::open(
     std::unique_ptr<BufferStatusQueue> queue =
             std::make_unique<BufferStatusQueue>(kNumElementsInQueue);
     if (!queue || queue->isValid() == false) {
-        *fmqDescPtr = NULL;
+        *fmqDescPtr = nullptr;
         return ResultStatus::NO_MEMORY;
     } else {
         *fmqDescPtr = queue->getDesc();
@@ -56,7 +57,7 @@ ResultStatus BufferStatusObserver::open(
     auto result = mBufferStatusQueues.insert(
             std::make_pair(id, std::move(queue)));
     if (!result.second) {
-        *fmqDescPtr = NULL;
+        *fmqDescPtr = nullptr;
         return ResultStatus::NO_MEMORY;
     }
     return ResultStatus::OK;
@@ -103,6 +104,14 @@ BufferStatusChannel::BufferStatusChannel(
 
 bool BufferStatusChannel::isValid() {
     return mValid;
+}
+
+bool BufferStatusChannel::needsSync() {
+    if (mValid) {
+        size_t avail = mBufferStatusQueue->availableToWrite();
+        return avail + kMinElementsToSyncInQueue < kNumElementsInQueue;
+    }
+    return false;
 }
 
 void BufferStatusChannel::postBufferRelease(

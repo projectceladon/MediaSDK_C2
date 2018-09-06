@@ -34,7 +34,6 @@ cc_library_vndk_mfx {
         "util/C2InterfaceHelper.cpp",
         "util/C2InterfaceUtils.cpp",
         "util/C2ParamUtils.cpp",
-        "v4l2/C2VdaBqBlockPool.cpp",
     ],
 
     export_include_dirs: [
@@ -86,7 +85,6 @@ cc_library_vndk_mfx {
     cflags: [
         "-Werror",
         "-Wall",
-        "-std=c++14",
     ],
 }
 
