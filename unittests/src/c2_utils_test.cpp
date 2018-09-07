@@ -23,6 +23,8 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include "streams/h264/freh9.264.h"
 #include "streams/h265/AMVP_A_MTK_4.bit.h"
 #include "streams/h265/CAINIT_A_SHARP_4.bit.h"
+#include "streams/vp9/stream_nv12_176x144_cqp_g30_100.vp9.ivf.h"
+#include "streams/vp9/stream_nv12_352x288_cqp_g15_100.vp9.ivf.h"
 #include "mfx_c2_component.h"
 #include "mfx_c2_components_registry.h"
 
@@ -44,7 +46,9 @@ static std::vector<const StreamDescription*> g_streams {
     &aud_mw_e_264,
     &freh9_264,
     &AMVP_A_MTK_4_bit,
-    &CAINIT_A_SHARP_4_bit
+    &CAINIT_A_SHARP_4_bit,
+    &stream_nv12_176x144_cqp_g30_100_vp9_ivf,
+    &stream_nv12_352x288_cqp_g15_100_vp9_ivf
 };
 
 // Multiple streams read till the end with CombinedStreamReader should give the same output

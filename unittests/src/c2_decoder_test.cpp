@@ -19,6 +19,8 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include "streams/h264/freh9.264.h"
 #include "streams/h265/AMVP_A_MTK_4.bit.h"
 #include "streams/h265/CAINIT_A_SHARP_4.bit.h"
+#include "streams/vp9/stream_nv12_176x144_cqp_g30_100.vp9.ivf.h"
+#include "streams/vp9/stream_nv12_352x288_cqp_g15_100.vp9.ivf.h"
 
 #include <future>
 #include <set>
@@ -75,9 +77,18 @@ static std::vector<std::vector<const StreamDescription*>> h265_streams =
     { &CAINIT_A_SHARP_4_bit, &AMVP_A_MTK_4_bit }
 };
 
+static std::vector<std::vector<const StreamDescription*>> vp9_streams =
+{
+    { &stream_nv12_176x144_cqp_g30_100_vp9_ivf },
+    { &stream_nv12_352x288_cqp_g15_100_vp9_ivf },
+    { &stream_nv12_176x144_cqp_g30_100_vp9_ivf, &stream_nv12_352x288_cqp_g15_100_vp9_ivf },
+    { &stream_nv12_352x288_cqp_g15_100_vp9_ivf, &stream_nv12_176x144_cqp_g30_100_vp9_ivf }
+};
+
 static ComponentDesc g_components_desc[] = {
     { "C2.h264vd", 0, C2_OK, dec_params_desc, h264_streams },
     { "C2.h265vd", 0, C2_OK, dec_params_desc, h265_streams },
+    { "C2.vp9vd",  0, C2_OK, dec_params_desc, vp9_streams },
 };
 
 static ComponentDesc g_invalid_components_desc[] = {
