@@ -115,6 +115,8 @@ private:
 
     bool ContainsSlice(const StreamDescription::Region& region, size_t start_code_len);
 
+    bool ParseIVFHeader(size_t* frame_size);
+
 private:
     const StreamDescription* stream_;
     std::vector<char>::const_iterator pos_;
@@ -177,81 +179,93 @@ inline bool SingleStreamReader::Read(const Slicing& slicing, StreamDescription::
     if(pos_ < stream_->data.end()) {
         switch(slicing.GetType()) {
             case Slicing::Type::NalUnit: {
-                const std::vector<std::vector<char>> delims =
-                    { { 0, 0, 0, 1 }, { 0, 0, 1 } };
+                if (stream_->fourcc != MFX_CODEC_VP9) { // do nothing for VP9 stream
+                    const std::vector<std::vector<char>> delims =
+                        { { 0, 0, 0, 1 }, { 0, 0, 1 } };
 
-                std::vector<char>::const_iterator find_from = pos_;
-                for (const auto& delim : delims) {
-                    std::vector<char>::const_iterator found =
-                        std::search(pos_, stream_->data.end(), delim.begin(), delim.end());
-                    if (found == pos_) { // this is current beginning of current nal unit, skip it
-                        find_from = pos_ + delim.size();
-                        break;
-                    }
-                }
-
-                std::vector<char>::const_iterator nearest_delim = stream_->data.end();
-                for (const auto& delim : delims) {
-                    std::vector<char>::const_iterator found =
-                        std::search(find_from, stream_->data.end(), delim.begin(), delim.end());
-                    if (found < nearest_delim) {
-                        nearest_delim = found;
-                    }
-                }
-                region->offset = pos_ - stream_->data.begin();
-                region->size = nearest_delim - pos_;
-                *header = ContainsHeader(*region);
-                if (nullptr != start_code_len) {
-                    *start_code_len = find_from - pos_;
-                }
-                pos_ = nearest_delim;
-                break;
-            }
-            case Slicing::Type::Frame: {
-                StreamDescription::Region tmp_region;
-                bool tmp_header;
-                size_t tmp_start_code_len = 0;
-
-                res = Read(Slicing::NalUnit(), &tmp_region, &tmp_header, &tmp_start_code_len);
-                if (nullptr != start_code_len) {
-                    *start_code_len = tmp_start_code_len;
-                }
-                if (res) {
-                    region->offset = tmp_region.offset;
-                    region->size = tmp_region.size;
-                    *header = tmp_header;
-
-                    bool tmp_res = true;
-                    while (!ContainsSlice(tmp_region, tmp_start_code_len)) {
-                        tmp_res = Read(Slicing::NalUnit(), &tmp_region, &tmp_header, &tmp_start_code_len);
-                        if (tmp_res) {
-                            region->size += tmp_region.size;
-                            *header = (*header || tmp_header);
-                        } else {
+                    std::vector<char>::const_iterator find_from = pos_;
+                    for (const auto& delim : delims) {
+                        std::vector<char>::const_iterator found =
+                            std::search(pos_, stream_->data.end(), delim.begin(), delim.end());
+                        if (found == pos_) { // this is current beginning of current nal unit, skip it
+                            find_from = pos_ + delim.size();
                             break;
                         }
                     }
-                    // Check if it is the last slice and there are NAL units onwards
-                    if (tmp_res) {
-                        std::vector<char>::const_iterator tmp_pos = pos_;
-                        size_t tail = 0;
-                        while (true) {
+
+                    std::vector<char>::const_iterator nearest_delim = stream_->data.end();
+                    for (const auto& delim : delims) {
+                        std::vector<char>::const_iterator found =
+                            std::search(find_from, stream_->data.end(), delim.begin(), delim.end());
+                        if (found < nearest_delim) {
+                            nearest_delim = found;
+                        }
+                    }
+                    region->offset = pos_ - stream_->data.begin();
+                    region->size = nearest_delim - pos_;
+                    *header = ContainsHeader(*region);
+                    if (nullptr != start_code_len) {
+                        *start_code_len = find_from - pos_;
+                    }
+                    pos_ = nearest_delim;
+                } else {
+                    res = false;
+                }
+                break;
+            }
+            case Slicing::Type::Frame: {
+                if (stream_->fourcc == MFX_CODEC_VP9) {
+                    size_t current_frame_size = 0;
+                    res = ParseIVFHeader(&current_frame_size);
+                    region->offset = pos_ - stream_->data.begin();
+                    region->size = current_frame_size;
+                    pos_ += current_frame_size;
+                } else {
+                    StreamDescription::Region tmp_region;
+                    bool tmp_header;
+                    size_t tmp_start_code_len = 0;
+
+                    res = Read(Slicing::NalUnit(), &tmp_region, &tmp_header, &tmp_start_code_len);
+                    if (nullptr != start_code_len) {
+                        *start_code_len = tmp_start_code_len;
+                    }
+                    if (res) {
+                        region->offset = tmp_region.offset;
+                        region->size = tmp_region.size;
+                        *header = tmp_header;
+
+                        bool tmp_res = true;
+                        while (!ContainsSlice(tmp_region, tmp_start_code_len)) {
                             tmp_res = Read(Slicing::NalUnit(), &tmp_region, &tmp_header, &tmp_start_code_len);
                             if (tmp_res) {
-                                tail += tmp_region.size;
+                                region->size += tmp_region.size;
+                                *header = (*header || tmp_header);
                             } else {
-                                // Current slice was the last slice, so we need to add rest NAL units
-                                break;
-                            }
-                            if (ContainsSlice(tmp_region, tmp_start_code_len)) {
-                                // The slice was not the last one - we found next slice
-                                // The data between the slices will be copied in the next call
-                                tail = 0;
-                                pos_ = tmp_pos;
                                 break;
                             }
                         }
-                        region->size += tail;
+                        // Check if it is the last slice and there are NAL units onwards
+                        if (tmp_res) {
+                            std::vector<char>::const_iterator tmp_pos = pos_;
+                            size_t tail = 0;
+                            while (true) {
+                                tmp_res = Read(Slicing::NalUnit(), &tmp_region, &tmp_header, &tmp_start_code_len);
+                                if (tmp_res) {
+                                    tail += tmp_region.size;
+                                } else {
+                                    // Current slice was the last slice, so we need to add rest NAL units
+                                    break;
+                                }
+                                if (ContainsSlice(tmp_region, tmp_start_code_len)) {
+                                    // The slice was not the last one - we found next slice
+                                    // The data between the slices will be copied in the next call
+                                    tail = 0;
+                                    pos_ = tmp_pos;
+                                    break;
+                                }
+                            }
+                            region->size += tail;
+                        }
                     }
                 }
                 break;
@@ -325,6 +339,36 @@ inline bool SingleStreamReader::ContainsSlice(const StreamDescription::Region& r
         }
     }
     return is_slice;
+}
+
+inline bool SingleStreamReader::ParseIVFHeader(size_t* frame_size)
+{
+    if (pos_ == stream_->data.begin()) {
+        // check IVF Header
+        if ((stream_->data.size() >= 32) &&
+            (stream_->data[0] == 0x44 && // D
+             stream_->data[1] == 0x4B && // K
+             stream_->data[2] == 0x49 && // I
+             stream_->data[3] == 0x46)) {// F
+            pos_ += 32;
+        } else {
+            return false;
+        }
+    }
+    if ((stream_->data.end() - pos_) >= 12) { // read frame header
+        // read actual frame size - first 4 byte
+        char tmp_array[4];
+        for (uint8_t i = 0; i < 4; i++) {
+            tmp_array[i] = *pos_;
+            pos_++;
+        }
+        *frame_size = *reinterpret_cast<uint32_t*>(tmp_array);
+        // skip header (12 - 4) byte
+        pos_ += 8;
+    } else {
+        return false;
+    }
+    return true;
 }
 
 inline bool SingleStreamReader::Seek(size_t pos)

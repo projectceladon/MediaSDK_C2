@@ -12,6 +12,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include "mfx_frame_constructor.h"
 #include "streams/h264/aud_mw_e.264.h"
 #include "streams/h265/AMVP_A_MTK_4.bit.h"
+#include "streams/vp9/stream_nv12_176x144_cqp_g30_100.vp9.ivf.h"
 
 const size_t READ_ALL = std::numeric_limits<size_t>::max();
 const size_t DO_NOT_READ = 0;
@@ -27,7 +28,8 @@ struct TestStream
 
 TestStream test_streams[] = {
     PARAMS_DESCRIBED(MfxC2FC_AVC, aud_mw_e_264),
-    PARAMS_DESCRIBED(MfxC2FC_HEVC, AMVP_A_MTK_4_bit)
+    PARAMS_DESCRIBED(MfxC2FC_HEVC, AMVP_A_MTK_4_bit),
+    PARAMS_DESCRIBED(MfxC2FC_VP9, stream_nv12_176x144_cqp_g30_100_vp9_ivf)
 };
 
 // Returns bool result if Reader is able to read some data from input stream.
@@ -53,7 +55,6 @@ static bool PassThrough(
         std::shared_ptr<mfxBitstream> bitstream = frame_constructor->GetMfxBitstream();
         EXPECT_NE(bitstream, nullptr);
 
-        std::string res;
         if(bitstream != nullptr) {
             EXPECT_EQ(bitstream->TimeStamp, pts)
                 << bitstream->TimeStamp << " instead of " << pts;
@@ -106,6 +107,10 @@ TEST(FrameConstructor, PassEverything)
         PARAMS_DESCRIBED(MfxC2FC_HEVC, AMVP_A_MTK_4_bit, StreamReader::Slicing::NalUnit(), READ_ALL, true),
         PARAMS_DESCRIBED(MfxC2FC_HEVC, AMVP_A_MTK_4_bit, StreamReader::Slicing(1000), READ_ALL, false),
         PARAMS_DESCRIBED(MfxC2FC_HEVC, AMVP_A_MTK_4_bit, StreamReader::Slicing(1000), 960, false),
+        PARAMS_DESCRIBED(MfxC2FC_VP9, stream_nv12_176x144_cqp_g30_100_vp9_ivf, StreamReader::Slicing::Frame(), READ_ALL, false),
+        PARAMS_DESCRIBED(MfxC2FC_VP9, stream_nv12_176x144_cqp_g30_100_vp9_ivf, StreamReader::Slicing::Frame(), READ_ALL, true),
+        PARAMS_DESCRIBED(MfxC2FC_VP9, stream_nv12_176x144_cqp_g30_100_vp9_ivf, StreamReader::Slicing(1000), READ_ALL, false),
+        PARAMS_DESCRIBED(MfxC2FC_VP9, stream_nv12_176x144_cqp_g30_100_vp9_ivf, StreamReader::Slicing(1000), 900, false),
     };
 
     for (const TestCase& test_case : g_test_cases) {
@@ -124,6 +129,7 @@ TEST(FrameConstructor, PassEverything)
 
         mfxU64 pts = 0;
         mfxU64 loaded_pts = 0;
+        mfxU32 read_count = 0;
 
         std::ostringstream oss;
         std::string output;
@@ -135,6 +141,7 @@ TEST(FrameConstructor, PassEverything)
 
             loaded_pts = pts;
             pts += 33333;
+            read_count++;
 
             oss << output;
         }
@@ -147,7 +154,7 @@ TEST(FrameConstructor, PassEverything)
 
         if (bitstream != nullptr) { // read leftover
 
-            mfxU64 expected_pts = (bitstream->DataLength != 0) ? loaded_pts : 0;
+            mfxU64 expected_pts = (test_case.read_size == READ_ALL) ? 0 : loaded_pts;
 
             EXPECT_EQ(bitstream->TimeStamp, expected_pts) << bitstream->TimeStamp << " instead of " << pts;
 
@@ -165,16 +172,24 @@ TEST(FrameConstructor, PassEverything)
 
         frame_constructor->Close();
 
-        EXPECT_EQ(oss.str().size(), test_case.stream_desc.data.size());
+        if (test_case.load_slicing.GetType() == StreamReader::Slicing::Type::Frame &&
+            test_case.stream_desc.fourcc == MFX_CODEC_VP9) { // for VP9 will skipped IVF header
 
-        EXPECT_EQ(oss.str(),
-            std::string(&test_case.stream_desc.data.front(), test_case.stream_desc.data.size()));
+            EXPECT_EQ(oss.str().size() + read_count * 12 /* size of ivf frame header*/ + 32 /* size of ivf stream header */, test_case.stream_desc.data.size());
+
+        } else {
+
+            EXPECT_EQ(oss.str().size(), test_case.stream_desc.data.size());
+
+            EXPECT_EQ(oss.str(),
+                std::string(&test_case.stream_desc.data.front(), test_case.stream_desc.data.size()));
+        }
     }
 }
 
 static size_t GetHeaderEndPos(const StreamDescription& stream)
 {
-    return std::max<>(stream.sps.offset + stream.sps.size,
+    return (stream.fourcc == MFX_CODEC_VP9) ? 32/*size of IVF Header*/ : std::max<>(stream.sps.offset + stream.sps.size,
         stream.pps.offset + stream.pps.size);
 }
 
@@ -297,6 +312,10 @@ TEST(FrameConstructor, SaveHeaders)
         SCOPED_TRACE(testing::Message() << "Stream: " << test_stream.description);
 
         const StreamDescription& stream = test_stream.stream_desc;
+
+        if (stream.fourcc == MFX_CODEC_VP9) { // VP9 hasn't SPS, PPS
+            break;
+        }
 
         for(bool read_all : { true, false }) {
 

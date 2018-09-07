@@ -24,6 +24,7 @@ public:
     enum DecoderType {
         DECODER_H264,
         DECODER_H265,
+        DECODER_VP9,
     };
 
 protected:

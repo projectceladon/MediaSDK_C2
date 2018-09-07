@@ -625,6 +625,10 @@ std::shared_ptr<IMfxC2FrameConstructor> MfxC2FrameConstructorFactory::CreateFram
         fc = std::make_shared<MfxC2HEVCFrameConstructor>();
         return fc;
 
+    } else if (MfxC2FC_VP9 == fc_type) {
+        fc = std::make_shared<MfxC2FrameConstructor>();
+        return fc;
+
     } else {
         fc = std::make_shared<MfxC2FrameConstructor>();
         return fc;
