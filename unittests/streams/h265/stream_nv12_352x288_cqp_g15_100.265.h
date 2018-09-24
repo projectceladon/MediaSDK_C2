@@ -12,4 +12,4 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 
 #include "test_streams.h"
 
-extern StreamDescription AMVP_A_MTK_4_bit;
+extern StreamDescription stream_nv12_352x288_cqp_g15_100_265;

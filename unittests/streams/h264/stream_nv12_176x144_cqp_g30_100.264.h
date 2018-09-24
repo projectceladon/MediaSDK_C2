@@ -12,4 +12,4 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 
 #include "test_streams.h"
 
-extern StreamDescription CAINIT_A_SHARP_4_bit;
+extern StreamDescription stream_nv12_176x144_cqp_g30_100_264;
