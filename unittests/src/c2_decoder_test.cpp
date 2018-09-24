@@ -15,10 +15,10 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_component.h"
 #include "mfx_c2_components_registry.h"
 #include "C2PlatformSupport.h"
-#include "streams/h264/aud_mw_e.264.h"
-#include "streams/h264/freh9.264.h"
-#include "streams/h265/AMVP_A_MTK_4.bit.h"
-#include "streams/h265/CAINIT_A_SHARP_4.bit.h"
+#include "streams/h264/stream_nv12_176x144_cqp_g30_100.264.h"
+#include "streams/h264/stream_nv12_352x288_cqp_g15_100.264.h"
+#include "streams/h265/stream_nv12_176x144_cqp_g30_100.265.h"
+#include "streams/h265/stream_nv12_352x288_cqp_g15_100.265.h"
 #include "streams/vp9/stream_nv12_176x144_cqp_g30_100.vp9.ivf.h"
 #include "streams/vp9/stream_nv12_352x288_cqp_g15_100.vp9.ivf.h"
 
@@ -63,18 +63,18 @@ namespace {
 
 static std::vector<std::vector<const StreamDescription*>> h264_streams =
 {
-    { &aud_mw_e_264 },
-    { &freh9_264 },
-    { &aud_mw_e_264, &freh9_264 },
-    { &freh9_264, &aud_mw_e_264 }
+    { &stream_nv12_176x144_cqp_g30_100_264 },
+    { &stream_nv12_352x288_cqp_g15_100_264 },
+    { &stream_nv12_176x144_cqp_g30_100_264, &stream_nv12_352x288_cqp_g15_100_264 },
+    { &stream_nv12_352x288_cqp_g15_100_264, &stream_nv12_176x144_cqp_g30_100_264 }
 };
 
 static std::vector<std::vector<const StreamDescription*>> h265_streams =
 {
-    { &AMVP_A_MTK_4_bit },
-    { &CAINIT_A_SHARP_4_bit },
-    { &AMVP_A_MTK_4_bit, &CAINIT_A_SHARP_4_bit },
-    { &CAINIT_A_SHARP_4_bit, &AMVP_A_MTK_4_bit }
+    { &stream_nv12_176x144_cqp_g30_100_265 },
+    { &stream_nv12_352x288_cqp_g15_100_265 },
+    { &stream_nv12_176x144_cqp_g30_100_265, &stream_nv12_352x288_cqp_g15_100_265 },
+    { &stream_nv12_352x288_cqp_g15_100_265, &stream_nv12_176x144_cqp_g30_100_265 }
 };
 
 static std::vector<std::vector<const StreamDescription*>> vp9_streams =

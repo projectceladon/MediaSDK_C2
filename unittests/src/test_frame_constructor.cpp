@@ -10,8 +10,8 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 
 #include <gtest/gtest.h>
 #include "mfx_frame_constructor.h"
-#include "streams/h264/aud_mw_e.264.h"
-#include "streams/h265/AMVP_A_MTK_4.bit.h"
+#include "streams/h264/stream_nv12_176x144_cqp_g30_100.264.h"
+#include "streams/h265/stream_nv12_176x144_cqp_g30_100.265.h"
 #include "streams/vp9/stream_nv12_176x144_cqp_g30_100.vp9.ivf.h"
 
 const size_t READ_ALL = std::numeric_limits<size_t>::max();
@@ -27,8 +27,8 @@ struct TestStream
 };
 
 TestStream test_streams[] = {
-    PARAMS_DESCRIBED(MfxC2FC_AVC, aud_mw_e_264),
-    PARAMS_DESCRIBED(MfxC2FC_HEVC, AMVP_A_MTK_4_bit),
+    PARAMS_DESCRIBED(MfxC2FC_AVC, stream_nv12_176x144_cqp_g30_100_264),
+    PARAMS_DESCRIBED(MfxC2FC_HEVC, stream_nv12_176x144_cqp_g30_100_265),
     PARAMS_DESCRIBED(MfxC2FC_VP9, stream_nv12_176x144_cqp_g30_100_vp9_ivf)
 };
 
@@ -99,14 +99,14 @@ TEST(FrameConstructor, PassEverything)
     };
 
     TestCase g_test_cases[] = {
-        PARAMS_DESCRIBED(MfxC2FC_AVC, aud_mw_e_264, StreamReader::Slicing::NalUnit(), READ_ALL, false),
-        PARAMS_DESCRIBED(MfxC2FC_AVC, aud_mw_e_264, StreamReader::Slicing::NalUnit(), READ_ALL, true),
-        PARAMS_DESCRIBED(MfxC2FC_AVC, aud_mw_e_264, StreamReader::Slicing(1000), READ_ALL, false),
-        PARAMS_DESCRIBED(MfxC2FC_AVC, aud_mw_e_264, StreamReader::Slicing(1000), 960, false),
-        PARAMS_DESCRIBED(MfxC2FC_HEVC, AMVP_A_MTK_4_bit, StreamReader::Slicing::NalUnit(), READ_ALL, false),
-        PARAMS_DESCRIBED(MfxC2FC_HEVC, AMVP_A_MTK_4_bit, StreamReader::Slicing::NalUnit(), READ_ALL, true),
-        PARAMS_DESCRIBED(MfxC2FC_HEVC, AMVP_A_MTK_4_bit, StreamReader::Slicing(1000), READ_ALL, false),
-        PARAMS_DESCRIBED(MfxC2FC_HEVC, AMVP_A_MTK_4_bit, StreamReader::Slicing(1000), 960, false),
+        PARAMS_DESCRIBED(MfxC2FC_AVC, stream_nv12_176x144_cqp_g30_100_264, StreamReader::Slicing::NalUnit(), READ_ALL, false),
+        PARAMS_DESCRIBED(MfxC2FC_AVC, stream_nv12_176x144_cqp_g30_100_264, StreamReader::Slicing::NalUnit(), READ_ALL, true),
+        PARAMS_DESCRIBED(MfxC2FC_AVC, stream_nv12_176x144_cqp_g30_100_264, StreamReader::Slicing(1000), READ_ALL, false),
+        PARAMS_DESCRIBED(MfxC2FC_AVC, stream_nv12_176x144_cqp_g30_100_264, StreamReader::Slicing(1000), 850, false),
+        PARAMS_DESCRIBED(MfxC2FC_HEVC, stream_nv12_176x144_cqp_g30_100_265, StreamReader::Slicing::NalUnit(), READ_ALL, false),
+        PARAMS_DESCRIBED(MfxC2FC_HEVC, stream_nv12_176x144_cqp_g30_100_265, StreamReader::Slicing::NalUnit(), READ_ALL, true),
+        PARAMS_DESCRIBED(MfxC2FC_HEVC, stream_nv12_176x144_cqp_g30_100_265, StreamReader::Slicing(1000), READ_ALL, false),
+        PARAMS_DESCRIBED(MfxC2FC_HEVC, stream_nv12_176x144_cqp_g30_100_265, StreamReader::Slicing(1000), 790, false),
         PARAMS_DESCRIBED(MfxC2FC_VP9, stream_nv12_176x144_cqp_g30_100_vp9_ivf, StreamReader::Slicing::Frame(), READ_ALL, false),
         PARAMS_DESCRIBED(MfxC2FC_VP9, stream_nv12_176x144_cqp_g30_100_vp9_ivf, StreamReader::Slicing::Frame(), READ_ALL, true),
         PARAMS_DESCRIBED(MfxC2FC_VP9, stream_nv12_176x144_cqp_g30_100_vp9_ivf, StreamReader::Slicing(1000), READ_ALL, false),

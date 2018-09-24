@@ -12,4 +12,4 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 
 #include "test_streams.h"
 
-extern StreamDescription aud_mw_e_264;
+extern StreamDescription stream_nv12_176x144_cqp_g30_100_265;
