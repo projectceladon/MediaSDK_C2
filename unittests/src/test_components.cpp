@@ -43,7 +43,9 @@ BinaryWriter::BinaryWriter(const std::vector<std::string>& folders, const std::s
                 dir_exists = (info.st_mode & S_IFDIR) != 0;
             }
 
-            mkdir(full_name.str().c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+            if (!dir_exists) {
+                mkdir(full_name.str().c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+            }
 
             full_name << "/";
         }
@@ -65,7 +67,17 @@ std::vector<std::string> GTestBinaryWriter::GetTestFolders()
 {
     const ::testing::TestInfo* const test_info =
         ::testing::UnitTest::GetInstance()->current_test_info();
-    return { test_info->test_case_name(), test_info->name() };
+    std::vector<std::string> res;
+    for (const std::string& s : {test_info->test_case_name(), test_info->name()} ) {
+        std::stringstream ss(s);
+        std::string part;
+        while (std::getline(ss, part, '/')) {
+            if (!part.empty()) {
+                res.push_back(part);
+            }
+        }
+    }
+    return res;
 }
 
 ComponentsCache* ComponentsCache::g_cache = ComponentsCache::Create();
