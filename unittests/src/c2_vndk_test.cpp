@@ -236,3 +236,156 @@ TEST(C2BufferTest, GraphicBlockPoolTest) {
         verify_planes(std::move(block)); // move to allow verify_planes free block
     }
 }
+
+// Test runs multiple threads, allocates graphic blocks there and maps them simultanously.
+// Memory regions where blocks are mapped to are checked for mutual intersections.
+// The tests came as a result of investigation random DecodeBitExact crashes/output corruptions
+// caused by IMapper mapping different blocks into the same memory if called from
+// different threads simultanously.
+TEST(C2BufferTest, GraphicMappingNotOverlappedTest)
+{
+    const uint32_t WIDTH = 176;
+    const uint32_t HEIGHT = 144;
+    const uint32_t PIXEL_FORMAT = HAL_PIXEL_FORMAT_NV12_TILED_INTEL;
+    const int BLOCK_COUNT = 16;
+    const int PASS_COUNT = 1000;
+    const int THREAD_COUNT = 10;
+    static_assert(THREAD_COUNT >= 2, "Test requires at least 2 threads");
+
+    std::thread threads[THREAD_COUNT];
+
+    struct MemoryRegion
+    {
+        const uint8_t* start{};
+        size_t length{};
+    };
+
+    std::list<MemoryRegion> regions[THREAD_COUNT];
+    std::atomic<int> regions_ready_count{};
+    std::atomic<int> main_pass_index{};
+    std::atomic<int> compare_count{};
+
+    C2BufferTest test;
+    std::shared_ptr<C2BlockPool> blockPool(test.makeGraphicBlockPool());
+
+    auto allocate_blocks = [&]()->std::vector<std::shared_ptr<C2GraphicBlock>> {
+        std::vector<std::shared_ptr<C2GraphicBlock>> blocks(BLOCK_COUNT);
+        for (int i = 0; i < BLOCK_COUNT; ++i) {
+            EXPECT_EQ(C2_OK, blockPool->fetchGraphicBlock(WIDTH, HEIGHT, PIXEL_FORMAT,
+                { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE },
+                &blocks[i]));
+            EXPECT_TRUE(blocks[i]);
+        }
+        return blocks;
+    };
+
+    auto map_blocks = [&](
+        const std::vector<std::shared_ptr<C2GraphicBlock>>& blocks)->std::list<C2GraphicView> {
+
+        std::list<C2GraphicView> views;
+
+        for (const auto& block : blocks) {
+            C2Acquirable<C2GraphicView> acq_graph_view = block->map();
+            C2GraphicView view{acq_graph_view.get()};
+            EXPECT_EQ(view.error(), C2_OK);
+            EXPECT_EQ(acq_graph_view.wait(MFX_SECOND_NS), C2_OK);
+            views.emplace_back(view); // keep in list to be mapped until end of pass
+        }
+        return views;
+    };
+
+    auto get_memory_regions = [&](const std::list<C2GraphicView>& views) {
+        std::list<MemoryRegion> regions;
+
+        for (auto& view : views) {
+            struct Offsets
+            {
+                ssize_t min{};
+                ssize_t max{};
+            };
+
+            C2PlanarLayout layout = view.layout();
+            std::map<uint32_t, Offsets> root_plane_offsets;
+            for (uint32_t plane_index = 0; plane_index < layout.numPlanes; ++plane_index) {
+                const C2PlaneInfo& plane{layout.planes[plane_index]};
+                ssize_t min_offset = plane.offset + plane.minOffset(0, 0);
+                ssize_t max_offset = plane.offset +
+                    plane.maxOffset(WIDTH / plane.colSampling, HEIGHT / plane.rowSampling);
+                auto it = root_plane_offsets.find(plane.rootIx);
+                if (it != root_plane_offsets.end()) {
+                    Offsets& offsets = it->second;
+                    if (min_offset < offsets.min) offsets.min = min_offset;
+                    if (max_offset > offsets.max) offsets.max = max_offset;
+                } else {
+                    root_plane_offsets.emplace(plane.rootIx, Offsets({min_offset, max_offset}));
+                }
+            }
+
+            for (const auto& item : root_plane_offsets) {
+                uint32_t root_index = item.first;
+                const Offsets& offsets = item.second;
+                regions.emplace_back(
+                    MemoryRegion{view.data()[root_index] + offsets.min, (size_t)(offsets.max - offsets.min)});
+            }
+        }
+        return regions;
+    };
+
+    auto thread_func = [&] (size_t thread_index) {
+        // allocate BLOCK_COUNT in local storage
+        std::vector<std::shared_ptr<C2GraphicBlock>> blocks = allocate_blocks();
+
+        for (int pass_index = 1; pass_index <= PASS_COUNT; ++pass_index) {
+
+            while (main_pass_index.load() != pass_index); // wait for iteration start
+
+            // list is outside mapping loop to keep blocks mapped
+            std::list<C2GraphicView> views = map_blocks(blocks); // map all local blocks
+
+            regions[thread_index] = get_memory_regions(views);
+
+            // signal memory list is ready
+            ++regions_ready_count;
+
+            // wait for comparison
+            while (compare_count.load() != pass_index);
+            // unmap is done automatically by views destruction
+        }
+
+    };
+
+    for (int i = 0; i < THREAD_COUNT; ++i) {
+        threads[i] = std::thread(thread_func, i);
+    }
+
+    for (int i = 0; i < PASS_COUNT; ++i) {
+
+        ++main_pass_index; // signal of iteration start
+
+        // wait for lists are ready
+        while (regions_ready_count.load() != THREAD_COUNT);
+
+        // check memory region lists for intersections
+        std::list<MemoryRegion> all_regions; // check every region against this list and insert in there
+        for (int j = 0; j < THREAD_COUNT; ++j) {
+            for (const MemoryRegion& region : regions[j]) {
+                auto intersects = [&region] (const MemoryRegion& other)->bool {
+                    return (region.start < other.start + other.length) &&
+                        (other.start < region.start + region.length);
+                };
+                EXPECT_EQ(std::find_if(all_regions.begin(), all_regions.end(), intersects), all_regions.end());
+                all_regions.push_back(region);
+            }
+            regions[j].clear();
+        }
+
+        regions_ready_count.store(0);
+
+        ++compare_count; // signal comparison is done
+    }
+
+    // join threads
+    for (int i = 0; i < THREAD_COUNT; ++i) {
+        threads[i].join();
+    }
+}
