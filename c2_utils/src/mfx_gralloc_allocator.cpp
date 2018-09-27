@@ -64,7 +64,8 @@ c2_status_t MfxGrallocModule::Init()
             bool functions_acquired =
                 gr_get_format_.Acquire(gralloc1_dev_) &&
                 gr_get_dimensions_.Acquire(gralloc1_dev_) &&
-                gr_get_stride_.Acquire(gralloc1_dev_);
+                gr_get_num_flex_planes_.Acquire(gralloc1_dev_) &&
+                gr_get_byte_stride_.Acquire(gralloc1_dev_);
 #ifdef MFX_C2_USE_PRIME
             if (gr_get_prime_.Acquire(gralloc1_dev_)) {
                 MFX_DEBUG_TRACE_MSG("Use PRIME");
@@ -95,8 +96,11 @@ c2_status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handle,
     int format {};
     int32_t errGetFormat = (*gr_get_format_)(gralloc1_dev_, handle, &(format));
 
-    uint32_t pitch {};
-    int32_t errGetStride = (*gr_get_stride_)(gralloc1_dev_, handle, &(pitch));
+        uint32_t planes_count {};
+        int32_t errGetPlanes = (*gr_get_num_flex_planes_)(gralloc1_dev_, handle, &(planes_count));
+
+        uint32_t pitches[C2PlanarLayout::MAX_NUM_PLANES] {};
+        int32_t errGetByteStride = (*gr_get_byte_stride_)(gralloc1_dev_, handle, pitches, planes_count);
 
     int32_t prime {-1};
     int32_t errGetPrime = GRALLOC1_ERROR_NONE;
@@ -111,7 +115,8 @@ c2_status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handle,
     int32_t errGetDimensions = (*gr_get_dimensions_)(gralloc1_dev_, handle, &width, &height);
 
     if (GRALLOC1_ERROR_NONE == errGetFormat &&
-        GRALLOC1_ERROR_NONE == errGetStride &&
+            GRALLOC1_ERROR_NONE == errGetPlanes &&
+            GRALLOC1_ERROR_NONE == errGetByteStride &&
         GRALLOC1_ERROR_NONE == errGetDimensions &&
         GRALLOC1_ERROR_NONE == errGetPrime)
     {
@@ -120,7 +125,8 @@ c2_status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handle,
         details->width = details->allocWidth = width;
         details->height = details->allocHeight = height;
         details->format = format;
-        details->pitch = pitch;
+        details->planes_count = planes_count;
+        std::copy(pitches, pitches + C2PlanarLayout::MAX_NUM_PLANES, details->pitches);
     }
     else
     {
@@ -277,8 +283,8 @@ c2_status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** dat
     }
 
     if (C2_OK == res) {
-        InitNV12PlaneLayout(details.pitch, layout);
-        InitNV12PlaneData(details.pitch, details.allocHeight, img, data);
+        InitNV12PlaneLayout(details.pitches, layout);
+        InitNV12PlaneData(details.pitches[C2PlanarLayout::PLANE_Y], details.allocHeight, img, data);
     }
 
     MFX_DEBUG_TRACE__android_c2_status_t(res);

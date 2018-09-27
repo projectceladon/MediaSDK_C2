@@ -411,14 +411,14 @@ bool HevcLevelMfxToAndroid(mfxU16 mfx_value, C2Config::level_t* android_value)
 }
 
 // Returns pointers to NV12 planes.
-void InitNV12PlaneData(int32_t pitch, int32_t alloc_height, uint8_t* base, uint8_t** plane_data)
+void InitNV12PlaneData(int32_t pitch_y, int32_t alloc_height, uint8_t* base, uint8_t** plane_data)
 {
     plane_data[C2PlanarLayout::PLANE_Y] = base;
-    plane_data[C2PlanarLayout::PLANE_U] = base + alloc_height * pitch;
-    plane_data[C2PlanarLayout::PLANE_V] = base + alloc_height * pitch + 1;
+    plane_data[C2PlanarLayout::PLANE_U] = base + alloc_height * pitch_y;
+    plane_data[C2PlanarLayout::PLANE_V] = base + alloc_height * pitch_y + 1;
 }
 
-void InitNV12PlaneLayout(int32_t pitch, C2PlanarLayout* layout)
+void InitNV12PlaneLayout(uint32_t pitches[C2PlanarLayout::MAX_NUM_PLANES], C2PlanarLayout* layout)
 {
     layout->type = C2PlanarLayout::TYPE_YUV;
     layout->numPlanes = 3;
@@ -426,7 +426,7 @@ void InitNV12PlaneLayout(int32_t pitch, C2PlanarLayout* layout)
     C2PlaneInfo& y_plane = layout->planes[C2PlanarLayout::PLANE_Y];
     y_plane.channel = C2PlaneInfo::CHANNEL_Y;
     y_plane.colInc = 1;
-    y_plane.rowInc = pitch;
+    y_plane.rowInc = static_cast<int32_t>(pitches[C2PlanarLayout::PLANE_Y]);
     y_plane.colSampling = 1;
     y_plane.rowSampling = 1;
     y_plane.bitDepth = 8;
@@ -443,7 +443,7 @@ void InitNV12PlaneLayout(int32_t pitch, C2PlanarLayout* layout)
     for (C2PlanarLayout::plane_index_t plane_index : { C2PlanarLayout::PLANE_U, C2PlanarLayout::PLANE_V }) {
         C2PlaneInfo& plane = layout->planes[plane_index];
         plane.colInc = 2;
-        plane.rowInc = pitch;
+        plane.rowInc = static_cast<int32_t>(pitches[C2PlanarLayout::PLANE_U]);
         plane.colSampling = 2;
         plane.rowSampling = 2;
         plane.bitDepth = 8;
