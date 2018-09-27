@@ -440,7 +440,11 @@ mfxStatus MfxVaFrameAllocator::CreateNV12SurfaceFromGralloc(const MfxGrallocModu
     MFX_DEBUG_TRACE_I32(info.height);
     MFX_DEBUG_TRACE_I32(info.allocWidth);
     MFX_DEBUG_TRACE_I32(info.allocHeight);
-    MFX_DEBUG_TRACE_I32(info.pitch);
+    MFX_DEBUG_TRACE_U32(info.planes_count);
+    for (uint32_t i = 0; i < C2PlanarLayout::MAX_NUM_PLANES; i++) {
+        MFX_DEBUG_TRACE_U32(info.pitches[i]);
+    }
+
 
     mfxU32 width = decode_target ? info.allocWidth : info.width;
     mfxU32 height = decode_target ? info.allocHeight : info.height;
@@ -454,8 +458,8 @@ mfxStatus MfxVaFrameAllocator::CreateNV12SurfaceFromGralloc(const MfxGrallocModu
     surfExtBuf.pixel_format = ConvertGrallocFourccToVAFormat(info.format);
     surfExtBuf.width = width;
     surfExtBuf.height = height;
-    surfExtBuf.pitches[0] = info.pitch;
-    surfExtBuf.num_planes = 2;
+    surfExtBuf.num_planes = info.planes_count;
+    std::copy(info.pitches, info.pitches + surfExtBuf.num_planes, surfExtBuf.pitches);
     surfExtBuf.num_buffers = 1;
     if (IS_PRIME_VALID(info.prime)) {
         surfExtBuf.buffers = (uintptr_t *)&info.prime;

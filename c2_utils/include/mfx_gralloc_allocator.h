@@ -30,7 +30,8 @@ public:
         int width;
         int height;
         int format;
-        uint32_t pitch;
+        uint32_t planes_count;
+        uint32_t pitches[C2PlanarLayout::MAX_NUM_PLANES];// pitch for each plane
         uint32_t allocWidth;
         uint32_t allocHeight;
         BufferDetails():
@@ -39,7 +40,8 @@ public:
             width(0),
             height(0),
             format(0),
-            pitch(0),
+            planes_count(0),
+            pitches{},
             allocWidth(0),
             allocHeight(0)
         {}
@@ -75,7 +77,8 @@ protected:
 
     Gralloc1Func<GRALLOC1_PFN_GET_FORMAT, GRALLOC1_FUNCTION_GET_FORMAT> gr_get_format_;
     Gralloc1Func<GRALLOC1_PFN_GET_DIMENSIONS, GRALLOC1_FUNCTION_GET_DIMENSIONS> gr_get_dimensions_;
-    Gralloc1Func<GRALLOC1_PFN_GET_STRIDE, GRALLOC1_FUNCTION_GET_STRIDE> gr_get_stride_;
+    Gralloc1Func<GRALLOC1_PFN_GET_NUM_FLEX_PLANES, GRALLOC1_FUNCTION_GET_NUM_FLEX_PLANES> gr_get_num_flex_planes_;
+    Gralloc1Func<GRALLOC1_PFN_GET_BYTE_STRIDE, (gralloc1_function_descriptor_t)GRALLOC1_FUNCTION_GET_BYTE_STRIDE> gr_get_byte_stride_;
 #ifdef MFX_C2_USE_PRIME
     Gralloc1Func<GRALLOC1_PFN_GET_PRIME, (gralloc1_function_descriptor_t)GRALLOC1_FUNCTION_GET_PRIME> gr_get_prime_;
 #endif

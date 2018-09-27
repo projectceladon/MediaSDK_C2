@@ -1,3 +1,13 @@
+/********************************************************************************
+
+INTEL CORPORATION PROPRIETARY INFORMATION
+This software is supplied under the terms of a license agreement or nondisclosure
+agreement with Intel Corporation and may not be copied or disclosed except in
+accordance with the terms of that agreement
+Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
+
+*********************************************************************************/
+
 #include "C2Buffer.h"
 #include "C2PlatformSupport.h"
 #include "mfx_defs.h"
@@ -274,7 +284,8 @@ public:
 
     void InitNV12PlaneLayout(C2PlanarLayout* plane_layout)
     {
-        ::InitNV12PlaneLayout(width_, plane_layout);
+        uint32_t pitches[C2PlanarLayout::MAX_NUM_PLANES] = {width_, width_, 0, 0};
+        ::InitNV12PlaneLayout(pitches, plane_layout);
     }
 
     void InitNV12PlaneData(uint8_t** plane_data)
