@@ -40,9 +40,7 @@ MfxGrallocModule::~MfxGrallocModule()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-#ifdef MFX_C2_USE_GRALLOC_1
     if (gralloc1_dev_) gralloc1_close(gralloc1_dev_);
-#endif
 }
 
 c2_status_t MfxGrallocModule::Init()
@@ -53,7 +51,6 @@ c2_status_t MfxGrallocModule::Init()
     int hw_res = hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &hw_module_);
     if (hw_res != 0) res = C2_NOT_FOUND;
 
-#ifdef MFX_C2_USE_GRALLOC_1
     if (res == C2_OK) {
         int32_t gr1_err = GRALLOC1_ERROR_NONE;
         do {
@@ -85,11 +82,6 @@ c2_status_t MfxGrallocModule::Init()
             }
         } while (false);
     }
-#else
-    if (res == C2_OK) {
-        gralloc_module_ = (gralloc_module_t*)hw_module_;
-    }
-#endif
     return res;
 }
 
@@ -100,78 +92,40 @@ c2_status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handle,
 
     c2_status_t res = C2_OK;
 
-#ifdef MFX_C2_USE_GRALLOC_1
-        int format {};
-        int32_t errGetFormat = (*gr_get_format_)(gralloc1_dev_, handle, &(format));
+    int format {};
+    int32_t errGetFormat = (*gr_get_format_)(gralloc1_dev_, handle, &(format));
 
-        uint32_t pitch {};
-        int32_t errGetStride = (*gr_get_stride_)(gralloc1_dev_, handle, &(pitch));
+    uint32_t pitch {};
+    int32_t errGetStride = (*gr_get_stride_)(gralloc1_dev_, handle, &(pitch));
 
-        int32_t prime {-1};
-        int32_t errGetPrime = GRALLOC1_ERROR_NONE;
+    int32_t prime {-1};
+    int32_t errGetPrime = GRALLOC1_ERROR_NONE;
 #ifdef MFX_C2_USE_PRIME
-        if (!(gr_get_prime_ == nullptr)) {
-            errGetPrime = (*gr_get_prime_)(gralloc1_dev_, handle, (uint32_t*)(&(prime)));
-        }
-#endif
-
-        uint32_t width {};
-        uint32_t height {};
-        int32_t errGetDimensions = (*gr_get_dimensions_)(gralloc1_dev_, handle, &width, &height);
-
-        if (GRALLOC1_ERROR_NONE == errGetFormat &&
-            GRALLOC1_ERROR_NONE == errGetStride &&
-            GRALLOC1_ERROR_NONE == errGetDimensions &&
-            GRALLOC1_ERROR_NONE == errGetPrime)
-        {
-            details->handle = handle;
-            details->prime = prime;
-            details->width = details->allocWidth = width;
-            details->height = details->allocHeight = height;
-            details->format = format;
-            details->pitch = pitch;
-        }
-        else
-        {
-            res = C2_CORRUPTED;
-        }
-#else
-    struct intel_ufo_buffer_details_t
-    {
-        // this structure mimics the same from ufo android o mr0
-        uint32_t magic;         // [in] size of this struct
-
-        int width;              // \see alloc_device_t::alloc
-        int height;             // \see alloc_device_t::alloc
-        int format;             // \see alloc_device_t::alloc \note resolved format (not flexible)
-
-        uint32_t placeholder1[7];
-
-        uint32_t pitch;         // buffer pitch (in bytes)
-        uint32_t allocWidth;    // allocated buffer width in pixels.
-        uint32_t allocHeight;   // allocated buffer height in lines.
-
-        uint32_t placeholder2[10];
-    };
-
-    const int INTEL_UFO_GRALLOC_MODULE_PERFORM_GET_BO_INFO = 6;
-
-    intel_ufo_buffer_details_t info {};
-    info.magic = sizeof(info);
-    int err = gralloc_module_->perform(gralloc_module_, INTEL_UFO_GRALLOC_MODULE_PERFORM_GET_BO_INFO, handle, &info);
-    if (0 != err) {
-        MFX_DEBUG_TRACE_MSG("Failed to get BO_INFO");
-        res = C2_CORRUPTED;
-    } else {
-        details->handle = handle;
-        details->width = info.width;
-        details->height = info.height;
-        details->format = info.format;
-        details->pitch = info.pitch;
-        details->allocWidth = info.allocWidth;
-        details->allocHeight = info.allocHeight;
+    if (!(gr_get_prime_ == nullptr)) {
+        errGetPrime = (*gr_get_prime_)(gralloc1_dev_, handle, (uint32_t*)(&(prime)));
     }
 #endif
+
+    uint32_t width {};
+    uint32_t height {};
+    int32_t errGetDimensions = (*gr_get_dimensions_)(gralloc1_dev_, handle, &width, &height);
+
+    if (GRALLOC1_ERROR_NONE == errGetFormat &&
+        GRALLOC1_ERROR_NONE == errGetStride &&
+        GRALLOC1_ERROR_NONE == errGetDimensions &&
+        GRALLOC1_ERROR_NONE == errGetPrime)
+    {
+        details->handle = handle;
+        details->prime = prime;
+        details->width = details->allocWidth = width;
+        details->height = details->allocHeight = height;
+        details->format = format;
+        details->pitch = pitch;
+    }
+    else
+    {
+        res = C2_CORRUPTED;
+    }
     return res;
 }
 
@@ -196,7 +150,6 @@ c2_status_t MfxGrallocAllocator::Init()
 {
     c2_status_t res = MfxGrallocModule::Init();
 
-#ifdef MFX_C2_USE_GRALLOC_1
     if (C2_OK == res) {
         bool functions_acquired =
             gr_allocate_.Acquire(gralloc1_dev_) &&
@@ -216,19 +169,7 @@ c2_status_t MfxGrallocAllocator::Init()
             // its destructor is responsible to free them.
         }
     }
-#else
-    if (C2_OK == res) {
-        res = gralloc_open(hw_module_, &alloc_dev_);
-    }
-#endif
     return res;
-}
-
-MfxGrallocAllocator::~MfxGrallocAllocator()
-{
-#ifndef MFX_C2_USE_GRALLOC_1
-    gralloc_close(alloc_dev_);
-#endif
 }
 
 c2_status_t MfxGrallocAllocator::Alloc(const uint16_t width, const uint16_t height, buffer_handle_t* handle)
@@ -238,8 +179,6 @@ c2_status_t MfxGrallocAllocator::Alloc(const uint16_t width, const uint16_t heig
 
     MFX_DEBUG_TRACE_I32(width);
     MFX_DEBUG_TRACE_I32(height);
-
-#ifdef MFX_C2_USE_GRALLOC_1
 
     int32_t gr1_err = GRALLOC1_ERROR_NONE;
     gralloc1_buffer_descriptor_t descriptor = 0;
@@ -274,13 +213,6 @@ c2_status_t MfxGrallocAllocator::Alloc(const uint16_t width, const uint16_t heig
         MFX_DEBUG_TRACE_I32(gr1_err);
         res = C2_NO_MEMORY;
     }
-#else
-    int stride;
-    res = alloc_dev_->alloc(alloc_dev_, width, height, HAL_PIXEL_FORMAT_NV12_TILED_INTEL,
-        GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE,
-        (buffer_handle_t *)handle, &stride);
-
-#endif
 
     MFX_DEBUG_TRACE_P(*handle);
     MFX_DEBUG_TRACE__android_c2_status_t(res);
@@ -295,16 +227,12 @@ c2_status_t MfxGrallocAllocator::Free(const buffer_handle_t handle)
     MFX_DEBUG_TRACE_P(handle);
 
     if (handle) {
-#ifdef MFX_C2_USE_GRALLOC_1
         int32_t gr1_err = (*gr_release_)(gralloc1_dev_, handle);
         if (GRALLOC1_ERROR_NONE != gr1_err)
         {
             MFX_DEBUG_TRACE_I32(gr1_err);
             res = C2_BAD_VALUE;
         }
-#else
-        res = alloc_dev_->free(alloc_dev_, handle);
-#endif
     }
 
     MFX_DEBUG_TRACE__android_c2_status_t(res);
@@ -328,7 +256,6 @@ c2_status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** dat
 
     mfxU8 *img = NULL;
     if (C2_OK == res) {
-#ifdef MFX_C2_USE_GRALLOC_1
         gralloc1_rect_t rect;
         rect.left   = 0;
         rect.top    = 0;
@@ -347,10 +274,6 @@ c2_status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** dat
         {
             res = C2_BAD_STATE;
         }
-#else
-        res = gralloc_module_->lock(gralloc_module_, handle, GRALLOC_USAGE_SW_READ_MASK | GRALLOC_USAGE_SW_WRITE_MASK,
-                                                        0, 0, details.width, details.height, (void**)&img);
-#endif
     }
 
     if (C2_OK == res) {
@@ -368,7 +291,6 @@ c2_status_t MfxGrallocAllocator::UnlockFrame(buffer_handle_t handle)
     MFX_DEBUG_TRACE_P(handle);
     c2_status_t res = C2_OK;
 
-#ifdef MFX_C2_USE_GRALLOC_1
     int32_t releaseFence = -1;
     int32_t gr1_res = (*gr_unlock_)(gralloc1_dev_, (buffer_handle_t)handle, &releaseFence);
     if (GRALLOC1_ERROR_NONE != gr1_res)
@@ -376,9 +298,6 @@ c2_status_t MfxGrallocAllocator::UnlockFrame(buffer_handle_t handle)
         MFX_DEBUG_TRACE_I32(gr1_res);
         res = C2_BAD_STATE;
     }
-#else
-    res = gralloc_module_->unlock(gralloc_module_, handle);
-#endif
     MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }

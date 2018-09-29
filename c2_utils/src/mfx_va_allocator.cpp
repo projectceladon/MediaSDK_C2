@@ -16,9 +16,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include "mfx_debug.h"
 #include "mfx_msdk_debug.h"
 #include "va/va_android.h"
-#ifdef MFX_C2_USE_GRALLOC_1
-    #include "va/va_drmcommon.h"
-#endif
+#include "va/va_drmcommon.h"
 
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_va_allocator"
