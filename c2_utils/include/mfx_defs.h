@@ -17,18 +17,14 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include <list>
 
 // includes below are to get Intel color formats
-#ifdef MFX_C2_USE_GRALLOC_1
-    #ifdef MFX_C2_USE_PRIME
-        // USE_GRALLOC1 required for using PRIME buffer descriptor -
-        // opens definition GRALLOC1_PFN_GET_PRIME in
-        // i915_private_android_types.h
-        #define USE_GRALLOC1
-    #endif
-    #define DRV_I915
-    #include <i915_private_android_types.h>
-#else
-    #include <ufo/graphics.h>
+#ifdef MFX_C2_USE_PRIME
+    // USE_GRALLOC1 required for using PRIME buffer descriptor -
+    // opens definition GRALLOC1_PFN_GET_PRIME in
+    // i915_private_android_types.h
+    #define USE_GRALLOC1
 #endif
+#define DRV_I915
+#include <i915_private_android_types.h>
 
 #define MFX_IMPLEMENTATION (MFX_IMPL_AUTO_ANY | MFX_IMPL_VIA_ANY)
 

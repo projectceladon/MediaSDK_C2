@@ -13,12 +13,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
 #include <mfx_defs.h>
 #include <utils/Errors.h>
 #include <C2Buffer.h>
-
-#ifdef MFX_C2_USE_GRALLOC_1
-    #include <hardware/gralloc1.h>
-#else
-    #include <hardware/gralloc.h>
-#endif
+#include <hardware/gralloc1.h>
 
 class MfxGrallocModule
 {
@@ -60,7 +55,6 @@ protected:
 
 protected:
     hw_module_t const* hw_module_ {};
-#ifdef MFX_C2_USE_GRALLOC_1
 
     template<typename FuncType, gralloc1_function_descriptor_t FuncId>
     class Gralloc1Func
@@ -85,17 +79,12 @@ protected:
 #ifdef MFX_C2_USE_PRIME
     Gralloc1Func<GRALLOC1_PFN_GET_PRIME, (gralloc1_function_descriptor_t)GRALLOC1_FUNCTION_GET_PRIME> gr_get_prime_;
 #endif
-#else
-    gralloc_module_t* gralloc_module_ {};
-#endif
 };
 
 class MfxGrallocAllocator : public MfxGrallocModule
 {
 public:
     static c2_status_t Create(std::unique_ptr<MfxGrallocAllocator>* allocator);
-
-    virtual ~MfxGrallocAllocator();
 
     virtual c2_status_t Alloc(const uint16_t width, const uint16_t height, buffer_handle_t* handle);
     virtual c2_status_t Free(const buffer_handle_t handle);
@@ -108,9 +97,6 @@ private:
     c2_status_t Init();
 
 protected:
-
-#ifdef MFX_C2_USE_GRALLOC_1
-
     Gralloc1Func<GRALLOC1_PFN_ALLOCATE, GRALLOC1_FUNCTION_ALLOCATE> gr_allocate_;
     Gralloc1Func<GRALLOC1_PFN_RELEASE, GRALLOC1_FUNCTION_RELEASE> gr_release_;
     Gralloc1Func<GRALLOC1_PFN_LOCK, GRALLOC1_FUNCTION_LOCK> gr_lock_;
@@ -121,10 +107,6 @@ protected:
     Gralloc1Func<GRALLOC1_PFN_SET_DIMENSIONS, GRALLOC1_FUNCTION_SET_DIMENSIONS> gr_set_dimensions_;
     Gralloc1Func<GRALLOC1_PFN_SET_FORMAT, GRALLOC1_FUNCTION_SET_FORMAT> gr_set_format_;
     Gralloc1Func<GRALLOC1_PFN_DESTROY_DESCRIPTOR, GRALLOC1_FUNCTION_DESTROY_DESCRIPTOR> gr_destroy_descriptor_;
-
-#else
-    alloc_device_t* alloc_dev_ {};
-#endif
 
     MFX_CLASS_NO_COPY(MfxGrallocAllocator)
 };
