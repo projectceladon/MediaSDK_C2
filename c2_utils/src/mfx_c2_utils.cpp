@@ -422,6 +422,7 @@ void InitNV12PlaneLayout(uint32_t pitches[C2PlanarLayout::MAX_NUM_PLANES], C2Pla
 {
     layout->type = C2PlanarLayout::TYPE_YUV;
     layout->numPlanes = 3;
+    layout->rootPlanes = 2;
 
     C2PlaneInfo& y_plane = layout->planes[C2PlanarLayout::PLANE_Y];
     y_plane.channel = C2PlaneInfo::CHANNEL_Y;
@@ -433,12 +434,16 @@ void InitNV12PlaneLayout(uint32_t pitches[C2PlanarLayout::MAX_NUM_PLANES], C2Pla
     y_plane.allocatedDepth = 8;
     y_plane.rightShift = 0;
     y_plane.endianness = C2PlaneInfo::NATIVE;
+    y_plane.rootIx = C2PlanarLayout::PLANE_Y;
+    y_plane.offset = 0;
 
     C2PlaneInfo& u_plane = layout->planes[C2PlanarLayout::PLANE_U];
     u_plane.channel = C2PlaneInfo::CHANNEL_CB;
+    u_plane.offset = 0;
 
     C2PlaneInfo& v_plane = layout->planes[C2PlanarLayout::PLANE_V];
     v_plane.channel = C2PlaneInfo::CHANNEL_CR;
+    v_plane.offset = 1;
 
     for (C2PlanarLayout::plane_index_t plane_index : { C2PlanarLayout::PLANE_U, C2PlanarLayout::PLANE_V }) {
         C2PlaneInfo& plane = layout->planes[plane_index];
@@ -450,6 +455,7 @@ void InitNV12PlaneLayout(uint32_t pitches[C2PlanarLayout::MAX_NUM_PLANES], C2Pla
         plane.allocatedDepth = 8;
         plane.rightShift = 0;
         plane.endianness = C2PlaneInfo::NATIVE;
+        plane.rootIx = C2PlanarLayout::PLANE_U;
     }
 }
 

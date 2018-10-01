@@ -374,6 +374,7 @@ static void CheckNV12PlaneLayout(uint16_t width, uint16_t height, const C2Planar
 
     EXPECT_EQ(layout.type, Layout::TYPE_YUV);
     EXPECT_EQ(layout.numPlanes, 3u);
+    EXPECT_EQ(layout.rootPlanes, 2u);
 
     std::map<Layout::plane_index_t, Info::channel_t> expected_channels = {
         {  Layout::PLANE_Y, Info::CHANNEL_Y },
@@ -391,6 +392,8 @@ static void CheckNV12PlaneLayout(uint16_t width, uint16_t height, const C2Planar
         EXPECT_EQ(layout.planes[index].allocatedDepth, 8u);
         EXPECT_EQ(layout.planes[index].rightShift, 0u);
         EXPECT_EQ(layout.planes[index].endianness, C2PlaneInfo::NATIVE);
+        EXPECT_EQ(layout.planes[index].rootIx, index == Layout::PLANE_Y ? Layout::PLANE_Y : Layout::PLANE_U);
+        EXPECT_EQ(layout.planes[index].offset, index != Layout::PLANE_V ? 0u : 1u);
 
         EXPECT_NE(data[index], nullptr);
         if (index != Layout::PLANE_Y) {
