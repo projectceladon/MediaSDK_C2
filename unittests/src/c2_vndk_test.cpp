@@ -35,6 +35,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include <C2PlatformSupport.h>
 #include "mfx_c2_component.h"
 #include "mfx_c2_components_registry.h"
+#include "mfx_gralloc_allocator.h"
 
 #include <memory>
 
@@ -237,16 +238,140 @@ TEST(C2BufferTest, GraphicBlockPoolTest) {
     }
 }
 
+namespace map_test
+{
+const uint32_t WIDTH = 176;
+const uint32_t HEIGHT = 144;
+const uint32_t PIXEL_FORMAT = HAL_PIXEL_FORMAT_NV12_TILED_INTEL;
+
+// Alloc/Map wrapper for C2
+class C2
+{
+public:
+    using Block = std::shared_ptr<C2GraphicBlock>;
+    using View = C2GraphicView;
+
+    C2()
+    {
+        C2BufferTest test;
+        block_pool_ = test.makeGraphicBlockPool();
+    }
+
+    void Alloc(std::list<Block>* dst)
+    {
+        std::shared_ptr<C2GraphicBlock> block;
+        EXPECT_EQ(C2_OK, block_pool_->fetchGraphicBlock(WIDTH, HEIGHT, PIXEL_FORMAT,
+            { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE },
+            &block));
+        EXPECT_TRUE(block);
+        if (block) dst->push_back(std::move(block));
+    }
+
+    void Map(Block& block, std::list<View>* dst)
+    {
+        C2Acquirable<C2GraphicView> acq_graph_view = block->map();
+        C2GraphicView view{acq_graph_view.get()};
+        EXPECT_EQ(view.error(), C2_OK);
+        c2_status_t res = acq_graph_view.wait(MFX_SECOND_NS);
+        EXPECT_EQ(res, C2_OK);
+
+        if (view.error() == C2_OK && res == C2_OK)
+            dst->emplace_back(view);
+    }
+
+private:
+    std::shared_ptr<C2BlockPool> block_pool_;
+};
+
+// Alloc/Map wrapper for gralloc
+class Gralloc
+{
+public:
+    class Block
+    {
+    public:
+        Block() = default;
+        MFX_CLASS_NO_COPY(Block);
+        ~Block() { if (deleter_) deleter_(handle_); }
+
+    private:
+        buffer_handle_t handle_{};
+        std::function<void (buffer_handle_t)> deleter_;
+        friend class Gralloc;
+    };
+
+    class View
+    {
+    public:
+        View() = default;
+        MFX_CLASS_NO_COPY(View);
+        ~View() { if (deleter_) deleter_(handle_); }
+
+        C2PlanarLayout layout() const { return layout_; }
+        const uint8_t *const *data() const { return data_; }
+
+    private:
+        uint8_t* data_[C2PlanarLayout::MAX_NUM_PLANES]{};
+        C2PlanarLayout layout_;
+        buffer_handle_t handle_{};
+        std::function<void (buffer_handle_t)> deleter_;
+        friend class Gralloc;
+    };
+
+    Gralloc()
+    {
+        c2_status_t res = MfxGrallocAllocator::Create(&allocator);
+        EXPECT_EQ(res, C2_OK);
+        EXPECT_NE(allocator, nullptr);
+    }
+
+    void Alloc(std::list<Block>* dst)
+    {
+        buffer_handle_t handle{};
+        EXPECT_EQ(C2_OK, allocator->Alloc(WIDTH, HEIGHT, &handle));
+        EXPECT_TRUE(handle);
+        if (handle) {
+            dst->emplace_back();
+            dst->back().handle_ = handle;
+            dst->back().deleter_ = [this](buffer_handle_t h) {
+                c2_status_t res = allocator->Free(h);
+                EXPECT_EQ(res, C2_OK);
+            };
+        }
+    }
+
+    void Map(Block& block, std::list<View>* dst)
+    {
+        dst->emplace_back(); // construct view in place
+
+        c2_status_t res = allocator->LockFrame(block.handle_, dst->back().data_, &(dst->back().layout_));
+        EXPECT_EQ(res, C2_OK);
+
+        if (res == C2_OK) {
+            dst->back().handle_ = block.handle_;
+            dst->back().deleter_ = [this](buffer_handle_t h) {
+                c2_status_t res = allocator->UnlockFrame(h);
+                EXPECT_EQ(res, C2_OK);
+            };
+        } else {
+            dst->pop_back(); // remove in case of failure
+        }
+    }
+
+private:
+    std::unique_ptr<MfxGrallocAllocator> allocator;
+};
+
+} // namespace map_test
+
 // Test runs multiple threads, allocates graphic blocks there and maps them simultanously.
 // Memory regions where blocks are mapped to are checked for mutual intersections.
 // The tests came as a result of investigation random DecodeBitExact crashes/output corruptions
 // caused by IMapper mapping different blocks into the same memory if called from
 // different threads simultanously.
-TEST(C2BufferTest, GraphicMappingNotOverlappedTest)
+template<typename Allocator>
+void NotOverlappedTest()
 {
-    const uint32_t WIDTH = 176;
-    const uint32_t HEIGHT = 144;
-    const uint32_t PIXEL_FORMAT = HAL_PIXEL_FORMAT_NV12_TILED_INTEL;
     const int BLOCK_COUNT = 16;
     const int PASS_COUNT = 1000;
     const int THREAD_COUNT = 10;
@@ -265,84 +390,78 @@ TEST(C2BufferTest, GraphicMappingNotOverlappedTest)
     std::atomic<int> main_pass_index{};
     std::atomic<int> compare_count{};
 
-    C2BufferTest test;
-    std::shared_ptr<C2BlockPool> blockPool(test.makeGraphicBlockPool());
+    Allocator allocator;
 
-    auto allocate_blocks = [&]()->std::vector<std::shared_ptr<C2GraphicBlock>> {
-        std::vector<std::shared_ptr<C2GraphicBlock>> blocks(BLOCK_COUNT);
+    auto allocate_blocks = [&]()->std::list<typename Allocator::Block> {
+        std::list<typename Allocator::Block> blocks;
         for (int i = 0; i < BLOCK_COUNT; ++i) {
-            EXPECT_EQ(C2_OK, blockPool->fetchGraphicBlock(WIDTH, HEIGHT, PIXEL_FORMAT,
-                { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE },
-                &blocks[i]));
-            EXPECT_TRUE(blocks[i]);
+            allocator.Alloc(&blocks);
         }
         return blocks;
     };
 
     auto map_blocks = [&](
-        const std::vector<std::shared_ptr<C2GraphicBlock>>& blocks)->std::list<C2GraphicView> {
+        std::list<typename Allocator::Block>& blocks)->std::list<typename Allocator::View> {
 
-        std::list<C2GraphicView> views;
+        std::list<typename Allocator::View> views;
 
-        for (const auto& block : blocks) {
-            C2Acquirable<C2GraphicView> acq_graph_view = block->map();
-            C2GraphicView view{acq_graph_view.get()};
-            EXPECT_EQ(view.error(), C2_OK);
-            EXPECT_EQ(acq_graph_view.wait(MFX_SECOND_NS), C2_OK);
-            views.emplace_back(view); // keep in list to be mapped until end of pass
+        for (auto& block : blocks) {
+            allocator.Map(block, &views);
         }
         return views;
     };
 
-    auto get_memory_regions = [&](const std::list<C2GraphicView>& views) {
+    auto get_memory_regions = [&](const C2PlanarLayout& layout, const uint8_t *const *data) {
         std::list<MemoryRegion> regions;
 
-        for (auto& view : views) {
-            struct Offsets
-            {
-                ssize_t min{};
-                ssize_t max{};
-            };
+        struct Offsets
+        {
+            ssize_t min{};
+            ssize_t max{};
+        };
 
-            C2PlanarLayout layout = view.layout();
-            std::map<uint32_t, Offsets> root_plane_offsets;
-            for (uint32_t plane_index = 0; plane_index < layout.numPlanes; ++plane_index) {
-                const C2PlaneInfo& plane{layout.planes[plane_index]};
-                ssize_t min_offset = plane.offset + plane.minOffset(0, 0);
-                ssize_t max_offset = plane.offset +
-                    plane.maxOffset(WIDTH / plane.colSampling, HEIGHT / plane.rowSampling);
-                auto it = root_plane_offsets.find(plane.rootIx);
-                if (it != root_plane_offsets.end()) {
-                    Offsets& offsets = it->second;
-                    if (min_offset < offsets.min) offsets.min = min_offset;
-                    if (max_offset > offsets.max) offsets.max = max_offset;
-                } else {
-                    root_plane_offsets.emplace(plane.rootIx, Offsets({min_offset, max_offset}));
-                }
-            }
-
-            for (const auto& item : root_plane_offsets) {
-                uint32_t root_index = item.first;
-                const Offsets& offsets = item.second;
-                regions.emplace_back(
-                    MemoryRegion{view.data()[root_index] + offsets.min, (size_t)(offsets.max - offsets.min)});
+        std::map<uint32_t, Offsets> root_plane_offsets;
+        for (uint32_t plane_index = 0; plane_index < layout.numPlanes; ++plane_index) {
+            const C2PlaneInfo& plane{layout.planes[plane_index]};
+            ssize_t min_offset = plane.offset + plane.minOffset(0, 0);
+            ssize_t max_offset = plane.offset +
+                plane.maxOffset(map_test::WIDTH / plane.colSampling, map_test::HEIGHT / plane.rowSampling);
+            auto it = root_plane_offsets.find(plane.rootIx);
+            if (it != root_plane_offsets.end()) {
+                Offsets& offsets = it->second;
+                if (min_offset < offsets.min) offsets.min = min_offset;
+                if (max_offset > offsets.max) offsets.max = max_offset;
+            } else {
+                root_plane_offsets.emplace(plane.rootIx, Offsets({min_offset, max_offset}));
             }
         }
+
+        for (const auto& item : root_plane_offsets) {
+            uint32_t root_index = item.first;
+            const Offsets& offsets = item.second;
+
+            regions.emplace_back(
+                MemoryRegion{data[root_index] + offsets.min, (size_t)(offsets.max - offsets.min)});
+        }
+
         return regions;
     };
 
     auto thread_func = [&] (size_t thread_index) {
         // allocate BLOCK_COUNT in local storage
-        std::vector<std::shared_ptr<C2GraphicBlock>> blocks = allocate_blocks();
+        std::list<typename Allocator::Block> blocks = allocate_blocks();
 
         for (int pass_index = 1; pass_index <= PASS_COUNT; ++pass_index) {
 
             while (main_pass_index.load() != pass_index); // wait for iteration start
 
             // list is outside mapping loop to keep blocks mapped
-            std::list<C2GraphicView> views = map_blocks(blocks); // map all local blocks
+            std::list<typename Allocator::View> views = map_blocks(blocks); // map all local blocks
 
-            regions[thread_index] = get_memory_regions(views);
+            for (const auto& view : views) {
+                regions[thread_index].splice(regions[thread_index].end(),
+                    get_memory_regions(view.layout(), view.data()));
+            }
 
             // signal memory list is ready
             ++regions_ready_count;
@@ -351,7 +470,6 @@ TEST(C2BufferTest, GraphicMappingNotOverlappedTest)
             while (compare_count.load() != pass_index);
             // unmap is done automatically by views destruction
         }
-
     };
 
     for (int i = 0; i < THREAD_COUNT; ++i) {
@@ -388,4 +506,16 @@ TEST(C2BufferTest, GraphicMappingNotOverlappedTest)
     for (int i = 0; i < THREAD_COUNT; ++i) {
         threads[i].join();
     }
+}
+
+// Tests overlapping for C2GraphicBlock.
+TEST(C2BufferTest, C2GraphicMappingNotOverlappedTest)
+{
+    NotOverlappedTest<map_test::C2>();
+}
+
+// Tests overlapping for gralloc handles.
+TEST(C2BufferTest, GrallocMappingNotOverlappedTest)
+{
+    NotOverlappedTest<map_test::Gralloc>();
 }
