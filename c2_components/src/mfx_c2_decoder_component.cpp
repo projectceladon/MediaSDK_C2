@@ -593,6 +593,7 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
 
         if ((MFX_ERR_NONE == mfx_sts) || (MFX_ERR_MORE_DATA == mfx_sts) || (MFX_ERR_MORE_SURFACE == mfx_sts)) {
 
+            std::unique_lock<std::mutex> lock(locked_surfaces_mutex_);
             // add output to waiting pool in case of Decode success only
             locked_surfaces_.push_back(std::move(frame_work));
 
@@ -621,6 +622,7 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
                         MFX_DEBUG_TRACE_STREAM("Not found LOCKED!!!");
                         // If not found pass empty frame_out to WaitWork, it will report an error.
                     }
+                    lock.unlock(); // unlock the mutex asap
 
                     C2WorkOutput work_output;
                     work_output.frame_ = std::move(frame_out);
@@ -646,7 +648,7 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
     return mfx_sts;
 }
 
-c2_status_t MfxC2DecoderComponent::AllocateC2Block(std::shared_ptr<C2GraphicBlock>* out_block)
+c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t height, std::shared_ptr<C2GraphicBlock>* out_block)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -672,8 +674,7 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(std::shared_ptr<C2GraphicBloc
 
             C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
 
-            res = c2_allocator_->fetchGraphicBlock(
-                video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height,
+            res = c2_allocator_->fetchGraphicBlock(width, height,
                 HAL_PIXEL_FORMAT_NV12_TILED_INTEL, mem_usage, out_block);
         }
     } while (false);
@@ -694,11 +695,13 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
 
     do {
         auto pred_unlocked = [] (const MfxC2FrameOut& item) { return !item.GetMfxFrameSurface()->Data.Locked; };
-
-        locked_surfaces_.remove_if(pred_unlocked);
+        {
+            std::lock_guard<std::mutex> lock(locked_surfaces_mutex_);
+            locked_surfaces_.remove_if(pred_unlocked);
+        }
 
         std::shared_ptr<C2GraphicBlock> out_block;
-        res = AllocateC2Block(&out_block);
+        res = AllocateC2Block(video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height, &out_block);
         if (C2_TIMED_OUT == res) {
             continue;
         }
@@ -867,57 +870,102 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    mfxStatus mfx_res = MFX_ERR_NONE;
+    c2_status_t res = C2_OK;
 
-    mfx_res = session_.SyncOperation(sync_point, MFX_TIMEOUT_INFINITE);
-
-    if (MFX_ERR_NONE != mfx_res) {
-        MFX_DEBUG_TRACE_MSG("SyncOperation failed");
-        MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+    {
+        mfxStatus mfx_res = session_.SyncOperation(sync_point, MFX_TIMEOUT_INFINITE);
+        if (MFX_ERR_NONE != mfx_res) {
+            MFX_DEBUG_TRACE_MSG("SyncOperation failed");
+            MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+            res = MfxStatusToC2(mfx_res);
+        }
     }
 
     std::unique_ptr<C2Work> work = std::move(work_output.work_);
     if (work) {
-        if(MFX_ERR_NONE == mfx_res) {
+
+        do {
+            if (C2_OK != res) break;
 
             C2Event event;
             event.fire(); // pre-fire event as output buffer is ready to use
 
             std::shared_ptr<mfxFrameSurface1> mfx_surface = work_output.frame_.GetMfxFrameSurface();
             MFX_DEBUG_TRACE_P(mfx_surface.get());
-
-            if(!mfx_surface) mfx_res = MFX_ERR_NULL_PTR;
-            else {
-                MFX_DEBUG_TRACE_I32(mfx_surface->Data.Locked);
-                MFX_DEBUG_TRACE_I64(mfx_surface->Data.TimeStamp);
-
-                const C2Rect rect = C2Rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH)
-                    .at(mfx_surface->Info.CropX, mfx_surface->Info.CropY);
-
-                std::shared_ptr<C2GraphicBlock> block = work_output.frame_.GetC2GraphicBlock();
-                C2ConstGraphicBlock const_graphic = block->share(rect, event.fence());
-                C2Buffer out_buffer = MakeC2Buffer( { const_graphic } );
-
-                std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
-
-                worklet->output.ordinal.timestamp = work->input.ordinal.timestamp;
-                worklet->output.ordinal.frameIndex = work->input.ordinal.frameIndex;
-                worklet->output.ordinal.customOrdinal = work->input.ordinal.customOrdinal;
-
-                // Deleter is for keeping source block in lambda capture.
-                // block reference count is increased as shared_ptr is captured to the lambda by value.
-                auto deleter = [block] (C2Buffer* p) mutable {
-                    delete p;
-                    block.reset(); // here block reference count is decreased
-                };
-                // Make shared_ptr keeping source block during lifetime of output buffer.
-                worklet->output.buffers.front() =
-                    std::shared_ptr<C2Buffer>(new C2Buffer(out_buffer), deleter);
+            if (!mfx_surface) {
+                res = C2_CORRUPTED;
+                break;
             }
-        }
+
+            MFX_DEBUG_TRACE_I32(mfx_surface->Data.Locked);
+            MFX_DEBUG_TRACE_I64(mfx_surface->Data.TimeStamp);
+
+            const C2Rect rect = C2Rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH)
+                .at(mfx_surface->Info.CropX, mfx_surface->Info.CropY);
+
+            std::shared_ptr<C2GraphicBlock> block = work_output.frame_.GetC2GraphicBlock();
+            if (!block) {
+                res = C2_CORRUPTED;
+                break;
+            }
+
+            if (video_params_.IOPattern != MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
+
+                {
+                    std::lock_guard<std::mutex> lock(locked_surfaces_mutex_);
+                    // If output is not Locked - we have to release it asap to not interfere with possible
+                    // frame mapping in onWorkDone callback,
+                    // if output is Locked - remove it temporarily from locked_surfaces_ to avoid holding
+                    // locked_surfaces_mutex_ while long copy operation.
+                    locked_surfaces_.remove(work_output.frame_);
+                }
+
+                if (mfx_surface->Data.Locked) {
+                    // if output is locked, we have to copy its contents for output
+                    std::shared_ptr<C2GraphicBlock> new_block;
+                    res = AllocateC2Block(block->width(), block->height(), &new_block);
+                    if (C2_OK != res) break;
+
+                    std::unique_ptr<C2GraphicView> new_view;
+
+                    res = MapGraphicBlock(*new_block, TIMEOUT_NS, &new_view);
+                    if (C2_OK != res) break;
+
+                    res = CopyGraphicView(work_output.frame_.GetC2GraphicView().get(), new_view.get());
+                    if (C2_OK != res) break;
+
+                    block = new_block; // use new_block to deliver decoded result
+                }
+
+                if (mfx_surface->Data.Locked) {
+                    // if output is still locked, return it back to locked_surfaces_
+                    std::lock_guard<std::mutex> lock(locked_surfaces_mutex_);
+                    locked_surfaces_.push_back(work_output.frame_);
+                }
+            }
+
+            C2ConstGraphicBlock const_graphic = block->share(rect, event.fence());
+            C2Buffer out_buffer = MakeC2Buffer( { const_graphic } );
+
+            std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
+
+            worklet->output.ordinal.timestamp = work->input.ordinal.timestamp;
+            worklet->output.ordinal.frameIndex = work->input.ordinal.frameIndex;
+            worklet->output.ordinal.customOrdinal = work->input.ordinal.customOrdinal;
+
+            // Deleter is for keeping source block in lambda capture.
+            // block reference count is increased as shared_ptr is captured to the lambda by value.
+            auto deleter = [block] (C2Buffer* p) mutable {
+                delete p;
+                block.reset(); // here block reference count is decreased
+            };
+            // Make shared_ptr keeping source block during lifetime of output buffer.
+            worklet->output.buffers.front() =
+                std::shared_ptr<C2Buffer>(new C2Buffer(out_buffer), deleter);
+        } while (false);
         // Release output frame before onWorkDone is called, release causes unmap for system memory.
         work_output.frame_ = MfxC2FrameOut();
-        NotifyWorkDone(std::move(work), MfxStatusToC2(mfx_res));
+        NotifyWorkDone(std::move(work), res);
     }
 
     {

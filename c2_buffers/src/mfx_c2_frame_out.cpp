@@ -95,6 +95,12 @@ std::shared_ptr<C2GraphicBlock> MfxC2FrameOut::GetC2GraphicBlock() const
     return c2_graphic_block_;
 }
 
+std::shared_ptr<C2GraphicView> MfxC2FrameOut::GetC2GraphicView() const
+{
+    MFX_DEBUG_TRACE_FUNC;
+    return c2_graphic_view_;
+}
+
 std::shared_ptr<mfxFrameSurface1> MfxC2FrameOut::GetMfxFrameSurface() const
 {
     MFX_DEBUG_TRACE_FUNC;

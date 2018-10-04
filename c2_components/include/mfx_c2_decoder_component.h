@@ -91,7 +91,7 @@ private:
 
     mfxStatus DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& frame_out);
 
-    c2_status_t AllocateC2Block(std::shared_ptr<C2GraphicBlock>* out_block);
+    c2_status_t AllocateC2Block(uint32_t width, uint32_t height, std::shared_ptr<C2GraphicBlock>* out_block);
 
     c2_status_t AllocateFrame(MfxC2FrameOut* frame_out);
 
@@ -144,6 +144,7 @@ private:
 
     std::map<const C2Handle*, std::shared_ptr<mfxFrameSurface1>> surfaces_; // all ever send to Decoder
 
+    std::mutex locked_surfaces_mutex_;
     std::list<MfxC2FrameOut> locked_surfaces_; // allocated, but cannot be re-used as Locked by Decoder
 
     std::queue<std::unique_ptr<C2Work>> works_queue_;

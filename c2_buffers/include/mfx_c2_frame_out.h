@@ -34,8 +34,15 @@ public:
                                     MfxC2FrameOut* wrapper);
 
     std::shared_ptr<C2GraphicBlock> GetC2GraphicBlock() const;
+    std::shared_ptr<C2GraphicView> GetC2GraphicView() const;
     std::shared_ptr<mfxFrameSurface1> GetMfxFrameSurface() const;
 
+    bool operator==(const MfxC2FrameOut& other) const {
+        return
+            c2_graphic_block_ == other.c2_graphic_block_ &&
+            c2_graphic_view_ == other.c2_graphic_view_ &&
+            mfx_surface_ == other.mfx_surface_;
+    }
 private:
     std::shared_ptr<C2GraphicBlock> c2_graphic_block_;
     std::shared_ptr<C2GraphicView> c2_graphic_view_;

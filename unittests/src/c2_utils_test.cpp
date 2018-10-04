@@ -1321,3 +1321,44 @@ TEST(MfxFramePoolAllocator, RetainHandles)
 }
 
 #endif
+
+// Creates 2 graphic blocks, fill 1st with pattern,
+// copy contents to 2nd and check pattern there.
+TEST(C2Utils, CopyGraphicView)
+{
+    const int WIDTH = 1920;
+    const int HEIGHT = 1080;
+
+    do {
+        c2_status_t res = C2_OK;
+
+        std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, &res));
+        std::shared_ptr<C2BlockPool> c2_allocator;
+        GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC, component, &c2_allocator);
+        EXPECT_NE(c2_allocator, nullptr);
+        if (!c2_allocator) break;
+
+        std::shared_ptr<C2GraphicBlock> src_block, dst_block;
+
+        for (auto block : {&src_block, &dst_block}) {
+            c2_allocator->fetchGraphicBlock(WIDTH, HEIGHT, HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL,
+                { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE }, block);
+            EXPECT_NE(*block, nullptr);
+        }
+        if (src_block == nullptr || dst_block == nullptr) break;
+
+        std::unique_ptr<C2GraphicView> src_view, dst_view;
+
+        MapGraphicBlock(*src_block, MFX_SECOND_NS, &src_view);
+        MapGraphicBlock(*dst_block, MFX_SECOND_NS, &dst_view);
+        if (src_view == nullptr || dst_view == nullptr) break;
+
+        FillFrameContents(WIDTH, HEIGHT, 0/*pattern seed*/, src_view->layout(), src_view->data());
+
+        res = CopyGraphicView(src_view.get(), dst_view.get());
+        EXPECT_EQ(res, C2_OK);
+
+        CheckFrameContents(WIDTH, HEIGHT, 0/*pattern seed*/, dst_view->layout(), dst_view->data());
+
+    } while(false);
+}
