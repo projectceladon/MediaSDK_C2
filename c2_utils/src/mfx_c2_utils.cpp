@@ -493,3 +493,86 @@ int MfxFourCCToGralloc(mfxU32 fourcc)
             return 0;
     }
 }
+
+bool operator==(const C2PlaneInfo& plane0, const C2PlaneInfo& plane1)
+{
+    bool res = false;
+    do {
+        if (plane0.channel != plane1.channel) break;
+        if (plane0.colInc != plane1.colInc) break;
+        if (plane0.rowInc != plane1.rowInc) break;
+        if (plane0.colSampling != plane1.colSampling) break;
+        if (plane0.rowSampling != plane1.rowSampling) break;
+        if (plane0.allocatedDepth != plane1.allocatedDepth) break;
+        if (plane0.bitDepth != plane1.bitDepth) break;
+        if (plane0.rightShift != plane1.rightShift) break;
+        if (plane0.endianness != plane1.endianness) break;
+        if (plane0.rootIx != plane1.rootIx) break;
+        if (plane0.offset != plane1.offset) break;
+        res = true;
+    } while (false);
+    return res;
+}
+
+bool operator==(const C2PlanarLayout& layout0, const C2PlanarLayout& layout1)
+{
+    bool res = false;
+    do {
+        if (layout0.type != layout1.type) break;
+        if (layout0.numPlanes != layout1.numPlanes) break;
+        if (layout0.rootPlanes != layout1.rootPlanes) break;
+
+        bool match = true;
+        for (uint32_t i = 0; i < layout0.numPlanes; ++i) {
+            if (!(layout0.planes[i] == layout1.planes[i])) {
+                match = false;
+                break;
+            }
+        }
+        if (!match) break;
+
+        res = true;
+    } while (false);
+    return res;
+}
+
+c2_status_t CopyGraphicView(const C2GraphicView* src, C2GraphicView* dst)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    c2_status_t res = C2_OK;
+    do {
+        if (src->width() != dst->width()) break;
+        if (src->height() != dst->height()) break;
+
+        C2PlanarLayout src_layout = src->layout();
+        C2PlanarLayout dst_layout = dst->layout();
+
+        if (!(src_layout == dst_layout)) {
+            res = C2_CANNOT_DO; // copy if layouts match
+            break;
+        }
+
+        uint32_t max_offsets[C2PlanarLayout::MAX_NUM_PLANES]{0};
+
+        for (uint32_t i = 0; i < src_layout.numPlanes; ++i) {
+
+            const C2PlaneInfo& plane = src_layout.planes[i];
+            uint32_t plane_width = src->width() / plane.colSampling;
+            uint32_t plane_height = src->height() / plane.rowSampling;
+            uint32_t max_offset = plane.offset + plane.maxOffset(plane_width, plane_height);
+            if (max_offset > max_offsets[plane.rootIx]) {
+                max_offsets[plane.rootIx] = max_offset;
+            }
+        }
+
+        for (uint32_t i = 0; i < src_layout.rootPlanes; ++i) {
+            memcpy(dst->data()[i], src->data()[i], max_offsets[i]);
+        }
+        res = C2_OK;
+
+    } while (false);
+
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
+    return res;
+}

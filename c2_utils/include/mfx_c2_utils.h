@@ -106,3 +106,9 @@ inline C2Buffer MakeC2Buffer(const std::vector<C2ConstGraphicBlock>& blocks)
 {
     return C2BufferAccessor(blocks);
 }
+
+bool operator==(const C2PlaneInfo& p0, const C2PlaneInfo& p1);
+
+bool operator==(const C2PlanarLayout& src, const C2PlanarLayout& dst);
+
+c2_status_t CopyGraphicView(const C2GraphicView* src, C2GraphicView* dst);
