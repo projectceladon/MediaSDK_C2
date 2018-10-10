@@ -59,7 +59,7 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
       #if defined(_WIN32) || defined(_WIN64)
           #define MFX_DEBUG_FILE_NAME "C:\\mfx_c2_log.txt"
       #elif defined(ANDROID)
-          #define MFX_DEBUG_FILE_NAME "/data/data/mfx_c2_log.txt"
+          #define MFX_DEBUG_FILE_NAME "/data/local/tmp/mfx_c2_log.txt"
       #else
           #define MFX_DEBUG_FILE_NAME "/tmp/mfx_c2_log.txt"
       #endif
