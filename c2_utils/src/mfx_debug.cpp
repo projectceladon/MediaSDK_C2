@@ -41,6 +41,14 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #if MFX_DEBUG == MFX_DEBUG_YES
 
+#if MFX_DEBUG_FILE == MFX_DEBUG_YES
+static FILE* GetDbgFile()
+{
+    static FILE* dbg_file = fopen(MFX_DEBUG_FILE_NAME, "w");
+    return dbg_file;
+}
+#endif
+
 static const char* g_debug_pattern[] =
 {
 };
@@ -71,13 +79,13 @@ mfxDebugTrace::mfxDebugTrace(const char* _modulename, const char* _function, con
     if (!is_matched(function)) return;
 
 #if !defined(ANDROID) || (MFX_DEBUG_FILE == MFX_DEBUG_YES)
-    if (g_dbg_file)
+    if (GetDbgFile())
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: +\n", modulename, taskname, function);
+            fprintf(GetDbgFile(), "%s: %s: %s: +\n", modulename, taskname, function);
         else
-            fprintf(g_dbg_file, "%s: %s: +\n", modulename, function);
-        fflush(g_dbg_file);
+            fprintf(GetDbgFile(), "%s: %s: +\n", modulename, function);
+        fflush(GetDbgFile());
     }
 #else
     if (taskname)
@@ -94,13 +102,13 @@ mfxDebugTrace::~mfxDebugTrace(void)
     if (!is_matched(function)) return;
 
 #if !defined(ANDROID) || (MFX_DEBUG_FILE == MFX_DEBUG_YES)
-    if (g_dbg_file)
+    if (GetDbgFile())
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: -\n", modulename, taskname, function);
+            fprintf(GetDbgFile(), "%s: %s: %s: -\n", modulename, taskname, function);
         else
-            fprintf(g_dbg_file, "%s: %s: -\n", modulename, function);
-        fflush(g_dbg_file);
+            fprintf(GetDbgFile(), "%s: %s: -\n", modulename, function);
+        fflush(GetDbgFile());
     }
 #else
     if (taskname)
@@ -117,13 +125,13 @@ void mfxDebugTrace::printf_msg(const char* msg)
     if (!is_matched(function)) return;
 
 #if !defined(ANDROID) || (MFX_DEBUG_FILE == MFX_DEBUG_YES)
-    if (g_dbg_file)
+    if (GetDbgFile())
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s\n", modulename, taskname, function, msg);
+            fprintf(GetDbgFile(), "%s: %s: %s: %s\n", modulename, taskname, function, msg);
         else
-            fprintf(g_dbg_file, "%s: %s: %s\n", modulename, function, msg);
-        fflush(g_dbg_file);
+            fprintf(GetDbgFile(), "%s: %s: %s\n", modulename, function, msg);
+        fflush(GetDbgFile());
     }
 #else
     if (taskname)
@@ -140,13 +148,13 @@ void mfxDebugTrace::printf_i32(const char* name, mfxI32 value)
     if (!is_matched(function)) return;
 
 #if !defined(ANDROID) || (MFX_DEBUG_FILE == MFX_DEBUG_YES)
-    if (g_dbg_file)
+    if (GetDbgFile())
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s = %d\n", modulename, taskname, function, name, value);
+            fprintf(GetDbgFile(), "%s: %s: %s: %s = %d\n", modulename, taskname, function, name, value);
         else
-            fprintf(g_dbg_file, "%s: %s: %s = %d\n", modulename, function, name, value);
-        fflush(g_dbg_file);
+            fprintf(GetDbgFile(), "%s: %s: %s = %d\n", modulename, function, name, value);
+        fflush(GetDbgFile());
     }
 #else
     if (taskname)
@@ -163,13 +171,13 @@ void mfxDebugTrace::printf_u32(const char* name, mfxU32 value)
     if (!is_matched(function)) return;
 
 #if !defined(ANDROID) || (MFX_DEBUG_FILE == MFX_DEBUG_YES)
-    if (g_dbg_file)
+    if (GetDbgFile())
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s = 0x%x\n", modulename, taskname, function, name, value);
+            fprintf(GetDbgFile(), "%s: %s: %s: %s = 0x%x\n", modulename, taskname, function, name, value);
         else
-            fprintf(g_dbg_file, "%s: %s: %s = 0x%x\n", modulename, function, name, value);
-        fflush(g_dbg_file);
+            fprintf(GetDbgFile(), "%s: %s: %s = 0x%x\n", modulename, function, name, value);
+        fflush(GetDbgFile());
     }
 #else
     if (taskname)
@@ -186,13 +194,13 @@ void mfxDebugTrace::printf_i64(const char* name, mfxI64 value)
     if (!is_matched(function)) return;
 
 #if !defined(ANDROID) || (MFX_DEBUG_FILE == MFX_DEBUG_YES)
-    if (g_dbg_file)
+    if (GetDbgFile())
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s = %lld\n", modulename, taskname, function, name, value);
+            fprintf(GetDbgFile(), "%s: %s: %s: %s = %lld\n", modulename, taskname, function, name, value);
         else
-            fprintf(g_dbg_file, "%s: %s: %s = %lld\n", modulename, function, name, value);
-        fflush(g_dbg_file);
+            fprintf(GetDbgFile(), "%s: %s: %s = %lld\n", modulename, function, name, value);
+        fflush(GetDbgFile());
     }
 #else
     if (taskname)
@@ -209,13 +217,13 @@ void mfxDebugTrace::printf_f64(const char* name, mfxF64 value)
     if (!is_matched(function)) return;
 
 #if !defined(ANDROID) || (MFX_DEBUG_FILE == MFX_DEBUG_YES)
-    if (g_dbg_file)
+    if (GetDbgFile())
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s = %f\n", modulename, taskname, function, name, value);
+            fprintf(GetDbgFile(), "%s: %s: %s: %s = %f\n", modulename, taskname, function, name, value);
         else
-            fprintf(g_dbg_file, "%s: %s: %s = %f\n", modulename, function, name, value);
-        fflush(g_dbg_file);
+            fprintf(GetDbgFile(), "%s: %s: %s = %f\n", modulename, function, name, value);
+        fflush(GetDbgFile());
     }
 #else
     if (taskname)
@@ -232,13 +240,13 @@ void mfxDebugTrace::printf_p(const char* name, void* value)
     if (!is_matched(function)) return;
 
 #if !defined(ANDROID) || (MFX_DEBUG_FILE == MFX_DEBUG_YES)
-    if (g_dbg_file)
+    if (GetDbgFile())
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s = %p\n", modulename, taskname, function, name, value);
+            fprintf(GetDbgFile(), "%s: %s: %s: %s = %p\n", modulename, taskname, function, name, value);
         else
-            fprintf(g_dbg_file, "%s: %s: %s = %p\n", modulename, function, name, value);
-        fflush(g_dbg_file);
+            fprintf(GetDbgFile(), "%s: %s: %s = %p\n", modulename, function, name, value);
+        fflush(GetDbgFile());
     }
 #else
     if (taskname)
@@ -255,13 +263,13 @@ void mfxDebugTrace::printf_s(const char* name, const char* value)
     if (!is_matched(function)) return;
 
 #if !defined(ANDROID) || (MFX_DEBUG_FILE == MFX_DEBUG_YES)
-    if (g_dbg_file)
+    if (GetDbgFile())
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s = '%s'\n", modulename, taskname, function, name, value);
+            fprintf(GetDbgFile(), "%s: %s: %s: %s = '%s'\n", modulename, taskname, function, name, value);
         else
-            fprintf(g_dbg_file, "%s: %s: %s = '%s'\n", modulename, function, name, value);
-        fflush(g_dbg_file);
+            fprintf(GetDbgFile(), "%s: %s: %s = '%s'\n", modulename, function, name, value);
+        fflush(GetDbgFile());
     }
 #else
     if (taskname)
@@ -278,13 +286,13 @@ void mfxDebugTrace::printf_e(const char* name, const char* value)
     if (!is_matched(function)) return;
 
 #if !defined(ANDROID) || (MFX_DEBUG_FILE == MFX_DEBUG_YES)
-    if (g_dbg_file)
+    if (GetDbgFile())
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: %s = '%s'\n", modulename, taskname, function, name, value);
+            fprintf(GetDbgFile(), "%s: %s: %s: %s = '%s'\n", modulename, taskname, function, name, value);
         else
-            fprintf(g_dbg_file, "%s: %s: %s = '%s'\n", modulename, function, name, value);
-        fflush(g_dbg_file);
+            fprintf(GetDbgFile(), "%s: %s: %s = '%s'\n", modulename, function, name, value);
+        fflush(GetDbgFile());
     }
 #else
     if (taskname)
@@ -360,13 +368,13 @@ mfxPerf::~mfxPerf(void)
     float task_time = task_period.count();
 
 #if !defined(ANDROID) || (MFX_DEBUG_FILE == MFX_DEBUG_YES)
-    if (g_dbg_file)
+    if (GetDbgFile())
     {
         if (taskname)
-            fprintf(g_dbg_file, "%s: %s: %s: time = %f ms", modulename, taskname, function, task_time);
+            fprintf(GetDbgFile(), "%s: %s: %s: time = %f ms", modulename, taskname, function, task_time);
         else
-            fprintf(g_dbg_file, "%s: %s: time = %f ms", modulename, function, task_time);
-        fflush(g_dbg_file);
+            fprintf(GetDbgFile(), "%s: %s: time = %f ms", modulename, function, task_time);
+        fflush(GetDbgFile());
     }
 #else
     if (taskname)

@@ -64,9 +64,6 @@ Copyright(c) 2017-2018 Intel Corporation. All Rights Reserved.
           #define MFX_DEBUG_FILE_NAME "/tmp/mfx_c2_log.txt"
       #endif
     #endif // #ifndef MFX_DEBUG_FILE_NAME
-    FILE* g_dbg_file = fopen(MFX_DEBUG_FILE_NAME, "w");
-  #else
-    extern FILE* g_dbg_file;
   #endif
 #endif
 
