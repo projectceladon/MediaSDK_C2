@@ -32,7 +32,6 @@ cc_test {
         "libstagefright_codec2_vndk",
     ],
     compile_multilib: "both",
-    enabled: false,
 }
 
 cc_test {
@@ -53,5 +52,4 @@ cc_test {
         "libstagefright_codec2_vndk",
     ],
     compile_multilib: "both",
-    enabled: false,
 }
