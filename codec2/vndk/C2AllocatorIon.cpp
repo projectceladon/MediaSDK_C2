@@ -21,6 +21,8 @@
 #include <list>
 
 #include <ion/ion.h>
+#include <cutils/ashmem.h>
+
 #include <sys/mman.h>
 #include <unistd.h> // getpagesize, size_t, close, dup
 
@@ -193,7 +195,9 @@ public:
      */
     static Impl *Import(int ionFd, size_t capacity, int bufferFd, C2Allocator::id_t id) {
         ion_user_handle_t buffer = -1;
-        int ret = ion_import(ionFd, bufferFd, &buffer);
+        int ret = 0;
+        if (ionFd >= 0)
+            ion_import(ionFd, bufferFd, &buffer);
         return new Impl(ionFd, capacity, bufferFd, buffer, id, ret);
     }
 
@@ -213,18 +217,28 @@ public:
         int bufferFd = -1;
         ion_user_handle_t buffer = -1;
         size_t alignedSize = align == 0 ? size : (size + align - 1) & ~(align - 1);
-        int ret = ion_alloc(ionFd, alignedSize, align, heapMask, flags, &buffer);
-        ALOGV("ion_alloc(ionFd = %d, size = %zu, align = %zu, prot = %d, flags = %d) "
-              "returned (%d) ; buffer = %d",
-              ionFd, alignedSize, align, heapMask, flags, ret, buffer);
-        if (ret == 0) {
-            // get buffer fd for native handle constructor
-            ret = ion_share(ionFd, buffer, &bufferFd);
-            if (ret != 0) {
-                ion_free(ionFd, buffer);
-                buffer = -1;
+        int ret = 0;
+
+        if (ionFd >= 0) {
+            ion_alloc(ionFd, alignedSize, align, heapMask, flags, &buffer);
+            ALOGV("ion_alloc(ionFd = %d, size = %zu, align = %zu, prot = %d, flags = %d) "
+                  "returned (%d) ; buffer = %d",
+                  ionFd, alignedSize, align, heapMask, flags, ret, buffer);
+            if (ret == 0) {
+                // get buffer fd for native handle constructor
+                ret = ion_share(ionFd, buffer, &bufferFd);
+                if (ret != 0) {
+                    ion_free(ionFd, buffer);
+                    buffer = -1;
+                }
             }
+        } else {
+            bufferFd = ashmem_create_region(nullptr, alignedSize);
+            ALOGD("ashmem_create_region return %d for %d", bufferFd, (int)alignedSize);
+            if (bufferFd == -1)
+                ret = ENOMEM;
         }
+
         return new Impl(ionFd, alignedSize, bufferFd, buffer, id, ret);
     }
 
@@ -257,24 +271,38 @@ public:
         Mapping map = { nullptr, alignmentBytes, mapSize };
 
         c2_status_t err = C2_OK;
-        if (mMapFd == -1) {
-            int ret = ion_map(mIonFd, mBuffer, mapSize, prot,
-                              flags, mapOffset, (unsigned char**)&map.addr, &mMapFd);
-            ALOGV("ion_map(ionFd = %d, handle = %d, size = %zu, prot = %d, flags = %d, "
-                  "offset = %zu) returned (%d)",
-                  mIonFd, mBuffer, mapSize, prot, flags, mapOffset, ret);
-            if (ret) {
-                mMapFd = -1;
-                map.addr = *addr = nullptr;
-                err = c2_map_errno<EINVAL>(-ret);
+
+        if (mIonFd >= 0) {
+            if (mMapFd == -1) {
+                int ret = ion_map(mIonFd, mBuffer, mapSize, prot,
+                                  flags, mapOffset, (unsigned char**)&map.addr, &mMapFd);
+                ALOGV("ion_map(ionFd = %d, handle = %d, size = %zu, prot = %d, flags = %d, "
+                      "offset = %zu) returned (%d)",
+                      mIonFd, mBuffer, mapSize, prot, flags, mapOffset, ret);
+                if (ret) {
+                    mMapFd = -1;
+                    map.addr = *addr = nullptr;
+                    err = c2_map_errno<EINVAL>(-ret);
+                } else {
+                    *addr = (uint8_t *)map.addr + alignmentBytes;
+                }
             } else {
-                *addr = (uint8_t *)map.addr + alignmentBytes;
+                map.addr = mmap(nullptr, mapSize, prot, flags, mMapFd, mapOffset);
+                ALOGV("mmap(size = %zu, prot = %d, flags = %d, mapFd = %d, offset = %zu) "
+                      "returned (%d)",
+                      mapSize, prot, flags, mMapFd, mapOffset, errno);
+                if (map.addr == MAP_FAILED) {
+                    map.addr = *addr = nullptr;
+                    err = c2_map_errno<EINVAL>(errno);
+                } else {
+                    *addr = (uint8_t *)map.addr + alignmentBytes;
+                }
             }
         } else {
-            map.addr = mmap(nullptr, mapSize, prot, flags, mMapFd, mapOffset);
+            map.addr = mmap(nullptr, mapSize, prot, flags, mHandle.bufferFd(), mapOffset);
             ALOGV("mmap(size = %zu, prot = %d, flags = %d, mapFd = %d, offset = %zu) "
                   "returned (%d)",
-                  mapSize, prot, flags, mMapFd, mapOffset, errno);
+                  mapSize, prot, flags, mHandle.bufferFd(), mapOffset, errno);
             if (map.addr == MAP_FAILED) {
                 map.addr = *addr = nullptr;
                 err = c2_map_errno<EINVAL>(errno);
@@ -282,6 +310,7 @@ public:
                 *addr = (uint8_t *)map.addr + alignmentBytes;
             }
         }
+
         if (map.addr) {
             mMappings.push_back(map);
         }
@@ -289,7 +318,7 @@ public:
     }
 
     c2_status_t unmap(void *addr, size_t size, C2Fence *fence) {
-        if (mMapFd < 0 || mMappings.empty()) {
+        if ((mIonFd >= 0 && mMapFd < 0) || mMappings.empty()) {
             ALOGD("tried to unmap unmapped buffer");
             return C2_NOT_FOUND;
         }
@@ -326,7 +355,8 @@ public:
             mMapFd = -1;
         }
         if (mInit == C2_OK) {
-            (void)ion_free(mIonFd, mBuffer);
+            if (mIonFd >= 0)
+                (void)ion_free(mIonFd, mBuffer);
             native_handle_close(&mHandle);
         }
         if (mIonFd >= 0) {
@@ -417,7 +447,9 @@ C2AllocatorIon::C2AllocatorIon(id_t id)
         case ENOENT:    mInit = C2_OMITTED; break;
         default:        mInit = c2_map_errno<EACCES>(errno); break;
         }
-    } else {
+    }
+    mInit = C2_OK; // will use ashmem if mIonFd < 0, so init is OK anyway
+    {
         C2MemoryUsage minUsage = { 0, 0 };
         C2MemoryUsage maxUsage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
         Traits traits = { "android.allocator.ion", id, LINEAR, minUsage, maxUsage };
@@ -428,7 +460,8 @@ C2AllocatorIon::C2AllocatorIon(id_t id)
 
 C2AllocatorIon::~C2AllocatorIon() {
     if (mInit == C2_OK) {
-        ion_close(mIonFd);
+        if (mIonFd >= 0)
+            ion_close(mIonFd);
     }
 }
 
