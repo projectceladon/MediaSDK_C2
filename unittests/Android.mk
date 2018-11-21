@@ -37,6 +37,43 @@ include $(BUILD_EXECUTABLE)
 
 # =============================================================================
 
+ifeq ($(BUILD_C2_SERVICE),true)
+
+include $(CLEAR_VARS)
+include $(MFX_C2_HOME)/mfx_c2_defs.mk
+
+LOCAL_PROPRIETARY_MODULE := false
+
+LOCAL_SRC_FILES := \
+    src/c2_service_test.cpp \
+    src/test_components.cpp \
+    src/test_main.cpp
+
+LOCAL_C_INCLUDES := \
+    $(MFX_C2_INCLUDES) \
+    $(MFX_C2_HOME)/c2_components/include \
+    $(MFX_C2_HOME)/c2_utils/include
+
+LOCAL_CFLAGS := $(MFX_C2_CFLAGS)
+
+LOCAL_LDFLAGS := $(MFX_C2_LDFLAGS)
+
+LOCAL_STATIC_LIBRARIES := libgtest libz
+LOCAL_SHARED_LIBRARIES := libdl liblog libcodec2_hidl_client
+LOCAL_HEADER_LIBRARIES := $(MFX_C2_HEADER_LIBRARIES)
+
+LOCAL_MULTILIB := both
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE := mfx_c2_service_unittests
+LOCAL_MODULE_STEM_32 := mfx_c2_service_unittests32
+LOCAL_MODULE_STEM_64 := mfx_c2_service_unittests64
+
+include $(BUILD_EXECUTABLE)
+
+endif
+
+# =============================================================================
+
 include $(CLEAR_VARS)
 include $(MFX_C2_HOME)/mfx_c2_defs.mk
 

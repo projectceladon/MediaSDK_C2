@@ -23,7 +23,6 @@ mfx_cc_defaults {
         "-z noexecstack",
         "-z relro",
         "-z now",
-        "-pie",
     ],
 
     export_include_dirs: ["include"],
@@ -41,6 +40,17 @@ mfx_cc_defaults {
 
     owner: "intel",
     vendor: true
+}
+
+cc_defaults {
+
+    name: "mfx_c2_exe_defaults",
+
+    defaults: ["mfx_c2_defaults"],
+
+    ldflags: [
+        "-pie",
+    ],
 }
 
 bootstrap_go_package {

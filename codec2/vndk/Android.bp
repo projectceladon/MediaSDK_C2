@@ -92,7 +92,3 @@ cc_defaults {
 
     // TODO: separate internal headers so they can be exposed here
 }
-
-subdirs = [
-    "bufferpool",
-]

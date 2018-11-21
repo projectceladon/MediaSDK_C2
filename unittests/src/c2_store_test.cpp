@@ -16,24 +16,11 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 #include "mfx_c2_store.h"
 #include "mfx_defs.h"
+#include "c2_store_test.h"
 
 #include <dlfcn.h>
 
 using namespace android;
-
-struct ComponentDesc
-{
-    const char* component_name;
-    const char* module_name;
-    int flags;
-    c2_status_t creation_status;
-};
-
-ComponentDesc g_components[] = {
-    { "C2.MockComponent.Enc", "libmfx_mock_c2_components.so", 0, C2_OK },
-    { "C2.h264ve", "libmfx_c2_components_hw.so", 0, C2_OK },
-    { "C2.NonExistingComponent", "libmfx_c2_components_pure.so", 0, C2_NOT_FOUND },
-};
 
 static bool ModuleInMemory(const std::string& module)
 {
@@ -43,26 +30,6 @@ static bool ModuleInMemory(const std::string& module)
         dlclose(handle);
     }
     return found;
-}
-
-static bool PrepareConfFile()
-{
-#ifndef ANDROID
-    std::string home = std::getenv("HOME");
-#else
-    std::string home = "/etc";
-#endif
-    std::ofstream fileConf(home + "/mfx_c2_store.conf");
-
-    for(const auto& component : g_components) {
-        fileConf << component.component_name << " : " << component.module_name;
-        if(component.flags != 0) {
-            fileConf << " : " << component.flags;
-        }
-        fileConf << std::endl;
-    }
-    fileConf.close();
-    return true;
 }
 
 static std::shared_ptr<C2ComponentStore> CreateComponentStore()
