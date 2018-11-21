@@ -11,7 +11,7 @@
 # Example of local run from android tree dir:
 # remote_server=localhost remote_dir=$(pwd) target_platform=gordon_peak ./run-tests.sh
 
-set -e
+set -e -u # -u to avoid wrong execution of command like "rm -rf ${var}/*"
 
 if [ -z "$remote_server" ]
 then
@@ -28,13 +28,17 @@ then
     echo 'specify $target_platform to run tests'
     exit 1
 fi
-if [ "$1" == '-32' ]
+
+bitness=64
+remote_lib=lib64
+
+if [ "$#" -ge 1 ]
 then
-    bitness=32
-    remote_lib=lib
-else
-    bitness=64
-    remote_lib=lib64
+    if [ "$1" == '-32' ]
+    then
+        bitness=32
+        remote_lib=lib
+    fi
 fi
 
 remote_output=$remote_dir/out/target/product/$target_platform/
@@ -47,19 +51,42 @@ device_dir=/data/local/tmp/$tests_folder
 
 mkdir -p $local_dir
 rm -rf $local_dir/*
+mkdir $local_dir/service
 
 libs=\
 libmfx_mock_c2_components.so,\
 libmfx_c2_components_hw.so,\
 libmfxhw${bitness}.so
 
-execs=mfx_c2_store_unittests,mfx_c2_components_unittests,mfx_c2_mock_unittests
+execs=\
+mfx_c2_store_unittests,\
+mfx_c2_components_unittests,\
+mfx_c2_mock_unittests
 
 scp $remote_server:${remote_output}vendor/\{$remote_lib/\{$libs\},bin/\{$execs\}$bitness\} ${local_dir}
 
-system_libs="\
+service=hardware.intel.media.c2@1.0-service
+
+service_system_libs="\
 libstagefright_codec2_vndk_mfx.so,\
-libstagefright_bufferpool_mfx@1.0.so"
+libstagefright_bufferpool_mfx@1.0.so,\
+hardware.google.media.c2@1.0.so,\
+libcodec2_hidl_utils@1.0.so,\
+libstagefright_bufferpool@1.0.so,\
+libstagefright_codec2.so,\
+libstagefright_codec2_vndk.so"
+
+if ssh $remote_server "test -e ${remote_output}vendor/bin/hw/${service}"
+then
+    scp $remote_server:${remote_output}vendor/bin/hw/${service} ${local_dir}/service
+
+    scp $remote_server:${remote_output}system/lib/\{$service_system_libs\} ${local_dir}/service
+
+    system_exec=mfx_c2_service_unittests
+    scp $remote_server:$remote_output/system/bin/${system_exec}${bitness} ${local_dir}
+fi
+
+system_libs="libcodec2_hidl_client.so,$service_system_libs"
 
 scp $remote_server:${remote_output}system/$remote_lib/\{$system_libs\} ${local_dir}
 
@@ -80,14 +107,12 @@ MSYS_NO_PATHCONV=1 adb push ${tests_folder}/. ${device_dir} # and not use mangli
 
 adb wait-for-device
 
-if [ -z "$gtest_filter" ]
-then
-    gtest_filter='*'
-fi
+gtest_filter=${gtest_filter:-'*'}
 
 adb shell 'cd '${device_dir}'; \
+for exec_name in $(find . ! -name \*.so -type f); do chmod a+x $exec_name; done;\
 status=0; \
-for exec_name in ./*unittests*; do chmod a+x $exec_name; \
+for exec_name in ./*unittests*; do \
 LD_LIBRARY_PATH=.:/system/'$remote_lib'/vndk-28 ./$exec_name --gtest_filter='$gtest_filter' --dump-output; \
 if [ $? -ne 0 ]; then status=1; fi; \
 done; \
