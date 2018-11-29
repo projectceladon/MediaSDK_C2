@@ -179,9 +179,10 @@ c2_status_t MfxC2ComponentStore::config_sm(
 std::shared_ptr<C2ParamReflector> MfxC2ComponentStore::getParamReflector() const
 {
     MFX_DEBUG_TRACE_FUNC;
-    MFX_DEBUG_TRACE_MSG("Unimplemented method is called");
+    static std::shared_ptr<C2ParamReflector> reflector =
+        std::make_shared<MfxC2ParamReflector>();
 
-    return nullptr;
+    return reflector;
 }
 
 c2_status_t MfxC2ComponentStore::querySupportedParams_nb(

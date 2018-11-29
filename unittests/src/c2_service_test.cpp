@@ -171,3 +171,49 @@ TEST(MfxC2Service, getComponents)
         EXPECT_NE(found, std::end(g_components));
     }
 }
+
+TEST(MfxC2Service, createComponent)
+{
+    std::shared_ptr<android::Codec2Client> client = GetCodec2Client();
+    ASSERT_NE(client, nullptr);
+
+    for(const auto& component_desc : g_components) {
+        std::shared_ptr<android::Codec2Client::Component> component;
+        c2_status_t status =
+            client->createComponent(component_desc.component_name, nullptr, &component);
+        EXPECT_EQ(status, component_desc.creation_status);
+        if(component_desc.creation_status == C2_OK) {
+            EXPECT_NE(component, nullptr);
+
+            if(component != nullptr) {
+
+                EXPECT_EQ(component->getName(), component_desc.component_name);
+                component = nullptr;
+            }
+       }
+    }
+}
+
+// Tests if all components from the list could be created via Codec2Client::createInterface.
+// Also test checks that component returns valid information via interface (b.e., returns name).
+TEST(MfxC2Service, createInterface)
+{
+    std::shared_ptr<android::Codec2Client> client = GetCodec2Client();
+    ASSERT_NE(client, nullptr);
+
+    for(const auto& component_desc : g_components) {
+        std::shared_ptr<android::Codec2Client::Interface> component_itf;
+        c2_status_t status = client->createInterface(component_desc.component_name, &component_itf);
+        EXPECT_EQ(status, component_desc.creation_status);
+
+        if(component_desc.creation_status == C2_OK) {
+            EXPECT_NE(component_itf, nullptr);
+
+            if(component_itf != nullptr) {
+                EXPECT_EQ(component_itf->getName(), component_desc.component_name);
+
+                component_itf = nullptr;
+            }
+        }
+    }
+}
