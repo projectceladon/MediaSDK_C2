@@ -22,8 +22,9 @@ struct ComponentDesc
 
 ComponentDesc g_components[] = {
     { "C2.MockComponent.Enc", "libmfx_mock_c2_components.so", 0, C2_OK },
+    { "C2.h264vd", "libmfx_c2_components_hw.so", 0, C2_OK },
     { "C2.h264ve", "libmfx_c2_components_hw.so", 0, C2_OK },
-    { "C2.NonExistingComponent", "libmfx_c2_components_pure.so", 0, C2_NOT_FOUND },
+    { "C2.NonExistingComponent", "libmfx_mock_c2_components.so", 0, C2_NOT_FOUND },
 };
 
 inline bool PrepareConfFile()

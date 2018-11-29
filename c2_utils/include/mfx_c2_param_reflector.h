@@ -15,7 +15,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include <C2Work.h>
 #include <map>
 
-class MfxC2ParamReflector
+class MfxC2ParamReflector : public C2ParamReflector
 {
 private:
     std::vector<std::shared_ptr<C2ParamDescriptor>> params_descriptors_;
@@ -23,6 +23,10 @@ private:
     std::map<C2Param::Type, C2StructDescriptor> params_struct_descriptors_;
 
     std::map<C2ParamField, C2FieldSupportedValues> params_supported_values_;
+
+protected:
+    std::unique_ptr<C2StructDescriptor> describe(
+        C2Param::CoreIndex coreIndex) const override;
 
 public:
     template<typename ParamType>

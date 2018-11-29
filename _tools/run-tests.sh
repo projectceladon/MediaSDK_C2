@@ -82,6 +82,13 @@ then
 
     scp $remote_server:${remote_output}system/lib/\{$service_system_libs\} ${local_dir}/service
 
+    service_libs="\
+libmfx_mock_c2_components.so,\
+libmfx_c2_components_hw.so,\
+libmfxhw32.so"
+
+    scp $remote_server:${remote_output}vendor/lib/\{$service_libs\} ${local_dir}/service
+
     system_exec=mfx_c2_service_unittests
     scp $remote_server:$remote_output/system/bin/${system_exec}${bitness} ${local_dir}
 fi

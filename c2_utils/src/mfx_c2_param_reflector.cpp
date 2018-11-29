@@ -106,6 +106,23 @@ inline bool CheckRange(const C2FieldSupportedValues& supported, C2FieldDescripto
     return true;
 }
 
+std::unique_ptr<C2StructDescriptor> MfxC2ParamReflector::describe(
+    C2Param::CoreIndex coreIndex) const
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    MFX_DEBUG_TRACE_STREAM(std::hex << NAMED(coreIndex.coreIndex()));
+
+    std::unique_ptr<C2StructDescriptor> result;
+
+    auto found_struct = params_struct_descriptors_.find(C2Param::Type(coreIndex.coreIndex()));
+    if(found_struct != params_struct_descriptors_.end()) {
+        result = std::make_unique<C2StructDescriptor>(found_struct->second);
+    }
+
+    return result;
+}
+
 bool MfxC2ParamReflector::ValidateParam(const C2Param* param,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures)
 {
