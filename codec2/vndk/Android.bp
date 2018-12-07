@@ -1,18 +1,3 @@
-cc_library_headers {
-    name: "libstagefright_codec2_internal",
-
-    export_include_dirs: [
-        "internal",
-    ],
-
-    vndk: {
-        enabled: false,
-    },
-
-    // TODO: Remove this when this module is moved back to frameworks/av.
-    vendor_available: true,
-}
-
 // !!!DO NOT DEPEND ON THIS SHARED LIBRARY DIRECTLY!!!
 // use libstagefright_codec2-impl-defaults instead
 cc_library_vndk_mfx {
@@ -73,7 +58,7 @@ cc_library_vndk_mfx {
         "liblog",
         "libstagefright_bufferqueue_helper",
         "libstagefright_foundation",
-        "libstagefright_bufferpool@1.0",
+        "libstagefright_bufferpool_mfx@1.0",
         "libui",
         "libutils",
     ],
