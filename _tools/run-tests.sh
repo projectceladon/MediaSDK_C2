@@ -52,6 +52,8 @@ device_dir=/data/local/tmp/$tests_folder
 mkdir -p $local_dir
 rm -rf $local_dir/*
 mkdir $local_dir/service
+mkdir $local_dir/vendor
+mkdir $local_dir/vendor/etc
 
 libs=\
 libmfx_mock_c2_components.so,\
@@ -97,6 +99,9 @@ system_libs="libcodec2_hidl_client.so,$service_system_libs"
 
 scp $remote_server:${remote_output}system/$remote_lib/\{$system_libs\} ${local_dir}
 
+c2_sources=vendor/intel/mdp_msdk-c2-plugins/
+scp $remote_server:$remote_dir/${c2_sources}c2_store/data/media_codecs_intel_c2_video.xml ${local_dir}/vendor/etc
+
 if adb shell "[ ! -w /system ]"
 then
     echo "/system is inaccessible, remounting..."
@@ -117,6 +122,7 @@ adb wait-for-device
 gtest_filter=${gtest_filter:-'*'}
 
 adb shell 'cd '${device_dir}'; \
+cp ./vendor/etc/* /vendor/etc; \
 for exec_name in $(find . ! -name \*.so -type f); do chmod a+x $exec_name; done;\
 status=0; \
 for exec_name in ./*unittests*; do \
