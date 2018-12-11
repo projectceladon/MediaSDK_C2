@@ -1,0 +1,25 @@
+cc_library_shared {
+
+    name: "libmfx_c2_store",
+
+    defaults: ["mfx_c2_defaults"],
+
+    cflags: [
+        "-fexceptions"
+    ],
+
+    header_libs: [
+        "mfx_c2_components_headers"
+    ],
+
+    static_libs: [
+        "libmfx_c2_utils"
+    ],
+
+    shared_libs: [
+        "libdl",
+        "liblog",
+    ],
+
+    srcs: ["src/*.cpp"],
+}

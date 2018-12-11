@@ -1,0 +1,24 @@
+cc_library_static {
+
+    name: "libmfx_c2_utils",
+
+    defaults: ["mfx_c2_defaults"],
+
+    srcs: ["src/*.cpp"],
+}
+
+cc_library_static {
+
+    name: "libmfx_c2_utils_va",
+
+    defaults: ["mfx_c2_defaults"],
+
+    srcs: ["src/*.cpp"],
+
+    cflags: [
+        "-DLIBVA_SUPPORT",
+        "-DLIBVA_ANDROID_SUPPORT"
+    ],
+
+    include_dirs: ["hardware/intel/external/libva"], // remove when libva gets Android.bp
+}
