@@ -1,4 +1,56 @@
-subdirs = [
-    "codec2",
-    "mock/codec2",
-]
+mfx_cc_defaults {
+
+    name: "mfx_c2_defaults",
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+
+        "-fstack-protector-strong",
+        "-fPIE",
+        "-fPIC",
+        "-O2",
+        "-D_FORTIFY_SOURCE=2",
+        "-Wformat",
+        "-Wformat-security",
+        "-std=c++14",
+
+        "-DANDROID",
+        "-DMFX_C2_USE_PRIME",
+    ],
+
+    ldflags: [
+        "-z noexecstack",
+        "-z relro",
+        "-z now",
+        "-pie",
+    ],
+
+    export_include_dirs: ["include"],
+
+    include_dirs: [
+        "hardware/intel/external/minigbm-intel/cros_gralloc", // remove then minigbm gets Android.bp
+    ],
+
+    header_libs: [
+        "soong_libmfx_headers",
+        "codec2_headers",
+        "libutils_headers",
+        "libhardware_headers" // # It's here due to <hardware/gralloc.h> include. Need to remove when the header will be removed
+    ],
+
+    owner: "intel",
+    vendor: true
+}
+
+bootstrap_go_package {
+    name: "mfx_c2",
+    pkgPath: "android/soong/vendor/intel/mfx_c2",
+    deps: [
+        "soong-cc",
+    ],
+    srcs: [
+        "mfx_c2.go",
+    ],
+    pluginFor: ["soong_build"],
+}
