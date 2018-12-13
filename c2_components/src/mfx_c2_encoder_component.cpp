@@ -64,7 +64,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, int flags, Enc
         case ENCODER_H264:
         case ENCODER_H265:
 
-            MfxC2ParamReflector& pr = param_reflector_;
+            MfxC2ParamReflector& pr = param_storage_;
 
             pr.RegisterParam<C2RateControlSetting>("RateControl");
             pr.RegisterParam<C2FrameRateSetting::output>("FrameRate");
@@ -88,7 +88,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, int flags, Enc
         break;
     }
 
-    param_reflector_.DumpParams();
+    param_storage_.DumpParams();
 }
 
 MfxC2EncoderComponent::~MfxC2EncoderComponent()
@@ -836,7 +836,7 @@ c2_status_t MfxC2EncoderComponent::Query(
         // 1st cycle on stack params
         for (C2Param* param : stackParams) {
             c2_status_t param_res = C2_OK;
-            if (param_reflector_.FindParam(param->index())) {
+            if (param_storage_.FindParam(param->index())) {
                 param_res = QueryParam(params_view.get(), param->type(), &param);
             } else {
                 param_res =  C2_BAD_INDEX;
@@ -852,7 +852,7 @@ c2_status_t MfxC2EncoderComponent::Query(
             C2Param* param = nullptr;
             // check on presence
             c2_status_t param_res = C2_OK;
-            if (param_reflector_.FindParam(param_index.type())) {
+            if (param_storage_.FindParam(param_index.type())) {
                 param_res = QueryParam(params_view.get(), param_index.type(), &param);
             } else {
                 param_res = C2_BAD_INDEX;
@@ -889,7 +889,7 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
 
     for (const C2Param* param : params) {
         // check whether plugin supports this parameter
-        std::unique_ptr<C2SettingResult> find_res = param_reflector_.FindParam(param);
+        std::unique_ptr<C2SettingResult> find_res = param_storage_.FindParam(param);
         if(nullptr != find_res) {
             failures->push_back(std::move(find_res));
             continue;
@@ -904,7 +904,7 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
         }
 
         // check ranges
-        if(!param_reflector_.ValidateParam(param, failures)) {
+        if(!param_storage_.ValidateParam(param, failures)) {
             continue;
         }
 
