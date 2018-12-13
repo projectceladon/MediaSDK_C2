@@ -268,6 +268,7 @@ bool FindC2Param(
     C2Param::Index param_index)
 {
     MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_STREAM(std::hex << (uint32_t)param_index);
 
     auto index_match = [param_index] (const auto& param_desc) {
         // C2Param::Index is most descriptive param ID, so its match means exact id match

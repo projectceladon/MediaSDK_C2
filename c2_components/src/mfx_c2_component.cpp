@@ -149,7 +149,7 @@ c2_status_t MfxC2Component::querySupportedParams_nb(
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    return param_reflector_.getSupportedParams(params);
+    return param_storage_.getSupportedParams(params);
 }
 
 c2_status_t MfxC2Component::querySupportedValues_vb(

@@ -13,7 +13,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include <C2Component.h>
 
 #include "mfx_defs.h"
-#include "mfx_c2_param_reflector.h"
+#include "mfx_c2_param_storage.h"
 #include <mutex>
 
 class MfxC2Component : public C2ComponentInterface,
@@ -166,7 +166,7 @@ protected: // variables
 
     int flags_ = 0;
 
-    MfxC2ParamReflector param_reflector_;
+    MfxC2ParamStorage param_storage_;
 
     mfxIMPL mfx_implementation_;
 

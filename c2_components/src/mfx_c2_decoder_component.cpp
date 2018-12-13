@@ -38,13 +38,20 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, int flags, Dec
         case DECODER_H265:
         case DECODER_VP9:
 
-            MfxC2ParamReflector& pr = param_reflector_;
+            MfxC2ParamStorage& pr = param_storage_;
 
             pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
+
+            const unsigned int SINGLE_STREAM_ID = 0u;
+            pr.AddConstValue(C2_NAME_INPUT_STREAM_FORMAT_SETTING,
+                std::make_unique<C2StreamFormatConfig::input>(SINGLE_STREAM_ID, C2FormatCompressed));
+            pr.AddConstValue(C2_NAME_OUTPUT_STREAM_FORMAT_SETTING,
+                std::make_unique<C2StreamFormatConfig::output>(SINGLE_STREAM_ID, C2FormatVideo));
+
         break;
     }
 
-    param_reflector_.DumpParams();
+    param_storage_.DumpParams();
 }
 
 MfxC2DecoderComponent::~MfxC2DecoderComponent()
@@ -362,20 +369,24 @@ c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
 {
     c2_status_t res = C2_OK;
 
-    switch (type.typeIndex()) {
-        case kParamIndexMemoryType: {
-            if (nullptr == *dst) {
-                *dst = new C2MemoryTypeSetting();
-            }
+    res = param_storage_.QueryParam(type, dst);
+    if (C2_NOT_FOUND == res) {
+        switch (type.typeIndex()) {
+            case kParamIndexMemoryType: {
+                if (nullptr == *dst) {
+                    *dst = new C2MemoryTypeSetting();
+                }
 
-            C2MemoryTypeSetting* setting = static_cast<C2MemoryTypeSetting*>(*dst);
-            if (!MfxIOPatternToC2MemoryType(false, src->IOPattern, &setting->value)) res = C2_CORRUPTED;
-            break;
+                C2MemoryTypeSetting* setting = static_cast<C2MemoryTypeSetting*>(*dst);
+                if (!MfxIOPatternToC2MemoryType(false, src->IOPattern, &setting->value)) res = C2_CORRUPTED;
+                break;
+            }
+            default:
+                res = C2_BAD_INDEX;
+                break;
         }
-        default:
-            res = C2_BAD_INDEX;
-            break;
     }
+
     return res;
 }
 
@@ -401,7 +412,7 @@ c2_status_t MfxC2DecoderComponent::Query(
         // 1st cycle on stack params
         for (C2Param* param : stackParams) {
             c2_status_t param_res = C2_OK;
-            if (param_reflector_.FindParam(param->index())) {
+            if (param_storage_.FindParam(param->index())) {
                 param_res = QueryParam(params_view, param->type(), &param);
             } else {
                 param_res =  C2_BAD_INDEX;
@@ -417,7 +428,7 @@ c2_status_t MfxC2DecoderComponent::Query(
             C2Param* param = nullptr;
             // check on presence
             c2_status_t param_res = C2_OK;
-            if (param_reflector_.FindParam(param_index.type())) {
+            if (param_storage_.FindParam(param_index.type())) {
                 param_res = QueryParam(params_view, param_index.type(), &param);
             } else {
                 param_res = C2_BAD_INDEX;
@@ -454,7 +465,7 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
 
     for (const C2Param* param : params) {
         // check whether plugin supports this parameter
-        std::unique_ptr<C2SettingResult> find_res = param_reflector_.FindParam(param);
+        std::unique_ptr<C2SettingResult> find_res = param_storage_.FindParam(param);
         if(nullptr != find_res) {
             failures->push_back(std::move(find_res));
             continue;
@@ -469,7 +480,7 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
         }
 
         // check ranges
-        if(!param_reflector_.ValidateParam(param, failures)) {
+        if(!param_storage_.ValidateParam(param, failures)) {
             continue;
         }
 
@@ -992,6 +1003,7 @@ c2_status_t MfxC2DecoderComponent::ValidateWork(const std::unique_ptr<C2Work>& w
         const std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
 
         if(worklet->output.buffers.size() != 1) {
+            MFX_DEBUG_TRACE_STREAM(NAMED(worklet->output.buffers.size()));
             MFX_DEBUG_TRACE_MSG("Cannot handle multiple outputs");
             res = C2_BAD_VALUE;
             break;
