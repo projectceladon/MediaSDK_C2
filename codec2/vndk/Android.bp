@@ -1,6 +1,6 @@
 // !!!DO NOT DEPEND ON THIS SHARED LIBRARY DIRECTLY!!!
 // use libstagefright_codec2-impl-defaults instead
-cc_library_vndk_mfx {
+cc_library_shared {
     name: "libstagefright_codec2_vndk_mfx",
     vendor_available: true,
     vndk: {
@@ -97,18 +97,6 @@ cc_defaults {
     ],
 
     // TODO: separate internal headers so they can be exposed here
-}
-
-bootstrap_go_package {
-    name: "soong-vndk_mfx",
-    pkgPath: "android/soong/vendor/intel/mediasdk/vndk_mfx",
-    deps: [
-        "soong-cc",
-    ],
-    srcs: [
-        "vndk_mfx.go",
-    ],
-    pluginFor: ["soong_build"],
 }
 
 subdirs = [

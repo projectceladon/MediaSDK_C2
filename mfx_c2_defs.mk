@@ -73,20 +73,11 @@ endif
 # Setting usual paths to include files
 MFX_C2_INCLUDES := \
   $(LOCAL_PATH)/include \
-  $(MFX_C2_HOME)/codec2/include/ \
+  $(MFX_C2_HOME)/codec2/include \
+  $(MFX_C2_HOME)/codec2/vndk/include \
   $(MFX_C2_HOME)/codec2/vndk/include/util
 
-ifeq ($(USE_MOCK_CODEC2),)
-    USE_MOCK_CODEC2 = false
-endif
-
-ifeq ($(USE_MOCK_CODEC2),true)
-    MFX_C2_INCLUDES += $(MFX_C2_HOME)/mock/codec2/include
-    MFX_C2_STATIC_LIBS := libmfx_mock_codec2
-else
-    MFX_C2_INCLUDES += $(MFX_C2_HOME)/codec2/vndk/include
-    MFX_C2_SHARED_LIBS := libstagefright_codec2_vndk_mfx
-endif
+MFX_C2_SHARED_LIBS := libstagefright_codec2_vndk_mfx
 
 ifeq ($(BOARD_USES_GRALLOC1),true)
   MFX_C2_INCLUDES += $(INTEL_MINIGBM)/cros_gralloc

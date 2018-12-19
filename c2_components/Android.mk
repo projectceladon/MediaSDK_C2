@@ -23,8 +23,7 @@ define build_components
     $(MFX_C2_SHARED_LIBS)
 
   LOCAL_STATIC_LIBRARIES := \
-    libmfx_c2_buffers \
-    $(MFX_C2_STATIC_LIBS)
+    libmfx_c2_buffers
 
   ifneq ($(1),pure)
     MODULE_SUFFIX := _$(1)

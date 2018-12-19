@@ -217,9 +217,7 @@ TEST(C2BufferTest, GraphicBlockPoolTest) {
     };
 
     uint32_t pixel_formats[] {
-#ifndef USE_MOCK_CODEC2
-        HAL_PIXEL_FORMAT_YCBCR_420_888, // mock doesn't support this
-#endif
+        HAL_PIXEL_FORMAT_YCBCR_420_888,
         HAL_PIXEL_FORMAT_NV12_TILED_INTEL
     };
 

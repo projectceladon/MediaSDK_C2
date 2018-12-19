@@ -36,7 +36,6 @@ do
     if [ -f "$HOME/build.signal" ]
     then
          echo -n "building...      "
-         # USE_MOCK_CODEC2=true/false could be specified to select mock/vndk build, default is vndk
          mm -j32 $make_options > ~/build.log
          rm $HOME/build.signal
          echo "done."
