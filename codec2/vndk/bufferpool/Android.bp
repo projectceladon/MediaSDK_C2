@@ -1,4 +1,4 @@
-cc_library_vndk_mfx {
+cc_library {
     name: "libstagefright_bufferpool_mfx@1.0",
     vendor_available: true,
     vndk: {

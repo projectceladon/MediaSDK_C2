@@ -63,8 +63,7 @@ LOCAL_LDFLAGS := $(MFX_C2_LDFLAGS)
 
 LOCAL_STATIC_LIBRARIES := \
     libmfx_c2_utils \
-    libgtest libz \
-    $(MFX_C2_STATIC_LIBS)
+    libgtest libz
 
 LOCAL_SHARED_LIBRARIES := \
     libdl \
@@ -111,15 +110,10 @@ define build_mock_unittests
 
   LOCAL_CFLAGS := $$(MFX_C2_CFLAGS)
 
-  ifeq ($(USE_MOCK_CODEC2),true)
-      LOCAL_CFLAGS += -DUSE_MOCK_CODEC2
-  endif
-
   LOCAL_LDFLAGS := $$(MFX_C2_LDFLAGS)
 
   LOCAL_STATIC_LIBRARIES := \
-    libgtest libz \
-    $(MFX_C2_STATIC_LIBS)
+    libgtest libz
 
   LOCAL_SHARED_LIBRARIES := \
     libmfx_mock_c2_components \

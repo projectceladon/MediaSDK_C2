@@ -59,16 +59,10 @@ execs=mfx_c2_store_unittests,mfx_c2_components_unittests,mfx_c2_mock_unittests
 scp $remote_server:${remote_output}vendor/\{$remote_lib/\{$libs\},bin/\{$execs\}$bitness\} ${local_dir}
 
 system_libs="\
-libstagefright_codec2_vndk_mfx.so \
+libstagefright_codec2_vndk_mfx.so,\
 libstagefright_bufferpool_mfx@1.0.so"
 
-for i in $system_libs
-do
-    if ssh $remote_server "test -e ${remote_output}system/${remote_lib}/${i}"
-    then
-        scp $remote_server:$remote_output/system/${remote_lib}/${i} ${local_dir}
-    fi
-done
+scp $remote_server:${remote_output}system/$remote_lib/\{$system_libs\} ${local_dir}
 
 if adb shell "[ ! -w /system ]"
 then
