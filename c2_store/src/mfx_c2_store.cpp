@@ -4,7 +4,7 @@ INTEL CORPORATION PROPRIETARY INFORMATION
 This software is supplied under the terms of a license agreement or nondisclosure
 agreement with Intel Corporation and may not be copied or disclosed except in
 accordance with the terms of that agreement
-Copyright(c) 2011-2016 Intel Corporation. All Rights Reserved.
+Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************
 
@@ -16,7 +16,6 @@ Defined help functions:
 
 *********************************************************************************/
 #include "mfx_c2_store.h"
-#include "mfx_c2.h"
 #include "mfx_defs.h"
 #include "mfx_c2_defs.h"
 #include "mfx_debug.h"
@@ -29,20 +28,6 @@ Defined help functions:
 #define FIELD_SEP " \t:"
 
 using namespace android;
-
-EXPORT c2_status_t GetC2ComponentStore(std::shared_ptr<C2ComponentStore>* const componentStore) {
-
-    MFX_DEBUG_TRACE_FUNC;
-
-    c2_status_t creationStatus = C2_OK;
-    static std::shared_ptr<MfxC2ComponentStore> g_componentStore =
-        std::shared_ptr<MfxC2ComponentStore>(MfxC2ComponentStore::Create(&creationStatus));
-    *componentStore = g_componentStore;
-
-    MFX_DEBUG_TRACE_P(g_componentStore.get());
-    MFX_DEBUG_TRACE__android_c2_status_t(creationStatus);
-    return creationStatus;
-}
 
 MfxC2ComponentStore* MfxC2ComponentStore::Create(c2_status_t* status) {
 

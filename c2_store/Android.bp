@@ -1,4 +1,4 @@
-cc_library_shared {
+cc_library_static {
 
     name: "libmfx_c2_store",
 

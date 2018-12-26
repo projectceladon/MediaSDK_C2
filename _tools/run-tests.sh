@@ -49,7 +49,6 @@ mkdir -p $local_dir
 rm -rf $local_dir/*
 
 libs=\
-libmfx_c2_store.so,\
 libmfx_mock_c2_components.so,\
 libmfx_c2_components_hw.so,\
 libmfxhw${bitness}.so
