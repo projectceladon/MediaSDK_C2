@@ -14,7 +14,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include <cstdlib>
 #include <gtest/gtest.h>
 
-#include "mfx_c2.h"
+#include "mfx_c2_store.h"
 #include "mfx_defs.h"
 
 #include <dlfcn.h>
@@ -65,18 +65,27 @@ static bool PrepareConfFile()
     return true;
 }
 
+static std::shared_ptr<C2ComponentStore> CreateComponentStore()
+{
+    std::shared_ptr<C2ComponentStore> result;
+
+    bool conf_file_ready = PrepareConfFile();
+    EXPECT_TRUE(conf_file_ready);
+
+    if (conf_file_ready) {
+
+        c2_status_t status = C2_OK;
+        result.reset(MfxC2ComponentStore::Create(&status));
+        EXPECT_EQ(status, C2_OK);
+        EXPECT_TRUE(result);
+    }
+    return result;
+}
+
 // this function creates component store and keeps for subsequent usage
 static std::shared_ptr<C2ComponentStore> GetCachedC2ComponentStore()
 {
-    static bool conf_file_ready = PrepareConfFile();
-    EXPECT_TRUE(conf_file_ready);
-
-    static std::shared_ptr<C2ComponentStore> g_store;
-
-    if (conf_file_ready) {
-        static c2_status_t g_creation_status = GetC2ComponentStore(&g_store);
-        EXPECT_EQ(g_creation_status, C2_OK);
-    }
+    static std::shared_ptr<C2ComponentStore> g_store = CreateComponentStore();
     return g_store;
 }
 

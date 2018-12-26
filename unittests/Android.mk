@@ -23,8 +23,8 @@ LOCAL_CFLAGS := $(MFX_C2_CFLAGS)
 
 LOCAL_LDFLAGS := $(MFX_C2_EXE_LDFLAGS)
 
-LOCAL_STATIC_LIBRARIES := libgtest libz
-LOCAL_SHARED_LIBRARIES := libdl liblog libmfx_c2_store
+LOCAL_STATIC_LIBRARIES := libgtest libz libmfx_c2_store libmfx_c2_utils
+LOCAL_SHARED_LIBRARIES := libdl liblog
 LOCAL_HEADER_LIBRARIES := $(MFX_C2_HEADER_LIBRARIES)
 
 LOCAL_MULTILIB := both
