@@ -57,8 +57,8 @@ endif
 
 #  Security
 MFX_C2_CFLAGS += \
-  -fstack-protector \
-  -fPIE -fPIC -pie \
+  -fstack-protector-strong \
+  -fPIE -fPIC \
   -O2 -D_FORTIFY_SOURCE=2 \
   -Wformat -Wformat-security \
   -fexceptions -std=c++14
@@ -97,6 +97,8 @@ MFX_C2_HEADER_LIBRARIES += \
 MFX_C2_LDFLAGS := \
   -z noexecstack \
   -z relro -z now
+
+MFX_C2_EXE_LDFLAGS := $(MFX_C2_LDFLAGS) -pie
 
 # Setting vendor
 LOCAL_MODULE_OWNER := intel
