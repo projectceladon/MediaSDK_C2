@@ -46,7 +46,7 @@ local_dir=/tmp/$tests_folder
 device_dir=/data/local/tmp/$tests_folder
 
 mkdir -p $local_dir
-rm --force $local_dir/*
+rm -rf $local_dir/*
 
 libs=\
 libmfx_c2_store.so,\
@@ -93,5 +93,9 @@ then
 fi
 
 adb shell 'cd '${device_dir}'; \
+status=0; \
 for exec_name in ./*unittests*; do chmod a+x $exec_name; \
-LD_LIBRARY_PATH=.:/system/'$remote_lib'/vndk-28 ./$exec_name --gtest_filter='$gtest_filter' --dump-output; done'
+LD_LIBRARY_PATH=.:/system/'$remote_lib'/vndk-28 ./$exec_name --gtest_filter='$gtest_filter' --dump-output; \
+if [ $? -ne 0 ]; then status=1; fi; \
+done; \
+exit $status'
