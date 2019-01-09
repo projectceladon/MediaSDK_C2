@@ -971,8 +971,8 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
                 block.reset(); // here block reference count is decreased
             };
             // Make shared_ptr keeping source block during lifetime of output buffer.
-            worklet->output.buffers.front() =
-                std::shared_ptr<C2Buffer>(new C2Buffer(out_buffer), deleter);
+            worklet->output.buffers.push_back(
+                std::shared_ptr<C2Buffer>(new C2Buffer(out_buffer), deleter));
         } while (false);
         // Release output frame before onWorkDone is called, release causes unmap for system memory.
         work_output.frame_ = MfxC2FrameOut();
@@ -1002,9 +1002,9 @@ c2_status_t MfxC2DecoderComponent::ValidateWork(const std::unique_ptr<C2Work>& w
 
         const std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
 
-        if(worklet->output.buffers.size() != 1) {
+        if(worklet->output.buffers.size() != 0) {
             MFX_DEBUG_TRACE_STREAM(NAMED(worklet->output.buffers.size()));
-            MFX_DEBUG_TRACE_MSG("Cannot handle multiple outputs");
+            MFX_DEBUG_TRACE_MSG("Caller is not supposed to allocate output");
             res = C2_BAD_VALUE;
             break;
         }
