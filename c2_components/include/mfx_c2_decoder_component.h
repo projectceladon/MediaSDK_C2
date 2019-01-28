@@ -60,14 +60,22 @@ protected:
         c2_blocking_t mayBlock,
         std::vector<std::unique_ptr<C2SettingResult>>* const failures) override;
 
-    c2_status_t Queue(std::list<std::unique_ptr<C2Work>>* const items) override;
+    /*
+    C2Work input->output relationship is estalished like it is done in C2 software avc decoder:
+    1) If incoming work bitstream is decoded to frame with the same frame index ->
+        return it within the same C2Work (frame index is passed as pts to find matching output).
+    2) If output frame index doesn't match input -> look for matching one in pending works collection.
+    3) If decoder produced frame for future refs, wait for more date -> put incoming work to pending works collection
+        (to be used on step 2 in a next pass).
+    4) If decoder did not produce anything, just demands more bitstream ->
+        return empty C2Work: no output buffers, worklets processed = 1
+    3) and 4) could be distinguished by incoming C2FrameData::flags: if it has FLAG_INCOMPLETE or FLAG_CODEC_CONFIG,
+        then no output is expected.
+        DecodeFrameAsync return code or surface_work->Locked on its exit don't provide correct
+        information about output expectation.
+    */
 
-private:
-    struct C2WorkOutput
-    {
-        std::unique_ptr<C2Work> work_;
-        MfxC2FrameOut frame_;
-    };
+    c2_status_t Queue(std::list<std::unique_ptr<C2Work>>* const items) override;
 
 private:
     c2_status_t QueryParam(const mfxVideoParam* src,
@@ -89,7 +97,7 @@ private:
         mfxBitstream *bs, mfxFrameSurface1 *surface_work, mfxFrameSurface1 **surface_out,
         mfxSyncPoint *syncp);
 
-    mfxStatus DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& frame_out);
+    mfxStatus DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& frame_out, bool* expect_output);
 
     c2_status_t AllocateC2Block(uint32_t width, uint32_t height, std::shared_ptr<C2GraphicBlock>* out_block);
 
@@ -104,7 +112,7 @@ private:
 
     void Drain();
     // waits for the sync_point and update work with decoder output then
-    void WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sync_point);
+    void WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint sync_point);
 
 private:
     DecoderType decoder_type_;
@@ -147,7 +155,8 @@ private:
     std::mutex locked_surfaces_mutex_;
     std::list<MfxC2FrameOut> locked_surfaces_; // allocated, but cannot be re-used as Locked by Decoder
 
-    std::queue<std::unique_ptr<C2Work>> works_queue_;
+    std::mutex pending_works_mutex_;
+    std::map<decltype(C2WorkOrdinalStruct::frameIndex), std::unique_ptr<C2Work>> pending_works_;
 
     std::shared_ptr<MfxFramePoolAllocator> allocator_; // used when Video memory output
     // for pre-allocation when Video memory is chosen and always when System memory output

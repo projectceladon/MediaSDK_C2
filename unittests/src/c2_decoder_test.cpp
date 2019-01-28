@@ -24,6 +24,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 #include <future>
 #include <set>
+#include <queue>
 
 using namespace android;
 
@@ -152,14 +153,21 @@ TEST_P(Decoder, getSupportedParams)
 static void PrepareWork(uint32_t frame_index,
     std::shared_ptr<const C2Component> component,
     std::unique_ptr<C2Work>* work,
-    const std::vector<char>& bitstream, bool end_stream, bool header)
+    const std::vector<char>& bitstream, bool end_stream, bool header, bool complete)
 {
     *work = std::make_unique<C2Work>();
     C2FrameData* buffer_pack = &((*work)->input);
 
     buffer_pack->flags = C2FrameData::flags_t(0);
-    if (header)
-        buffer_pack->flags = C2FrameData::flags_t(buffer_pack->flags | C2FrameData::FLAG_CODEC_CONFIG);
+    // If complete frame do not set C2FrameData::FLAG_CODEC_CONFIG regardless header parameter
+    // as it is set when buffer contains header only.
+    if (!complete) {
+        if (header) {
+            buffer_pack->flags = C2FrameData::flags_t(buffer_pack->flags | C2FrameData::FLAG_CODEC_CONFIG);
+        } else {
+            buffer_pack->flags = C2FrameData::flags_t(buffer_pack->flags | C2FrameData::FLAG_INCOMPLETE);
+        }
+    }
     if (end_stream)
         buffer_pack->flags = C2FrameData::flags_t(buffer_pack->flags | C2FrameData::FLAG_END_OF_STREAM);
 
@@ -243,10 +251,17 @@ public:
         return ss.str();
     }
 
-    void RegisterSubmittedFrame(uint64_t frame_index)
+    void RegisterSubmittedFrame(uint64_t frame_index, bool expect_empty = false)
     {
+        MFX_DEBUG_TRACE_FUNC;
         std::lock_guard<std::mutex> lock(expectations_mutex_);
-        frame_expected_set_.insert(frame_index);
+        if (expect_empty) {
+            MFX_DEBUG_TRACE_STREAM("Register empty: " << frame_index);
+            frame_expected_empty_set_.insert(frame_index);
+        } else {
+            MFX_DEBUG_TRACE_STREAM("Register filled: " << frame_index);
+            frame_expected_set_.insert(frame_index);
+        }
     }
 
     void ExpectFailures(int count, c2_status_t status)
@@ -290,15 +305,24 @@ protected:
 
                     {
                         std::lock_guard<std::mutex> lock(expectations_mutex_);
-                        EXPECT_NE(frame_expected_set_.find(frame_index), frame_expected_set_.end())
-                            << "unexpected frame_index value" << frame_index;
+                        EXPECT_TRUE(frame_expected_set_.find(frame_index) != frame_expected_set_.end() ||
+                            frame_expected_empty_set_.find(frame_index) != frame_expected_empty_set_.end()) << frame_index;
 
-                        frame_expected_set_.erase(frame_index);
+                        if (frame_expected_empty_set_.find(frame_index) != frame_expected_empty_set_.end()) {
+                            frame_expected_empty_set_.erase(frame_index);
+                            EXPECT_EQ(buffer_pack.buffers.size(), 0u) << NAMED(frame_index);
+                            continue;
+                        }
                     }
+
+                    EXPECT_NE(frame_expected_set_.find(frame_index), frame_expected_set_.end())
+                        << "unexpected frame_index value" << frame_index;
+
+                    frame_expected_set_.erase(frame_index);
 
                     std::unique_ptr<C2ConstGraphicBlock> graphic_block;
                     c2_status_t sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
-                    EXPECT_EQ(sts, C2_OK);
+                    EXPECT_EQ(sts, C2_OK) << NAMED(frame_index) << "Output buffer count: " << buffer_pack.buffers.size();
 
                     if(nullptr != graphic_block) {
 
@@ -353,7 +377,7 @@ protected:
         {
             std::lock_guard<std::mutex> lock(expectations_mutex_);
             // if collected all expected frames
-            if (frame_expected_set_.empty()) {
+            if (frame_expected_set_.empty() && frame_expected_empty_set_.empty()) {
                 done_.set_value();
             }
         }
@@ -379,6 +403,7 @@ private:
     OnFrame on_frame_;
     std::mutex expectations_mutex_;
     std::set<uint64_t> frame_expected_set_;
+    std::set<uint64_t> frame_expected_empty_set_;
     std::map<c2_status_t, int> expected_failures_; // expected failures and how many times they should occur
     std::promise<void> done_;  // fire when all expected frames came
 };
@@ -389,7 +414,7 @@ class StreamSplitter
 public:
     virtual ~StreamSplitter() = default;
 
-    virtual bool Read(std::vector<char>* part, bool* header, bool* valid) = 0;
+    virtual bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid) = 0;
 
     virtual bool EndOfStream() = 0;
 };
@@ -404,12 +429,13 @@ public:
     FrameStreamSplitter(const std::vector<const StreamDescription*>& streams):
         reader{StreamReader::Create(streams)} {}
 
-    bool Read(std::vector<char>* part, bool* header, bool* valid) override
+    bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid) override
     {
         StreamDescription::Region region {};
         bool res = reader->Read(StreamReader::Slicing::Frame(), &region, header);
         if (res) {
             *part = reader->GetRegionContents(region);
+            *complete_frame = true;
             *valid = true;
         }
         return res;
@@ -446,23 +472,24 @@ static void Decode(
     uint32_t frame_index = 0;
 
     bool header = false;
+    bool complete_frame = false;
     bool valid = false;
     std::vector<char> stream_part;
 
     while (true) {
-        bool res = stream_splitter->Read(&stream_part, &header, &valid);
+        bool res = stream_splitter->Read(&stream_part, &header, &complete_frame, &valid);
         if (!res) break;
         // prepare worklet and push
         std::unique_ptr<C2Work> work;
 
         // insert input data
         PrepareWork(frame_index, component, &work, stream_part,
-            stream_splitter->EndOfStream(), header);
+            stream_splitter->EndOfStream(), header, complete_frame);
         std::list<std::unique_ptr<C2Work>> works;
         works.push_back(std::move(work));
 
         if (valid) {
-            validator->RegisterSubmittedFrame(frame_index);
+            validator->RegisterSubmittedFrame(frame_index, !complete_frame);
         } else {
             validator->ExpectFailures(1, C2_NOT_FOUND);
         }
@@ -515,6 +542,9 @@ TEST_P(Decoder, DecodeBitExact)
         };
 
         for(const std::vector<const StreamDescription*>& streams : desc.streams) {
+
+            SCOPED_TRACE("Stream: " + std::to_string(&streams - desc.streams.data()));
+
             for(int i = 0; i < TESTS_COUNT; ++i) {
 
                 CRC32Generator crc_generator;
@@ -556,24 +586,26 @@ TEST_P(Decoder, BrokenHeader)
     {
     public:
         using FrameStreamSplitter::FrameStreamSplitter;
-        bool Read(std::vector<char>* part, bool* header, bool* valid) override
+        bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid) override
         {
             bool res{};
             if (!frame_.empty()) {
                 res = true;
                 *part = frame_;
                 *header = true;
+                *complete_frame = true;
                 *valid = true;
                 frame_.clear();
             } else {
-                res = FrameStreamSplitter::Read(part, header, valid);
+                res = FrameStreamSplitter::Read(part, header, complete_frame, valid);
                 if (res) {
                     if (*header) {
                         if (header_index_ > 0) {
                             std::vector<char> contents = *part;
                             *part = std::vector<char>(contents.begin(),
                                 std::min(contents.begin() + header_part_len_, contents.end()));
-                            *valid = false;
+                            *complete_frame = false;
+                            *valid = true;
                             frame_ = std::move(contents);
                         }
                         ++header_index_;
@@ -619,6 +651,181 @@ TEST_P(Decoder, BrokenHeader)
                 HeaderBreaker stream_splitter(streams);
 
                 Decode(use_graphics_memory, comp, validator, &stream_splitter);
+
+                std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
+                std::list<uint32_t> expected_crc;
+                std::transform(streams.begin(), streams.end(), std::back_inserter(expected_crc),
+                    [] (const StreamDescription* stream) { return stream->crc32_nv12; } );
+
+                EXPECT_EQ(actual_crc, expected_crc) << "Not equal to reference CRC32"
+                    << memory_names[use_graphics_memory];
+            }
+        }
+    } );
+}
+
+// Default StreamSplitter implementation reading by frames,
+// header by nal units
+class HeaderSplitter : public StreamSplitter
+{
+private:
+    std::unique_ptr<StreamReader> reader;
+
+    struct Result
+    {
+        std::vector<char> part;
+        bool header;
+    };
+
+    std::queue<Result> results;
+
+public:
+    HeaderSplitter(const std::vector<const StreamDescription*>& streams):
+        reader{StreamReader::Create(streams)} {}
+
+    bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid) override
+    {
+        bool res{};
+        if (!results.empty()) {
+            *part = results.front().part;
+            *header = results.front().header;
+            *valid = true;
+            res = true;
+            results.pop();
+            *complete_frame = results.empty();
+        } else {
+            StreamDescription::Region region {};
+            size_t prev_pos = reader->GetPos();
+            res = reader->Read(StreamReader::Slicing::Frame(), &region, header);
+            if (res) {
+                if (header) { // split header by NalUnits
+                    size_t next_pos = reader->GetPos();
+                    res = reader->Seek(prev_pos);
+
+                    if (res) {
+
+                        while (reader->GetPos() < next_pos) {
+
+                            res = reader->Read(StreamReader::Slicing::NalUnit(), &region, header);
+                            if (res) {
+                                results.push({reader->GetRegionContents(region), *header});
+
+                            } else {
+                                break;
+                            }
+                        }
+                        if (!results.empty()) {
+                            *part = results.front().part;
+                            *header = results.front().header;
+                            *valid = true;
+                         res = true;
+                            results.pop();
+                            *complete_frame = results.empty();
+
+                        } else {
+                            res = false;
+                        }
+                    }
+                } else {
+                    *part = reader->GetRegionContents(region);
+                    *header = false;
+                    *complete_frame = true;
+                    *valid = true;
+                 res = true;
+                }
+            }
+        }
+        return res;
+    }
+
+    bool EndOfStream() override
+    {
+        return !results.empty() ? false : reader->EndOfStream();
+    }
+};
+
+// Checks that concatenation chunks read by HeaderSplitter
+// is equal to the whole stream.
+TEST_P(Decoder, HeaderSplitterReadEverything)
+{
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr) {
+
+        if (std::string(desc.component_name) == "C2.vp9vd") return;
+
+        auto append_vector = [](const std::vector<char>& src, std::vector<char>* dst) {
+            dst->reserve(dst->size() + src.size());
+            std::copy(src.begin(), src.end(), std::back_inserter(*dst));
+        };
+
+        for(const std::vector<const StreamDescription*>& streams : desc.streams) {
+
+            HeaderSplitter headerSplitter(streams);
+            std::vector<char> split_contents;
+
+            do {
+                std::vector<char> part;
+                bool header;
+                bool complete_frame;
+                bool valid;
+                bool res = headerSplitter.Read(&part, &header, &complete_frame, &valid);
+                EXPECT_TRUE(res);
+                EXPECT_TRUE(valid);
+                EXPECT_NE(part.size(), 0u);
+
+                append_vector(part, &split_contents);
+
+            } while (!headerSplitter.EndOfStream());
+
+            std::vector<char> original_contents;
+
+            for (const auto& stream : streams) {
+                append_vector(stream->data, &original_contents);
+            }
+
+            EXPECT_EQ(original_contents.size(), split_contents.size());
+            EXPECT_EQ(original_contents, split_contents);
+        }
+    } );
+}
+
+// Sends streams for decoding emulating C2 runtime behaviour:
+// if frame contains header, the frame is sent split by NAL units.
+TEST_P(Decoder, SeparateHeaders)
+{
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+
+        if (std::string(desc.component_name) == "C2.vp9vd") return;
+
+        std::map<bool, std::string> memory_names = {
+            { false, "(system memory)" },
+            { true, "(video memory)" },
+        };
+
+        for(const std::vector<const StreamDescription*>& streams : desc.streams) {
+
+            SCOPED_TRACE("Stream: " + std::to_string(&streams - desc.streams.data()));
+
+            for (bool use_graphics_memory : { false, true }) {
+
+                CRC32Generator crc_generator;
+
+                GTestBinaryWriter writer(std::ostringstream()
+                    << comp_intf->getName() << "-" << GetStreamsCombinedName(streams) << ".nv12");
+
+                DecoderConsumer::OnFrame on_frame = [&] (uint32_t width, uint32_t height,
+                    const uint8_t* data, size_t length) {
+
+                    writer.Write(data, length);
+                    crc_generator.AddData(width, height, data, length);
+                };
+
+                std::shared_ptr<DecoderConsumer> validator =
+                    std::make_shared<DecoderConsumer>(on_frame);
+
+                HeaderSplitter headerSplitter(streams);
+                Decode(use_graphics_memory, comp, validator, &headerSplitter);
 
                 std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
                 std::list<uint32_t> expected_crc;

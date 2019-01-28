@@ -37,6 +37,15 @@ bool CombinedStreamReader::Read(const Slicing& slicing, StreamDescription::Regio
     return res;
 }
 
+size_t CombinedStreamReader::GetPos() const
+{
+    size_t res = active_stream_offset_;
+    if (active_stream_index_ < readers_.size()) {
+        res += readers_[active_stream_index_].GetPos();
+    }
+    return res;
+}
+
 bool CombinedStreamReader::Seek(size_t pos)
 {
     bool res = false;
