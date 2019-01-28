@@ -87,6 +87,8 @@ public:
     // reads next stream chunk specified in slicing
     virtual bool Read(const Slicing& slicing, StreamDescription::Region* region, bool* header, size_t* start_code_len = nullptr) = 0;
 
+    virtual size_t GetPos() const = 0;
+
     virtual bool Seek(size_t pos) = 0;
 
     virtual bool EndOfStream() = 0;
@@ -103,6 +105,8 @@ public:
         {}
 public:
     virtual bool Read(const Slicing& slicing, StreamDescription::Region* region, bool* header, size_t* start_code_len = nullptr) override;
+
+    virtual size_t GetPos() const override;
 
     virtual bool Seek(size_t pos) override;
 
@@ -159,6 +163,8 @@ public:
     virtual ~CombinedStreamReader() = default;
 public:
     virtual bool Read(const Slicing& slicing, StreamDescription::Region* region, bool* header, size_t* start_code_len = nullptr) override;
+
+    virtual size_t GetPos() const override;
 
     virtual bool Seek(size_t pos) override;
 
@@ -369,6 +375,11 @@ inline bool SingleStreamReader::ParseIVFHeader(size_t* frame_size)
         return false;
     }
     return true;
+}
+
+inline size_t SingleStreamReader::GetPos() const
+{
+    return pos_ - stream_->data.begin();
 }
 
 inline bool SingleStreamReader::Seek(size_t pos)

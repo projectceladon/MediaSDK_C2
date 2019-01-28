@@ -163,9 +163,12 @@ c2_status_t MfxC2DecoderComponent::DoStop(bool abort)
         working_queue_.Stop();
     }
 
-    while (!works_queue_.empty()) {
-        NotifyWorkDone(std::move(works_queue_.front()), C2_CANCELED);
-        works_queue_.pop();
+    {
+        std::lock_guard<std::mutex> lock(pending_works_mutex_);
+        for (auto& pair : pending_works_) {
+            NotifyWorkDone(std::move(pair.second), C2_CANCELED);
+        }
+        pending_works_.clear();
     }
 
     c2_allocator_ = nullptr;
@@ -565,12 +568,13 @@ mfxStatus MfxC2DecoderComponent::DecodeFrameAsync(
 }
 
 // Can return MFX_ERR_NONE, MFX_ERR_MORE_DATA, MFX_ERR_MORE_SURFACE in case of success
-mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& frame_work)
+mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& frame_work, bool* expect_output)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     mfxStatus mfx_sts = MFX_ERR_NONE;
     mfxFrameSurface1 *surface_work = nullptr, *surface_out = nullptr;
+    *expect_output = false;
 
     do {
 
@@ -604,6 +608,9 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
 
         if ((MFX_ERR_NONE == mfx_sts) || (MFX_ERR_MORE_DATA == mfx_sts) || (MFX_ERR_MORE_SURFACE == mfx_sts)) {
 
+            *expect_output = true; // It might not really produce output frame from consumed bitstream,
+            // but neither surface_work->Data.Locked nor mfx_sts provide exact status of that.
+
             std::unique_lock<std::mutex> lock(locked_surfaces_mutex_);
             // add output to waiting pool in case of Decode success only
             locked_surfaces_.push_back(std::move(frame_work));
@@ -616,11 +623,6 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
 
                 if (MFX_ERR_NONE == mfx_sts) {
 
-                    if (works_queue_.empty()) {
-                        MFX_DEBUG_TRACE_MSG("Cannot find free work: works_queue_ is empty");
-                        mfx_sts = MFX_ERR_UNDEFINED_BEHAVIOR;
-                        break;
-                    }
                     auto pred_match_surface =
                         [surface_out] (const auto& item) { return item.GetMfxFrameSurface().get() == surface_out; };
 
@@ -635,13 +637,8 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
                     }
                     lock.unlock(); // unlock the mutex asap
 
-                    C2WorkOutput work_output;
-                    work_output.frame_ = std::move(frame_out);
-                    work_output.work_ = std::move(works_queue_.front());
-                    works_queue_.pop();
-
                     waiting_queue_.Push(
-                        [ frame = std::move(work_output), sync_point, this ] () mutable {
+                        [ frame = std::move(frame_out), sync_point, this ] () mutable {
                         WaitWork(std::move(frame), sync_point);
                     } );
                     {
@@ -745,23 +742,38 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    MFX_DEBUG_TRACE_P(work.get());
-
     c2_status_t res = C2_OK;
     mfxStatus mfx_sts = MFX_ERR_NONE;
 
+    const auto incoming_frame_index = work->input.ordinal.frameIndex;
+    const auto incoming_flags = work->input.flags;
+
+    MFX_DEBUG_TRACE_STREAM("work: " << work.get() << "; index: " << incoming_frame_index.peeku() <<
+        " flags: " << std::hex << incoming_flags);
+
+    bool expect_output = false;
+
     do {
+        std::unique_ptr<MfxC2BitstreamIn::FrameView> bitstream_view;
+        res = c2_bitstream_->AppendFrame(work->input, TIMEOUT_NS, &bitstream_view);
+        if (C2_OK != res) break;
+
+        {
+            std::lock_guard<std::mutex> lock(pending_works_mutex_);
+            auto it = pending_works_.find(incoming_frame_index);
+            if (it != pending_works_.end()) { // Shouldn't be the same index there
+                NotifyWorkDone(std::move(it->second), C2_CORRUPTED);
+                pending_works_.erase(it);
+            }
+
+            pending_works_.emplace(incoming_frame_index, std::move(work));
+        }
+
         if (!c2_allocator_) {
             res = GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC,
                 shared_from_this(), &c2_allocator_);
             if (res != C2_OK) break;
         }
-
-        std::unique_ptr<MfxC2BitstreamIn::FrameView> bitstream_view;
-        res = c2_bitstream_->AppendFrame(work->input, TIMEOUT_NS, &bitstream_view);
-        if (C2_OK != res) break;
-
-        works_queue_.push(std::move(work));
 
         // loop repeats DecodeFrame on the same frame
         // if DecodeFrame returns error which is repairable, like resolution change
@@ -771,6 +783,9 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 mfx_sts = InitDecoder(c2_allocator_);
                 if(MFX_ERR_NONE != mfx_sts) {
                     MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
+                    if (MFX_ERR_MORE_DATA == mfx_sts) {
+                        mfx_sts = MFX_ERR_NONE; // not enough data for InitDecoder should not cause an error
+                    }
                     res = MfxStatusToC2(mfx_sts);
                     break;
                 }
@@ -787,7 +802,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 res = AllocateFrame(&frame_out);
                 if (C2_OK != res) break;
 
-                mfx_sts = DecodeFrame(bs, std::move(frame_out));
+                mfx_sts = DecodeFrame(bs, std::move(frame_out), &expect_output);
             } while (mfx_sts == MFX_ERR_NONE || mfx_sts == MFX_ERR_MORE_SURFACE);
 
             if (MFX_ERR_MORE_DATA == mfx_sts) {
@@ -803,9 +818,18 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
                 // Clear up all queue of works after drain except last work
                 // which caused resolution change and should be used again.
-                while (works_queue_.size() > 1) {
-                    NotifyWorkDone(std::move(works_queue_.front()), C2_NOT_FOUND);
-                    works_queue_.pop();
+                {
+                    std::lock_guard<std::mutex> lock(pending_works_mutex_);
+                    auto it = pending_works_.begin();
+                    while (it != pending_works_.end()) {
+                        if (it->first != incoming_frame_index) {
+                            MFX_DEBUG_TRACE_STREAM("Work removed: " << NAMED(it->second->input.ordinal.frameIndex.peeku()));
+                            NotifyWorkDone(std::move(it->second), C2_NOT_FOUND);
+                            it = pending_works_.erase(it);
+                        } else {
+                            ++it;
+                        }
+                    }
                 }
 
                 bool resolution_change_done = false;
@@ -845,14 +869,27 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
     } while(false); // fake loop to have a cleanup point there
 
-    if (C2_OK != res) { // notify listener in case of failure only
-        if (nullptr != work) {
+    bool incomplete_frame =
+        (incoming_flags & (C2FrameData::FLAG_INCOMPLETE | C2FrameData::FLAG_CODEC_CONFIG)) != 0;
+
+    if (C2_OK != res || !expect_output || incomplete_frame) { // notify listener in case of failure or empty output
+        if (!work) {
+            std::lock_guard<std::mutex> lock(pending_works_mutex_);
+            auto it = pending_works_.find(incoming_frame_index);
+            if (it != pending_works_.end()) {
+                work = std::move(it->second);
+                pending_works_.erase(it);
+            } else {
+                MFX_DEBUG_TRACE_STREAM("Not found C2Work to return error result!!!");
+                FatalError(C2_CORRUPTED);
+            }
+        }
+        if (work) {
+            if (C2_OK == res) {
+                std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
+                worklet->output.ordinal = work->input.ordinal;
+            }
             NotifyWorkDone(std::move(work), res);
-        } else if (!works_queue_.empty()) {
-            NotifyWorkDone(std::move(works_queue_.front()), res);
-            works_queue_.pop();
-        } else {
-            MFX_DEBUG_TRACE_STREAM("Not found C2Work to return error result!!!");
         }
     }
 }
@@ -870,14 +907,23 @@ void MfxC2DecoderComponent::Drain()
             c2_status_t c2_sts = AllocateFrame(&frame_out);
             if (C2_OK != c2_sts) break; // no output allocated, no sense in calling DecodeFrame
 
-            mfx_sts = DecodeFrame(nullptr, std::move(frame_out));
+            bool expect_output{};
+            mfx_sts = DecodeFrame(nullptr, std::move(frame_out), &expect_output);
 
         // exit cycle if MFX_ERR_MORE_DATA or critical error happens
         } while (MFX_ERR_NONE == mfx_sts || MFX_ERR_MORE_SURFACE == mfx_sts);
+
+        const auto timeout = std::chrono::seconds(10);
+        std::unique_lock<std::mutex> lock(dev_busy_mutex_);
+        bool cv_res =
+            dev_busy_cond_.wait_for(lock, timeout, [this] { return synced_points_count_ == 0; } );
+        if (!cv_res) {
+            MFX_DEBUG_TRACE_MSG("Timeout on drain completion");
+        }
     }
 }
 
-void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sync_point)
+void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint sync_point)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -892,69 +938,73 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
         }
     }
 
-    std::unique_ptr<C2Work> work = std::move(work_output.work_);
-    if (work) {
+    std::shared_ptr<mfxFrameSurface1> mfx_surface = frame_out.GetMfxFrameSurface();
+    MFX_DEBUG_TRACE_I32(mfx_surface->Data.Locked);
+    MFX_DEBUG_TRACE_I64(mfx_surface->Data.TimeStamp);
 
-        do {
-            if (C2_OK != res) break;
+    decltype(C2WorkOrdinalStruct::frameIndex) ready_frame_index{mfx_surface->Data.TimeStamp};
 
-            C2Event event;
-            event.fire(); // pre-fire event as output buffer is ready to use
+    std::unique_ptr<C2Work> work;
 
-            std::shared_ptr<mfxFrameSurface1> mfx_surface = work_output.frame_.GetMfxFrameSurface();
-            MFX_DEBUG_TRACE_P(mfx_surface.get());
-            if (!mfx_surface) {
-                res = C2_CORRUPTED;
-                break;
+    {
+        std::lock_guard<std::mutex> lock(pending_works_mutex_);
+        auto it = pending_works_.find(ready_frame_index);
+        if (it != pending_works_.end()) {
+            work = std::move(it->second);
+            pending_works_.erase(it);
+        }
+    }
+
+    do {
+
+        C2Event event;
+        event.fire(); // pre-fire event as output buffer is ready to use
+
+        const C2Rect rect = C2Rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH)
+            .at(mfx_surface->Info.CropX, mfx_surface->Info.CropY);
+
+        std::shared_ptr<C2GraphicBlock> block = frame_out.GetC2GraphicBlock();
+        if (!block) {
+            res = C2_CORRUPTED;
+            break;
+        }
+
+        if (video_params_.IOPattern != MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
+
+            {
+                std::lock_guard<std::mutex> lock(locked_surfaces_mutex_);
+                // If output is not Locked - we have to release it asap to not interfere with possible
+                // frame mapping in onWorkDone callback,
+                // if output is Locked - remove it temporarily from locked_surfaces_ to avoid holding
+                // locked_surfaces_mutex_ while long copy operation.
+                locked_surfaces_.remove(frame_out);
             }
 
-            MFX_DEBUG_TRACE_I32(mfx_surface->Data.Locked);
-            MFX_DEBUG_TRACE_I64(mfx_surface->Data.TimeStamp);
+            if (work && mfx_surface->Data.Locked) {
+                // if output is locked, we have to copy its contents for output
+                std::shared_ptr<C2GraphicBlock> new_block;
+                res = AllocateC2Block(block->width(), block->height(), &new_block);
+                if (C2_OK != res) break;
 
-            const C2Rect rect = C2Rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH)
-                .at(mfx_surface->Info.CropX, mfx_surface->Info.CropY);
+                std::unique_ptr<C2GraphicView> new_view;
 
-            std::shared_ptr<C2GraphicBlock> block = work_output.frame_.GetC2GraphicBlock();
-            if (!block) {
-                res = C2_CORRUPTED;
-                break;
+                res = MapGraphicBlock(*new_block, TIMEOUT_NS, &new_view);
+                if (C2_OK != res) break;
+
+                res = CopyGraphicView(frame_out.GetC2GraphicView().get(), new_view.get());
+                if (C2_OK != res) break;
+
+                block = new_block; // use new_block to deliver decoded result
             }
 
-            if (video_params_.IOPattern != MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
-
-                {
-                    std::lock_guard<std::mutex> lock(locked_surfaces_mutex_);
-                    // If output is not Locked - we have to release it asap to not interfere with possible
-                    // frame mapping in onWorkDone callback,
-                    // if output is Locked - remove it temporarily from locked_surfaces_ to avoid holding
-                    // locked_surfaces_mutex_ while long copy operation.
-                    locked_surfaces_.remove(work_output.frame_);
-                }
-
-                if (mfx_surface->Data.Locked) {
-                    // if output is locked, we have to copy its contents for output
-                    std::shared_ptr<C2GraphicBlock> new_block;
-                    res = AllocateC2Block(block->width(), block->height(), &new_block);
-                    if (C2_OK != res) break;
-
-                    std::unique_ptr<C2GraphicView> new_view;
-
-                    res = MapGraphicBlock(*new_block, TIMEOUT_NS, &new_view);
-                    if (C2_OK != res) break;
-
-                    res = CopyGraphicView(work_output.frame_.GetC2GraphicView().get(), new_view.get());
-                    if (C2_OK != res) break;
-
-                    block = new_block; // use new_block to deliver decoded result
-                }
-
-                if (mfx_surface->Data.Locked) {
-                    // if output is still locked, return it back to locked_surfaces_
-                    std::lock_guard<std::mutex> lock(locked_surfaces_mutex_);
-                    locked_surfaces_.push_back(work_output.frame_);
-                }
+            if (mfx_surface->Data.Locked) {
+                // if output is still locked, return it back to locked_surfaces_
+                std::lock_guard<std::mutex> lock(locked_surfaces_mutex_);
+                locked_surfaces_.push_back(frame_out);
             }
+        }
 
+        if (work) {
             C2ConstGraphicBlock const_graphic = block->share(rect, event.fence());
             C2Buffer out_buffer = MakeC2Buffer( { const_graphic } );
 
@@ -973,9 +1023,11 @@ void MfxC2DecoderComponent::WaitWork(C2WorkOutput&& work_output, mfxSyncPoint sy
             // Make shared_ptr keeping source block during lifetime of output buffer.
             worklet->output.buffers.push_back(
                 std::shared_ptr<C2Buffer>(new C2Buffer(out_buffer), deleter));
-        } while (false);
-        // Release output frame before onWorkDone is called, release causes unmap for system memory.
-        work_output.frame_ = MfxC2FrameOut();
+        }
+    } while (false);
+    // Release output frame before onWorkDone is called, release causes unmap for system memory.
+    frame_out = MfxC2FrameOut();
+    if (work) {
         NotifyWorkDone(std::move(work), res);
     }
 

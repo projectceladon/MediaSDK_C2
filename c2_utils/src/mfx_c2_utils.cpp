@@ -12,6 +12,8 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include "mfx_debug.h"
 #include "mfx_c2_debug.h"
 
+#include <iomanip>
+
 using namespace android;
 
 c2_status_t MfxStatusToC2(mfxStatus mfx_status)
@@ -576,4 +578,18 @@ c2_status_t CopyGraphicView(const C2GraphicView* src, C2GraphicView* dst)
 
     MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
+}
+
+std::string FormatHex(const uint8_t* data, size_t len)
+{
+    std::ostringstream ss;
+    ss << std::hex;
+    for (size_t i = 0; i < len; ++i) {
+        if (i > 20) {
+            ss << std::dec << std::setw(0) << "... [" << len << "]";
+            break;
+        }
+        ss << std::setw(2) << std::setfill('0') << (uint32_t)data[i] << " ";
+    }
+    return ss.str();
 }

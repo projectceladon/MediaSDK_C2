@@ -46,7 +46,7 @@ public:
     virtual std::shared_ptr<IMfxC2FrameConstructor> GetFrameConstructor() { return frame_constructor_; }
     // Maps c2 linear block and can leave it in mapped state until
     // frame_view freed or frame_view->Release is called.
-    virtual c2_status_t AppendFrame(C2FrameData& buf_pack, c2_nsecs_t timeout,
+    virtual c2_status_t AppendFrame(const C2FrameData& buf_pack, c2_nsecs_t timeout,
         std::unique_ptr<FrameView>* frame_view);
 
 protected: // variables
