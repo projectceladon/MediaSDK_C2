@@ -1,14 +1,42 @@
-cc_library_headers {
-    name: "codec2_headers",
+cc_library_shared {
+    name: "libstagefright_codec2",
+    vendor_available: true,
 
-    export_include_dirs = [
+    srcs: ["C2.cpp"],
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+
+    include_dirs: [
+        "frameworks/native/include/media/hardware",
+    ],
+
+    export_include_dirs: [
         "include",
     ],
 
-    vendor_available: true,
-}
+    header_libs: [
+        "libhardware_headers",
+        "libutils_headers",
+    ],
 
-subdirs = [
-    "tests",
-    "vndk",
-]
+    export_header_lib_headers: [
+        "libhardware_headers",
+        "libutils_headers",
+    ],
+
+    sanitize: {
+        misc_undefined: [
+            "unsigned-integer-overflow",
+            "signed-integer-overflow",
+        ],
+        cfi: false, // true,
+        diag: {
+            cfi: false, // true,
+        },
+    },
+
+    ldflags: ["-Wl,-Bsymbolic"],
+}

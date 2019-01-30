@@ -180,6 +180,7 @@ enum C2ParamIndexKind : C2Param::type_index_t {
 
     kParamIndexPictureTypeMask,
     kParamIndexPictureType,
+    kParamIndexHdr10PlusMetadata,
 
     /* ------------------------------------ video components ------------------------------------ */
 
@@ -1134,8 +1135,7 @@ constexpr char C2_PARAMKEY_SECURE_MODE[] = "algo.secure-mode";
  * Bitrate
  */
 typedef C2StreamParam<C2Info, C2Uint32Value, kParamIndexBitrate> C2StreamBitrateInfo;
-//typedef C2StreamBitrateInfo C2BitrateTuning; // deprecated
-typedef C2StreamParam<C2Tuning, C2Uint32Value, kParamIndexBitrate> C2BitrateTuning;
+typedef C2StreamBitrateInfo C2BitrateTuning; // deprecated
 constexpr char C2_PARAMKEY_BITRATE[] = "coded.bitrate";
 #define C2_NAME_STREAM_BITRATE_SETTING C2_PARAMKEY_BITRATE
 
@@ -1560,6 +1560,14 @@ struct C2HdrStaticMetadataStruct {
 typedef C2StreamParam<C2Info, C2HdrStaticMetadataStruct, kParamIndexHdrStaticMetadata>
         C2StreamHdrStaticInfo;
 constexpr char C2_PARAMKEY_HDR_STATIC_INFO[] = "raw.hdr-static-info";
+
+/**
+ * HDR10+ Metadata Info.
+ */
+typedef C2StreamParam<C2Info, C2BlobValue, kParamIndexHdr10PlusMetadata>
+        C2StreamHdr10PlusInfo;
+constexpr char C2_PARAMKEY_INPUT_HDR10_PLUS_INFO[] = "input.hdr10-plus-info";
+constexpr char C2_PARAMKEY_OUTPUT_HDR10_PLUS_INFO[] = "output.hdr10-plus-info";
 
 /* ------------------------------------ block-based coding ----------------------------------- */
 
