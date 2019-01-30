@@ -232,6 +232,7 @@ public:
 
     std::string GetMissingFramesList()
     {
+        std::lock_guard<std::mutex> lock(expectations_mutex_);
         std::ostringstream ss;
         bool first = true;
         for (const auto& index : frame_expected_set_) {
@@ -244,16 +245,19 @@ public:
 
     void RegisterSubmittedFrame(uint64_t frame_index)
     {
+        std::lock_guard<std::mutex> lock(expectations_mutex_);
         frame_expected_set_.insert(frame_index);
     }
 
     void ExpectFailures(int count, c2_status_t status)
     {
+        std::lock_guard<std::mutex> lock(expectations_mutex_);
         expected_failures_[status] += count;
     }
     // Tests if all works expected to fail actally failed.
     bool FailuresMatch()
     {
+        std::lock_guard<std::mutex> lock(expectations_mutex_);
         bool res = true;
         for (auto const& pair : expected_failures_) {
             EXPECT_EQ(pair.second, 0) << "c2_status_t: " << pair.first << ", "
@@ -284,10 +288,13 @@ protected:
 
                     EXPECT_EQ(buffer_pack.ordinal.timestamp, frame_index * FRAME_DURATION_US); // 30 fps
 
-                    EXPECT_NE(frame_expected_set_.find(frame_index), frame_expected_set_.end())
-                        << "unexpected frame_index value" << frame_index;
+                    {
+                        std::lock_guard<std::mutex> lock(expectations_mutex_);
+                        EXPECT_NE(frame_expected_set_.find(frame_index), frame_expected_set_.end())
+                            << "unexpected frame_index value" << frame_index;
 
-                    frame_expected_set_.erase(frame_index);
+                        frame_expected_set_.erase(frame_index);
+                    }
 
                     std::unique_ptr<C2ConstGraphicBlock> graphic_block;
                     c2_status_t sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
@@ -337,14 +344,18 @@ protected:
                     }
                 }
             } else {
+                std::lock_guard<std::mutex> lock(expectations_mutex_);
                 EXPECT_EQ(work->workletsProcessed, 0u);
                 EXPECT_TRUE(expected_failures_[work->result] > 0);
                 expected_failures_[work->result]--;
             }
         }
-        // if collected all expected frames
-        if (frame_expected_set_.empty()) {
-            done_.set_value();
+        {
+            std::lock_guard<std::mutex> lock(expectations_mutex_);
+            // if collected all expected frames
+            if (frame_expected_set_.empty()) {
+                done_.set_value();
+            }
         }
     }
 
@@ -366,6 +377,7 @@ protected:
 
 private:
     OnFrame on_frame_;
+    std::mutex expectations_mutex_;
     std::set<uint64_t> frame_expected_set_;
     std::map<c2_status_t, int> expected_failures_; // expected failures and how many times they should occur
     std::promise<void> done_;  // fire when all expected frames came

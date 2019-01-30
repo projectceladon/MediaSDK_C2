@@ -263,10 +263,12 @@ protected:
 
                 EXPECT_EQ(frame_index < FRAME_COUNT, true)
                     << "unexpected frame_index value" << frame_index;
-                EXPECT_EQ(frame_index, frame_expected_)
-                    << " frame " << frame_index << " is out of order";
-
-                ++frame_expected_;
+                {
+                    std::lock_guard<std::mutex> lock(expectations_mutex_);
+                    EXPECT_EQ(frame_index, frame_expected_)
+                        << " frame " << frame_index << " is out of order";
+                    ++frame_expected_;
+                }
 
                 std::unique_ptr<C2ConstLinearBlock> linear_block;
                 std::unique_ptr<C2ConstGraphicBlock> graphic_block;
@@ -306,9 +308,12 @@ protected:
                 }
             }
         }
-        // if collected all expected frames
-        if(frame_expected_ >= FRAME_COUNT) {
-            done_.set_value();
+        {
+            std::lock_guard<std::mutex> lock(expectations_mutex_);
+            // if collected all expected frames
+            if(frame_expected_ >= FRAME_COUNT) {
+                done_.set_value();
+            }
         }
     }
 
@@ -329,6 +334,7 @@ protected:
     }
 
 public:
+    std::mutex expectations_mutex_;
     uint64_t frame_expected_ = 0; // frame index is next to come
     C2BufferData::Type output_type_;
     std::promise<void> done_; // fire when all expected frames came

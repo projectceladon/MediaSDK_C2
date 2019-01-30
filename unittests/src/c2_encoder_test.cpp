@@ -295,9 +295,6 @@ protected:
         (void)component;
 
         for(std::unique_ptr<C2Work>& work : workItems) {
-            EXPECT_EQ(work->workletsProcessed, 1u) << NAMED(frame_expected_);
-            EXPECT_EQ(work->result, C2_OK);
-
             std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
             EXPECT_NE(nullptr, worklet);
             if(nullptr == worklet) continue;
@@ -306,14 +303,19 @@ protected:
 
             uint64_t frame_index = buffer_pack.ordinal.frameIndex.peeku();
 
+            EXPECT_EQ(work->workletsProcessed, 1u) << NAMED(frame_index);
+            EXPECT_EQ(work->result, C2_OK) << NAMED(frame_index);
+
             EXPECT_EQ(buffer_pack.ordinal.timestamp, frame_index * FRAME_DURATION_US); // 30 fps
 
-            EXPECT_EQ(frame_index < frame_count_, true)
-                << "unexpected frame_index value" << frame_index;
-            EXPECT_EQ(frame_index, frame_expected_)
-                << " frame " << frame_index << " is out of order";
-
-            ++frame_expected_;
+            {
+                std::lock_guard<std::mutex> lock(expectations_mutex_);
+                EXPECT_EQ(frame_index < frame_count_, true)
+                    << "unexpected frame_index value" << frame_index;
+                EXPECT_EQ(frame_index, frame_expected_)
+                    << " frame " << frame_index << " is out of order";
+                ++frame_expected_;
+            }
 
             std::unique_ptr<C2ConstLinearBlock> linear_block;
             c2_status_t sts = GetC2ConstLinearBlock(buffer_pack, &linear_block);
@@ -337,9 +339,12 @@ protected:
                 }
             }
         }
-        // if collected all expected frames
-        if(frame_expected_ >= frame_count_) {
-            done_.set_value();
+        {
+            std::lock_guard<std::mutex> lock(expectations_mutex_);
+            // if collected all expected frames
+            if(frame_expected_ >= frame_count_) {
+                done_.set_value();
+            }
         }
     }
 
@@ -361,6 +366,7 @@ protected:
 
 private:
     OnFrame on_frame_;
+    std::mutex expectations_mutex_;
     uint64_t frame_count_; // total frame count expected
     uint64_t frame_expected_; // frame index is next to come
     std::promise<void> done_; // fire when all expected frames came
