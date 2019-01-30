@@ -1,18 +1,7 @@
-cc_library_headers {
-    name: "libstagefright_codec2_internal",
-
-    export_include_dirs: [
-        "internal",
-    ],
-
-    // TODO: Remove this when this module is moved back to frameworks/av.
-    vendor_available: true,
-}
-
 // !!!DO NOT DEPEND ON THIS SHARED LIBRARY DIRECTLY!!!
 // use libstagefright_codec2-impl-defaults instead
 cc_library_shared {
-    name: "libstagefright_codec2_vndk",
+    name: "libstagefright_codec2_vndk_mfx",
     vendor_available: true,
 
     srcs: [
@@ -43,7 +32,7 @@ cc_library_shared {
     ],
 
     header_libs: [
-        "libcodec2_headers",
+        "codec2_headers",
         "media_plugin_headers",
     ],
 
@@ -63,9 +52,13 @@ cc_library_shared {
         "liblog",
         "libstagefright_bufferqueue_helper",
         "libstagefright_foundation",
-        "libstagefright_bufferpool@1.0",
+        "libstagefright_bufferpool_mfx@1.0",
         "libui",
         "libutils",
+    ],
+
+    whole_static_libs: [
+        "libmfx_mock_codec2_event",
     ],
 
     cflags: [
