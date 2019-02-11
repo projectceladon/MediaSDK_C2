@@ -3,9 +3,6 @@
 cc_library_shared {
     name: "libstagefright_codec2_vndk_mfx",
     vendor_available: true,
-    vndk: {
-        enabled: false,
-    },
 
     srcs: [
         "C2AllocatorIon.cpp",
@@ -34,12 +31,9 @@ cc_library_shared {
         "internal",
     ],
 
-    include_dirs: [
-        "frameworks/native/include/media/hardware",
-    ],
-
     header_libs: [
         "codec2_headers",
+        "media_plugin_headers",
     ],
 
     shared_libs: [
@@ -79,8 +73,8 @@ cc_defaults {
 
     shared_libs: [
         "libbase", // for C2_LOG
+        "libcodec2",
         "liblog", // for ALOG
-        "libstagefright_codec2",
         "libstagefright_codec2_vndk",
         "libutils",
     ],

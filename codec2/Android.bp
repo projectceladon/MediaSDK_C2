@@ -7,8 +7,3 @@ cc_library_headers {
 
     vendor_available: true,
 }
-
-subdirs = [
-    "tests",
-    "vndk",
-]
