@@ -887,6 +887,8 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         if (work) {
             if (C2_OK == res) {
                 std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
+                // Pass end of stream flag only.
+                worklet->output.flags = (C2FrameData::flags_t)(work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
                 worklet->output.ordinal = work->input.ordinal;
             }
             NotifyWorkDone(std::move(work), res);
@@ -1009,10 +1011,9 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             C2Buffer out_buffer = MakeC2Buffer( { const_graphic } );
 
             std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
-
-            worklet->output.ordinal.timestamp = work->input.ordinal.timestamp;
-            worklet->output.ordinal.frameIndex = work->input.ordinal.frameIndex;
-            worklet->output.ordinal.customOrdinal = work->input.ordinal.customOrdinal;
+            // Pass end of stream flag only.
+            worklet->output.flags = (C2FrameData::flags_t)(work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
+            worklet->output.ordinal = work->input.ordinal;
 
             // Deleter is for keeping source block in lambda capture.
             // block reference count is increased as shared_ptr is captured to the lambda by value.

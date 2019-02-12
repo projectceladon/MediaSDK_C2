@@ -202,10 +202,10 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<C2Work>&& work)
             if (res != C2_OK) break;
         }
 
+        // Pass end of stream flag only.
+        output.flags = (C2FrameData::flags_t)(input.flags & C2FrameData::FLAG_END_OF_STREAM);
         //  form header of output data, copy input timestamps, etc. to identify data in test
-        output.ordinal.timestamp = input.ordinal.timestamp;
-        output.ordinal.frameIndex = input.ordinal.frameIndex;
-        output.ordinal.customOrdinal = input.ordinal.customOrdinal;
+        output.ordinal = input.ordinal;
 
         auto process_method = (type_ == Encoder) ?
             &MfxC2MockComponent::CopyGraphicToLinear : &MfxC2MockComponent::CopyLinearToGraphic;
