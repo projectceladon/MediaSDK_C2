@@ -301,6 +301,8 @@ protected:
 
                     uint64_t frame_index = buffer_pack.ordinal.frameIndex.peeku();
 
+                    bool last_frame = (work->input.flags & C2FrameData::FLAG_END_OF_STREAM) != 0;
+                    EXPECT_EQ(buffer_pack.flags, last_frame ? C2FrameData::FLAG_END_OF_STREAM : C2FrameData::flags_t{});
                     EXPECT_EQ(buffer_pack.ordinal.timestamp, frame_index * FRAME_DURATION_US); // 30 fps
 
                     {
