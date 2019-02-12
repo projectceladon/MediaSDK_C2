@@ -15,18 +15,14 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 c2_status_t MfxC2ParamStorage::QueryParam(C2Param::Type type, C2Param** dst) const
 {
     c2_status_t res = C2_OK;
-    const auto const_found = const_values_.find(type);
-    if (const_found != const_values_.end()) {
-        auto operations_found = param_operations_.find(type);
-        if (operations_found != param_operations_.end()) {
-            const C2ParamOperations& operations = operations_found->second;
-            if (nullptr == *dst) {
-                *dst = operations.allocate_();
-            }
-            operations.assign_(const_found->second.get(), *dst);
-        } else {
-            res = C2_CORRUPTED;
+
+    auto operations_found = param_operations_.find(type);
+    if (operations_found != param_operations_.end()) {
+        const C2ParamOperations& operations = operations_found->second;
+        if (nullptr == *dst) {
+            *dst = operations.allocate_();
         }
+        operations.fill_(*dst);
     } else {
         res = C2_NOT_FOUND;
     }

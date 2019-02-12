@@ -54,6 +54,17 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, int flags, Dec
             pr.AddConstValue(C2_NAME_OUTPUT_STREAM_FORMAT_SETTING,
                 std::make_unique<C2StreamFormatConfig::output>(SINGLE_STREAM_ID, C2FormatVideo));
 
+            pr.AddStreamInfo<C2StreamPictureSizeInfo::output>(
+                C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
+                [this] (C2StreamPictureSizeInfo::output* dst)->bool {
+                    MFX_DEBUG_TRACE("AssignPictureSize");
+                    dst->width = video_params_.mfx.FrameInfo.Width;
+                    dst->height = video_params_.mfx.FrameInfo.Height;
+                    MFX_DEBUG_TRACE_STREAM(NAMED(dst->width) << NAMED(dst->height));
+                    return true;
+                }
+            );
+
         break;
     }
 
