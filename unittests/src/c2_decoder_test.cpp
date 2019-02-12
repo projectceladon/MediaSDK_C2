@@ -288,8 +288,6 @@ protected:
         std::weak_ptr<C2Component> component,
         std::list<std::unique_ptr<C2Work>> workItems) override
     {
-        (void)component;
-
         for(std::unique_ptr<C2Work>& work : workItems) {
             EXPECT_EQ(work->worklets.size(), 1u);
             if (C2_OK == work->result) {
@@ -317,6 +315,16 @@ protected:
                         C2Rect crop = graphic_block->crop();
                         EXPECT_NE(crop.width, 0u);
                         EXPECT_NE(crop.height, 0u);
+
+                        std::shared_ptr<C2Component> comp = component.lock();
+                        if (comp) {
+                            C2StreamPictureSizeInfo::output picture_size;
+                            sts = comp->intf()->query_vb({&picture_size}, {}, C2_MAY_BLOCK, nullptr);
+                            EXPECT_EQ(sts, C2_OK);
+                            EXPECT_EQ(picture_size.width, crop.width);
+                            EXPECT_EQ(picture_size.height, crop.height);
+                            comp = nullptr;
+                        }
 
                         std::unique_ptr<const C2GraphicView> c_graph_view;
                         sts = MapConstGraphicBlock(*graphic_block, TIMEOUT_NS, &c_graph_view);
