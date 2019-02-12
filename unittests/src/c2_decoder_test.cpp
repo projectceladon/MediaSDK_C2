@@ -36,6 +36,8 @@ static std::vector<C2ParamDescriptor> dec_params_desc =
     { false, "MemoryType", C2MemoryTypeSetting::PARAM_TYPE },
     { false, C2_NAME_INPUT_STREAM_FORMAT_SETTING, C2StreamFormatConfig::input::PARAM_TYPE },
     { false, C2_NAME_OUTPUT_STREAM_FORMAT_SETTING, C2StreamFormatConfig::output::PARAM_TYPE },
+    { false, C2_PARAMKEY_COMPONENT_DOMAIN, C2ComponentDomainSetting::PARAM_TYPE },
+    { false, C2_PARAMKEY_COMPONENT_KIND, C2ComponentKindSetting::PARAM_TYPE },
 };
 
 namespace {

@@ -42,6 +42,12 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, int flags, Dec
 
             pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
 
+            pr.AddConstValue(C2_PARAMKEY_COMPONENT_DOMAIN,
+                std::make_unique<C2ComponentDomainSetting>(C2Component::DOMAIN_VIDEO));
+
+            pr.AddConstValue(C2_PARAMKEY_COMPONENT_KIND,
+                std::make_unique<C2ComponentKindSetting>(C2Component::KIND_DECODER));
+
             const unsigned int SINGLE_STREAM_ID = 0u;
             pr.AddConstValue(C2_NAME_INPUT_STREAM_FORMAT_SETTING,
                 std::make_unique<C2StreamFormatConfig::input>(SINGLE_STREAM_ID, C2FormatCompressed));
