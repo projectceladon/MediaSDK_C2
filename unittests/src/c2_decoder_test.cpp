@@ -362,7 +362,8 @@ protected:
                             "unexpected " << (empty ? "empty" : "filled") << " frame #" << frame_index;
                         // Signal done_ promise upon completion of all expected frames,
                         // should done under same mutex as expected sets modifications to avoid double set_value
-                        if (frame_expected_set_.empty() && frame_expected_empty_set_.empty()) {
+                        if (frame_expected_set_.empty() && frame_expected_empty_set_.empty() &&
+                            expected_failures_.empty()) {
                             done_.set_value();
                         }
                     }
@@ -372,6 +373,14 @@ protected:
                 EXPECT_EQ(work->workletsProcessed, 0u);
                 EXPECT_TRUE(expected_failures_[work->result] > 0);
                 expected_failures_[work->result]--;
+                if (expected_failures_[work->result] == 0) {
+                    expected_failures_.erase(work->result);
+                }
+
+                if (frame_expected_set_.empty() && frame_expected_empty_set_.empty() &&
+                    expected_failures_.empty()) {
+                    done_.set_value();
+                }
             }
         }
     }
@@ -484,7 +493,7 @@ static void Decode(
         if (valid) {
             validator->RegisterSubmittedFrame(frame_index, !complete_frame);
         } else {
-            validator->ExpectFailures(1, C2_NOT_FOUND);
+            validator->ExpectFailures(1, C2_BAD_VALUE);
         }
 
         sts = component->queue_nb(&works);
@@ -889,6 +898,78 @@ TEST_P(Decoder, SeparateEos)
                 std::shared_ptr<DecoderConsumer> validator =
                     std::make_shared<DecoderConsumer>(on_frame);
                 HeaderBreaker stream_splitter(streams);
+
+                Decode(use_graphics_memory, comp, validator, &stream_splitter);
+
+                std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
+                std::list<uint32_t> expected_crc;
+                std::transform(streams.begin(), streams.end(), std::back_inserter(expected_crc),
+                    [] (const StreamDescription* stream) { return stream->crc32_nv12; } );
+
+                EXPECT_EQ(actual_crc, expected_crc) << "Not equal to reference CRC32"
+                    << memory_names[use_graphics_memory];
+            }
+        }
+    } );
+}
+
+// Follow last frame with series of Eos works without frame.
+TEST_P(Decoder, MultipleEos)
+{
+    class EosBreaker : public FrameStreamSplitter
+    {
+    public:
+        using FrameStreamSplitter::FrameStreamSplitter;
+        bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid) override
+        {
+            bool res{};
+            if (FrameStreamSplitter::EndOfStream()) {
+                part->clear();
+                *header = false;
+                *complete_frame = false;
+                *valid = (eos_returned_ == 0);
+                res = (eos_returned_ < 10);
+                eos_returned_++;
+            } else {
+                res = FrameStreamSplitter::Read(part, header, complete_frame, valid);
+            }
+            return res;
+        }
+        bool EndOfStream() override
+        {
+            return eos_returned_ > 0;
+        }
+    private:
+        int eos_returned_{0};
+    };
+
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+
+        std::map<bool, std::string> memory_names = {
+            { false, "(system memory)" },
+            { true, "(video memory)" },
+        };
+
+        for(const std::vector<const StreamDescription*>& streams : desc.streams) {
+
+            for (bool use_graphics_memory : { false, true }) {
+
+                CRC32Generator crc_generator;
+
+                GTestBinaryWriter writer(std::ostringstream()
+                    << comp_intf->getName() << "-" << GetStreamsCombinedName(streams) << ".nv12");
+
+                DecoderConsumer::OnFrame on_frame = [&] (uint32_t width, uint32_t height,
+                    const uint8_t* data, size_t length) {
+
+                    writer.Write(data, length);
+                    crc_generator.AddData(width, height, data, length);
+                };
+
+                std::shared_ptr<DecoderConsumer> validator =
+                    std::make_shared<DecoderConsumer>(on_frame);
+                EosBreaker stream_splitter(streams);
 
                 Decode(use_graphics_memory, comp, validator, &stream_splitter);
 

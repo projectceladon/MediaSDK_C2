@@ -139,6 +139,7 @@ private:
     mfxU16 max_width_ {};
     mfxU16 max_height_ {};
 
+    bool eos_returned_ {};
     // Members handling MFX_WRN_DEVICE_BUSY.
     // Active sync points got from DecodeFrameAsync for waiting on.
     std::atomic_uint synced_points_count_;

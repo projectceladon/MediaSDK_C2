@@ -121,6 +121,7 @@ c2_status_t MfxC2DecoderComponent::DoStart()
 
     synced_points_count_ = 0;
     mfxStatus mfx_res = MFX_ERR_NONE;
+    eos_returned_ = false;
 
     do {
         bool allocator_required = (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY);
@@ -760,6 +761,11 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
     bool expect_output = false;
 
     do {
+        if (eos_returned_) {
+            res = C2_BAD_VALUE;
+            break;
+        }
+
         std::unique_ptr<MfxC2BitstreamIn::FrameView> bitstream_view;
         res = c2_bitstream_->AppendFrame(work->input, TIMEOUT_NS, &bitstream_view);
         if (C2_OK != res) break;
@@ -898,6 +904,9 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 // Pass end of stream flag only.
                 worklet->output.flags = (C2FrameData::flags_t)(work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
                 worklet->output.ordinal = work->input.ordinal;
+                if (worklet->output.flags & C2FrameData::FLAG_END_OF_STREAM) {
+                    eos_returned_ = true;
+                }
             }
             NotifyWorkDone(std::move(work), res);
         }
