@@ -114,7 +114,9 @@ private:
         uint32_t usage_lo;
         uint32_t usage_hi;
         uint32_t stride;
+#if __ANDROID_API__ > 28
         uint32_t generation;
+#endif
         uint32_t igbp_id_lo;
         uint32_t igbp_id_hi;
         uint32_t igbp_slot;
@@ -145,7 +147,11 @@ private:
 public:
     void getIgbpData(uint32_t *generation, uint64_t *igbp_id, uint32_t *igbp_slot) const {
         const ExtraData *ed = getExtraData(this);
+#if __ANDROID_API__ > 28
         *generation = ed->generation;
+#else
+        *generation = 0;
+#endif
         *igbp_id = unsigned(ed->igbp_id_lo) | uint64_t(unsigned(ed->igbp_id_hi)) << 32;
         *igbp_slot = ed->igbp_slot;
     }
@@ -163,6 +169,9 @@ public:
             const native_handle_t *const handle,
             uint32_t width, uint32_t height, uint32_t format, uint64_t usage,
             uint32_t stride, uint32_t generation, uint64_t igbp_id = 0, uint32_t igbp_slot = 0) {
+#if __ANDROID_API__ <= 28
+        (void)generation;
+#endif
         //CHECK(handle != nullptr);
         if (native_handle_is_invalid(handle) ||
             handle->numInts > int((INT_MAX - handle->version) / sizeof(int)) - NUM_INTS - handle->numFds) {
@@ -170,7 +179,11 @@ public:
         }
         ExtraData xd = {
             width, height, format, uint32_t(usage & 0xFFFFFFFF), uint32_t(usage >> 32),
-            stride, generation, uint32_t(igbp_id & 0xFFFFFFFF), uint32_t(igbp_id >> 32),
+            stride,
+#if __ANDROID_API__ > 28
+            generation,
+#endif
+            uint32_t(igbp_id & 0xFFFFFFFF), uint32_t(igbp_id >> 32),
             igbp_slot, MAGIC
         };
         native_handle_t *res = native_handle_create(handle->numFds, handle->numInts + NUM_INTS);
@@ -201,7 +214,11 @@ public:
         if (xd == nullptr || xd->magic != MAGIC) {
             return nullptr;
         }
+#if __ANDROID_API__ > 28
         *generation = xd->generation;
+#else
+        *generation = 0;
+#endif
         *igbp_id = unsigned(xd->igbp_id_lo) | uint64_t(unsigned(xd->igbp_id_hi)) << 32;
         *igbp_slot = xd->igbp_slot;
         native_handle_t *res = native_handle_create(handle->numFds, handle->numInts - NUM_INTS);
@@ -225,7 +242,11 @@ public:
         *format = xd->format;
         *usage = xd->usage_lo | (uint64_t(xd->usage_hi) << 32);
         *stride = xd->stride;
+#if __ANDROID_API__ > 28
         *generation = xd->generation;
+#else
+        *generation = 0;
+#endif
         *igbp_id = xd->igbp_id_lo | (uint64_t(xd->igbp_id_hi) << 32);
         *igbp_slot = xd->igbp_slot;
         return reinterpret_cast<const C2HandleGralloc *>(handle);

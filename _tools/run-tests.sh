@@ -58,7 +58,8 @@ mkdir $local_dir/vendor/etc
 libs=\
 libmfx_mock_c2_components.so,\
 libmfx_c2_components_hw.so,\
-libmfxhw${bitness}.so
+libmfxhw${bitness}.so,\
+libstagefright_codec2_vndk_mfx.so
 
 execs=\
 mfx_c2_store_unittests,\
@@ -70,7 +71,6 @@ scp $remote_server:${remote_output}vendor/\{$remote_lib/\{$libs\},bin/\{$execs\}
 service=hardware.intel.media.c2@1.0-service
 
 service_system_libs="\
-libstagefright_codec2_vndk_mfx.so,\
 libstagefright_bufferpool_mfx@1.0.so,\
 hardware.google.media.c2@1.0.so,\
 libcodec2_hidl_utils@1.0.so,\
@@ -87,7 +87,8 @@ then
     service_libs="\
 libmfx_mock_c2_components.so,\
 libmfx_c2_components_hw.so,\
-libmfxhw32.so"
+libmfxhw32.so,\
+libstagefright_codec2_vndk_mfx.so"
 
     scp $remote_server:${remote_output}vendor/lib/\{$service_libs\} ${local_dir}/service
 
