@@ -62,6 +62,11 @@ c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_
             break;
         }
 
+        if (buf_pack.buffers.size() == 0) {
+            frame_constructor_->SetEosMode(buf_pack.flags & C2FrameData::FLAG_END_OF_STREAM);
+            break;
+        }
+
         std::unique_ptr<C2ConstLinearBlock> c_linear_block;
         res = GetC2ConstLinearBlock(buf_pack, &c_linear_block);
         if(C2_OK != res) break;

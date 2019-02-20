@@ -764,6 +764,8 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         res = c2_bitstream_->AppendFrame(work->input, TIMEOUT_NS, &bitstream_view);
         if (C2_OK != res) break;
 
+        if (work->input.buffers.size() == 0) break;
+
         {
             std::lock_guard<std::mutex> lock(pending_works_mutex_);
             auto it = pending_works_.find(incoming_frame_index);
