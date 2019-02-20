@@ -216,7 +216,11 @@ c2_status_t MfxC2ParamReflector::getSupportedParams(
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    (*params) = params_descriptors_;
+    params->clear();
+    std::copy_if(params_descriptors_.begin(), params_descriptors_.end(),
+        std::back_inserter(*params),
+        [](const auto& p) { return p->index().isVendor(); }
+    );
 
     return C2_OK;
 }
