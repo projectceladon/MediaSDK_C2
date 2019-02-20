@@ -44,13 +44,9 @@ std::vector<C2ParamDescriptor> DefaultC2Params()
     std::vector<C2ParamDescriptor> param =
     {
         { false, "RateControl", C2RateControlSetting::PARAM_TYPE },
-        { false, "FrameRate", C2FrameRateSetting::output::PARAM_TYPE },
-        { false, "Bitrate", C2BitrateTuning::output::PARAM_TYPE },
         { false, "FrameQP", C2FrameQPSetting::PARAM_TYPE },
-        { false, "IntraRefresh", C2IntraRefreshTuning::PARAM_TYPE },
         { false, "Profile", C2ProfileSetting::PARAM_TYPE },
         { false, "Level", C2LevelSetting::PARAM_TYPE },
-        { false, "SupportedProfilesLevels", C2ProfileLevelInfo::output::PARAM_TYPE },
         { false, "MemoryType", C2MemoryTypeSetting::PARAM_TYPE },
     };
     return param;
