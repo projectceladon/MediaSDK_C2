@@ -177,42 +177,44 @@ static void PrepareWork(uint32_t frame_index,
 
     do {
 
-        std::shared_ptr<C2BlockPool> allocator;
-        c2_status_t sts = GetCodec2BlockPool(C2BlockPool::BASIC_LINEAR,
-            component, &allocator);
+        if (!bitstream.empty()) {
+            std::shared_ptr<C2BlockPool> allocator;
+            c2_status_t sts = GetCodec2BlockPool(C2BlockPool::BASIC_LINEAR,
+                component, &allocator);
 
-        EXPECT_EQ(sts, C2_OK);
-        EXPECT_NE(allocator, nullptr);
+            EXPECT_EQ(sts, C2_OK);
+            EXPECT_NE(allocator, nullptr);
 
-        if(nullptr == allocator) break;
+            if(nullptr == allocator) break;
 
-        C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
-        std::shared_ptr<C2LinearBlock> block;
-        sts = allocator->fetchLinearBlock(bitstream.size(),
-            mem_usage, &block);
+            C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
+            std::shared_ptr<C2LinearBlock> block;
+            sts = allocator->fetchLinearBlock(bitstream.size(),
+                mem_usage, &block);
 
-        EXPECT_EQ(sts, C2_OK);
-        EXPECT_NE(block, nullptr);
+            EXPECT_EQ(sts, C2_OK);
+            EXPECT_NE(block, nullptr);
 
-        if(nullptr == block) break;
+            if(nullptr == block) break;
 
-        std::unique_ptr<C2WriteView> write_view;
-        sts = MapLinearBlock(*block, TIMEOUT_NS, &write_view);
-        EXPECT_EQ(sts, C2_OK);
-        EXPECT_NE(write_view, nullptr);
+            std::unique_ptr<C2WriteView> write_view;
+            sts = MapLinearBlock(*block, TIMEOUT_NS, &write_view);
+            EXPECT_EQ(sts, C2_OK);
+            EXPECT_NE(write_view, nullptr);
 
-        uint8_t* data = write_view->data();
-        EXPECT_NE(data, nullptr);
+            uint8_t* data = write_view->data();
+            EXPECT_NE(data, nullptr);
 
-        memcpy(data, &bitstream.front(), bitstream.size());
+            memcpy(data, &bitstream.front(), bitstream.size());
 
-        C2Event event;
-        event.fire(); // pre-fire as buffer is already ready to use
-        C2ConstLinearBlock const_block = block->share(0, bitstream.size(), event.fence());
-        // make buffer of linear block
-        std::shared_ptr<C2Buffer> buffer = std::make_shared<C2Buffer>(MakeC2Buffer( { const_block } ));
+            C2Event event;
+            event.fire(); // pre-fire as buffer is already ready to use
+            C2ConstLinearBlock const_block = block->share(0, bitstream.size(), event.fence());
+            // make buffer of linear block
+            std::shared_ptr<C2Buffer> buffer = std::make_shared<C2Buffer>(MakeC2Buffer( { const_block } ));
 
-        buffer_pack->buffers.push_back(buffer);
+            buffer_pack->buffers.push_back(buffer);
+        }
 
         std::unique_ptr<C2Worklet> worklet = std::make_unique<C2Worklet>();
         // work of 1 worklet
@@ -303,27 +305,13 @@ protected:
                     EXPECT_EQ(buffer_pack.flags, last_frame ? C2FrameData::FLAG_END_OF_STREAM : C2FrameData::flags_t{});
                     EXPECT_EQ(buffer_pack.ordinal.timestamp, frame_index * FRAME_DURATION_US); // 30 fps
 
-                    {
-                        std::lock_guard<std::mutex> lock(expectations_mutex_);
-                        EXPECT_TRUE(frame_expected_set_.find(frame_index) != frame_expected_set_.end() ||
-                            frame_expected_empty_set_.find(frame_index) != frame_expected_empty_set_.end()) << frame_index;
-
-                        if (frame_expected_empty_set_.find(frame_index) != frame_expected_empty_set_.end()) {
-                            frame_expected_empty_set_.erase(frame_index);
-                            EXPECT_EQ(buffer_pack.buffers.size(), 0u) << NAMED(frame_index);
-                            continue;
-                        }
-                    }
-
-                    EXPECT_NE(frame_expected_set_.find(frame_index), frame_expected_set_.end())
-                        << "unexpected frame_index value" << frame_index;
-
-                    frame_expected_set_.erase(frame_index);
-
+                    c2_status_t sts{};
                     std::unique_ptr<C2ConstGraphicBlock> graphic_block;
-                    c2_status_t sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
-                    EXPECT_EQ(sts, C2_OK) << NAMED(frame_index) << "Output buffer count: " << buffer_pack.buffers.size();
 
+                    if (buffer_pack.buffers.size() > 0) {
+                        sts = GetC2ConstGraphicBlock(buffer_pack, &graphic_block);
+                        EXPECT_EQ(sts, C2_OK) << NAMED(frame_index) << "Output buffer count: " << buffer_pack.buffers.size();
+                    }
                     if(nullptr != graphic_block) {
 
                         C2Rect crop = graphic_block->crop();
@@ -366,19 +354,24 @@ protected:
                             }
                         }
                     }
+                    {
+                        std::lock_guard<std::mutex> lock(expectations_mutex_);
+                        bool empty = buffer_pack.buffers.size() == 0;
+                        std::set<uint64_t>& check_set = empty ? frame_expected_empty_set_ : frame_expected_set_;
+                        EXPECT_EQ(check_set.erase(frame_index), 1u) <<
+                            "unexpected " << (empty ? "empty" : "filled") << " frame #" << frame_index;
+                        // Signal done_ promise upon completion of all expected frames,
+                        // should done under same mutex as expected sets modifications to avoid double set_value
+                        if (frame_expected_set_.empty() && frame_expected_empty_set_.empty()) {
+                            done_.set_value();
+                        }
+                    }
                 }
             } else {
                 std::lock_guard<std::mutex> lock(expectations_mutex_);
                 EXPECT_EQ(work->workletsProcessed, 0u);
                 EXPECT_TRUE(expected_failures_[work->result] > 0);
                 expected_failures_[work->result]--;
-            }
-        }
-        {
-            std::lock_guard<std::mutex> lock(expectations_mutex_);
-            // if collected all expected frames
-            if (frame_expected_set_.empty() && frame_expected_empty_set_.empty()) {
-                done_.set_value();
             }
         }
     }
@@ -826,6 +819,78 @@ TEST_P(Decoder, SeparateHeaders)
 
                 HeaderSplitter headerSplitter(streams);
                 Decode(use_graphics_memory, comp, validator, &headerSplitter);
+
+                std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
+                std::list<uint32_t> expected_crc;
+                std::transform(streams.begin(), streams.end(), std::back_inserter(expected_crc),
+                    [] (const StreamDescription* stream) { return stream->crc32_nv12; } );
+
+                EXPECT_EQ(actual_crc, expected_crc) << "Not equal to reference CRC32"
+                    << memory_names[use_graphics_memory];
+            }
+        }
+    } );
+}
+
+// Sends last frame without eos flag, then empty input buffer with eos flag.
+TEST_P(Decoder, SeparateEos)
+{
+    class HeaderBreaker : public FrameStreamSplitter
+    {
+    public:
+        using FrameStreamSplitter::FrameStreamSplitter;
+        bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid) override
+        {
+            bool res{};
+            if (FrameStreamSplitter::EndOfStream()) {
+                part->clear();
+                *header = false;
+                *complete_frame = false;
+                *valid = true;
+                res = !eos_returned_;
+                eos_returned_ = true;
+            } else {
+                res = FrameStreamSplitter::Read(part, header, complete_frame, valid);
+            }
+            return res;
+        }
+        bool EndOfStream() override
+        {
+            return eos_returned_;
+        }
+    private:
+        bool eos_returned_{false};
+    };
+
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+
+        std::map<bool, std::string> memory_names = {
+            { false, "(system memory)" },
+            { true, "(video memory)" },
+        };
+
+        for(const std::vector<const StreamDescription*>& streams : desc.streams) {
+
+            for (bool use_graphics_memory : { false, true }) {
+
+                CRC32Generator crc_generator;
+
+                GTestBinaryWriter writer(std::ostringstream()
+                    << comp_intf->getName() << "-" << GetStreamsCombinedName(streams) << ".nv12");
+
+                DecoderConsumer::OnFrame on_frame = [&] (uint32_t width, uint32_t height,
+                    const uint8_t* data, size_t length) {
+
+                    writer.Write(data, length);
+                    crc_generator.AddData(width, height, data, length);
+                };
+
+                std::shared_ptr<DecoderConsumer> validator =
+                    std::make_shared<DecoderConsumer>(on_frame);
+                HeaderBreaker stream_splitter(streams);
+
+                Decode(use_graphics_memory, comp, validator, &stream_splitter);
 
                 std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
                 std::list<uint32_t> expected_crc;
