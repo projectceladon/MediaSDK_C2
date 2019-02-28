@@ -63,9 +63,19 @@ void MfxCmdQueue::WaitingPop(MfxCmd* command)
 {
     MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
     std::unique_lock<std::mutex> lock(mutex_);
+    if (data_.empty()) {
+        condition_empty_.notify_one();
+    }
     condition_.wait(lock, [this] { return !paused_ && !data_.empty(); });
     *command = data_.front();
     data_.pop();
+}
+
+void MfxCmdQueue::WaitForEmpty()
+{
+    MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
+    std::unique_lock<std::mutex> lock(mutex_);
+    condition_empty_.wait(lock, [this] { return data_.empty(); });
 }
 
 void MfxCmdQueue::Shutdown(bool abort)

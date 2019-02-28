@@ -42,6 +42,8 @@ public:
     template<class Task>
     void Push(Task&& task);
 
+    void WaitForEmpty();
+
 private:
     typedef std::function<void()> MfxCmd;
 
@@ -57,6 +59,7 @@ private:
     std::queue<MfxCmd> data_;
     bool paused_{false};
     std::condition_variable condition_; // event from push to processor
+    std::condition_variable condition_empty_; // event queue is clean
     std::thread working_thread_;
     std::mutex thread_mutex_; // protect thread create/join operations
 };

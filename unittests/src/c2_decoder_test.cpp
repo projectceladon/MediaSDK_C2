@@ -22,6 +22,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include "streams/h265/stream_nv12_352x288_cqp_g15_100.265.h"
 #include "streams/vp9/stream_nv12_176x144_cqp_g30_100.vp9.ivf.h"
 #include "streams/vp9/stream_nv12_352x288_cqp_g15_100.vp9.ivf.h"
+#include "util/C2Debug-base.h"
 
 #include <future>
 #include <set>
@@ -223,6 +224,114 @@ static void PrepareWork(uint32_t frame_index,
     } while(false);
 }
 
+class Expectation
+{
+public:
+    std::string Format()
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::ostringstream ss;
+        bool any_printed = false;
+
+        auto print_set = [&](const char* name, const std::set<uint64_t>& set) {
+
+            if (!set.empty()) {
+                if (any_printed) ss << "; ";
+                ss << name;
+                bool first = true;
+                for (const auto& index : set) {
+                    ss << (first ? ": " : ",") << index;
+                    first = false;
+                }
+                any_printed = true;
+            }
+        };
+
+        print_set("Filled", frame_set_);
+        print_set("Empty", frame_empty_set_);
+
+        if (!failures_.empty()) {
+            if (any_printed) ss << "; ";
+            ss << "Failures: ";
+            bool first = true;
+            for (auto const& pair : failures_) {
+                ss << (first ? "{ " : ", ") << pair.first << ":" << pair.second;
+                first = false;
+            }
+            ss << " }";
+        }
+
+        return ss.str();
+    }
+
+    void ExpectFrame(uint64_t frame_index, bool expect_empty)
+    {
+        MFX_DEBUG_TRACE_FUNC;
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (expect_empty) {
+            MFX_DEBUG_TRACE_STREAM("Register empty: " << frame_index);
+            frame_empty_set_.insert(frame_index);
+        } else {
+            MFX_DEBUG_TRACE_STREAM("Register filled: " << frame_index);
+            frame_set_.insert(frame_index);
+        }
+    }
+
+    void ExpectFailures(int count, c2_status_t status)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        failures_[status] += count;
+    }
+    // Assign *met_all true if passed frame_index completes all expectations.
+    void CheckFrame(uint64_t frame_index, bool frame_empty, bool* met_all = nullptr)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::set<uint64_t>& check_set = frame_empty ? frame_empty_set_ : frame_set_;
+        size_t erased_count = check_set.erase(frame_index);
+        EXPECT_EQ(erased_count, 1u) <<
+            "unexpected " << (frame_empty ? "empty" : "filled") << " frame #" << frame_index;
+        // This method is used to signal completion of all expectations with std::promise,
+        // so met_all should be returned as true only once
+        // and under same mutex as expected sets modifications to avoid call double std::promise::set_value.
+        if (met_all) {
+            *met_all = (erased_count > 0) && EmptyInternal();
+        }
+    }
+    // Assign *met_all true if passed expected error completes all expectations.
+    void CheckFailure(c2_status_t status, bool* met_all = nullptr)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        bool expected = failures_[status] > 0;
+        EXPECT_TRUE(expected);
+        failures_[status]--;
+        if (failures_[status] == 0) {
+            failures_.erase(status);
+        }
+        if (met_all) {
+            *met_all = expected && EmptyInternal();
+        }
+    }
+
+    bool Empty()
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return EmptyInternal();
+    }
+
+private:
+    bool EmptyInternal() // private thread-unsafe version
+    {
+        return frame_set_.empty() && frame_empty_set_.empty() &&
+            failures_.empty();
+    }
+
+private:
+    std::mutex mutex_;
+    std::set<uint64_t> frame_set_;
+    std::set<uint64_t> frame_empty_set_;
+    std::map<c2_status_t, int> failures_; // expected failures and how many times they should occur
+};
+
 class DecoderConsumer : public C2Component::Listener
 {
 public:
@@ -233,57 +342,17 @@ public:
     DecoderConsumer(OnFrame on_frame):
         on_frame_(on_frame) {}
 
-    // future ready when validator got all expected frames
+    // future ready when validator got all expectations (frames and failures)
     std::future<void> GetFuture()
     {
         return done_.get_future();
     }
 
-    std::string GetMissingFramesList()
+    Expectation& GetExpectation()
     {
-        std::lock_guard<std::mutex> lock(expectations_mutex_);
-        std::ostringstream ss;
-        bool first = true;
-        for (const auto& index : frame_expected_set_) {
-            if (!first) ss << ";";
-            ss << index;
-            first = false;
-        }
-        return ss.str();
+        return expect_;
     }
 
-    void RegisterSubmittedFrame(uint64_t frame_index, bool expect_empty = false)
-    {
-        MFX_DEBUG_TRACE_FUNC;
-        std::lock_guard<std::mutex> lock(expectations_mutex_);
-        if (expect_empty) {
-            MFX_DEBUG_TRACE_STREAM("Register empty: " << frame_index);
-            frame_expected_empty_set_.insert(frame_index);
-        } else {
-            MFX_DEBUG_TRACE_STREAM("Register filled: " << frame_index);
-            frame_expected_set_.insert(frame_index);
-        }
-    }
-
-    void ExpectFailures(int count, c2_status_t status)
-    {
-        std::lock_guard<std::mutex> lock(expectations_mutex_);
-        expected_failures_[status] += count;
-    }
-    // Tests if all works expected to fail actally failed.
-    bool FailuresMatch()
-    {
-        std::lock_guard<std::mutex> lock(expectations_mutex_);
-        bool res = true;
-        for (auto const& pair : expected_failures_) {
-            EXPECT_EQ(pair.second, 0) << "c2_status_t: " << pair.first << ", "
-                << "count: " << pair.second;
-            if (pair.second != 0) {
-                res = false;
-            }
-        }
-        return res;
-    }
 protected:
     void onWorkDone_nb(
         std::weak_ptr<C2Component> component,
@@ -363,31 +432,18 @@ protected:
                             }
                         }
                     }
-                    {
-                        std::lock_guard<std::mutex> lock(expectations_mutex_);
-                        bool empty = buffer_pack.buffers.size() == 0;
-                        std::set<uint64_t>& check_set = empty ? frame_expected_empty_set_ : frame_expected_set_;
-                        EXPECT_EQ(check_set.erase(frame_index), 1u) <<
-                            "unexpected " << (empty ? "empty" : "filled") << " frame #" << frame_index;
-                        // Signal done_ promise upon completion of all expected frames,
-                        // should done under same mutex as expected sets modifications to avoid double set_value
-                        if (frame_expected_set_.empty() && frame_expected_empty_set_.empty() &&
-                            expected_failures_.empty()) {
-                            done_.set_value();
-                        }
+                    bool empty = buffer_pack.buffers.size() == 0;
+                    bool expectations_met = false;
+                    expect_.CheckFrame(frame_index, empty, &expectations_met);
+                    if (expectations_met) {
+                        done_.set_value();
                     }
                 }
             } else {
-                std::lock_guard<std::mutex> lock(expectations_mutex_);
                 EXPECT_EQ(work->workletsProcessed, 0u);
-                EXPECT_TRUE(expected_failures_[work->result] > 0);
-                expected_failures_[work->result]--;
-                if (expected_failures_[work->result] == 0) {
-                    expected_failures_.erase(work->result);
-                }
-
-                if (frame_expected_set_.empty() && frame_expected_empty_set_.empty() &&
-                    expected_failures_.empty()) {
+                bool expectations_met = false;
+                expect_.CheckFailure(work->result, &expectations_met);
+                if (expectations_met) {
                     done_.set_value();
                 }
             }
@@ -412,10 +468,7 @@ protected:
 
 private:
     OnFrame on_frame_;
-    std::mutex expectations_mutex_;
-    std::set<uint64_t> frame_expected_set_;
-    std::set<uint64_t> frame_expected_empty_set_;
-    std::map<c2_status_t, int> expected_failures_; // expected failures and how many times they should occur
+    Expectation expect_;
     std::promise<void> done_;  // fire when all expected frames came
 };
 
@@ -425,7 +478,7 @@ class StreamSplitter
 public:
     virtual ~StreamSplitter() = default;
 
-    virtual bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid) = 0;
+    virtual bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid, bool* flush) = 0;
 
     virtual bool EndOfStream() = 0;
 };
@@ -440,7 +493,7 @@ public:
     FrameStreamSplitter(const std::vector<const StreamDescription*>& streams):
         reader{StreamReader::Create(streams)} {}
 
-    bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid) override
+    bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid, bool* flush) override
     {
         StreamDescription::Region region {};
         bool res = reader->Read(StreamReader::Slicing::Frame(), &region, header);
@@ -448,6 +501,7 @@ public:
             *part = reader->GetRegionContents(region);
             *complete_frame = true;
             *valid = true;
+            *flush = false;
         }
         return res;
     }
@@ -485,10 +539,13 @@ static void Decode(
     bool header = false;
     bool complete_frame = false;
     bool valid = false;
+    bool flush = false;
     std::vector<char> stream_part;
 
+    Expectation flush_expect;
+
     while (true) {
-        bool res = stream_splitter->Read(&stream_part, &header, &complete_frame, &valid);
+        bool res = stream_splitter->Read(&stream_part, &header, &complete_frame, &valid, &flush);
         if (!res) break;
         // prepare worklet and push
         std::unique_ptr<C2Work> work;
@@ -499,10 +556,11 @@ static void Decode(
         std::list<std::unique_ptr<C2Work>> works;
         works.push_back(std::move(work));
 
+        Expectation& expect = flush ? flush_expect : validator->GetExpectation();
         if (valid) {
-            validator->RegisterSubmittedFrame(frame_index, !complete_frame);
+            expect.ExpectFrame(frame_index, !complete_frame);
         } else {
-            validator->ExpectFailures(1, C2_BAD_VALUE);
+            expect.ExpectFailures(1, C2_BAD_VALUE);
         }
 
         sts = component->queue_nb(&works);
@@ -514,9 +572,27 @@ static void Decode(
     std::future<void> future = validator->GetFuture();
     std::future_status future_sts = future.wait_for(std::chrono::seconds(10));
 
-    EXPECT_EQ(future_sts, std::future_status::ready) << " decoded less frames than expected, missing: "
-        << validator->GetMissingFramesList();
-    EXPECT_TRUE(validator->FailuresMatch());
+    EXPECT_EQ(future_sts, std::future_status::ready) << " failed expectations: "
+        << validator->GetExpectation().Format();
+
+    std::list<std::unique_ptr<C2Work>> flushed_work;
+    sts = component->flush_sm(C2Component::FLUSH_COMPONENT, &flushed_work);
+    EXPECT_EQ(sts, C2_OK);
+
+    while (!flushed_work.empty()) {
+        std::unique_ptr<C2Work> work = std::move(flushed_work.front());
+        flushed_work.pop_front();
+
+        if (C2_OK == work->result) {
+            for (std::unique_ptr<C2Worklet>& worklet : work->worklets) {
+                bool empty = (worklet->output.buffers.size() == 0);
+                flush_expect.CheckFrame(worklet->output.ordinal.frameIndex.peeku(), empty);
+            }
+        } else {
+            flush_expect.CheckFailure(work->result);
+        }
+    }
+    EXPECT_TRUE(flush_expect.Empty()) << "Failed expectations: " << flush_expect.Format();
 
     component->setListener_vb(nullptr, may_block);
     sts = component->stop();
@@ -597,7 +673,7 @@ TEST_P(Decoder, BrokenHeader)
     {
     public:
         using FrameStreamSplitter::FrameStreamSplitter;
-        bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid) override
+        bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid, bool* flush) override
         {
             bool res{};
             if (!frame_.empty()) {
@@ -606,9 +682,10 @@ TEST_P(Decoder, BrokenHeader)
                 *header = true;
                 *complete_frame = true;
                 *valid = true;
+                *flush = false;
                 frame_.clear();
             } else {
-                res = FrameStreamSplitter::Read(part, header, complete_frame, valid);
+                res = FrameStreamSplitter::Read(part, header, complete_frame, valid, flush);
                 if (res) {
                     if (*header) {
                         if (header_index_ > 0) {
@@ -617,6 +694,7 @@ TEST_P(Decoder, BrokenHeader)
                                 std::min(contents.begin() + header_part_len_, contents.end()));
                             *complete_frame = false;
                             *valid = true;
+                            *flush = false;
                             frame_ = std::move(contents);
                         }
                         ++header_index_;
@@ -694,13 +772,14 @@ public:
     HeaderSplitter(const std::vector<const StreamDescription*>& streams):
         reader{StreamReader::Create(streams)} {}
 
-    bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid) override
+    bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid, bool* flush) override
     {
         bool res{};
         if (!results.empty()) {
             *part = results.front().part;
             *header = results.front().header;
             *valid = true;
+            *flush = false;
             res = true;
             results.pop();
             *complete_frame = results.empty();
@@ -729,7 +808,8 @@ public:
                             *part = results.front().part;
                             *header = results.front().header;
                             *valid = true;
-                         res = true;
+                            *flush = false;
+                            res = true;
                             results.pop();
                             *complete_frame = results.empty();
 
@@ -742,6 +822,7 @@ public:
                     *header = false;
                     *complete_frame = true;
                     *valid = true;
+                    *flush = false;
                  res = true;
                 }
             }
@@ -779,9 +860,11 @@ TEST_P(Decoder, HeaderSplitterReadEverything)
                 bool header;
                 bool complete_frame;
                 bool valid;
-                bool res = headerSplitter.Read(&part, &header, &complete_frame, &valid);
+                bool flush;
+                bool res = headerSplitter.Read(&part, &header, &complete_frame, &valid, &flush);
                 EXPECT_TRUE(res);
                 EXPECT_TRUE(valid);
+                EXPECT_FALSE(flush);
                 EXPECT_NE(part.size(), 0u);
 
                 append_vector(part, &split_contents);
@@ -857,7 +940,7 @@ TEST_P(Decoder, SeparateEos)
     {
     public:
         using FrameStreamSplitter::FrameStreamSplitter;
-        bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid) override
+        bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid, bool* flush) override
         {
             bool res{};
             if (FrameStreamSplitter::EndOfStream()) {
@@ -865,10 +948,11 @@ TEST_P(Decoder, SeparateEos)
                 *header = false;
                 *complete_frame = false;
                 *valid = true;
+                *flush = false;
                 res = !eos_returned_;
                 eos_returned_ = true;
             } else {
-                res = FrameStreamSplitter::Read(part, header, complete_frame, valid);
+                res = FrameStreamSplitter::Read(part, header, complete_frame, valid, flush);
             }
             return res;
         }
@@ -929,7 +1013,7 @@ TEST_P(Decoder, MultipleEos)
     {
     public:
         using FrameStreamSplitter::FrameStreamSplitter;
-        bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid) override
+        bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid, bool* flush) override
         {
             bool res{};
             if (FrameStreamSplitter::EndOfStream()) {
@@ -937,10 +1021,11 @@ TEST_P(Decoder, MultipleEos)
                 *header = false;
                 *complete_frame = false;
                 *valid = (eos_returned_ == 0);
+                *flush = (eos_returned_ != 0);
                 res = (eos_returned_ < 10);
                 eos_returned_++;
             } else {
-                res = FrameStreamSplitter::Read(part, header, complete_frame, valid);
+                res = FrameStreamSplitter::Read(part, header, complete_frame, valid, flush);
             }
             return res;
         }
