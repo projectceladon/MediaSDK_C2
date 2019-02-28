@@ -77,6 +77,8 @@ protected:
 
     c2_status_t Queue(std::list<std::unique_ptr<C2Work>>* const items) override;
 
+    c2_status_t Flush(std::list<std::unique_ptr<C2Work>>* const flushedWork) override;
+
 private:
     c2_status_t QueryParam(const mfxVideoParam* src,
         C2Param::Type type, C2Param** dst) const;
@@ -139,7 +141,7 @@ private:
     mfxU16 max_width_ {};
     mfxU16 max_height_ {};
 
-    bool eos_returned_ {};
+    std::atomic<bool> eos_received_ {};
     // Members handling MFX_WRN_DEVICE_BUSY.
     // Active sync points got from DecodeFrameAsync for waiting on.
     std::atomic_uint synced_points_count_;

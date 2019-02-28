@@ -81,6 +81,22 @@ std::unique_lock<std::mutex> MfxC2Component::AcquireStableStateLock(bool may_blo
     return res;
 }
 
+std::unique_lock<std::mutex> MfxC2Component::AcquireRunningStateLock(bool may_block) const
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    std::unique_lock<std::mutex> res = AcquireStableStateLock(may_block);
+    if (res) {
+        const State RUNNING_STATES[]{State::RUNNING, State::TRIPPED, State::ERROR};
+        bool running = std::find(std::begin(RUNNING_STATES), std::end(RUNNING_STATES), state_)
+            != std::end(RUNNING_STATES);
+        if (!running) {
+            res.unlock();
+        }
+    }
+    return res;
+}
+
 c2_status_t MfxC2Component::query_vb(
     const std::vector<C2Param*> &stackParams,
     const std::vector<C2Param::Index> &heapParamIndices,
@@ -169,15 +185,8 @@ c2_status_t MfxC2Component::queue_nb(std::list<std::unique_ptr<C2Work>>* const i
 
     c2_status_t res = C2_OK;
 
-    std::lock_guard<std::mutex> lock(state_mutex_);
-
-    auto running = [] (State state) {
-        const State RUNNING_STATES[]{State::RUNNING, State::TRIPPED, State::ERROR};
-        return std::find(std::begin(RUNNING_STATES), std::end(RUNNING_STATES), state)
-            != std::end(RUNNING_STATES);
-    };
-
-    if (running(state_) && running(next_state_)) {
+    std::unique_lock<std::mutex> lock = AcquireRunningStateLock(true/*may_block*/);
+    if (lock) {
         res = Queue(items);
     } else {
         res = C2_BAD_STATE;
@@ -199,9 +208,16 @@ c2_status_t MfxC2Component::flush_sm(flush_mode_t mode, std::list<std::unique_pt
     MFX_DEBUG_TRACE_FUNC;
 
     (void)mode;
-    (void)flushedWork;
 
-    return C2_OMITTED;
+    c2_status_t res = C2_OK;
+
+    std::unique_lock<std::mutex> lock = AcquireRunningStateLock(true/*may_block*/);
+    if (lock) {
+        res = Flush(flushedWork);
+    } else {
+        res = C2_BAD_STATE;
+    }
+    return res;
 }
 
 c2_status_t MfxC2Component::drain_nb(drain_mode_t mode)

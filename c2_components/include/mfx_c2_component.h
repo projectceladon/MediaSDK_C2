@@ -89,6 +89,8 @@ private: // Non-virtual interface methods optionally overridden in descendants
 
     virtual c2_status_t Queue(std::list<std::unique_ptr<C2Work>>* const /*items*/) { return C2_OMITTED; }
 
+    virtual c2_status_t Flush(std::list<std::unique_ptr<C2Work>>* const /*flushedWork*/) { return C2_OMITTED; }
+
 protected: // C2ComponentInterface overrides
     C2String getName() const override;
 
@@ -147,6 +149,8 @@ protected:
     void FatalError(c2_status_t error);
 
     std::unique_lock<std::mutex> AcquireStableStateLock(bool may_block) const;
+
+    std::unique_lock<std::mutex> AcquireRunningStateLock(bool may_block) const;
 
 private:
     c2_status_t CheckStateTransitionConflict(
