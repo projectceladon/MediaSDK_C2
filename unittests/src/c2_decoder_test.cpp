@@ -1085,7 +1085,7 @@ TEST_P(Decoder, MultipleEos)
 TEST_P(Decoder, State)
 {
     CallComponentTest<ComponentDesc>(GetParam(),
-        [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr) {
+        [this] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr) {
 
         c2_status_t sts = C2_OK;
 
@@ -1100,6 +1100,23 @@ TEST_P(Decoder, State)
 
         sts = comp->stop();
         EXPECT_EQ(sts, C2_BAD_STATE);
+
+        sts = comp->release();
+        EXPECT_EQ(sts, C2_OK);
+
+        sts = comp->release();
+        EXPECT_EQ(sts, C2_DUPLICATE);
+         // Re-create the component.
+        ComponentsCache::GetInstance()->RemoveComponent(GetParam().component_name);
+        comp = GetCachedComponent(GetParam());
+
+        sts = comp->start();
+        EXPECT_EQ(sts, C2_OK);
+
+        sts = comp->release();
+        EXPECT_EQ(sts, C2_OK);
+        // Remove from cache as released component is not reusable.
+        ComponentsCache::GetInstance()->RemoveComponent(GetParam().component_name);
     } );
 }
 

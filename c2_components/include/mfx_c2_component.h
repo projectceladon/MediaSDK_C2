@@ -23,20 +23,24 @@ class MfxC2Component : public C2ComponentInterface,
 protected:
     /* State diagram:
 
-                   +------- stop ------- ERROR
-                   |                       ^
-                   |                       |
-                   |                     error
-                   |                       |
-                   |  +-----start ----> RUNNING
-                   V  |                 | |  ^
+        +---------- release ---------------|
+        |          +------- stop ------- ERROR
+        |          |                       ^
+        |          |                       |
+        |          |                     error
+        |          |                       |
+        | +------- | -- release --------+  |
+        | |        |                    |  |
+        | |        |  +-----start ----> RUNNING
+        V V        V  |                 | |  ^
     RELEASED <- STOPPED <--- stop ------+ |  |
-                   ^                      |  |
-                   |                 config  |
-                   |                  error  |
-                   |                      |  start
-                   |                      V  |
-                   +------- stop ------- TRIPPED
+        ^          ^                      |  |
+        |          |                 config  |
+        |          |                  error  |
+        |          |                      |  start
+        |          |                      V  |
+        |          +------- stop ------- TRIPPED
+        +---------- release ----------------|
 
     Operations permitted:
         Tunings could be applied in all states.
