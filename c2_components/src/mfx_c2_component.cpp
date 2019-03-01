@@ -353,25 +353,44 @@ c2_status_t MfxC2Component::release()
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
+    bool do_stop = false;
 
     { // Pre-check of state change.
-        std::lock_guard<std::mutex> lock(state_mutex_);
-
-        if (State::STOPPED == state_ && State::STOPPED == next_state_) {
-            next_state_ = State::RELEASED;
-        } else if (State::RELEASED == state_ || State::RELEASED == next_state_) {
-            res = C2_DUPLICATE;
+        std::unique_lock<std::mutex> lock = AcquireStableStateLock(true/*may_block*/);
+        if (lock.owns_lock()) {
+            if (State::RELEASED == state_) {
+                res = C2_DUPLICATE;
+            } else {
+                next_state_ = State::RELEASED;
+                if (State::STOPPED != state_) {
+                    do_stop = true;
+                }
+            }
         } else {
-            res = C2_BAD_STATE;
+            res = C2_CORRUPTED;
         }
     }
 
     if (C2_OK == res) {
-        c2_status_t release_res = Release();
-        MFX_DEBUG_TRACE__android_c2_status_t(release_res);
-        {
+
+        c2_status_t stop_res = C2_OK;
+        if (do_stop) {
+            stop_res = DoStop(true/*abort*/);
+            res = stop_res;
+        }
+        if (C2_OK == res) {
+            res = Release();
+        }
+
+        {   // determine state we managed to reach
             std::lock_guard<std::mutex> lock(state_mutex_);
-            state_ = State::RELEASED;
+            if (C2_OK == res) { // required operations succeeded
+                state_ = next_state_ = State::RELEASED;
+            } else if (do_stop && (C2_OK == stop_res)) { // DoStop succeeded, Release failed
+                state_ = next_state_ = State::STOPPED;
+            } else { // no operations succeeded
+                next_state_ = state_;
+            }
             cond_state_stable_.notify_all();
         }
     }

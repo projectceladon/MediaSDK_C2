@@ -125,6 +125,12 @@ public:
         components_.emplace(name, component);
     }
 
+    void RemoveComponent(const char* name)
+    {
+        size_t count = components_.erase(name);
+        EXPECT_EQ(count, 1u);
+    }
+
     void Clear()
     {
         for (auto& pair : components_) {
