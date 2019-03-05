@@ -369,8 +369,8 @@ protected:
 
                     uint64_t frame_index = buffer_pack.ordinal.frameIndex.peeku();
 
-                    bool last_frame = (work->input.flags & C2FrameData::FLAG_END_OF_STREAM) != 0;
-                    EXPECT_EQ(buffer_pack.flags, last_frame ? C2FrameData::FLAG_END_OF_STREAM : C2FrameData::flags_t{});
+                    bool eos = (work->input.flags & C2FrameData::FLAG_END_OF_STREAM) != 0;
+                    EXPECT_EQ(buffer_pack.flags, eos ? C2FrameData::FLAG_END_OF_STREAM : C2FrameData::flags_t{});
                     EXPECT_EQ(buffer_pack.ordinal.timestamp, frame_index * FRAME_DURATION_US); // 30 fps
 
                     c2_status_t sts{};
@@ -437,6 +437,9 @@ protected:
                     expect_.CheckFrame(frame_index, empty, &expectations_met);
                     if (expectations_met) {
                         done_.set_value();
+                    }
+                    if (empty && eos) { // Separate eos work should be last of expected.
+                        EXPECT_TRUE(expectations_met) << NAMED(frame_index) << " left: " << expect_.Format();
                     }
                 }
             } else {
