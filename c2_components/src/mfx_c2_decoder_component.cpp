@@ -770,39 +770,15 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         " flags: " << std::hex << incoming_flags);
 
     bool expect_output = false;
-    bool enforce_pending = false;
 
     do {
-
-        auto push_pending = [&]() {
-            std::lock_guard<std::mutex> lock(pending_works_mutex_);
-            auto it = pending_works_.find(incoming_frame_index);
-            if (it != pending_works_.end()) { // Shouldn't be the same index there
-                NotifyWorkDone(std::move(it->second), C2_CORRUPTED);
-                pending_works_.erase(it);
-            }
-            pending_works_.emplace(incoming_frame_index, std::move(work));
-        };
-
-        bool eos = (incoming_flags & C2FrameData::FLAG_END_OF_STREAM) != 0;
-
-        if (eos) {
-            if (eos_received_) {
-                work->result = C2_BAD_VALUE;
-                push_pending();
-                enforce_pending = true;
-                break;
-            }
-            eos_received_ = true;
-        }
-
         std::unique_ptr<MfxC2BitstreamIn::FrameView> bitstream_view;
         res = c2_bitstream_->AppendFrame(work->input, TIMEOUT_NS, &bitstream_view);
         if (C2_OK != res) break;
 
         if (work->input.buffers.size() == 0) break;
 
-        push_pending();
+        PushPending(std::move(work));
 
         if (!c2_allocator_) {
             res = GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC,
@@ -849,7 +825,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
                 frame_out = MfxC2FrameOut(); // release the frame to be used in Drain
 
-                Drain();
+                Drain(nullptr);
 
                 // Clear up all queue of works after drain except last work
                 // which caused resolution change and should be used again.
@@ -908,7 +884,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         (incoming_flags & (C2FrameData::FLAG_INCOMPLETE | C2FrameData::FLAG_CODEC_CONFIG)) != 0;
 
     // notify listener in case of failure or empty output
-    if ((C2_OK != res || !expect_output || incomplete_frame) && !enforce_pending) {
+    if (C2_OK != res || !expect_output || incomplete_frame) {
         if (!work) {
             std::lock_guard<std::mutex> lock(pending_works_mutex_);
             auto it = pending_works_.find(incoming_frame_index);
@@ -932,7 +908,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
     }
 }
 
-void MfxC2DecoderComponent::Drain()
+void MfxC2DecoderComponent::Drain(std::unique_ptr<C2Work>&& work)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -950,6 +926,19 @@ void MfxC2DecoderComponent::Drain()
 
         // exit cycle if MFX_ERR_MORE_DATA or critical error happens
         } while (MFX_ERR_NONE == mfx_sts || MFX_ERR_MORE_SURFACE == mfx_sts);
+
+        // eos work, should be sent after last work returned
+        if (work) {
+            waiting_queue_.Push([work = std::move(work), this]() mutable {
+
+                std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
+
+                worklet->output.flags = (C2FrameData::flags_t)(work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
+                worklet->output.ordinal = work->input.ordinal;
+
+                NotifyWorkDone(std::move(work), C2_OK);
+            });
+        }
 
         const auto timeout = std::chrono::seconds(10);
         std::unique_lock<std::mutex> lock(dev_busy_mutex_);
@@ -1075,6 +1064,18 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
     dev_busy_cond_.notify_one();
 }
 
+void MfxC2DecoderComponent::PushPending(std::unique_ptr<C2Work>&& work)
+{
+    std::lock_guard<std::mutex> lock(pending_works_mutex_);
+    const auto incoming_frame_index = work->input.ordinal.frameIndex;
+    auto it = pending_works_.find(incoming_frame_index);
+    if (it != pending_works_.end()) { // Shouldn't be the same index there
+        NotifyWorkDone(std::move(it->second), C2_CORRUPTED);
+        pending_works_.erase(it);
+    }
+    pending_works_.emplace(incoming_frame_index, std::move(work));
+}
+
 c2_status_t MfxC2DecoderComponent::ValidateWork(const std::unique_ptr<C2Work>& work)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -1109,20 +1110,37 @@ c2_status_t MfxC2DecoderComponent::Queue(std::list<std::unique_ptr<C2Work>>* con
 
     for(auto& item : *items) {
 
-        bool eos = (item->input.flags & C2FrameData::FLAG_END_OF_STREAM);
-
         c2_status_t sts = ValidateWork(item);
 
         if (C2_OK == sts) {
-            working_queue_.Push( [ work = std::move(item), this ] () mutable {
-                DoWork(std::move(work));
-            } );
+
+            if (eos_received_) { // All works following eos treated as errors.
+                item->result = C2_BAD_VALUE;
+                // Do this in working thread to follow Drain completion.
+                working_queue_.Push( [work = std::move(item), this] () mutable {
+                    PushPending(std::move(work));
+                });
+            } else {
+                bool eos = (item->input.flags & C2FrameData::FLAG_END_OF_STREAM);
+                bool empty = (item->input.buffers.size() == 0);
+                if (eos) {
+                    eos_received_ = true;
+                }
+                if (eos && empty) {
+                    working_queue_.Push( [work = std::move(item), this] () mutable {
+                        Drain(std::move(work));
+                    });
+                } else {
+                    working_queue_.Push( [ work = std::move(item), this ] () mutable {
+                        DoWork(std::move(work));
+                    } );
+                    if (eos) {
+                        working_queue_.Push( [this] () { Drain(nullptr); } );
+                    }
+                }
+            }
         } else {
             NotifyWorkDone(std::move(item), sts);
-        }
-
-        if(eos) {
-            working_queue_.Push( [this] () { Drain(); } );
         }
     }
 

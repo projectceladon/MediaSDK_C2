@@ -112,9 +112,11 @@ private:
 
     void DoWork(std::unique_ptr<C2Work>&& work);
 
-    void Drain();
+    void Drain(std::unique_ptr<C2Work>&& work);
     // waits for the sync_point and update work with decoder output then
     void WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint sync_point);
+
+    void PushPending(std::unique_ptr<C2Work>&& work);
 
 private:
     DecoderType decoder_type_;
