@@ -48,11 +48,45 @@ namespace {
         std::vector<std::vector<const StreamDescription*>> streams;
     };
 
-    // This function is used by ::testing::PrintToStringParamName to give
+    struct StreamChunk
+    {
+        StreamDescription::Region region{};
+        bool header{};
+        bool complete_frame{};
+        bool valid{};
+        bool flush{};
+        bool end_stream{};
+    };
+
+    // Particularities how to run decoding, they may include:
+    // 1) How many times repeat decoding.
+    // 2) What decoders or streams should be skipped from test.
+    // 3) How data chunks supplied to decoder are changed relative to
+    // complete frames.
+    // See examples in g_decoding_conditions initialization.
+    struct DecodingConditions
+    {
+        const char* name;
+        int repeat_count{1};
+        std::function<bool(
+            const std::vector<const StreamDescription*>& streams,
+            const ComponentDesc& component_desc)> skip;
+        std::function<void(
+            const std::vector<const StreamDescription*>& streams,
+            std::list<StreamChunk>* chunks)> chunks_mutator;
+    };
+
+    // These functions are used by ::testing::PrintToStringParamName to give
     // parameterized tests reasonable names instead of /1, /2, ...
     void PrintTo(const ComponentDesc& desc, ::std::ostream* os)
     {
         PrintAlphaNumeric(desc.component_name, os);
+    }
+
+    void PrintTo(const std::tuple<DecodingConditions, ComponentDesc>& tuple, ::std::ostream* os)
+    {
+        *os << std::get<DecodingConditions>(tuple).name << "_";
+        PrintTo(std::get<ComponentDesc>(tuple), os);
     }
 
     class CreateDecoder : public ::testing::TestWithParam<ComponentDesc>
@@ -60,6 +94,10 @@ namespace {
     };
     // Test fixture class called Decoder to beautify output
     class Decoder : public ::testing::TestWithParam<ComponentDesc>
+    {
+    };
+
+    class DecoderDecode : public ::testing::TestWithParam<std::tuple<DecodingConditions, ComponentDesc>>
     {
     };
 }
@@ -97,6 +135,149 @@ static ComponentDesc g_components_desc[] = {
 static ComponentDesc g_invalid_components_desc[] = {
     { "C2.NonExistingDecoder", 0, C2_NOT_FOUND, {}, {} },
 };
+
+static std::list<StreamChunk> ReadChunks(const std::vector<const StreamDescription*>& streams)
+{
+    std::unique_ptr<StreamReader> reader{StreamReader::Create(streams)};
+    std::list<StreamChunk> chunks;
+    StreamChunk chunk;
+
+    while (reader->Read(StreamReader::Slicing::Frame(), &chunk.region, &chunk.header)) {
+        chunk.complete_frame = true;
+        chunk.valid = true;
+        chunk.flush = false;
+        chunk.end_stream = reader->EndOfStream();
+        chunks.emplace_back(std::move(chunk));
+    }
+    return chunks;
+}
+
+// Inserts part of header before the header,
+// for header in the middle of the stream (resolution change).
+static void InsertHeaderPart(const std::vector<const StreamDescription*>& streams,
+    std::list<StreamChunk>* chunks)
+{
+    std::unique_ptr<StreamReader> reader{StreamReader::Create(streams)};
+    for (auto it = chunks->begin(); it != chunks->end(); ++it) {
+        if (it->header && it != chunks->begin()) {
+            StreamChunk chunk(*it); // make a copy
+            const size_t HEADER_PART_SIZE = 5;
+            EXPECT_GT(chunk.region.size, HEADER_PART_SIZE);
+            if (chunk.region.size > HEADER_PART_SIZE) {
+                chunk.region.size = HEADER_PART_SIZE; // part of header
+            }
+            chunk.complete_frame = false;
+            chunks->insert(it, chunk);
+        }
+    }
+}
+
+// Split header by NAL units.
+static void SplitHeaders(const std::vector<const StreamDescription*>& streams,
+    std::list<StreamChunk>* chunks)
+{
+    std::unique_ptr<StreamReader> reader{StreamReader::Create(streams)};
+    for (auto it = chunks->begin(); it != chunks->end(); ) {
+        if (it->header) {
+            size_t offset = it->region.offset;
+            ssize_t left = it->region.size;
+            // replace with split
+            reader->Seek(offset);
+            while (left > 0) {
+                StreamChunk chunk;
+                bool res = reader->Read(StreamReader::Slicing::NalUnit(), &chunk.region, &chunk.header);
+                if (!res) break;
+                left -= chunk.region.size;
+                chunk.complete_frame = (left <= 0);
+                chunk.valid = true;
+                chunk.flush = false;
+                chunk.end_stream = reader->EndOfStream();
+                chunks->insert(it, chunk);
+            }
+            // erase
+            it = chunks->erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+// Cuts eos to a separate chunk.
+static void CutEos(const std::vector<const StreamDescription*>&/* streams*/, std::list<StreamChunk>* chunks)
+{
+    auto it = chunks->rbegin();
+    StreamChunk chunk(*it); // copy
+    chunk.region.offset += chunk.region.size;
+    chunk.region.size = 0;
+    chunk.complete_frame = false;
+
+
+    it->end_stream = false; // not an eos anymore
+
+    chunks->push_back(chunk);
+}
+
+// Cuts eos and appends series of eos chunks.
+static void AppendMultipleEos(const std::vector<const StreamDescription*>&/* streams*/,
+    std::list<StreamChunk>* chunks)
+{
+    auto it = chunks->rbegin();
+    StreamChunk chunk(*it); // copy
+    it->end_stream = false; // not an eos anymore
+
+    chunk.region.offset += chunk.region.size;
+    chunk.region.size = 0;
+    chunk.complete_frame = false;
+    chunks->push_back(chunk);
+
+    const int EXCESSIVE_EOS_COUNT = 9;
+    for (int i = 0; i < EXCESSIVE_EOS_COUNT; ++i) {
+        chunk.complete_frame = false;
+        chunk.valid = false;
+        chunk.flush = true;
+        chunks->push_back(chunk);
+    }
+}
+
+static std::vector<DecodingConditions> g_decoding_conditions = []() {
+    std::vector<DecodingConditions> res;
+
+    res.push_back({});
+    res.back().name = "DecodeBitExact";
+    const int BIT_EXACT_REPEAT_COUNT = 3;
+    res.back().repeat_count = BIT_EXACT_REPEAT_COUNT;
+
+    // Decodes streams that caused resolution change,
+    // supply part of second header, it caused undefined behaviour in mediasdk decoder (264)
+    // then supply completed header, expects decoder recovers and decodes stream fine.
+    res.push_back({});
+    res.back().name = "BrokenHeader";
+    res.back().skip = [](const std::vector<const StreamDescription*>& streams, const ComponentDesc&) {
+        return streams.size() == 1;
+    };
+    res.back().chunks_mutator = InsertHeaderPart;
+
+    // Sends streams for decoding emulating C2 runtime behaviour:
+    // if frame contains header, the frame is sent split by NAL units.
+    res.push_back({});
+    res.back().name = "SeparateHeaders";
+    res.back().skip = [](const std::vector<const StreamDescription*>&, const ComponentDesc& desc) {
+        return std::string(desc.component_name) == "C2.vp9vd";
+    };
+    res.back().chunks_mutator = SplitHeaders;
+
+    // Sends last frame without eos flag, then empty input buffer with eos flag.
+    res.push_back({});
+    res.back().name = "SeparateEos";
+    res.back().chunks_mutator = CutEos;
+
+    // Follow last frame with series of Eos works without frame.
+    res.push_back({});
+    res.back().name = "MultipleEos";
+    res.back().chunks_mutator = AppendMultipleEos;
+
+    return res;
+}();
 
 // Assures that all decoding components might be successfully created.
 // NonExistingDecoder cannot be created and C2_NOT_FOUND error is returned.
@@ -479,51 +660,12 @@ private:
     std::promise<void> done_;  // fire when all expected frames came
 };
 
-// interface to provide flexibility how stream is split to C2 works
-class StreamSplitter
-{
-public:
-    virtual ~StreamSplitter() = default;
-
-    virtual bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid, bool* flush) = 0;
-
-    virtual bool EndOfStream() = 0;
-};
-
-// Default StreamSplitter implementation reading by frames
-class FrameStreamSplitter : public StreamSplitter
-{
-private:
-    std::unique_ptr<StreamReader> reader;
-
-public:
-    FrameStreamSplitter(const std::vector<const StreamDescription*>& streams):
-        reader{StreamReader::Create(streams)} {}
-
-    bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid, bool* flush) override
-    {
-        StreamDescription::Region region {};
-        bool res = reader->Read(StreamReader::Slicing::Frame(), &region, header);
-        if (res) {
-            *part = reader->GetRegionContents(region);
-            *complete_frame = true;
-            *valid = true;
-            *flush = false;
-        }
-        return res;
-    }
-
-    bool EndOfStream() override
-    {
-        return reader->EndOfStream();
-    }
-};
-
 static void Decode(
     bool graphics_memory,
     std::shared_ptr<C2Component> component,
     std::shared_ptr<DecoderConsumer> validator,
-    StreamSplitter* stream_splitter)
+    const std::vector<const StreamDescription*>& streams,
+    const std::list<StreamChunk>& stream_chunks)
 {
     c2_blocking_t may_block{C2_MAY_BLOCK};
     component->setListener_vb(validator, may_block);
@@ -543,29 +685,25 @@ static void Decode(
 
     uint32_t frame_index = 0;
 
-    bool header = false;
-    bool complete_frame = false;
-    bool valid = false;
-    bool flush = false;
-    std::vector<char> stream_part;
-
     Expectation flush_expect;
+    std::unique_ptr<StreamReader> reader{StreamReader::Create(streams)};
 
-    while (true) {
-        bool res = stream_splitter->Read(&stream_part, &header, &complete_frame, &valid, &flush);
-        if (!res) break;
+    for (const StreamChunk& chunk : stream_chunks) {
+
+        std::vector<char> stream_part = reader->GetRegionContents(chunk.region);
+
         // prepare worklet and push
         std::unique_ptr<C2Work> work;
 
         // insert input data
         PrepareWork(frame_index, component, &work, stream_part,
-            stream_splitter->EndOfStream(), header, complete_frame);
+            chunk.end_stream, chunk.header, chunk.complete_frame);
         std::list<std::unique_ptr<C2Work>> works;
         works.push_back(std::move(work));
 
-        Expectation& expect = flush ? flush_expect : validator->GetExpectation();
-        if (valid) {
-            expect.ExpectFrame(frame_index, !complete_frame);
+        Expectation& expect = chunk.flush ? flush_expect : validator->GetExpectation();
+        if (chunk.valid) {
+            expect.ExpectFrame(frame_index, !chunk.complete_frame);
         } else {
             expect.ExpectFailures(1, C2_BAD_VALUE);
         }
@@ -619,471 +757,6 @@ static std::string GetStreamsCombinedName(const std::vector<const StreamDescript
         first = false;
     }
     return res.str();
-}
-
-TEST_P(Decoder, DecodeBitExact)
-{
-    CallComponentTest<ComponentDesc>(GetParam(),
-        [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
-
-        const int TESTS_COUNT = 5;
-
-        // odd runs are on graphics memory
-        auto use_graphics_memory = [] (int i) -> bool { return (i % 2) != 0; };
-        std::map<bool, std::string> memory_names = {
-            { false, "(system memory)" },
-            { true, "(video memory)" },
-        };
-
-        for(const std::vector<const StreamDescription*>& streams : desc.streams) {
-
-            SCOPED_TRACE("Stream: " + std::to_string(&streams - desc.streams.data()));
-
-            for(int i = 0; i < TESTS_COUNT; ++i) {
-
-                CRC32Generator crc_generator;
-
-                GTestBinaryWriter writer(std::ostringstream()
-                    << comp_intf->getName() << "-" << GetStreamsCombinedName(streams) << "-" << i << ".nv12");
-
-                DecoderConsumer::OnFrame on_frame = [&] (uint32_t width, uint32_t height,
-                    const uint8_t* data, size_t length) {
-
-                    writer.Write(data, length);
-                    crc_generator.AddData(width, height, data, length);
-                };
-
-                std::shared_ptr<DecoderConsumer> validator =
-                    std::make_shared<DecoderConsumer>(on_frame);
-                FrameStreamSplitter stream_splitter(streams);
-
-                Decode(use_graphics_memory(i), comp, validator, &stream_splitter);
-
-                std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
-                std::list<uint32_t> expected_crc;
-                std::transform(streams.begin(), streams.end(), std::back_inserter(expected_crc),
-                    [] (const StreamDescription* stream) { return stream->crc32_nv12; } );
-
-                EXPECT_EQ(actual_crc, expected_crc) << "Pass " << i << " not equal to reference CRC32"
-                    << memory_names[use_graphics_memory(i)];
-            }
-        }
-    } );
-}
-
-// Decodes streams that caused resolution change,
-// supply part of second header, it caused undefined behaviour in mediasdk decoder (264)
-// then supply completed header, expects decoder recovers and decodes stream fine.
-TEST_P(Decoder, BrokenHeader)
-{
-    class HeaderBreaker : public FrameStreamSplitter
-    {
-    public:
-        using FrameStreamSplitter::FrameStreamSplitter;
-        bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid, bool* flush) override
-        {
-            bool res{};
-            if (!frame_.empty()) {
-                res = true;
-                *part = frame_;
-                *header = true;
-                *complete_frame = true;
-                *valid = true;
-                *flush = false;
-                frame_.clear();
-            } else {
-                res = FrameStreamSplitter::Read(part, header, complete_frame, valid, flush);
-                if (res) {
-                    if (*header) {
-                        if (header_index_ > 0) {
-                            std::vector<char> contents = *part;
-                            *part = std::vector<char>(contents.begin(),
-                                std::min(contents.begin() + header_part_len_, contents.end()));
-                            *complete_frame = false;
-                            *valid = true;
-                            *flush = false;
-                            frame_ = std::move(contents);
-                        }
-                        ++header_index_;
-                    }
-                }
-            }
-            return res;
-        }
-    private:
-        const int header_part_len_{5};
-        int header_index_{0};
-        std::vector<char> frame_;
-    };
-
-    CallComponentTest<ComponentDesc>(GetParam(),
-        [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
-
-        std::map<bool, std::string> memory_names = {
-            { false, "(system memory)" },
-            { true, "(video memory)" },
-        };
-
-        for(const std::vector<const StreamDescription*>& streams : desc.streams) {
-
-            if (streams.size() == 1) continue; // this test demands resolution change
-
-            for (bool use_graphics_memory : { false, true }) {
-
-                CRC32Generator crc_generator;
-
-                GTestBinaryWriter writer(std::ostringstream()
-                    << comp_intf->getName() << "-" << GetStreamsCombinedName(streams) << ".nv12");
-
-                DecoderConsumer::OnFrame on_frame = [&] (uint32_t width, uint32_t height,
-                    const uint8_t* data, size_t length) {
-
-                    writer.Write(data, length);
-                    crc_generator.AddData(width, height, data, length);
-                };
-
-                std::shared_ptr<DecoderConsumer> validator =
-                    std::make_shared<DecoderConsumer>(on_frame);
-                HeaderBreaker stream_splitter(streams);
-
-                Decode(use_graphics_memory, comp, validator, &stream_splitter);
-
-                std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
-                std::list<uint32_t> expected_crc;
-                std::transform(streams.begin(), streams.end(), std::back_inserter(expected_crc),
-                    [] (const StreamDescription* stream) { return stream->crc32_nv12; } );
-
-                EXPECT_EQ(actual_crc, expected_crc) << "Not equal to reference CRC32"
-                    << memory_names[use_graphics_memory];
-            }
-        }
-    } );
-}
-
-// Default StreamSplitter implementation reading by frames,
-// header by nal units
-class HeaderSplitter : public StreamSplitter
-{
-private:
-    std::unique_ptr<StreamReader> reader;
-
-    struct Result
-    {
-        std::vector<char> part;
-        bool header;
-    };
-
-    std::queue<Result> results;
-
-public:
-    HeaderSplitter(const std::vector<const StreamDescription*>& streams):
-        reader{StreamReader::Create(streams)} {}
-
-    bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid, bool* flush) override
-    {
-        bool res{};
-        if (!results.empty()) {
-            *part = results.front().part;
-            *header = results.front().header;
-            *valid = true;
-            *flush = false;
-            res = true;
-            results.pop();
-            *complete_frame = results.empty();
-        } else {
-            StreamDescription::Region region {};
-            size_t prev_pos = reader->GetPos();
-            res = reader->Read(StreamReader::Slicing::Frame(), &region, header);
-            if (res) {
-                if (header) { // split header by NalUnits
-                    size_t next_pos = reader->GetPos();
-                    res = reader->Seek(prev_pos);
-
-                    if (res) {
-
-                        while (reader->GetPos() < next_pos) {
-
-                            res = reader->Read(StreamReader::Slicing::NalUnit(), &region, header);
-                            if (res) {
-                                results.push({reader->GetRegionContents(region), *header});
-
-                            } else {
-                                break;
-                            }
-                        }
-                        if (!results.empty()) {
-                            *part = results.front().part;
-                            *header = results.front().header;
-                            *valid = true;
-                            *flush = false;
-                            res = true;
-                            results.pop();
-                            *complete_frame = results.empty();
-
-                        } else {
-                            res = false;
-                        }
-                    }
-                } else {
-                    *part = reader->GetRegionContents(region);
-                    *header = false;
-                    *complete_frame = true;
-                    *valid = true;
-                    *flush = false;
-                 res = true;
-                }
-            }
-        }
-        return res;
-    }
-
-    bool EndOfStream() override
-    {
-        return !results.empty() ? false : reader->EndOfStream();
-    }
-};
-
-// Checks that concatenation chunks read by HeaderSplitter
-// is equal to the whole stream.
-TEST_P(Decoder, HeaderSplitterReadEverything)
-{
-    CallComponentTest<ComponentDesc>(GetParam(),
-        [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr) {
-
-        if (std::string(desc.component_name) == "C2.vp9vd") return;
-
-        auto append_vector = [](const std::vector<char>& src, std::vector<char>* dst) {
-            dst->reserve(dst->size() + src.size());
-            std::copy(src.begin(), src.end(), std::back_inserter(*dst));
-        };
-
-        for(const std::vector<const StreamDescription*>& streams : desc.streams) {
-
-            HeaderSplitter headerSplitter(streams);
-            std::vector<char> split_contents;
-
-            do {
-                std::vector<char> part;
-                bool header;
-                bool complete_frame;
-                bool valid;
-                bool flush;
-                bool res = headerSplitter.Read(&part, &header, &complete_frame, &valid, &flush);
-                EXPECT_TRUE(res);
-                EXPECT_TRUE(valid);
-                EXPECT_FALSE(flush);
-                EXPECT_NE(part.size(), 0u);
-
-                append_vector(part, &split_contents);
-
-            } while (!headerSplitter.EndOfStream());
-
-            std::vector<char> original_contents;
-
-            for (const auto& stream : streams) {
-                append_vector(stream->data, &original_contents);
-            }
-
-            EXPECT_EQ(original_contents.size(), split_contents.size());
-            EXPECT_EQ(original_contents, split_contents);
-        }
-    } );
-}
-
-// Sends streams for decoding emulating C2 runtime behaviour:
-// if frame contains header, the frame is sent split by NAL units.
-TEST_P(Decoder, SeparateHeaders)
-{
-    CallComponentTest<ComponentDesc>(GetParam(),
-        [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
-
-        if (std::string(desc.component_name) == "C2.vp9vd") return;
-
-        std::map<bool, std::string> memory_names = {
-            { false, "(system memory)" },
-            { true, "(video memory)" },
-        };
-
-        for(const std::vector<const StreamDescription*>& streams : desc.streams) {
-
-            SCOPED_TRACE("Stream: " + std::to_string(&streams - desc.streams.data()));
-
-            for (bool use_graphics_memory : { false, true }) {
-
-                CRC32Generator crc_generator;
-
-                GTestBinaryWriter writer(std::ostringstream()
-                    << comp_intf->getName() << "-" << GetStreamsCombinedName(streams) << ".nv12");
-
-                DecoderConsumer::OnFrame on_frame = [&] (uint32_t width, uint32_t height,
-                    const uint8_t* data, size_t length) {
-
-                    writer.Write(data, length);
-                    crc_generator.AddData(width, height, data, length);
-                };
-
-                std::shared_ptr<DecoderConsumer> validator =
-                    std::make_shared<DecoderConsumer>(on_frame);
-
-                HeaderSplitter headerSplitter(streams);
-                Decode(use_graphics_memory, comp, validator, &headerSplitter);
-
-                std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
-                std::list<uint32_t> expected_crc;
-                std::transform(streams.begin(), streams.end(), std::back_inserter(expected_crc),
-                    [] (const StreamDescription* stream) { return stream->crc32_nv12; } );
-
-                EXPECT_EQ(actual_crc, expected_crc) << "Not equal to reference CRC32"
-                    << memory_names[use_graphics_memory];
-            }
-        }
-    } );
-}
-
-// Sends last frame without eos flag, then empty input buffer with eos flag.
-TEST_P(Decoder, SeparateEos)
-{
-    class HeaderBreaker : public FrameStreamSplitter
-    {
-    public:
-        using FrameStreamSplitter::FrameStreamSplitter;
-        bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid, bool* flush) override
-        {
-            bool res{};
-            if (FrameStreamSplitter::EndOfStream()) {
-                part->clear();
-                *header = false;
-                *complete_frame = false;
-                *valid = true;
-                *flush = false;
-                res = !eos_returned_;
-                eos_returned_ = true;
-            } else {
-                res = FrameStreamSplitter::Read(part, header, complete_frame, valid, flush);
-            }
-            return res;
-        }
-        bool EndOfStream() override
-        {
-            return eos_returned_;
-        }
-    private:
-        bool eos_returned_{false};
-    };
-
-    CallComponentTest<ComponentDesc>(GetParam(),
-        [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
-
-        std::map<bool, std::string> memory_names = {
-            { false, "(system memory)" },
-            { true, "(video memory)" },
-        };
-
-        for(const std::vector<const StreamDescription*>& streams : desc.streams) {
-
-            for (bool use_graphics_memory : { false, true }) {
-
-                CRC32Generator crc_generator;
-
-                GTestBinaryWriter writer(std::ostringstream()
-                    << comp_intf->getName() << "-" << GetStreamsCombinedName(streams) << ".nv12");
-
-                DecoderConsumer::OnFrame on_frame = [&] (uint32_t width, uint32_t height,
-                    const uint8_t* data, size_t length) {
-
-                    writer.Write(data, length);
-                    crc_generator.AddData(width, height, data, length);
-                };
-
-                std::shared_ptr<DecoderConsumer> validator =
-                    std::make_shared<DecoderConsumer>(on_frame);
-                HeaderBreaker stream_splitter(streams);
-
-                Decode(use_graphics_memory, comp, validator, &stream_splitter);
-
-                std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
-                std::list<uint32_t> expected_crc;
-                std::transform(streams.begin(), streams.end(), std::back_inserter(expected_crc),
-                    [] (const StreamDescription* stream) { return stream->crc32_nv12; } );
-
-                EXPECT_EQ(actual_crc, expected_crc) << "Not equal to reference CRC32"
-                    << memory_names[use_graphics_memory];
-            }
-        }
-    } );
-}
-
-// Follow last frame with series of Eos works without frame.
-TEST_P(Decoder, MultipleEos)
-{
-    class EosBreaker : public FrameStreamSplitter
-    {
-    public:
-        using FrameStreamSplitter::FrameStreamSplitter;
-        bool Read(std::vector<char>* part, bool* header, bool* complete_frame, bool* valid, bool* flush) override
-        {
-            bool res{};
-            if (FrameStreamSplitter::EndOfStream()) {
-                part->clear();
-                *header = false;
-                *complete_frame = false;
-                *valid = (eos_returned_ == 0);
-                *flush = (eos_returned_ != 0);
-                res = (eos_returned_ < 10);
-                eos_returned_++;
-            } else {
-                res = FrameStreamSplitter::Read(part, header, complete_frame, valid, flush);
-            }
-            return res;
-        }
-        bool EndOfStream() override
-        {
-            return eos_returned_ > 0;
-        }
-    private:
-        int eos_returned_{0};
-    };
-
-    CallComponentTest<ComponentDesc>(GetParam(),
-        [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
-
-        std::map<bool, std::string> memory_names = {
-            { false, "(system memory)" },
-            { true, "(video memory)" },
-        };
-
-        for(const std::vector<const StreamDescription*>& streams : desc.streams) {
-
-            for (bool use_graphics_memory : { false, true }) {
-
-                CRC32Generator crc_generator;
-
-                GTestBinaryWriter writer(std::ostringstream()
-                    << comp_intf->getName() << "-" << GetStreamsCombinedName(streams) << ".nv12");
-
-                DecoderConsumer::OnFrame on_frame = [&] (uint32_t width, uint32_t height,
-                    const uint8_t* data, size_t length) {
-
-                    writer.Write(data, length);
-                    crc_generator.AddData(width, height, data, length);
-                };
-
-                std::shared_ptr<DecoderConsumer> validator =
-                    std::make_shared<DecoderConsumer>(on_frame);
-                EosBreaker stream_splitter(streams);
-
-                Decode(use_graphics_memory, comp, validator, &stream_splitter);
-
-                std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
-                std::list<uint32_t> expected_crc;
-                std::transform(streams.begin(), streams.end(), std::back_inserter(expected_crc),
-                    [] (const StreamDescription* stream) { return stream->crc32_nv12; } );
-
-                EXPECT_EQ(actual_crc, expected_crc) << "Not equal to reference CRC32"
-                    << memory_names[use_graphics_memory];
-            }
-        }
-    } );
 }
 
 // Checks the correctness of all decoding components state machine.
@@ -1157,6 +830,69 @@ TEST_P(Decoder, ComponentConstParams)
     }); // CallComponentTest
 }
 
+// This test runs Decode on streams by different decoders
+// on different decoding conditions
+// (like how streams are split into chunks supplied to decoder).
+// Name Check is chosen to produce readable test name like:
+// MfxComponents/DecoderDecode.Check/BrokenHeader_C2_h264vd
+TEST_P(DecoderDecode, Check)
+{
+    DecodingConditions conditions = std::get<DecodingConditions>(GetParam());
+
+    CallComponentTest<ComponentDesc>(std::get<ComponentDesc>(GetParam()),
+        [&] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+
+        const int TESTS_COUNT = conditions.repeat_count;
+
+        std::map<bool, std::string> memory_names = {
+            { false, "(system memory)" },
+            { true, "(video memory)" },
+        };
+
+        for (const std::vector<const StreamDescription*>& streams : desc.streams) {
+
+            if (conditions.skip && conditions.skip(streams, desc)) continue;
+
+            SCOPED_TRACE("Stream: " + std::to_string(&streams - desc.streams.data()));
+
+            for (int i = 0; i < TESTS_COUNT; ++i) {
+
+                for (bool use_graphics_memory : { false, true }) {
+
+                    CRC32Generator crc_generator;
+
+                    GTestBinaryWriter writer(std::ostringstream()
+                        << comp_intf->getName() << "-" << GetStreamsCombinedName(streams) << "-" << i << ".nv12");
+
+                    DecoderConsumer::OnFrame on_frame = [&] (uint32_t width, uint32_t height,
+                        const uint8_t* data, size_t length) {
+
+                        writer.Write(data, length);
+                        crc_generator.AddData(width, height, data, length);
+                    };
+
+                    std::shared_ptr<DecoderConsumer> validator =
+                        std::make_shared<DecoderConsumer>(on_frame);
+                    std::list<StreamChunk> stream_chunks = ReadChunks(streams);
+                    if (conditions.chunks_mutator) {
+                        conditions.chunks_mutator(streams, &stream_chunks);
+                    }
+
+                    Decode(use_graphics_memory, comp, validator, streams, stream_chunks);
+
+                    std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
+                    std::list<uint32_t> expected_crc;
+                    std::transform(streams.begin(), streams.end(), std::back_inserter(expected_crc),
+                        [] (const StreamDescription* stream) { return stream->crc32_nv12; } );
+
+                    EXPECT_EQ(actual_crc, expected_crc) << "Pass " << i << " not equal to reference CRC32"
+                        << memory_names[use_graphics_memory];
+                }
+            }
+        }
+    } );
+}
+
 INSTANTIATE_TEST_CASE_P(MfxComponents, CreateDecoder,
     ::testing::ValuesIn(g_components_desc),
     ::testing::PrintToStringParamName());
@@ -1167,4 +903,10 @@ INSTANTIATE_TEST_CASE_P(MfxInvalidComponents, CreateDecoder,
 
 INSTANTIATE_TEST_CASE_P(MfxComponents, Decoder,
     ::testing::ValuesIn(g_components_desc),
+    ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(MfxComponents, DecoderDecode,
+    ::testing::Combine(
+        ::testing::ValuesIn(g_decoding_conditions),
+        ::testing::ValuesIn(g_components_desc)),
     ::testing::PrintToStringParamName());
