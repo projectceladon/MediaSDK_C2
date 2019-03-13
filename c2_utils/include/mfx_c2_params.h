@@ -12,7 +12,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 #include <C2Config.h>
 
-enum C2ParamIndexKindVendor : uint32_t {
+enum C2ParamIndexKindVendor : C2Param::type_index_t {
 
     kParamIndexRateControl = C2Param::TYPE_INDEX_VENDOR_START,
     kParamIndexProfile,

@@ -71,7 +71,7 @@ c2_status_t MfxC2MockComponent::CopyGraphicToLinear(const C2FrameData& input,
         if(C2_OK != res) break;
 
         //  copy input buffer to output as is to identify data in test
-        memcpy(write_view->data(), in_raw[0], MEM_SIZE);
+        std::copy(in_raw[0], in_raw[0] + MEM_SIZE, write_view->data());
 
         C2Event event;
         event.fire(); // pre-fire event as output buffer is ready to use
@@ -144,7 +144,7 @@ c2_status_t MfxC2MockComponent::CopyLinearToGraphic(const C2FrameData& input,
             if(C2_OK != res) break;
 
             //  copy input buffer to output as is to identify data in test
-            memcpy(out_view->data()[0], in_raw, MEM_SIZE);
+            std::copy(in_raw, in_raw + MEM_SIZE, out_view->data()[0]);
         }
         C2Event event;
         event.fire(); // pre-fire event as output buffer is ready to use

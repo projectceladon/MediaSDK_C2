@@ -570,7 +570,7 @@ c2_status_t CopyGraphicView(const C2GraphicView* src, C2GraphicView* dst)
         }
 
         for (uint32_t i = 0; i < src_layout.rootPlanes; ++i) {
-            memcpy(dst->data()[i], src->data()[i], max_offsets[i]);
+            std::copy(src->data()[i], src->data()[i] + max_offsets[i], dst->data()[i]);
         }
         res = C2_OK;
 

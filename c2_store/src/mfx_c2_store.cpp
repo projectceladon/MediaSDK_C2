@@ -293,7 +293,7 @@ c2_status_t MfxC2ComponentStore::readConfigFile()
             MFX_DEBUG_TRACE_S(module);
 
             // getting optional flags
-            if ((size_t)(str+n+1 - line) < line_length)
+            if ((str+n+1) < (line + line_length))
             {
                 mfx_c2_get_field(str+n+1, &str, &n);
                 if (n)

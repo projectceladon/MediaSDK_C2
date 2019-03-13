@@ -140,7 +140,7 @@ void StripeGenerator::Apply(uint32_t frame_index, uint8_t* data,
     RenderStripedRow(frame_index, width, true, top_row); // fill 1st luma row
     uint8_t* row = top_row + stride;
     for(uint32_t i = 1; i < height; ++i) {
-        memcpy(row, top_row, stride); // copy top_row down the frame
+        std::copy(top_row, top_row + stride, row); // copy top_row down the frame
         row += stride;
     }
 
@@ -148,7 +148,7 @@ void StripeGenerator::Apply(uint32_t frame_index, uint8_t* data,
     RenderStripedRow(frame_index, width, false, top_row); // fill 1st chroma row
     row = top_row + stride;
     for(uint32_t i = 1; i < height / 2; ++i) {
-        memcpy(row, top_row, stride); // copy top_row down the frame
+        std::copy(top_row, top_row + stride, row); // copy top_row down the frame
         row += stride;
     }
 }
