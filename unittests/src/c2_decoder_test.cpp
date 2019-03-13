@@ -388,7 +388,7 @@ static void PrepareWork(uint32_t frame_index,
             uint8_t* data = write_view->data();
             EXPECT_NE(data, nullptr);
 
-            memcpy(data, &bitstream.front(), bitstream.size());
+            std::copy(bitstream.begin(), bitstream.end(), data);
 
             C2Event event;
             event.fire(); // pre-fire as buffer is already ready to use
@@ -604,11 +604,13 @@ protected:
 
                             for (uint32_t i = 0; i < crop.height; i++) {
                                 const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_Y].rowInc;
-                                memcpy(raw_cropped + i * crop.width, raw[C2PlanarLayout::PLANE_Y] + (i + crop.top) * stride + crop.left, crop.width);
+                                const uint8_t* row = raw[C2PlanarLayout::PLANE_Y] + (i + crop.top) * stride + crop.left;
+                                std::copy(row, row + crop.width, raw_cropped + i * crop.width);
                             }
                             for (uint32_t i = 0; i < (crop.height >> 1); i++) {
                                 const uint32_t stride = layout.planes[C2PlanarLayout::PLANE_U].rowInc;
-                                memcpy(raw_cropped_chroma + i * crop.width, raw_chroma + (i + (crop.top >> 1)) * stride + crop.left, crop.width);
+                                const uint8_t* row = raw_chroma + (i + (crop.top >> 1)) * stride + crop.left;
+                                std::copy(row, row + crop.width, raw_cropped_chroma + i * crop.width);
                             }
 
                             if(nullptr != raw_cropped) {

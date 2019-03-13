@@ -93,7 +93,7 @@ mfxStatus MfxC2FrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, bool
                 if (MFX_ERR_NONE == mfx_res) {
                     mfxU8* buf = bst_header_->Data + bst_header_->DataOffset + bst_header_->DataLength;
 
-                    memcpy(buf, data, size);
+                    std::copy(data, data + size, buf);
                     bst_header_->DataLength += size;
                 }
                 if (MfxC2BS_HeaderAwaiting == bs_state_) bs_state_ = MfxC2BS_HeaderCollecting;
@@ -111,7 +111,8 @@ mfxStatus MfxC2FrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, bool
                 if (MFX_ERR_NONE == mfx_res) {
                     mfxU8* buf = bst_buf_->Data + bst_buf_->DataOffset + bst_buf_->DataLength;
 
-                    memcpy(buf, bst_header_->Data + bst_header_->DataOffset, bst_header_->DataLength);
+                    std::copy(bst_header_->Data + bst_header_->DataOffset,
+                        bst_header_->Data + bst_header_->DataOffset + bst_header_->DataLength, buf);
                     bst_buf_->DataLength += bst_header_->DataLength;
                     bst_buf_copy_bytes_ += bst_header_->DataLength;
                 }
@@ -134,7 +135,7 @@ mfxStatus MfxC2FrameConstructor::Load_None(const mfxU8* data, mfxU32 size, mfxU6
         if (MFX_ERR_NONE == mfx_res) {
             mfxU8* buf = bst_buf_->Data + bst_buf_->DataOffset + bst_buf_->DataLength;
 
-            memcpy(buf, data, size);
+            std::copy(data, data + size, buf);
             bst_buf_->DataLength += size;
             bst_buf_copy_bytes_ += size;
         }
@@ -287,7 +288,8 @@ mfxStatus MfxC2FrameConstructor::BstBufSync()
             // Note: we read data from bst_in_, thus here bst_Buf is empty
             mfx_res = BstBufMalloc(bst_in_->DataLength);
             if (MFX_ERR_NONE == mfx_res) {
-                memcpy(bst_buf_->Data, bst_in_->Data + bst_in_->DataOffset, bst_in_->DataLength);
+                std::copy(bst_in_->Data + bst_in_->DataOffset,
+                    bst_in_->Data + bst_in_->DataOffset + bst_in_->DataLength, bst_buf_->Data);
                 bst_buf_->DataOffset = 0;
                 bst_buf_->DataLength = bst_in_->DataLength;
                 bst_buf_->TimeStamp  = bst_in_->TimeStamp;
@@ -353,7 +355,8 @@ mfxStatus MfxC2AVCFrameConstructor::SaveHeaders(std::shared_ptr<mfxBitstream> sp
                 return MFX_ERR_MEMORY_ALLOC;
             sps_.MaxLength = sps->DataLength;
         }
-        memcpy(sps_.Data, sps->Data + sps->DataOffset, sps->DataLength);
+        std::copy(sps->Data + sps->DataOffset,
+            sps->Data + sps->DataOffset + sps->DataLength, sps_.Data);
         sps_.DataLength = sps->DataLength;
     }
     if (nullptr != pps) {
@@ -363,7 +366,7 @@ mfxStatus MfxC2AVCFrameConstructor::SaveHeaders(std::shared_ptr<mfxBitstream> sp
                 return MFX_ERR_MEMORY_ALLOC;
             pps_.MaxLength = pps->DataLength;
         }
-        memcpy(pps_.Data, pps->Data + pps->DataOffset, pps->DataLength);
+        std::copy(pps->Data + pps->DataOffset, pps->Data + pps->DataOffset + pps->DataLength, pps_.Data);
         pps_.DataLength = pps->DataLength;
     }
     return MFX_ERR_NONE;
@@ -444,9 +447,9 @@ mfxStatus MfxC2AVCFrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, b
                 mfx_res = BstBufRealloc(sps_.DataLength + pps_.DataLength);
                 if (MFX_ERR_NONE == mfx_res) {
                     mfxU8* buf = bst_buf_->Data + bst_buf_->DataOffset + bst_buf_->DataLength;
-                    memcpy(buf, sps_.Data, sps_.DataLength);
+                    std::copy(sps_.Data, sps_.Data + sps_.DataLength, buf);
                     buf += sps_.DataLength;
-                    memcpy(buf, pps_.Data, pps_.DataLength);
+                    std::copy(pps_.Data, pps_.Data + pps_.DataLength, buf);
 
                     bst_buf_->DataLength += sps_.DataLength + pps_.DataLength;
                     bst_buf_copy_bytes_ += sps_.DataLength + pps_.DataLength;
