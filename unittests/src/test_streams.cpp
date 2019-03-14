@@ -517,7 +517,7 @@ bool HevcSequenceParameterSet::ExtractSequenceParameterSet(std::vector<char>&& b
                 /*uint32_t bit_depth_chroma_minus8 = */Read_UE_V(stream.data, &region);
                 log2_max_pic_order_cnt_lsb_minus4_ = Read_UE_V(stream.data, &region);
                 bool sub_layer_ordering_info_present_flag = ReadBits(stream.data, &region, 1);
-                if (max_sub_layers_minus1_ >= 0 && max_sub_layers_minus1_ <= 7) {
+                if (max_sub_layers_minus1_ <= 7) {
                     Read_UE_V(stream.data, &region);
                     Read_UE_V(stream.data, &region);
                     Read_UE_V(stream.data, &region);
