@@ -388,11 +388,15 @@ protected:
 
                         std::shared_ptr<C2Component> comp = component.lock();
                         if (comp) {
-                            C2StreamPictureSizeInfo::output picture_size;
-                            sts = comp->intf()->query_vb({&picture_size}, {}, C2_MAY_BLOCK, nullptr);
+                            C2StreamPictureSizeInfo::output size_info;
+                            C2StreamCropRectInfo::output crop_info;
+                            sts = comp->intf()->query_vb({&size_info, &crop_info}, {}, C2_MAY_BLOCK, nullptr);
                             EXPECT_EQ(sts, C2_OK);
-                            EXPECT_EQ(picture_size.width, crop.width);
-                            EXPECT_EQ(picture_size.height, crop.height);
+                            EXPECT_EQ(size_info.width, graphic_block->width());
+                            EXPECT_EQ(size_info.height, graphic_block->height());
+
+                            EXPECT_EQ((C2Rect)crop_info, crop);
+
                             comp = nullptr;
                         }
 
