@@ -65,6 +65,20 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, int flags, Dec
                 }
             );
 
+            pr.AddStreamInfo<C2StreamCropRectInfo::output>(
+                C2_PARAMKEY_CROP_RECT, SINGLE_STREAM_ID,
+                [this] (C2StreamCropRectInfo::output* dst)->bool {
+                    MFX_DEBUG_TRACE("AssignCrop");
+                    dst->width = video_params_.mfx.FrameInfo.CropW;
+                    dst->height = video_params_.mfx.FrameInfo.CropH;
+                    dst->left = video_params_.mfx.FrameInfo.CropX;
+                    dst->top = video_params_.mfx.FrameInfo.CropY;
+                    MFX_DEBUG_TRACE_STREAM(NAMED(dst->left) << NAMED(dst->top) <<
+                        NAMED(dst->width) << NAMED(dst->height));
+                    return true;
+                }
+            );
+
         break;
     }
 
@@ -989,6 +1003,21 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
 
         const C2Rect rect = C2Rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH)
             .at(mfx_surface->Info.CropX, mfx_surface->Info.CropY);
+
+        {
+            // Update frame format description to be returned by Query method
+            // through parameters C2StreamPictureSizeInfo and C2StreamCropRectInfo.
+            // Although updated frame format is available right after DecodeFrameAsync call,
+            // getting update there doesn't give any improvement in terms of mutex sync,
+            // as init_decoder_mutex_ is not locked there.
+
+            // Also parameter update here is easily tested by comparison parameter with output in onWorkDone callback.
+            // If parameters update is done after DecodeFrameAsync call
+            // then it becomes not synchronized with output and input,
+            // looks random from client side and cannot be tested.
+            std::lock_guard<std::mutex> lock(init_decoder_mutex_);
+            video_params_.mfx.FrameInfo = mfx_surface->Info;
+        }
 
         std::shared_ptr<C2GraphicBlock> block = frame_out.GetC2GraphicBlock();
         if (!block) {
