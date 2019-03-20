@@ -31,6 +31,7 @@ fi
 
 bitness=64
 remote_lib=lib64
+tests_folder=c2-msdk-tests
 
 if [ "$#" -ge 1 ]
 then
@@ -38,22 +39,20 @@ then
     then
         bitness=32
         remote_lib=lib
+        tests_folder=c2-msdk-tests-32
     fi
 fi
 
 remote_output=$remote_dir/out/target/product/$target_platform/
-
-tests_folder=c2-msdk-tests
 
 local_dir=/tmp/$tests_folder
 
 device_dir=/data/local/tmp/$tests_folder
 
 mkdir -p $local_dir
-rm -rf $local_dir/*
-mkdir $local_dir/service
-mkdir $local_dir/vendor
-mkdir $local_dir/vendor/etc
+mkdir -p $local_dir/service
+mkdir -p $local_dir/vendor
+mkdir -p $local_dir/vendor/etc
 
 libs=\
 libmfx_mock_c2_components.so,\
@@ -66,7 +65,29 @@ mfx_c2_store_unittests,\
 mfx_c2_components_unittests,\
 mfx_c2_mock_unittests
 
-scp $remote_server:${remote_output}vendor/\{$remote_lib/\{$libs\},bin/\{$execs\}$bitness\} ${local_dir}
+src_files=
+dst_files=
+:> /tmp/scp.txt
+touch /tmp/timestamp
+
+function update
+{
+    for src in $(eval echo $1)
+    do
+        dst=$2/$(basename $src)
+        if [ ! -f  $dst ]
+        then
+            echo "no file: "$dst
+            scp $remote_server:$src $2
+        else
+            src_files="$src_files $src"
+            dst_files="$dst_files $dst"
+            echo "$src $2" >> /tmp/scp.txt
+        fi
+    done
+}
+
+update ${remote_output}vendor/\{$remote_lib/\{$libs\},bin/\{$execs\}$bitness\} ${local_dir}
 
 service=hardware.intel.media.c2@1.0-service
 
@@ -80,9 +101,9 @@ libstagefright_codec2_vndk.so"
 
 if ssh $remote_server "test -e ${remote_output}vendor/bin/hw/${service}"
 then
-    scp $remote_server:${remote_output}vendor/bin/hw/${service} ${local_dir}/service
+    update ${remote_output}vendor/bin/hw/${service} ${local_dir}/service
 
-    scp $remote_server:${remote_output}system/lib/\{$service_system_libs\} ${local_dir}/service
+    update ${remote_output}system/lib/\{$service_system_libs\} ${local_dir}/service
 
     service_libs="\
 libmfx_mock_c2_components.so,\
@@ -90,18 +111,30 @@ libmfx_c2_components_hw.so,\
 libmfxhw32.so,\
 libstagefright_codec2_vndk_mfx.so"
 
-    scp $remote_server:${remote_output}vendor/lib/\{$service_libs\} ${local_dir}/service
+    update ${remote_output}vendor/lib/\{$service_libs\} ${local_dir}/service
 
     system_exec=mfx_c2_service_unittests
-    scp $remote_server:$remote_output/system/bin/${system_exec}${bitness} ${local_dir}
+    update $remote_output/system/bin/${system_exec}${bitness} ${local_dir}
 fi
 
 system_libs="libcodec2_hidl_client.so,$service_system_libs"
 
-scp $remote_server:${remote_output}system/$remote_lib/\{$system_libs\} ${local_dir}
+update ${remote_output}system/$remote_lib/\{$system_libs\} ${local_dir}
 
 c2_sources=vendor/intel/mdp_msdk-c2-plugins/
-scp $remote_server:$remote_dir/${c2_sources}c2_store/data/media_codecs_intel_c2_video.xml ${local_dir}/vendor/etc
+update $remote_dir/${c2_sources}c2_store/data/media_codecs_intel_c2_video.xml ${local_dir}/vendor/etc
+
+if [ ! -z "$src_files" ]
+then
+    ssh $remote_server md5sum $src_files > /tmp/src_md5.txt
+    md5sum $dst_files > /tmp/dst_md5.txt
+    pr --merge --join-lines -t /tmp/src_md5.txt /tmp/dst_md5.txt /tmp/scp.txt | \
+        awk '{ if ($1 != $3) {print "scp $remote_server:"$5,$6} else {print "touch "substr($4,2)} }' | bash
+fi
+
+find $local_dir -type f -not -newer /tmp/timestamp -delete
+
+rm --force /tmp/src_md5.txt /tmp/dst_md5.txt /tmp/scp.txt /tmp/timestamp
 
 if adb shell "[ ! -w /system ]"
 then
@@ -115,8 +148,9 @@ fi
 adb shell "rm -rf ${device_dir}/*"
 
 cd /tmp # do cd and adb separately to use msys mangling for /tmp path
-MSYS_NO_PATHCONV=1 adb push ${tests_folder}/. ${device_dir} # and not use mangling for $device_dir
+MSYS_NO_PATHCONV=1 adb push ${tests_folder}/. ${device_dir} | tail -n 5  # and not use mangling for $device_dir
 # adb push src folder ends with /. to work same way on windows and ubuntu adb versions
+# tail adb output to not see a lot of progress lines
 
 adb wait-for-device
 
