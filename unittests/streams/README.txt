@@ -2,15 +2,16 @@ Original stream: "Time Lapse of Bay" (IMG_5040_CLIPCHAMP_keep.mp4)
     Source: https://www.videvo.net/video/time-lapse-of-bay/4658/
     Author: Omar Ramo (http://www.video.net/profile/omarramo/)
     Licence: Creative Commons 3.0 Unported (CC BY 3.0)
-    Resolition 1920x1080
-    Format mp4 RAW NV12
-    Aspect Ratio 16.9
+    Resolition: 1920x1080
+    Format: mp4 h264 NV12
+    Aspect Ratio: 16.9
     Frame Rate: 30 fps
-    Duration 34 sec
+    Duration: 34 sec
+    Number of frames: 1037
 
 This does not imply any endorsement of Intel(R) or of Intel's software products.
 
-Original stream was decoded by ffmpeg, resized by sample_vpp (uses MSDK VPP) and were added numbers of frames by ffmpeg for creation 2 RAW sequences:
+First 100 frames of original stream were decoded by ffmpeg, resized by sample_vpp (uses MSDK VPP) and were added numbers of frames by ffmpeg for creation 2 RAW sequences:
     stream_nv12_176x144_100.yuv - NV12 176x144
     stream_nv12_352x288_100.yuv - NV12 352x288
 
