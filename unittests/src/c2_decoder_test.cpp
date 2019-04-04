@@ -55,6 +55,7 @@ namespace {
         bool complete_frame{};
         bool valid{};
         bool flush{};
+        bool seek{}; // flag to do seek operation before queueing the chunk
         bool end_stream{};
     };
 
@@ -68,6 +69,10 @@ namespace {
     {
         const char* name;
         int repeat_count{1};
+        bool check_expectations{true};
+        bool check_frame_crc{false}; // check per frame, otherwise for whole stream
+        std::function<size_t(
+            const std::vector<const StreamDescription*>& streams)> checked_frames_count;
         std::function<bool(
             const std::vector<const StreamDescription*>& streams,
             const ComponentDesc& component_desc)> skip;
@@ -239,7 +244,150 @@ static void AppendMultipleEos(const std::vector<const StreamDescription*>&/* str
     }
 }
 
+// Modifies stream chunks to emulate seek on that stream.
+// If not seek_start seek is emulated from 3/4 of overall stream to
+// start of 2nd GOP,
+// otherwise to the start of overall stream.
+// 3/4 is used to seek form as:
+// 1) it is definitely after 2nd GOP, so test will always seek back
+// 2) multi-resolutions stream change resolution in the middle of the stream,
+// so seek from 3/4 to 2nd GOP or start should test resolution change while seek.
+static void SeekStream(const std::vector<const StreamDescription*>& streams,
+    std::list<StreamChunk>* chunks, bool seek_start, int repeat_count)
+{
+    size_t first_index = 0;
+    if (!seek_start && streams[0]->gop_size < streams[0]->frames_crc32_nv12.size()) {
+        first_index = streams[0]->gop_size;
+    }
+    size_t last_index = chunks->size() * 3 / 4 - 1; // including the index
+
+    auto src_first = std::next(chunks->begin(), first_index);
+    auto src_last = std::next(chunks->begin(), last_index);
+
+    auto dst = std::next(src_last); // insertion point right next to last frame to be copied
+    // vp9 doesn't have separate headers
+    bool has_header = (streams[0]->sps.size > 0) || (streams[0]->pps.size > 0);
+
+    if (src_first != chunks->begin() && has_header) {
+        SplitHeaders(streams, chunks); // cut off headers to duplicate them easily
+    }
+
+    for (int i = 0; i < repeat_count; ++i) {
+        std::list<StreamChunk>::iterator first_inserted = chunks->end();
+
+        // src_first == chunks->begin() is a special case
+        // as stream copying should done from the start
+        if (src_first != chunks->begin() && has_header) {
+            // copy header
+            for (auto it = chunks->begin(); it != src_first; ++it) {
+                if (it->header) {
+                    auto inserted = chunks->insert(dst, *it);
+                    if (first_inserted == chunks->end()) {
+                        first_inserted = inserted;
+                    }
+                }
+            }
+        }
+
+        // copy frames
+        for (auto it = src_first;; ++it) {
+            auto inserted = chunks->insert(dst, *it);
+            if (first_inserted == chunks->end()) {
+                first_inserted = inserted;
+            }
+            if (i != repeat_count - 1) break; // duplicate first frame only
+            if (it == src_last) break; // src_last is included
+        }
+        first_inserted->seek = true; // indicate this chunk should cause seek operation
+    }
+}
+
+TEST(ChunksMutator, SeekStream)
+{
+    StreamDescription stream{};
+
+    auto add_start_code = [&]() {
+        stream.data.push_back((char)0);
+        stream.data.push_back((char)0);
+        stream.data.push_back((char)1);
+    };
+
+    add_start_code();
+    stream.data.push_back('S');
+    stream.sps.offset = 0;
+    stream.sps.size = 4;
+
+    add_start_code();
+    stream.data.push_back('P');
+    stream.pps.offset = 4;
+    stream.pps.size = 4;
+
+    for (int i = 0; i < 10; ++i) {
+        add_start_code();
+        stream.data.push_back((char)(i + '0'));
+    }
+    stream.gop_size = 5;
+    stream.frames_crc32_nv12.resize(10);
+
+    std::list<StreamChunk> chunks;
+
+    StreamChunk chunk{};
+    chunk.region.offset = 0;
+    chunk.region.size = 12;
+    chunk.header = true;
+    chunk.complete_frame = true;
+    chunk.valid = true;
+    chunks.push_back(chunk);
+
+    for (size_t offset = chunks.back().region.size; offset < stream.data.size(); offset += 4) {
+        chunk.region.offset = offset;
+        chunk.region.size = 4;
+        chunk.header = false;
+        chunks.push_back(chunk);
+    }
+    chunks.back().end_stream = true;
+
+    auto format = [&](const std::list<StreamChunk>& chunks)->std::string {
+        std::ostringstream ss;
+        for (const StreamChunk& chunk : chunks) {
+            for (size_t i = 0; i < chunk.region.size; ++i) {
+                char ch = stream.data[chunk.region.offset + i];
+                if (ch >= '0') ss << ch;
+            }
+            ss << ";";
+        }
+        return ss.str();
+    };
+
+    std::list<StreamChunk> original = chunks;
+    EXPECT_EQ(format(chunks), "SP0;1;2;3;4;5;6;7;8;9;");
+
+    SeekStream({&stream}, &chunks, false/*seek_start*/, 1/*repeats*/);
+    EXPECT_EQ(format(chunks), "S;P;0;1;2;3;4;5;6;S;P;5;6;7;8;9;");
+
+    chunks = original;
+    SeekStream({&stream}, &chunks, true/*seek_start*/, 1/*repeats*/);
+    EXPECT_EQ(format(chunks), "SP0;1;2;3;4;5;6;SP0;1;2;3;4;5;6;7;8;9;");
+
+    chunks = original;
+    SeekStream({&stream}, &chunks, false/*seek_start*/, 3/*repeats*/);
+    EXPECT_EQ(format(chunks), "S;P;0;1;2;3;4;5;6;S;P;5;S;P;5;S;P;5;6;7;8;9;");
+
+    chunks = original;
+    SeekStream({&stream}, &chunks, true/*seek_start*/, 3/*repeats*/);
+    EXPECT_EQ(format(chunks), "SP0;1;2;3;4;5;6;SP0;SP0;SP0;1;2;3;4;5;6;7;8;9;");
+}
+
+bool StreamsAbleToSeek(const StreamDescription* stream)
+{
+    size_t frames_count = stream->frames_crc32_nv12.size();
+    return stream->gop_size < frames_count;
+}
+
 static std::vector<DecodingConditions> g_decoding_conditions = []() {
+
+    using namespace std::placeholders;
+
     std::vector<DecodingConditions> res;
 
     res.push_back({});
@@ -275,6 +423,53 @@ static std::vector<DecodingConditions> g_decoding_conditions = []() {
     res.push_back({});
     res.back().name = "MultipleEos";
     res.back().chunks_mutator = AppendMultipleEos;
+
+    // Playback till 3/4 of stream, seek to 2nd gop then playback till the end.
+    res.push_back({});
+    res.back().name = "Seek";
+    res.back().check_expectations = false;
+    res.back().check_frame_crc = true;
+    res.back().skip = [](const std::vector<const StreamDescription*>& streams, const ComponentDesc&) {
+        // If first stream doesn't have a valid point to seek - no difference from SeekStart test,
+        // it is skipped from this test.
+        return !StreamsAbleToSeek(streams.front());
+    };
+
+    res.back().checked_frames_count = [](const std::vector<const StreamDescription*>& streams) {
+        size_t total_frames_count = 0;
+        for (const StreamDescription* stream : streams) {
+            total_frames_count += stream->frames_crc32_nv12.size();
+        }
+
+        const StreamDescription* stream = streams.front();
+        return total_frames_count - stream->gop_size;
+    };
+    res.back().chunks_mutator = std::bind(SeekStream, _1, _2, false/*seek_start*/, 1);
+
+    // Playback till 3/4 of stream, seek to 2nd gop, play 1 frame,
+    // repeat seek and ply 10 times, then playback till the end.
+    res.push_back({});
+    res.back().name = "BoringSeek";
+    res.back().check_expectations = false;
+    res.back().check_frame_crc = true;
+    res.back().skip = [](const std::vector<const StreamDescription*>& streams, const ComponentDesc&) {
+        // If first stream doesn't have a valid point to seek - no difference from SeekStart test,
+        // it is skipped from this test.
+        return !StreamsAbleToSeek(streams.front());
+    };
+
+    res.back().checked_frames_count = [](const std::vector<const StreamDescription*>&) {
+        return 0;
+    };
+    const int REPEATS_COUNT = 10;
+    res.back().chunks_mutator = std::bind(SeekStream, _1, _2, false/*seek_start*/, REPEATS_COUNT);
+
+    // Playback till 3/4 of stream, seek to start then playback till the end.
+    res.push_back({});
+    res.back().name = "SeekStart";
+    res.back().chunks_mutator = std::bind(SeekStream, _1, _2, true/*seek_start*/, 1);
+    res.back().check_expectations = false;
+    res.back().check_frame_crc = true;
 
     return res;
 }();
@@ -356,7 +551,6 @@ static void PrepareWork(uint32_t frame_index,
     // timestamp is set to correspond to 30 fps stream.
     buffer_pack->ordinal.timestamp = FRAME_DURATION_US * frame_index;
     buffer_pack->ordinal.frameIndex = frame_index;
-    buffer_pack->ordinal.customOrdinal = 0;
 
     do {
 
@@ -520,8 +714,8 @@ public:
         const uint8_t* data, size_t length)> OnFrame;
 
 public:
-    DecoderConsumer(OnFrame on_frame):
-        on_frame_(on_frame) {}
+    DecoderConsumer(OnFrame on_frame, bool check_expectations = true):
+        on_frame_(on_frame), check_expectations_(check_expectations) {}
 
     // future ready when validator got all expectations (frames and failures)
     std::future<void> GetFuture()
@@ -567,18 +761,20 @@ protected:
                         EXPECT_NE(crop.width, 0u);
                         EXPECT_NE(crop.height, 0u);
 
-                        std::shared_ptr<C2Component> comp = component.lock();
-                        if (comp) {
-                            C2StreamPictureSizeInfo::output size_info;
-                            C2StreamCropRectInfo::output crop_info;
-                            sts = comp->intf()->query_vb({&size_info, &crop_info}, {}, C2_MAY_BLOCK, nullptr);
-                            EXPECT_EQ(sts, C2_OK);
-                            EXPECT_EQ(size_info.width, graphic_block->width());
-                            EXPECT_EQ(size_info.height, graphic_block->height());
+                        if (check_expectations_) {
+                            std::shared_ptr<C2Component> comp = component.lock();
+                            if (comp) {
+                                C2StreamPictureSizeInfo::output size_info;
+                                C2StreamCropRectInfo::output crop_info;
+                                sts = comp->intf()->query_vb({&size_info, &crop_info}, {}, C2_MAY_BLOCK, nullptr);
+                                EXPECT_EQ(sts, C2_OK);
+                                EXPECT_EQ(size_info.width, graphic_block->width());
+                                EXPECT_EQ(size_info.height, graphic_block->height());
 
-                            EXPECT_EQ((C2Rect)crop_info, crop);
+                                EXPECT_EQ((C2Rect)crop_info, crop);
 
-                            comp = nullptr;
+                                comp = nullptr;
+                            }
                         }
 
                         std::unique_ptr<const C2GraphicView> c_graph_view;
@@ -619,22 +815,31 @@ protected:
                             }
                         }
                     }
-                    bool empty = buffer_pack.buffers.size() == 0;
-                    bool expectations_met = false;
-                    expect_.CheckFrame(frame_index, empty, &expectations_met);
-                    if (expectations_met) {
-                        done_.set_value();
-                    }
-                    if (empty && eos) { // Separate eos work should be last of expected.
-                        EXPECT_TRUE(expectations_met) << NAMED(frame_index) << " left: " << expect_.Format();
+                    if (check_expectations_) {
+                        bool empty = buffer_pack.buffers.size() == 0;
+                        bool expectations_met = false;
+                        expect_.CheckFrame(frame_index, empty, &expectations_met);
+                        if (expectations_met) {
+                            done_.set_value();
+                        }
+                        if (empty && eos) { // Separate eos work should be last of expected.
+                            EXPECT_TRUE(expectations_met) << NAMED(frame_index) << " left: " << expect_.Format();
+                        }
+                    } else {
+                        if (eos) {
+                            done_.set_value();
+                        }
                     }
                 }
             } else {
                 EXPECT_EQ(work->workletsProcessed, 0u);
-                bool expectations_met = false;
-                expect_.CheckFailure(work->result, &expectations_met);
-                if (expectations_met) {
-                    done_.set_value();
+
+                if (check_expectations_) {
+                    bool expectations_met = false;
+                    expect_.CheckFailure(work->result, &expectations_met);
+                    if (expectations_met) {
+                        done_.set_value();
+                    }
                 }
             }
         }
@@ -658,6 +863,7 @@ protected:
 
 private:
     OnFrame on_frame_;
+    bool check_expectations_;
     Expectation expect_;
     std::promise<void> done_;  // fire when all expected frames came
 };
@@ -700,8 +906,6 @@ static void Decode(
         // insert input data
         PrepareWork(frame_index, component, &work, stream_part,
             chunk.end_stream, chunk.header, chunk.complete_frame);
-        std::list<std::unique_ptr<C2Work>> works;
-        works.push_back(std::move(work));
 
         Expectation& expect = chunk.flush ? flush_expect : validator->GetExpectation();
         if (chunk.valid) {
@@ -709,6 +913,16 @@ static void Decode(
         } else {
             expect.ExpectFailures(1, C2_BAD_VALUE);
         }
+
+        if (chunk.seek) { // seek back
+            std::list<std::unique_ptr<C2Work>> flushed_works;
+
+            sts = component->flush_sm(C2Component::FLUSH_COMPONENT, &flushed_works);
+            EXPECT_EQ(sts, C2_OK);
+        }
+
+        std::list<std::unique_ptr<C2Work>> works;
+        works.push_back(std::move(work));
 
         sts = component->queue_nb(&works);
         EXPECT_EQ(sts, C2_OK);
@@ -863,6 +1077,8 @@ TEST_P(DecoderDecode, Check)
 
                     CRC32Generator crc_generator;
 
+                    std::vector<uint32_t> frames_crc32;
+
                     GTestBinaryWriter writer(std::ostringstream()
                         << comp_intf->getName() << "-" << GetStreamsCombinedName(streams) << "-" << i << ".nv12");
 
@@ -870,11 +1086,18 @@ TEST_P(DecoderDecode, Check)
                         const uint8_t* data, size_t length) {
 
                         writer.Write(data, length);
-                        crc_generator.AddData(width, height, data, length);
+
+                        if (conditions.check_frame_crc) {
+                            CRC32Generator frame_crc_generator;
+                            frame_crc_generator.AddData(width, height, data, length);
+                            frames_crc32.push_back(frame_crc_generator.GetCrc32().front());
+                        } else {
+                            crc_generator.AddData(width, height, data, length);
+                        }
                     };
 
                     std::shared_ptr<DecoderConsumer> validator =
-                        std::make_shared<DecoderConsumer>(on_frame);
+                        std::make_shared<DecoderConsumer>(on_frame, conditions.check_expectations);
                     std::list<StreamChunk> stream_chunks = ReadChunks(streams);
                     if (conditions.chunks_mutator) {
                         conditions.chunks_mutator(streams, &stream_chunks);
@@ -882,13 +1105,32 @@ TEST_P(DecoderDecode, Check)
 
                     Decode(use_graphics_memory, comp, validator, streams, stream_chunks);
 
-                    std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
-                    std::list<uint32_t> expected_crc;
-                    std::transform(streams.begin(), streams.end(), std::back_inserter(expected_crc),
-                        [] (const StreamDescription* stream) { return stream->crc32_nv12; } );
+                    if (conditions.check_frame_crc) {
 
-                    EXPECT_EQ(actual_crc, expected_crc) << "Pass " << i << " not equal to reference CRC32"
-                        << memory_names[use_graphics_memory];
+                        std::vector<uint32_t> expected_frames_crc;
+                        for (auto& stream : streams) {
+                            std::copy(stream->frames_crc32_nv12.begin(), stream->frames_crc32_nv12.end(),
+                                std::back_inserter(expected_frames_crc));
+                        }
+
+                        size_t checked_frames_count = expected_frames_crc.size();
+                        if (conditions.checked_frames_count) {
+                            checked_frames_count = conditions.checked_frames_count(streams);
+                        }
+                        EXPECT_GE(frames_crc32.size(), checked_frames_count);
+
+                        for (size_t j = 0; j < std::min(frames_crc32.size(), checked_frames_count); ++j) {
+                            EXPECT_EQ(frames_crc32.rbegin()[j], expected_frames_crc.rbegin()[j]);
+                        }
+                    } else {
+                        std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
+                        std::list<uint32_t> expected_crc;
+                        std::transform(streams.begin(), streams.end(), std::back_inserter(expected_crc),
+                            [] (const StreamDescription* stream) { return stream->crc32_nv12; } );
+
+                        EXPECT_EQ(actual_crc, expected_crc) << "Pass " << i << " not equal to reference CRC32"
+                            << memory_names[use_graphics_memory];
+                    }
                 }
             }
         }

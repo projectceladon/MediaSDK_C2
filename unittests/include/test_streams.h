@@ -34,6 +34,11 @@ struct StreamDescription
     uint32_t crc32_nv12; // Checksum of the video decoded to nv12 format,
     // obtained with command line: ./mfx_player64 -i {bitstream}.264 -crc -hw -o:nv12
     // It does not match default crc32 checksums which are actually for I420.
+    std::vector<uint32_t> frames_crc32_nv12; // Crc32 checksums for every frame,
+    // stored in displayed order.
+
+    size_t gop_size; // Here gop is meant as pictures group could be decoded independently,
+    // no refs to other groups, used for seek.
 
     std::vector<char> data;
 };

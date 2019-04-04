@@ -1179,15 +1179,27 @@ c2_status_t MfxC2DecoderComponent::Queue(std::list<std::unique_ptr<C2Work>>* con
 c2_status_t MfxC2DecoderComponent::Flush(std::list<std::unique_ptr<C2Work>>* const flushedWork)
 {
     MFX_DEBUG_TRACE_FUNC;
+
+    //TODO: check if working_queue_ might be flushed too, (queued works which doesn't reach DoWork yet)
+    working_queue_.Push([this] () {
+        MFX_DEBUG_TRACE("DecoderReset");
+        mfxStatus reset_sts = decoder_->Reset(&video_params_);
+        MFX_DEBUG_TRACE__mfxStatus(reset_sts);
+    } );
     // Wait to have no works queued between Queue and DoWork.
     working_queue_.WaitForEmpty();
 
-    std::lock_guard<std::mutex> lock(pending_works_mutex_);
+    {
+        std::lock_guard<std::mutex> lock(pending_works_mutex_);
 
-    for (auto& item : pending_works_) {
-        flushedWork->push_back(std::move(item.second));
+        for (auto& item : pending_works_) {
+            flushedWork->push_back(std::move(item.second));
+        }
+        pending_works_.clear();
     }
-    pending_works_.clear();
-
+    {
+        std::lock_guard<std::mutex> lock(locked_surfaces_mutex_);
+        locked_surfaces_.clear();
+    }
     return C2_OK;
 }
