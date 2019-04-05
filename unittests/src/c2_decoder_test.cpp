@@ -38,6 +38,74 @@ static std::vector<C2ParamDescriptor> dec_params_desc =
     { false, "MemoryType", C2MemoryTypeSetting::PARAM_TYPE },
 };
 
+struct TestValuesQuery {
+    C2Value::type_t type;
+    C2FieldSupportedValuesQuery query;
+};
+
+std::vector<TestValuesQuery> ValuesForQuery(const std::vector<C2Config::profile_t>& profiles, const std::vector<C2Config::level_t>& levels)
+{
+    C2StreamProfileLevelInfo pl(false /* output */, 0u);
+
+    C2FieldSupportedValuesQuery profile = C2FieldSupportedValuesQuery::Possible(C2ParamField(&pl, &pl.profile));
+    profile.values = C2FieldSupportedValues(false, profiles);
+
+    C2FieldSupportedValuesQuery level = C2FieldSupportedValuesQuery::Possible(C2ParamField(&pl, &pl.level));
+    level.values = C2FieldSupportedValues(false, levels);
+
+    std::vector<TestValuesQuery> queries = { {C2Value::UINT32, profile}, {C2Value::UINT32, level} };
+
+    return queries;
+}
+
+static const std::vector<C2Config::profile_t> h264_profiles = {
+    PROFILE_AVC_CONSTRAINED_BASELINE,
+    PROFILE_AVC_BASELINE,
+    PROFILE_AVC_MAIN,
+    PROFILE_AVC_CONSTRAINED_HIGH,
+    PROFILE_AVC_PROGRESSIVE_HIGH,
+    PROFILE_AVC_HIGH,
+};
+static const std::vector<C2Config::level_t> h264_levels = {
+    LEVEL_AVC_1, LEVEL_AVC_1B, LEVEL_AVC_1_1,
+    LEVEL_AVC_1_2, LEVEL_AVC_1_3,
+    LEVEL_AVC_2, LEVEL_AVC_2_1, LEVEL_AVC_2_2,
+    LEVEL_AVC_3, LEVEL_AVC_3_1, LEVEL_AVC_3_2,
+    LEVEL_AVC_4, LEVEL_AVC_4_1, LEVEL_AVC_4_2,
+    LEVEL_AVC_5, LEVEL_AVC_5_1, LEVEL_AVC_5_2,
+};
+static std::vector<TestValuesQuery> dec_params_values_h264 = ValuesForQuery(h264_profiles, h264_levels);
+
+static const std::vector<C2Config::profile_t> h265_profiles = {
+    PROFILE_HEVC_MAIN,
+    PROFILE_HEVC_MAIN_STILL,
+    PROFILE_HEVC_MAIN_10,
+};
+static const std::vector<C2Config::level_t> h265_levels = {
+    LEVEL_HEVC_MAIN_1,
+    LEVEL_HEVC_MAIN_2, LEVEL_HEVC_MAIN_2_1,
+    LEVEL_HEVC_MAIN_3, LEVEL_HEVC_MAIN_3_1,
+    LEVEL_HEVC_MAIN_4, LEVEL_HEVC_MAIN_4_1,
+    LEVEL_HEVC_MAIN_5, LEVEL_HEVC_MAIN_5_1,
+    LEVEL_HEVC_MAIN_5_2, LEVEL_HEVC_HIGH_4,
+    LEVEL_HEVC_HIGH_4_1, LEVEL_HEVC_HIGH_5,
+    LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
+};
+static std::vector<TestValuesQuery> dec_params_values_h265 = ValuesForQuery(h265_profiles, h265_levels);
+
+static const std::vector<C2Config::profile_t> vp9_profiles = {
+    PROFILE_VP9_0,
+    PROFILE_VP9_2,
+};
+static const std::vector<C2Config::level_t> vp9_levels = {
+    LEVEL_VP9_1, LEVEL_VP9_1_1,
+    LEVEL_VP9_2, LEVEL_VP9_2_1,
+    LEVEL_VP9_3, LEVEL_VP9_3_1,
+    LEVEL_VP9_4, LEVEL_VP9_4_1,
+    LEVEL_VP9_5,
+};
+static std::vector<TestValuesQuery> dec_params_values_vp9 = ValuesForQuery(vp9_profiles, vp9_levels);
+
 namespace {
     struct ComponentDesc
     {
@@ -45,6 +113,7 @@ namespace {
         int flags;
         c2_status_t creation_status;
         std::vector<C2ParamDescriptor> params_desc;
+        std::vector<TestValuesQuery> param_values;
         std::vector<std::vector<const StreamDescription*>> streams;
     };
 
@@ -132,13 +201,13 @@ static std::vector<std::vector<const StreamDescription*>> vp9_streams =
 };
 
 static ComponentDesc g_components_desc[] = {
-    { "C2.h264vd", 0, C2_OK, dec_params_desc, h264_streams },
-    { "C2.h265vd", 0, C2_OK, dec_params_desc, h265_streams },
-    { "C2.vp9vd",  0, C2_OK, dec_params_desc, vp9_streams },
+    { "C2.h264vd", 0, C2_OK, dec_params_desc, dec_params_values_h264, h264_streams },
+    { "C2.h265vd", 0, C2_OK, dec_params_desc, dec_params_values_h265, h265_streams },
+    { "C2.vp9vd",  0, C2_OK, dec_params_desc, dec_params_values_vp9,  vp9_streams },
 };
 
 static ComponentDesc g_invalid_components_desc[] = {
-    { "C2.NonExistingDecoder", 0, C2_NOT_FOUND, {}, {} },
+    { "C2.NonExistingDecoder", 0, C2_NOT_FOUND, {}, {}, {} },
 };
 
 static std::list<StreamChunk> ReadChunks(const std::vector<const StreamDescription*>& streams)
@@ -521,6 +590,67 @@ TEST_P(Decoder, getSupportedParams)
                 EXPECT_EQ((*found_actual)->isRequired(), param_expected.isRequired());
                 EXPECT_EQ((*found_actual)->isPersistent(), param_expected.isPersistent());
                 EXPECT_EQ((*found_actual)->name(), param_expected.name());
+            }
+        }
+    } );
+}
+
+bool PrimitivesEqual(C2Value::type_t type, const C2Value::Primitive& l_value, const C2Value::Primitive& r_value)
+{
+   switch(type) {
+       case C2Value::UINT32:
+           return l_value.ref<uint32_t>() == r_value.ref<uint32_t>();
+       case C2Value::INT32:
+           return l_value.ref<int32_t>() == r_value.ref<int32_t>();
+       case C2Value::CNTR32:
+           return l_value.ref<c2_cntr32_t>() == r_value.ref<c2_cntr32_t>();
+       case C2Value::INT64:
+           return l_value.ref<int64_t>() == r_value.ref<int64_t>();
+       case C2Value::UINT64:
+           return l_value.ref<uint64_t>() == r_value.ref<uint64_t>();
+       case C2Value::CNTR64:
+           return l_value.ref<c2_cntr64_t>() == r_value.ref<c2_cntr64_t>();
+       case C2Value::FLOAT:
+           return l_value.ref<float>() == r_value.ref<float>();
+       default:
+           return false;
+   };
+}
+// Checks list of actually supported values by all decoding components.
+// Values order doesn't matter.
+// For every query check if values reported as supported.
+TEST_P(Decoder, getSupportedValues)
+{
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
+
+        std::vector<C2FieldSupportedValuesQuery> queries_actual;
+        for (const TestValuesQuery& it : desc.param_values) {
+            queries_actual.push_back(it.query);
+        }
+
+        c2_status_t sts = comp_intf->querySupportedValues_vb(queries_actual, C2_DONT_BLOCK);
+        EXPECT_EQ(sts, C2_OK);
+
+        for(const TestValuesQuery& it : desc.param_values) {
+
+            const auto found_actual = std::find_if(queries_actual.begin(), queries_actual.end(),
+                [it] (auto p) { return p.field() == it.query.field(); } );
+
+            EXPECT_NE(found_actual, queries_actual.end())
+                << "missing field";
+            if (found_actual != queries_actual.end()) {
+                EXPECT_EQ(found_actual->status, C2_OK);
+            }
+            EXPECT_EQ(found_actual->values.type, it.query.values.type);
+
+            if (found_actual->values.type == C2FieldSupportedValues::VALUES) {
+                EXPECT_EQ(found_actual->values.values.size(), it.query.values.values.size());
+                for (C2Value::Primitive& value : found_actual->values.values) {
+                    const auto found_expected_value = std::find_if(it.query.values.values.begin(), it.query.values.values.end(),
+                        [it, value] (const C2Value::Primitive p) { return PrimitivesEqual(it.type, value, p); } );
+                    EXPECT_NE(found_expected_value, it.query.values.values.end()) << "missing value = " << value.ref<uint32_t>();
+                }
             }
         }
     } );

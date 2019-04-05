@@ -34,6 +34,10 @@ struct _C2ParamInspector
         return pf._mFieldId._mSize;
     }
 
+    inline static _C2FieldId getFieldId(const C2ParamField &pf) {
+        return pf._mFieldId;
+    }
+
     inline static
     C2ParamField CreateParamField(C2Param::Index index, uint32_t offset, uint32_t size) {
         return C2ParamField(index, offset, size);
@@ -222,6 +226,49 @@ c2_status_t MfxC2ParamReflector::getSupportedParams(
         [](const auto& p) { return p->index().isVendor(); }
     );
 
+    return C2_OK;
+}
+
+c2_status_t MfxC2ParamReflector::querySupportedValues_vb(
+        std::vector<C2FieldSupportedValuesQuery> &queries, c2_blocking_t mayBlock) const
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    (void)mayBlock;
+
+    for (C2FieldSupportedValuesQuery &query : queries) {
+        std::ostringstream oss;
+
+        const auto iter = std::find_if(params_supported_values_.begin(), params_supported_values_.end(),
+            [query](const std::pair<C2ParamField, C2FieldSupportedValues>& p){ return (_C2ParamInspector::getIndex(p.first) & _C2ParamInspector::getIndex(query.field()) & 0xFFF) &&
+                                                                                      (_C2ParamInspector::getFieldId(p.first) == _C2ParamInspector::getFieldId(query.field())); });
+
+        if (iter == params_supported_values_.end()) {
+            oss << "bad field:"
+                << " ParamID:" << std::hex << _C2ParamInspector::getIndex(query.field())
+                << " offset:" << std::dec << _C2ParamInspector::getOffset(query.field())
+                << " size:" << _C2ParamInspector::getSize(query.field()) << "\n";
+            query.status = C2_NOT_FOUND;
+            MFX_DEBUG_TRACE_MSG(oss.str().c_str());
+            continue;
+        }
+
+        switch (query.type()) {
+        case C2FieldSupportedValuesQuery::CURRENT:
+        case C2FieldSupportedValuesQuery::POSSIBLE:
+            query.values = iter->second;
+            query.status = C2_OK;
+            break;
+        default:
+            oss << "bad query type: " << query.type() << "\n";
+            query.status = C2_BAD_VALUE;
+        }
+
+        MFX_DEBUG_TRACE_MSG(oss.str().c_str());
+    }
+
+    // function always returns C2_OK, errors pass trough query.status - align behavior with
+    // current Google's implementaion: C2InterfaceHelper::querySupportedValues
     return C2_OK;
 }
 

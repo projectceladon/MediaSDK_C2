@@ -12,6 +12,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 #include "mfx_debug.h"
 #include <C2Param.h>
+#include <C2Component.h>
 #include <C2Work.h>
 #include <map>
 
@@ -35,6 +36,9 @@ public:
     template<typename ParamType, typename ValueType, typename FieldType>
     void RegisterSupportedRange(FieldType ValueType::* pm, FieldType min, FieldType max);
 
+    template<typename ParamType, typename ValueType, typename FieldType>
+    void RegisterSupportedValues(FieldType ValueType::* pm, const std::vector<FieldType> &supported_values);
+
     bool ValidateParam(const C2Param* param,
         std::vector<std::unique_ptr<C2SettingResult>>* const failures);
 
@@ -45,6 +49,9 @@ public:
 
     c2_status_t getSupportedParams(
         std::vector<std::shared_ptr<C2ParamDescriptor>>* const params) const;
+
+    c2_status_t querySupportedValues_vb(
+        std::vector<C2FieldSupportedValuesQuery> &queries, c2_blocking_t mayBlock) const;
 
 #if MFX_DEBUG == MFX_DEBUG_YES
     void DumpParams();
@@ -73,6 +80,19 @@ void MfxC2ParamReflector::RegisterSupportedRange(FieldType ValueType::* pm, Fiel
 
     C2ParamField field(&temp_param, pm);
     C2FieldSupportedValues values(min, max);
+
+    params_supported_values_.emplace(field, values);
+};
+
+template<typename ParamType, typename ValueType, typename FieldType>
+void MfxC2ParamReflector::RegisterSupportedValues(FieldType ValueType::* pm, const std::vector<FieldType> &supported_values)
+{
+    using namespace android;
+
+    ParamType temp_param;
+
+    C2ParamField field(&temp_param, pm);
+    C2FieldSupportedValues values(false, supported_values);
 
     params_supported_values_.emplace(field, values);
 };

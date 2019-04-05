@@ -169,14 +169,25 @@ c2_status_t MfxC2Component::querySupportedParams_nb(
 }
 
 c2_status_t MfxC2Component::querySupportedValues_vb(
-    std::vector<C2FieldSupportedValuesQuery> &fields, c2_blocking_t mayBlock) const
+    std::vector<C2FieldSupportedValuesQuery> &queries, c2_blocking_t mayBlock) const
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    (void)fields;
-    (void)mayBlock;
+    c2_status_t res = C2_OK;
 
-    return C2_OMITTED;
+    std::unique_lock<std::mutex> lock = AcquireStableStateLock(mayBlock == C2_MAY_BLOCK);
+    if (lock.owns_lock()) {
+        if (State::RELEASED != state_) {
+            res = param_storage_.querySupportedValues_vb(queries, mayBlock);
+        } else {
+            res = C2_BAD_STATE;
+        }
+    } else {
+        res = C2_BLOCKING;
+    }
+
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
+    return res;
 }
 
 c2_status_t MfxC2Component::queue_nb(std::list<std::unique_ptr<C2Work>>* const items)
