@@ -119,7 +119,7 @@ protected: // C2ComponentInterface overrides
         std::vector<std::shared_ptr<C2ParamDescriptor>>* const params) const override;
 
     c2_status_t querySupportedValues_vb(
-        std::vector<C2FieldSupportedValuesQuery> &fields, c2_blocking_t mayBlock) const override;
+        std::vector<C2FieldSupportedValuesQuery> &queries, c2_blocking_t mayBlock) const override;
 
 protected: // C2Component
     c2_status_t queue_nb(std::list<std::unique_ptr<C2Work>>* const items) override;

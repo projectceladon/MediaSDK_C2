@@ -33,54 +33,111 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, int flags, Dec
 {
     MFX_DEBUG_TRACE_FUNC;
 
+    MfxC2ParamStorage& pr = param_storage_;
+
+    pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
+
+    pr.AddConstValue(C2_PARAMKEY_COMPONENT_DOMAIN,
+        std::make_unique<C2ComponentDomainSetting>(C2Component::DOMAIN_VIDEO));
+
+    pr.AddConstValue(C2_PARAMKEY_COMPONENT_KIND,
+        std::make_unique<C2ComponentKindSetting>(C2Component::KIND_DECODER));
+
+    const unsigned int SINGLE_STREAM_ID = 0u;
+    pr.AddConstValue(C2_NAME_INPUT_STREAM_FORMAT_SETTING,
+        std::make_unique<C2StreamFormatConfig::input>(SINGLE_STREAM_ID, C2FormatCompressed));
+    pr.AddConstValue(C2_NAME_OUTPUT_STREAM_FORMAT_SETTING,
+        std::make_unique<C2StreamFormatConfig::output>(SINGLE_STREAM_ID, C2FormatVideo));
+
+    pr.AddStreamInfo<C2StreamPictureSizeInfo::output>(
+        C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
+        [this] (C2StreamPictureSizeInfo::output* dst)->bool {
+            MFX_DEBUG_TRACE("AssignPictureSize");
+            dst->width = video_params_.mfx.FrameInfo.Width;
+            dst->height = video_params_.mfx.FrameInfo.Height;
+            MFX_DEBUG_TRACE_STREAM(NAMED(dst->width) << NAMED(dst->height));
+            return true;
+        }
+    );
+
+    pr.AddStreamInfo<C2StreamCropRectInfo::output>(
+        C2_PARAMKEY_CROP_RECT, SINGLE_STREAM_ID,
+        [this] (C2StreamCropRectInfo::output* dst)->bool {
+            MFX_DEBUG_TRACE("AssignCrop");
+            dst->width = video_params_.mfx.FrameInfo.CropW;
+            dst->height = video_params_.mfx.FrameInfo.CropH;
+            dst->left = video_params_.mfx.FrameInfo.CropX;
+            dst->top = video_params_.mfx.FrameInfo.CropY;
+            MFX_DEBUG_TRACE_STREAM(NAMED(dst->left) << NAMED(dst->top) <<
+                NAMED(dst->width) << NAMED(dst->height));
+            return true;
+        }
+    );
+
+    std::vector<C2Config::profile_t> supported_profiles = {};
+    std::vector<C2Config::level_t> supported_levels = {};
+
     switch(decoder_type_) {
-        case DECODER_H264:
-        case DECODER_H265:
-        case DECODER_VP9:
+        case DECODER_H264: {
+            supported_profiles = {
+                PROFILE_AVC_CONSTRAINED_BASELINE,
+                PROFILE_AVC_BASELINE,
+                PROFILE_AVC_MAIN,
+                PROFILE_AVC_CONSTRAINED_HIGH,
+                PROFILE_AVC_PROGRESSIVE_HIGH,
+                PROFILE_AVC_HIGH,
+            };
 
-            MfxC2ParamStorage& pr = param_storage_;
+            supported_levels = {
+                LEVEL_AVC_1, LEVEL_AVC_1B, LEVEL_AVC_1_1,
+                LEVEL_AVC_1_2, LEVEL_AVC_1_3,
+                LEVEL_AVC_2, LEVEL_AVC_2_1, LEVEL_AVC_2_2,
+                LEVEL_AVC_3, LEVEL_AVC_3_1, LEVEL_AVC_3_2,
+                LEVEL_AVC_4, LEVEL_AVC_4_1, LEVEL_AVC_4_2,
+                LEVEL_AVC_5, LEVEL_AVC_5_1, LEVEL_AVC_5_2,
+            };
+            break;
+        }
+        case DECODER_H265: {
+            supported_profiles = {
+                PROFILE_HEVC_MAIN,
+                PROFILE_HEVC_MAIN_STILL,
+                PROFILE_HEVC_MAIN_10,
+            };
 
-            pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
+            supported_levels = {
+                LEVEL_HEVC_MAIN_1,
+                LEVEL_HEVC_MAIN_2, LEVEL_HEVC_MAIN_2_1,
+                LEVEL_HEVC_MAIN_3, LEVEL_HEVC_MAIN_3_1,
+                LEVEL_HEVC_MAIN_4, LEVEL_HEVC_MAIN_4_1,
+                LEVEL_HEVC_MAIN_5, LEVEL_HEVC_MAIN_5_1,
+                LEVEL_HEVC_MAIN_5_2, LEVEL_HEVC_HIGH_4,
+                LEVEL_HEVC_HIGH_4_1, LEVEL_HEVC_HIGH_5,
+                LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
+            };
+            break;
+        }
+        case DECODER_VP9: {
+            supported_profiles = {
+                PROFILE_VP9_0,
+                PROFILE_VP9_2,
+            };
 
-            pr.AddConstValue(C2_PARAMKEY_COMPONENT_DOMAIN,
-                std::make_unique<C2ComponentDomainSetting>(C2Component::DOMAIN_VIDEO));
-
-            pr.AddConstValue(C2_PARAMKEY_COMPONENT_KIND,
-                std::make_unique<C2ComponentKindSetting>(C2Component::KIND_DECODER));
-
-            const unsigned int SINGLE_STREAM_ID = 0u;
-            pr.AddConstValue(C2_NAME_INPUT_STREAM_FORMAT_SETTING,
-                std::make_unique<C2StreamFormatConfig::input>(SINGLE_STREAM_ID, C2FormatCompressed));
-            pr.AddConstValue(C2_NAME_OUTPUT_STREAM_FORMAT_SETTING,
-                std::make_unique<C2StreamFormatConfig::output>(SINGLE_STREAM_ID, C2FormatVideo));
-
-            pr.AddStreamInfo<C2StreamPictureSizeInfo::output>(
-                C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
-                [this] (C2StreamPictureSizeInfo::output* dst)->bool {
-                    MFX_DEBUG_TRACE("AssignPictureSize");
-                    dst->width = video_params_.mfx.FrameInfo.Width;
-                    dst->height = video_params_.mfx.FrameInfo.Height;
-                    MFX_DEBUG_TRACE_STREAM(NAMED(dst->width) << NAMED(dst->height));
-                    return true;
-                }
-            );
-
-            pr.AddStreamInfo<C2StreamCropRectInfo::output>(
-                C2_PARAMKEY_CROP_RECT, SINGLE_STREAM_ID,
-                [this] (C2StreamCropRectInfo::output* dst)->bool {
-                    MFX_DEBUG_TRACE("AssignCrop");
-                    dst->width = video_params_.mfx.FrameInfo.CropW;
-                    dst->height = video_params_.mfx.FrameInfo.CropH;
-                    dst->left = video_params_.mfx.FrameInfo.CropX;
-                    dst->top = video_params_.mfx.FrameInfo.CropY;
-                    MFX_DEBUG_TRACE_STREAM(NAMED(dst->left) << NAMED(dst->top) <<
-                        NAMED(dst->width) << NAMED(dst->height));
-                    return true;
-                }
-            );
-
-        break;
+            supported_levels = {
+                LEVEL_VP9_1, LEVEL_VP9_1_1,
+                LEVEL_VP9_2, LEVEL_VP9_2_1,
+                LEVEL_VP9_3, LEVEL_VP9_3_1,
+                LEVEL_VP9_4, LEVEL_VP9_4_1,
+                LEVEL_VP9_5,
+            };
+            break;
+        }
+        default:
+            break;
     }
+
+    pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::profile, supported_profiles);
+    pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::level, supported_levels);
 
     param_storage_.DumpParams();
 }
