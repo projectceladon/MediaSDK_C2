@@ -310,7 +310,15 @@ c2_status_t MfxC2Component::stop()
 
     {
         std::unique_lock<std::mutex> lock(state_mutex_);
-        res = CheckStateTransitionConflict(lock, State::RUNNING);
+        res = CheckStateTransitionConflict(lock, State::STOPPED);
+        if (C2_BAD_STATE == res) {
+            if (State::ERROR == next_state_ || State::TRIPPED == next_state_) {
+                // Transitions to ERROR and TRIPPED states are caused by the component itself,
+                // should not give error, might wait for transition completion.
+                cond_state_stable_.wait(lock, [this] () { return next_state_ == state_; } );
+                res = C2_OK; // Suppress the error as transition completed.
+            }
+        }
         if (C2_OK == res) {
             switch (state_) {
                 case State::RUNNING:
