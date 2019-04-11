@@ -629,6 +629,36 @@ TEST(MfxMockComponent, ConfigQueryBlocking)
             EXPECT_EQ(sts, expected);
         };
 
+        // This class implements listener interface
+        // and hangs in onWorkDone callback blocking C2Component from handling works.
+        // It hangs stop() method too as stop() tries to complete queued works.
+        // It allows handling on Unblock call.
+        class Blocker : public C2Component::Listener
+        {
+        private:
+            void onWorkDone_nb(std::weak_ptr<C2Component>, std::list<std::unique_ptr<C2Work>>) override
+            {
+                // As lock_ is pre-locked on mutex_  this line blocks execution
+                // until Unblock method is called.
+                std::lock_guard<std::mutex> lock(mutex_);
+            }
+            void onTripped_nb(std::weak_ptr<C2Component>,
+                std::vector<std::shared_ptr<C2SettingResult>>) override {}
+
+            void onError_nb(std::weak_ptr<C2Component>, uint32_t) override {}
+        private:
+            std::mutex mutex_;
+            std::unique_lock<std::mutex> lock_{mutex_}; // it constructs lock_ locked on mutex_
+        public:
+            void Unblock() {
+                lock_.unlock();
+            }
+        };
+        std::shared_ptr<Blocker> blocker = std::make_shared<Blocker>();
+
+        sts = component->setListener_vb(blocker, C2_DONT_BLOCK/*option for setting this listener*/);
+        EXPECT_EQ(sts, C2_OK);
+
         sts = component->start();
         EXPECT_EQ(sts, C2_OK);
 
@@ -653,7 +683,15 @@ TEST(MfxMockComponent, ConfigQueryBlocking)
         // what takes some time to switch to STOPPED state. That transition blocks config_vb/query_vb from execution.
         // This means that config_vb/query_vb should fail with C2_DONT_BLOCK option and succeed with C2_MAY_BLOCK.
         std::thread another_thread([&] () {
+
+            C2ProducerMemoryType some_setting{C2MemoryUsage::CPU_WRITE}; // any setting supported by the component
+            // If query_vb is OK, state is not transition, stop() not started yet
+            while (C2_OK == component_intf->query_vb({&some_setting}, {}, C2_DONT_BLOCK, {})) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
             test_config_query(C2_DONT_BLOCK, C2_BLOCKING);
+            blocker->Unblock(); // Allow stop() to be continued
             test_config_query(C2_MAY_BLOCK, C2_OK);
         });
         sts = component->stop();
