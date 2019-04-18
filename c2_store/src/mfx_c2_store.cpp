@@ -29,17 +29,6 @@ Defined help functions:
 
 using namespace android;
 
-static std::string NameToMediaType(const char* name) {
-    if (strcmp(name, "C2.h264vd") == 0 || strcmp(name, "C2.h264ve") == 0)
-        return std::string("video/avc");
-    else if (strcmp(name, "C2.h265vd") == 0 || strcmp(name, "C2.h265ve") == 0)
-        return std::string("video/hevc");
-    else if (strcmp(name, "C2.vp9vd") == 0)
-        return std::string("video/vp9");
-    else
-        return std::string("");
-}
-
 MfxC2ComponentStore* MfxC2ComponentStore::Create(c2_status_t* status) {
 
     MFX_DEBUG_TRACE_FUNC;
@@ -139,7 +128,6 @@ std::vector<std::shared_ptr<const C2Component::Traits>> MfxC2ComponentStore::lis
         for(const auto& it_pair : components_registry_ ) {
             std::unique_ptr<C2Component::Traits> info = std::make_unique<C2Component::Traits>();
             info->name = it_pair.first;
-            info->mediaType = NameToMediaType(it_pair.first.c_str());
             MFX_DEBUG_TRACE_S(info->name.c_str());
             result.push_back(std::move(info));
         }
