@@ -41,7 +41,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 using namespace android;
 
-#define MOCK_COMPONENT_ENC "C2.MockComponent.Enc"
+#define MOCK_COMPONENT_ENC "c2.intel.mock.encoder"
 #define MOCK_COMPONENT MOCK_COMPONENT_ENC // use encoder for common tests
 
 class C2BufferTest

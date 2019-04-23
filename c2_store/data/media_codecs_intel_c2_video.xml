@@ -30,7 +30,7 @@ and updated to vendor media codecs.
 -->
 <Included>
     <Decoders>
-        <MediaCodec name="C2.h264vd" type="video/avc">
+        <MediaCodec name="c2.intel.avc.decoder" type="video/avc">
             <!-- profiles and levels:  ProfileHigh : Level52 -->
             <Limit name="size" min="2x2" max="4080x4080" />
             <Limit name="alignment" value="2x2" />
@@ -40,7 +40,7 @@ and updated to vendor media codecs.
             <Limit name="bitrate" range="1-48000000" />
             <Feature name="adaptive-playback" />
         </MediaCodec>
-        <MediaCodec name="C2.h265vd" type="video/hevc">
+        <MediaCodec name="c2.intel.hevc.decoder" type="video/hevc">
             <!-- profiles and levels:  ProfileMain : MainTierLevel51 -->
             <Limit name="size" min="2x2" max="4096x4096" />
             <Limit name="alignment" value="2x2" />
@@ -50,7 +50,7 @@ and updated to vendor media codecs.
             <Limit name="bitrate" range="1-10000000" />
             <Feature name="adaptive-playback" />
         </MediaCodec>
-        <MediaCodec name="C2.vp9vd" type="video/x-vnd.on2.vp9">
+        <MediaCodec name="c2.intel.vp9.decoder" type="video/x-vnd.on2.vp9">
             <Limit name="size" min="2x2" max="2048x2048" />
             <Limit name="alignment" value="2x2" />
             <Limit name="block-size" value="16x16" />
@@ -62,7 +62,7 @@ and updated to vendor media codecs.
     </Decoders>
 
     <Encoders>
-        <MediaCodec name="C2.h264ve" type="video/avc">
+        <MediaCodec name="c2.intel.avc.encoder" type="video/avc">
             <!-- profiles and levels:  ProfileBaseline : Level41 -->
             <Limit name="size" min="16x16" max="2048x2048" />
             <Limit name="alignment" value="2x2" />
@@ -72,7 +72,7 @@ and updated to vendor media codecs.
             <Limit name="bitrate" range="1-12000000" />
             <Feature name="intra-refresh" />
         </MediaCodec>
-        <MediaCodec name="C2.h265ve" type="video/hevc" >
+        <MediaCodec name="c2.intel.hevc.encoder" type="video/hevc" >
             <Limit name="size" min="64x64" max="3840x2160" />
             <Limit name="alignment" value="2x2" />
             <Limit name="block-size" value="16x16" />

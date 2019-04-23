@@ -153,13 +153,13 @@ void MfxC2DecoderComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    registry.RegisterMfxC2Component("C2.h264vd",
+    registry.RegisterMfxC2Component("c2.intel.avc.decoder",
         &MfxC2Component::Factory<MfxC2DecoderComponent, DecoderType>::Create<DECODER_H264>);
 
-    registry.RegisterMfxC2Component("C2.h265vd",
+    registry.RegisterMfxC2Component("c2.intel.hevc.decoder",
         &MfxC2Component::Factory<MfxC2DecoderComponent, DecoderType>::Create<DECODER_H265>);
 
-    registry.RegisterMfxC2Component("C2.vp9vd",
+    registry.RegisterMfxC2Component("c2.intel.vp9.decoder",
         &MfxC2Component::Factory<MfxC2DecoderComponent, DecoderType>::Create<DECODER_VP9>);
 }
 

@@ -28,9 +28,9 @@ MfxC2MockComponent::MfxC2MockComponent(const C2String name, int flags, Type type
 void MfxC2MockComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
 {
     MFX_DEBUG_TRACE_FUNC;
-    registry.RegisterMfxC2Component("C2.MockComponent.Enc",
+    registry.RegisterMfxC2Component("c2.intel.mock.encoder",
         &MfxC2Component::Factory<MfxC2MockComponent,Type>::Create<Encoder>);
-    registry.RegisterMfxC2Component("C2.MockComponent.Dec",
+    registry.RegisterMfxC2Component("c2.intel.mock.decoder",
         &MfxC2Component::Factory<MfxC2MockComponent, Type>::Create<Decoder>);
 }
 

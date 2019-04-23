@@ -201,13 +201,13 @@ static std::vector<std::vector<const StreamDescription*>> vp9_streams =
 };
 
 static ComponentDesc g_components_desc[] = {
-    { "C2.h264vd", 0, C2_OK, dec_params_desc, dec_params_values_h264, h264_streams },
-    { "C2.h265vd", 0, C2_OK, dec_params_desc, dec_params_values_h265, h265_streams },
-    { "C2.vp9vd",  0, C2_OK, dec_params_desc, dec_params_values_vp9,  vp9_streams },
+    { "c2.intel.avc.decoder", 0, C2_OK, dec_params_desc, dec_params_values_h264, h264_streams },
+    { "c2.intel.hevc.decoder", 0, C2_OK, dec_params_desc, dec_params_values_h265, h265_streams },
+    { "c2.intel.vp9.decoder",  0, C2_OK, dec_params_desc, dec_params_values_vp9,  vp9_streams },
 };
 
 static ComponentDesc g_invalid_components_desc[] = {
-    { "C2.NonExistingDecoder", 0, C2_NOT_FOUND, {}, {}, {} },
+    { "c2.intel.missing.decoder", 0, C2_NOT_FOUND, {}, {}, {} },
 };
 
 static std::list<StreamChunk> ReadChunks(const std::vector<const StreamDescription*>& streams)
@@ -479,7 +479,7 @@ static std::vector<DecodingConditions> g_decoding_conditions = []() {
     res.push_back({});
     res.back().name = "SeparateHeaders";
     res.back().skip = [](const std::vector<const StreamDescription*>&, const ComponentDesc& desc) {
-        return std::string(desc.component_name) == "C2.vp9vd";
+        return std::string(desc.component_name) == "c2.intel.vp9.decoder";
     };
     res.back().chunks_mutator = SplitHeaders;
 
