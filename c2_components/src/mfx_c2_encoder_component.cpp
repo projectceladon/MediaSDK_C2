@@ -64,7 +64,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, int flags, Enc
         case ENCODER_H264:
         case ENCODER_H265:
 
-            MfxC2ParamReflector& pr = param_storage_;
+            MfxC2ParamStorage& pr = param_storage_;
 
             pr.RegisterParam<C2RateControlSetting>("RateControl");
             pr.RegisterParam<C2FrameRateSetting::output>("FrameRate");
@@ -85,6 +85,19 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, int flags, Enc
             pr.RegisterParam<C2ProfileLevelInfo::output>("SupportedProfilesLevels");
 
             pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
+
+            pr.AddConstValue(C2_PARAMKEY_COMPONENT_DOMAIN,
+                std::make_unique<C2ComponentDomainSetting>(C2Component::DOMAIN_VIDEO));
+
+            pr.AddConstValue(C2_PARAMKEY_COMPONENT_KIND,
+                std::make_unique<C2ComponentKindSetting>(C2Component::KIND_ENCODER));
+
+            const unsigned int SINGLE_STREAM_ID = 0u;
+            pr.AddConstValue(C2_NAME_INPUT_STREAM_FORMAT_SETTING,
+                std::make_unique<C2StreamFormatConfig::input>(SINGLE_STREAM_ID, C2FormatVideo));
+            pr.AddConstValue(C2_NAME_OUTPUT_STREAM_FORMAT_SETTING,
+                std::make_unique<C2StreamFormatConfig::output>(SINGLE_STREAM_ID, C2FormatCompressed));
+
         break;
     }
 
@@ -673,143 +686,149 @@ std::unique_ptr<mfxVideoParam> MfxC2EncoderComponent::GetParamsView() const
 
 c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Type type, C2Param** dst) const
 {
+    MFX_DEBUG_TRACE_FUNC;
+
     c2_status_t res = C2_OK;
 
-    switch (type.typeIndex()) {
-        case kParamIndexRateControl: {
-            if (nullptr == *dst) {
-                *dst = new C2RateControlSetting();
+    res = param_storage_.QueryParam(type, dst);
+    if (C2_NOT_FOUND == res) {
+        res = C2_OK; // suppress error as second pass to find param
+        switch (type.typeIndex()) {
+            case kParamIndexRateControl: {
+                if (nullptr == *dst) {
+                    *dst = new C2RateControlSetting();
+                }
+                C2RateControlSetting* rate_control = (C2RateControlSetting*)*dst;
+                switch(src->mfx.RateControlMethod) {
+                    case MFX_RATECONTROL_CBR: rate_control->value = C2RateControlCBR; break;
+                    case MFX_RATECONTROL_VBR: rate_control->value = C2RateControlVBR; break;
+                    case MFX_RATECONTROL_CQP: rate_control->value = C2RateControlCQP; break;
+                    default:
+                        res = C2_CORRUPTED;
+                        break;
+                }
+                break;
             }
-            C2RateControlSetting* rate_control = (C2RateControlSetting*)*dst;
-            switch(src->mfx.RateControlMethod) {
-                case MFX_RATECONTROL_CBR: rate_control->value = C2RateControlCBR; break;
-                case MFX_RATECONTROL_VBR: rate_control->value = C2RateControlVBR; break;
-                case MFX_RATECONTROL_CQP: rate_control->value = C2RateControlCQP; break;
-                default:
-                    res = C2_CORRUPTED;
-                    break;
+            case kParamIndexFrameRate: {
+                if (nullptr == *dst) {
+                    *dst = new C2FrameRateSetting::output();
+                }
+                C2FrameRateSetting* framerate = (C2FrameRateSetting*)*dst;
+                framerate->value = (float)src->mfx.FrameInfo.FrameRateExtN / src->mfx.FrameInfo.FrameRateExtD;
+                break;
             }
-            break;
-        }
-        case kParamIndexFrameRate: {
-            if (nullptr == *dst) {
-                *dst = new C2FrameRateSetting::output();
-            }
-            C2FrameRateSetting* framerate = (C2FrameRateSetting*)*dst;
-            framerate->value = (float)src->mfx.FrameInfo.FrameRateExtN / src->mfx.FrameInfo.FrameRateExtD;
-            break;
-        }
-        case kParamIndexBitrate: {
-            if (nullptr == *dst) {
-                *dst = new C2BitrateTuning::output();
-            }
-            C2BitrateTuning* bitrate = (C2BitrateTuning*)*dst;
-            if (src->mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
-                bitrate->value = src->mfx.TargetKbps;
-            } else {
-                res = C2_CORRUPTED;
-            }
-            break;
-        }
-        case kParamIndexFrameQP: {
-            if (nullptr == *dst) {
-                *dst = new C2FrameQPSetting();
-            }
-            C2FrameQPSetting* frame_qp = (C2FrameQPSetting*)*dst;
-            if (src->mfx.RateControlMethod == MFX_RATECONTROL_CQP) {
-                frame_qp->qp_i = src->mfx.QPI;
-                frame_qp->qp_p = src->mfx.QPP;
-                frame_qp->qp_b = src->mfx.QPB;
-            } else {
-                res = C2_CORRUPTED;
-            }
-            break;
-        }
-        case kParamIndexProfile: {
-            if (nullptr == *dst) {
-                *dst = new C2ProfileSetting();
-            }
-            C2Config::profile_t profile {};
-            bool set_res = false;
-            switch (encoder_type_) {
-                case ENCODER_H264:
-                    set_res = AvcProfileMfxToAndroid(video_params_config_.mfx.CodecProfile, &profile);
-                    break;
-                case ENCODER_H265:
-                    set_res = HevcProfileMfxToAndroid(video_params_config_.mfx.CodecProfile, &profile);
-                    break;
-                default:
-                    break;
-            }
-            if (set_res) {
-                C2ProfileSetting* setting = static_cast<C2ProfileSetting*>(*dst);
-                setting->value = profile;
-            } else {
-                res = C2_CORRUPTED;
-            }
-            break;
-        }
-        case kParamIndexLevel: {
-            if (nullptr == *dst) {
-                *dst = new C2LevelSetting();
-            }
-            C2Config::level_t level {};
-            bool set_res = false;
-            switch (encoder_type_) {
-                case ENCODER_H264:
-                    set_res = AvcLevelMfxToAndroid(video_params_config_.mfx.CodecLevel, &level);
-                    break;
-                case ENCODER_H265:
-                    set_res = HevcLevelMfxToAndroid(video_params_config_.mfx.CodecLevel, &level);
-                    break;
-                default:
-                    break;
-            }
-            if (set_res) {
-                C2LevelSetting* setting = static_cast<C2LevelSetting*>(*dst);
-                setting->value = level;
-            } else {
-                res = C2_CORRUPTED;
-            }
-            break;
-        }
-        case kParamIndexProfileLevel:
-            if (nullptr == *dst) {
-                if (encoder_type_ == ENCODER_H264) {
-                    std::unique_ptr<C2ProfileLevelInfo::output> info =
-                        C2ProfileLevelInfo::output::AllocUnique(g_h264_profile_levels_count);
-
-                    for (size_t i = 0; i < g_h264_profile_levels_count; ++i) {
-                        info->m.values[i] = g_h264_profile_levels[i];
-                    }
-                    *dst = info.release();
-                } else if (encoder_type_ == ENCODER_H265) {
-                    std::unique_ptr<C2ProfileLevelInfo::output> info =
-                        C2ProfileLevelInfo::output::AllocUnique(g_h265_profile_levels_count);
-
-                    for (size_t i = 0; i < g_h265_profile_levels_count; ++i) {
-                        info->m.values[i] = g_h265_profile_levels[i];
-                    }
-                    *dst = info.release();
+            case kParamIndexBitrate: {
+                if (nullptr == *dst) {
+                    *dst = new C2BitrateTuning::output();
+                }
+                C2BitrateTuning* bitrate = (C2BitrateTuning*)*dst;
+                if (src->mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
+                    bitrate->value = src->mfx.TargetKbps;
                 } else {
                     res = C2_CORRUPTED;
                 }
-            } else { // not possible to return flexible params through stack
-                res = C2_NO_MEMORY;
+                break;
             }
-            break;
-        case kParamIndexMemoryType: {
-            if (nullptr == *dst) {
-                *dst = new C2MemoryTypeSetting();
+            case kParamIndexFrameQP: {
+                if (nullptr == *dst) {
+                    *dst = new C2FrameQPSetting();
+                }
+                C2FrameQPSetting* frame_qp = (C2FrameQPSetting*)*dst;
+                if (src->mfx.RateControlMethod == MFX_RATECONTROL_CQP) {
+                    frame_qp->qp_i = src->mfx.QPI;
+                    frame_qp->qp_p = src->mfx.QPP;
+                    frame_qp->qp_b = src->mfx.QPB;
+                } else {
+                    res = C2_CORRUPTED;
+                }
+                break;
             }
+            case kParamIndexProfile: {
+                if (nullptr == *dst) {
+                    *dst = new C2ProfileSetting();
+                }
+                C2Config::profile_t profile {};
+                bool set_res = false;
+                switch (encoder_type_) {
+                    case ENCODER_H264:
+                        set_res = AvcProfileMfxToAndroid(video_params_config_.mfx.CodecProfile, &profile);
+                        break;
+                    case ENCODER_H265:
+                        set_res = HevcProfileMfxToAndroid(video_params_config_.mfx.CodecProfile, &profile);
+                        break;
+                    default:
+                        break;
+                }
+                if (set_res) {
+                    C2ProfileSetting* setting = static_cast<C2ProfileSetting*>(*dst);
+                    setting->value = profile;
+                } else {
+                    res = C2_CORRUPTED;
+                }
+                break;
+            }
+            case kParamIndexLevel: {
+                if (nullptr == *dst) {
+                    *dst = new C2LevelSetting();
+                }
+                C2Config::level_t level {};
+                bool set_res = false;
+                switch (encoder_type_) {
+                    case ENCODER_H264:
+                        set_res = AvcLevelMfxToAndroid(video_params_config_.mfx.CodecLevel, &level);
+                        break;
+                    case ENCODER_H265:
+                        set_res = HevcLevelMfxToAndroid(video_params_config_.mfx.CodecLevel, &level);
+                        break;
+                    default:
+                        break;
+                }
+                if (set_res) {
+                    C2LevelSetting* setting = static_cast<C2LevelSetting*>(*dst);
+                    setting->value = level;
+                } else {
+                    res = C2_CORRUPTED;
+                }
+                break;
+            }
+            case kParamIndexProfileLevel:
+                if (nullptr == *dst) {
+                    if (encoder_type_ == ENCODER_H264) {
+                        std::unique_ptr<C2ProfileLevelInfo::output> info =
+                            C2ProfileLevelInfo::output::AllocUnique(g_h264_profile_levels_count);
 
-            C2MemoryTypeSetting* setting = static_cast<C2MemoryTypeSetting*>(*dst);
-            if (!MfxIOPatternToC2MemoryType(true, video_params_config_.IOPattern, &setting->value)) res = C2_CORRUPTED;
-            break;
+                        for (size_t i = 0; i < g_h264_profile_levels_count; ++i) {
+                            info->m.values[i] = g_h264_profile_levels[i];
+                        }
+                        *dst = info.release();
+                    } else if (encoder_type_ == ENCODER_H265) {
+                        std::unique_ptr<C2ProfileLevelInfo::output> info =
+                            C2ProfileLevelInfo::output::AllocUnique(g_h265_profile_levels_count);
+
+                        for (size_t i = 0; i < g_h265_profile_levels_count; ++i) {
+                            info->m.values[i] = g_h265_profile_levels[i];
+                        }
+                        *dst = info.release();
+                    } else {
+                        res = C2_CORRUPTED;
+                    }
+                } else { // not possible to return flexible params through stack
+                    res = C2_NO_MEMORY;
+                }
+                break;
+            case kParamIndexMemoryType: {
+                if (nullptr == *dst) {
+                    *dst = new C2MemoryTypeSetting();
+                }
+
+                C2MemoryTypeSetting* setting = static_cast<C2MemoryTypeSetting*>(*dst);
+                if (!MfxIOPatternToC2MemoryType(true, video_params_config_.IOPattern, &setting->value)) res = C2_CORRUPTED;
+                break;
+            }
+            default:
+                res = C2_BAD_INDEX;
+                break;
         }
-        default:
-            res = C2_BAD_INDEX;
-            break;
     }
     return res;
 }

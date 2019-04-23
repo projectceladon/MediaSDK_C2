@@ -1281,6 +1281,36 @@ TEST_P(Encoder, FrameRate)
     }); // CallComponentTest
 }
 
+static C2ParamValues GetConstParamValues()
+{
+    C2ParamValues const_values;
+
+    const_values.Append(new C2ComponentDomainSetting(C2Component::DOMAIN_VIDEO));
+    const_values.Append(new C2ComponentKindSetting(C2Component::KIND_ENCODER));
+    const_values.Append(new C2StreamFormatConfig::input(0/*stream*/, C2FormatVideo));
+    const_values.Append(new C2StreamFormatConfig::output(0/*stream*/, C2FormatCompressed));
+    return const_values;
+}
+
+// Queries constant platform parameters values and checks expectations.
+TEST_P(Encoder, ComponentConstParams)
+{
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [&] (const ComponentDesc&, C2CompPtr, C2CompIntfPtr comp_intf) {
+
+        // check query through stack placeholders and the same with heap allocated
+        std::vector<std::unique_ptr<C2Param>> heap_params;
+        const C2ParamValues& const_values = GetConstParamValues();
+        c2_blocking_t may_block{C2_MAY_BLOCK};
+        c2_status_t res = comp_intf->query_vb(const_values.GetStackPointers(),
+            const_values.GetIndices(), may_block, &heap_params);
+        EXPECT_EQ(res, C2_OK);
+
+        const_values.CheckStackValues();
+        const_values.Check(heap_params, false);
+    }); // CallComponentTest
+}
+
 INSTANTIATE_TEST_CASE_P(MfxComponents, CreateEncoder,
     ::testing::ValuesIn(g_components_desc),
     ::testing::PrintToStringParamName());
