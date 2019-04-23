@@ -39,7 +39,7 @@ using namespace android;
 
 static const size_t CMD_COUNT = 10;
 
-#define MOCK_COMPONENT_ENC "C2.MockComponent.Enc"
+#define MOCK_COMPONENT_ENC "c2.intel.mock.encoder"
 #define MOCK_COMPONENT MOCK_COMPONENT_ENC // use encoder for common tests
 
 static std::vector<const StreamDescription*> g_streams {

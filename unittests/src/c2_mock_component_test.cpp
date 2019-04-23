@@ -28,8 +28,8 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 using namespace android;
 
-#define MOCK_COMPONENT_ENC "C2.MockComponent.Enc"
-#define MOCK_COMPONENT_DEC "C2.MockComponent.Dec"
+#define MOCK_COMPONENT_ENC "c2.intel.mock.encoder"
+#define MOCK_COMPONENT_DEC "c2.intel.mock.decoder"
 #define MOCK_COMPONENT MOCK_COMPONENT_ENC // use encoder for common tests
 
 const uint64_t FRAME_DURATION_US = 33333; // 30 fps

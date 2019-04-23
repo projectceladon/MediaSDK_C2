@@ -109,9 +109,9 @@ static C2ParamValues GetDefaultValues(const char * component_name)
     C2ParamValues default_values;
     // get default c2 params from mfx default structure
     mfxVideoParam video_params {};
-    if (!strcmp(component_name, "C2.h264ve")) {
+    if (!strcmp(component_name, "c2.intel.avc.encoder")) {
         video_params.mfx.CodecId = MFX_CODEC_AVC;
-    } else if (!strcmp(component_name, "C2.h265ve")) {
+    } else if (!strcmp(component_name, "c2.intel.hevc.encoder")) {
         video_params.mfx.CodecId = MFX_CODEC_HEVC;
     } else {
         video_params.mfx.CodecId = 0; // UNKNOWN
@@ -129,16 +129,16 @@ static C2ParamValues GetDefaultValues(const char * component_name)
 static ComponentDesc NonExistingEncoderDesc()
 {
     ComponentDesc desc {};
-    desc.component_name = "C2.NonExistingEncoder";
+    desc.component_name = "c2.intel.missing.encoder";
     desc.creation_status = C2_NOT_FOUND;
     return desc;
 }
 
 static ComponentDesc g_components_desc[] = {
-    { "C2.h264ve", 0, C2_OK, h264_params_desc, GetDefaultValues("C2.h264ve"), C2_CORRUPTED,
+    { "c2.intel.avc.encoder", 0, C2_OK, h264_params_desc, GetDefaultValues("c2.intel.avc.encoder"), C2_CORRUPTED,
         { g_h264_profile_levels, g_h264_profile_levels + g_h264_profile_levels_count },
         &TestAvcStreamProfileLevel },
-    { "C2.h265ve", 0, C2_OK, h265_params_desc, GetDefaultValues("C2.h265ve"), C2_CORRUPTED,
+    { "c2.intel.hevc.encoder", 0, C2_OK, h265_params_desc, GetDefaultValues("c2.intel.hevc.encoder"), C2_CORRUPTED,
         { g_h265_profile_levels, g_h265_profile_levels + g_h265_profile_levels_count },
         &TestHevcStreamProfileLevel },
 };
@@ -421,9 +421,9 @@ static void Encode(
 // Encoding is performed on system memory in odd runs, on video memory - in even.
 // If --dump-output option is set, every encoded bitstream is saved into file
 // named as ./<test_case_name>/<test_name>/<component_name>-<run_index>.out,
-// for example: ./MfxEncoderComponent/EncodeBitExact/C2.h264ve-0.out
+// for example: ./MfxEncoderComponent/EncodeBitExact/c2.intel.avc.encoder-0.out
 // Encoded bitstream is bit exact with a result of run:
-// ./mfx_transcoder64 h264 -i ./C2.h264ve.input.yuv -o ./C2-2222.h264 -nv12 -h 480 -w 640 -f 30
+// ./mfx_transcoder64 h264 -i ./c2.intel.avc.encoder.input.yuv -o ./C2-2222.h264 -nv12 -h 480 -w 640 -f 30
 // -cbr -b 2222000 -CodecProfile 578 -CodecLevel 51 -TargetUsage 7 -hw
 // -GopPicSize 15 -GopRefDist 1 -PicStruct 0 -NumSlice 1 -crc
 TEST_P(Encoder, EncodeBitExact)
@@ -867,13 +867,13 @@ uint32_t CountIdrSlices(std::vector<char>&& contents, const char* component_name
         if (region.size > start_code_len) {
             char header_byte = stream.data[region.offset + start_code_len]; // first byte start code
             uint8_t nal_unit_type = 0;
-            if (!strcmp(component_name, "C2.h264ve")) {
+            if (!strcmp(component_name, "c2.intel.avc.encoder")) {
                 nal_unit_type = (uint8_t)header_byte & 0x1F;
                 const uint8_t IDR_SLICE = 5;
                 if (nal_unit_type == IDR_SLICE) {
                     ++count;
                 }
-            } else if (!strcmp(component_name, "C2.h265ve")) {
+            } else if (!strcmp(component_name, "c2.intel.hevc.encoder")) {
                 nal_unit_type = ((uint8_t)header_byte & 0x7E) >> 1; // extract 6 bits: from 2nd to 7th
                 const uint8_t IDR_W_RADL = 19;
                 const uint8_t IDR_N_LP = 20;
@@ -1167,7 +1167,7 @@ bool CheckFrameRateInStream(std::vector<char>&& contents, const float expected, 
 {
     std::ostringstream oss;
     bool res = false;
-    if (!strcmp(component_name, "C2.h264ve")) {
+    if (!strcmp(component_name, "c2.intel.avc.encoder")) {
         HeaderParser::AvcSequenceParameterSet sps;
         if (sps.ExtractSequenceParameterSet(std::move(contents))) {
             if (abs(sps.frame_rate_ - expected) > 0.001) { //FrameRate setting keep 3 sign after dot
@@ -1178,7 +1178,7 @@ bool CheckFrameRateInStream(std::vector<char>&& contents, const float expected, 
         } else {
             oss << "sps is not found in bitstream" << std::endl;
         }
-    } else if (!strcmp(component_name, "C2.h265ve")) {
+    } else if (!strcmp(component_name, "c2.intel.hevc.encoder")) {
         HeaderParser::HevcSequenceParameterSet sps;
         if (sps.ExtractSequenceParameterSet(std::move(contents))) {
             if (abs(sps.frame_rate_ - expected) > 0.001) { //FrameRate setting keep 3 sign after dot
