@@ -49,7 +49,7 @@ public:
         std::function<bool (ParamType*)> param_get);
 
     // Returns param values to *dst, allocates if *dst == nullptr
-    c2_status_t QueryParam(C2Param::Type type, C2Param** dst) const;
+    c2_status_t QueryParam(C2Param::Index index, C2Param** dst) const;
 
 #if MFX_DEBUG == MFX_DEBUG_YES
     void DumpParams();
@@ -75,9 +75,9 @@ private:
 
     std::map<C2ParamField, C2FieldSupportedValues> params_supported_values_;
 
-    std::map<C2Param::Type, C2ParamOperations> param_operations_;
+    std::map<C2Param::Index, C2ParamOperations> param_operations_;
 
-    std::list<std::unique_ptr<const C2Param>> const_values_;
+    std::map<C2Param::Index, std::unique_ptr<const C2Param>> const_values_;
 };
 
 template<typename ParamType>
@@ -124,17 +124,9 @@ void MfxC2ParamStorage::AddConstValue(
 {
     RegisterParam<ParamType>(param_name);
 
-    C2ParamAllocate allocate = []() { return new ParamType(); };
+    C2Param::Index index = C2Param::Index(const_value->index());
 
-    C2ParamFill fill = [src = const_value.get()] (C2Param* dst)->bool {
-        *(ParamType*)dst = *src;
-        return true;
-    };
-
-    // retain values during storage lifetime
-    const_values_.emplace_back(std::move(const_value));
-
-    param_operations_.emplace(ParamType::PARAM_TYPE, C2ParamOperations{allocate, std::move(fill)});
+    const_values_.emplace(index, std::move(const_value));
 }
 
 template<typename ParamType>
@@ -143,7 +135,11 @@ void MfxC2ParamStorage::AddStreamInfo(const char* param_name, unsigned int strea
 {
     RegisterParam<ParamType>(param_name);
 
-    C2ParamAllocate allocate = []() { return new ParamType(); };
+    C2ParamAllocate allocate = [stream_id]() {
+        ParamType* res = new ParamType();
+        res->setStream(stream_id); // compiled if ParamType is C2StreamParam
+        return res;
+    };
     C2ParamFill fill = [param_fill](C2Param* dst)->bool {
         return param_fill((ParamType*)dst);
     };

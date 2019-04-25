@@ -63,6 +63,15 @@ std::unique_ptr<C2SettingResult> FindC2Param(
     const std::vector<std::shared_ptr<C2ParamDescriptor>>& params_desc,
     const C2Param* param);
 
+template<typename T, typename ...Args>
+std::unique_ptr<T> AllocUniqueString(const Args(&... args), const char *value)
+{
+    size_t len = strlen(value) + 1;
+    std::unique_ptr<T> res = T::AllocUnique(len, args...);
+    strcpy(res->m.value, value);
+    return res;
+}
+
 bool AvcProfileAndroidToMfx(C2Config::profile_t android_value, mfxU16* mfx_value);
 
 bool AvcProfileMfxToAndroid(mfxU16 mfx_value, C2Config::profile_t* android_value);

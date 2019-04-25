@@ -137,6 +137,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, int flags,
             break;
     }
 
+    pr.RegisterParam<C2StreamProfileLevelInfo::input>(C2_PARAMKEY_STREAM_PROFILE_LEVEL);
     pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::profile, supported_profiles);
     pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::level, supported_levels);
 
@@ -458,13 +459,13 @@ void MfxC2DecoderComponent::FreeDecoder()
     }
 }
 
-c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Type type, C2Param** dst) const
+c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Index index, C2Param** dst) const
 {
     c2_status_t res = C2_OK;
 
-    res = param_storage_.QueryParam(type, dst);
+    res = param_storage_.QueryParam(index, dst);
     if (C2_NOT_FOUND == res) {
-        switch (type.typeIndex()) {
+        switch (index) {
             case kParamIndexMemoryType: {
                 if (nullptr == *dst) {
                     *dst = new C2MemoryTypeSetting();
@@ -506,7 +507,7 @@ c2_status_t MfxC2DecoderComponent::Query(
         for (C2Param* param : stackParams) {
             c2_status_t param_res = C2_OK;
             if (param_storage_.FindParam(param->index())) {
-                param_res = QueryParam(params_view, param->type(), &param);
+                param_res = QueryParam(params_view, param->index(), &param);
             } else {
                 param_res =  C2_BAD_INDEX;
             }
@@ -522,7 +523,7 @@ c2_status_t MfxC2DecoderComponent::Query(
             // check on presence
             c2_status_t param_res = C2_OK;
             if (param_storage_.FindParam(param_index.type())) {
-                param_res = QueryParam(params_view, param_index.type(), &param);
+                param_res = QueryParam(params_view, param_index, &param);
             } else {
                 param_res = C2_BAD_INDEX;
             }

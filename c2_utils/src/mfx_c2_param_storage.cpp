@@ -55,19 +55,37 @@ inline bool CheckRange(const C2FieldSupportedValues& supported, C2FieldDescripto
     return true;
 }
 
-c2_status_t MfxC2ParamStorage::QueryParam(C2Param::Type type, C2Param** dst) const
+c2_status_t MfxC2ParamStorage::QueryParam(C2Param::Index index, C2Param** dst) const
 {
+    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_STREAM("Param: " << std::hex << (uint32_t)index);
+
     c2_status_t res = C2_OK;
 
-    auto operations_found = param_operations_.find(type);
-    if (operations_found != param_operations_.end()) {
-        const C2ParamOperations& operations = operations_found->second;
+    auto const_value_found = const_values_.find(index);
+    if (const_value_found != const_values_.end()) {
         if (nullptr == *dst) {
-            *dst = operations.allocate_();
+            *dst = C2Param::Copy(*const_value_found->second).release();
         }
-        operations.fill_(*dst);
+        else {
+            bool copy_res = (*dst)->updateFrom(*const_value_found->second);
+            if (!copy_res) {
+                (*dst)->invalidate();
+                res = C2_NO_MEMORY;
+            }
+        }
+
     } else {
-        res = C2_NOT_FOUND;
+        auto operations_found = param_operations_.find(index);
+        if (operations_found != param_operations_.end()) {
+            const C2ParamOperations& operations = operations_found->second;
+            if (nullptr == *dst) {
+                *dst = operations.allocate_();
+            }
+            operations.fill_(*dst);
+        } else {
+            res = C2_NOT_FOUND;
+        }
     }
     return res;
 }
@@ -165,12 +183,7 @@ c2_status_t MfxC2ParamStorage::getSupportedParams(
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    params->clear();
-
-    std::copy_if(params_descriptors_.begin(), params_descriptors_.end(),
-        std::back_inserter(*params),
-        [](const auto& p) { return p->index().isVendor(); }
-    );
+    (*params) = params_descriptors_;
 
     return C2_OK;
 }
