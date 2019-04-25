@@ -45,6 +45,7 @@ static std::shared_ptr<C2ComponentStore> CreateComponentStore()
         result.reset(MfxC2ComponentStore::Create(&status));
         EXPECT_EQ(status, C2_OK);
         EXPECT_TRUE(result);
+        RestoreConfFile();
     }
     return result;
 }
@@ -64,7 +65,7 @@ TEST(MfxComponentStore, Create)
 }
 
 // Tests if store returns correct list of supported components.
-// A list should be equal to the list prepared by test in file /etc/mfx_c2_store.conf
+// A list should be equal to the list prepared by test in file /vendor/etc/mfx_c2_store.conf
 // For this test the running device should be rooted and remounted to able to write to /etc dir.
 TEST(MfxComponentStore, getComponents)
 {

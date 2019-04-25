@@ -23,7 +23,7 @@ typedef MfxC2Component* (CreateMfxC2ComponentFunc)(const char* name, int flags,
 #define CREATE_MFX_C2_COMPONENT_FUNC_NAME "MfxCreateC2Component"
 
 #define MFX_C2_CONFIG_FILE_NAME "mfx_c2_store.conf"
-#define MFX_C2_CONFIG_FILE_PATH "/etc"
+#define MFX_C2_CONFIG_FILE_PATH "/vendor/etc"
 
 const c2_nsecs_t MFX_SECOND_NS = 1000000000; // 1e9
 
