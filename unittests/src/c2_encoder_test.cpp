@@ -44,10 +44,20 @@ std::vector<C2ParamDescriptor> DefaultC2Params()
     std::vector<C2ParamDescriptor> param =
     {
         { false, "RateControl", C2RateControlSetting::PARAM_TYPE },
+        { false, "FrameRate", C2FrameRateSetting::output::PARAM_TYPE },
+        { false, "Bitrate", C2BitrateTuning::output::PARAM_TYPE },
         { false, "FrameQP", C2FrameQPSetting::PARAM_TYPE },
+        { false, "IntraRefresh", C2IntraRefreshTuning::PARAM_TYPE },
         { false, "Profile", C2ProfileSetting::PARAM_TYPE },
         { false, "Level", C2LevelSetting::PARAM_TYPE },
+        { false, "SupportedProfilesLevels", C2ProfileLevelInfo::output::PARAM_TYPE },
         { false, "MemoryType", C2MemoryTypeSetting::PARAM_TYPE },
+        { false, C2_PARAMKEY_COMPONENT_DOMAIN, C2ComponentDomainSetting::PARAM_TYPE },
+        { false, C2_PARAMKEY_COMPONENT_KIND, C2ComponentKindSetting::PARAM_TYPE },
+        { false, C2_NAME_INPUT_STREAM_FORMAT_SETTING, C2StreamFormatConfig::input::PARAM_TYPE },
+        { false, C2_NAME_OUTPUT_STREAM_FORMAT_SETTING, C2StreamFormatConfig::output::PARAM_TYPE },
+        { false, C2_NAME_INPUT_PORT_MIME_SETTING, C2PortMimeConfig::input::PARAM_TYPE },
+        { false, C2_NAME_OUTPUT_PORT_MIME_SETTING, C2PortMimeConfig::output::PARAM_TYPE },
     };
     return param;
 }
@@ -1289,6 +1299,8 @@ static C2ParamValues GetConstParamValues()
     const_values.Append(new C2ComponentKindSetting(C2Component::KIND_ENCODER));
     const_values.Append(new C2StreamFormatConfig::input(0/*stream*/, C2FormatVideo));
     const_values.Append(new C2StreamFormatConfig::output(0/*stream*/, C2FormatCompressed));
+    const_values.AppendFlex(AllocUniqueString<C2PortMimeConfig::input>("video/raw"));
+    const_values.AppendFlex(AllocUniqueString<C2PortMimeConfig::output>("video/avc"));
     return const_values;
 }
 

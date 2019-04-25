@@ -82,7 +82,7 @@ protected:
 
 private:
     c2_status_t QueryParam(const mfxVideoParam* src,
-        C2Param::Type type, C2Param** dst) const;
+        C2Param::Index index, C2Param** dst) const;
 
     void DoConfig(const std::vector<C2Param*> &params,
         std::vector<std::unique_ptr<C2SettingResult>>* const failures,

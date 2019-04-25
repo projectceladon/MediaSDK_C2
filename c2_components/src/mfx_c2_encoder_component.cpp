@@ -99,6 +99,11 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, int flags,
             pr.AddConstValue(C2_NAME_OUTPUT_STREAM_FORMAT_SETTING,
                 std::make_unique<C2StreamFormatConfig::output>(SINGLE_STREAM_ID, C2FormatCompressed));
 
+            pr.AddConstValue(C2_NAME_INPUT_PORT_MIME_SETTING,
+                AllocUniqueString<C2PortMimeConfig::input>("video/raw"));
+            pr.AddConstValue(C2_NAME_OUTPUT_PORT_MIME_SETTING,
+                AllocUniqueString<C2PortMimeConfig::output>("video/avc"));
+
         break;
     }
 
@@ -685,16 +690,17 @@ std::unique_ptr<mfxVideoParam> MfxC2EncoderComponent::GetParamsView() const
     return res;
 }
 
-c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Type type, C2Param** dst) const
+c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Index index, C2Param** dst) const
 {
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
 
-    res = param_storage_.QueryParam(type, dst);
+    res = param_storage_.QueryParam(index, dst);
     if (C2_NOT_FOUND == res) {
         res = C2_OK; // suppress error as second pass to find param
-        switch (type.typeIndex()) {
+
+        switch (index.typeIndex()) {
             case kParamIndexRateControl: {
                 if (nullptr == *dst) {
                     *dst = new C2RateControlSetting();
@@ -857,7 +863,7 @@ c2_status_t MfxC2EncoderComponent::Query(
         for (C2Param* param : stackParams) {
             c2_status_t param_res = C2_OK;
             if (param_storage_.FindParam(param->index())) {
-                param_res = QueryParam(params_view.get(), param->type(), &param);
+                param_res = QueryParam(params_view.get(), param->index(), &param);
             } else {
                 param_res =  C2_BAD_INDEX;
             }
@@ -873,7 +879,7 @@ c2_status_t MfxC2EncoderComponent::Query(
             // check on presence
             c2_status_t param_res = C2_OK;
             if (param_storage_.FindParam(param_index.type())) {
-                param_res = QueryParam(params_view.get(), param_index.type(), &param);
+                param_res = QueryParam(params_view.get(), param_index, &param);
             } else {
                 param_res = C2_BAD_INDEX;
             }

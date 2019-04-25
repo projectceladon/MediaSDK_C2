@@ -40,6 +40,15 @@ public:
         indices_.push_back(ParamType::PARAM_TYPE);
     }
 
+    template<typename ParamType>
+    void AppendFlex(std::unique_ptr<ParamType>&& param_value)
+    {
+        // don't add to stack_values_ as flex params need dynamic allocation
+        stack_values_.push_back(C2Param::Copy(*param_value));
+        expected_.push_back(std::shared_ptr<C2Param>(std::move(param_value)));
+        indices_.push_back(ParamType::PARAM_TYPE);
+    }
+
     std::vector<C2Param*> GetStackPointers() const
     {
         // need this temp vector as cannot init vector<smth const> in one step

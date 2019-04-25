@@ -82,7 +82,7 @@ protected:
 
 private:
     c2_status_t QueryParam(const mfxVideoParam* src,
-        C2Param::Type type, C2Param** dst) const;
+        C2Param::Index index, C2Param** dst) const;
 
     std::unique_ptr<mfxVideoParam> GetParamsView() const;
 
