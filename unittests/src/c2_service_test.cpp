@@ -132,6 +132,7 @@ private:
 
     void TearDown() override
     {
+        RestoreConfFile();
         StopC2Service();
     }
 
