@@ -81,10 +81,13 @@ TEST(MfxComponentStore, getComponents)
 
     for(size_t i = 0; i < components.size(); i++) {
         std::string actual_name = components[i]->name;
+        std::string actual_media_type = components[i]->mediaType;
 
         bool found = false;
         for(const auto& component : g_components) {
             if(actual_name == component.component_name) {
+                EXPECT_NE(actual_media_type, "");
+                EXPECT_EQ(actual_media_type, component.media_type);
                 found = true;
                 break;
             }

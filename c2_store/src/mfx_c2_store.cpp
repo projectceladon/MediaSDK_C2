@@ -130,7 +130,9 @@ std::vector<std::shared_ptr<const C2Component::Traits>> MfxC2ComponentStore::lis
         for(const auto& it_pair : components_registry_ ) {
             std::unique_ptr<C2Component::Traits> info = std::make_unique<C2Component::Traits>();
             info->name = it_pair.first;
+            info->mediaType = it_pair.second.media_type_;
             MFX_DEBUG_TRACE_S(info->name.c_str());
+            MFX_DEBUG_TRACE_S(info->mediaType.c_str());
             result.push_back(std::move(info));
         }
     }
@@ -278,6 +280,7 @@ c2_status_t MfxC2ComponentStore::readConfigFile()
             }
 
             C2String media_type = xml_parser_.getMediaType(name.c_str());
+            MFX_DEBUG_TRACE_S(media_type.c_str());
 
             components_registry_.emplace(name, ComponentDesc(module.c_str(), media_type.c_str(), flags));
         }
