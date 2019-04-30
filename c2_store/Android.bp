@@ -39,6 +39,7 @@ cc_binary_c2_service {
     static_libs: [
         "libmfx_c2_store",
         "libmfx_c2_utils",
+        "libexpat"
     ],
 
     shared_libs: [

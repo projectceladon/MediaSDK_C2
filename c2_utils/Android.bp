@@ -2,6 +2,10 @@ cc_library_static {
 
     name: "libmfx_c2_utils",
 
+    static_libs: [
+        "libexpat",
+    ],
+
     defaults: ["mfx_c2_defaults"],
 
     srcs: ["src/*.cpp"],
@@ -10,6 +14,10 @@ cc_library_static {
 cc_library_static {
 
     name: "libmfx_c2_utils_va",
+
+    static_libs: [
+        "libexpat",
+    ],
 
     defaults: ["mfx_c2_defaults"],
 

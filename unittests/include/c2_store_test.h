@@ -17,16 +17,17 @@ namespace {
 struct ComponentDesc
 {
     const char* component_name;
+    const char* media_type;
     const char* module_name;
     int flags;
     c2_status_t creation_status;
 };
 
 ComponentDesc g_components[] = {
-    { "c2.intel.mock.encoder", "libmfx_mock_c2_components.so", 0, C2_OK },
-    { "c2.intel.avc.decoder", "libmfx_c2_components_hw.so", 0, C2_OK },
-    { "c2.intel.avc.encoder", "libmfx_c2_components_hw.so", 0, C2_OK },
-    { "c2.intel.missing.encoder", "libmfx_mock_c2_components.so", 0, C2_NOT_FOUND },
+    { "c2.intel.mock.encoder", "video/mock", "libmfx_mock_c2_components.so", 0, C2_OK },
+    { "c2.intel.avc.decoder", "video/avc", "libmfx_c2_components_hw.so", 0, C2_OK },
+    { "c2.intel.avc.encoder", "video/avc", "libmfx_c2_components_hw.so", 0, C2_OK },
+    { "c2.intel.missing.encoder", "video/missed", "libmfx_mock_c2_components.so", 0, C2_NOT_FOUND },
 };
 
 #define RESET_LD_LIBRARY_PATH "LD_LIBRARY_PATH= "
@@ -57,11 +58,67 @@ inline bool PrepareConfFile()
     return true;
 }
 
+inline bool PrepareXmlConfFile()
+{
+    const char* backup_cmd_line = "cd " MFX_C2_CONFIG_XML_FILE_PATH "; "
+        "if [ -f " MFX_C2_CONFIG_XML_FILE_NAME " ]; "
+            "then " RESET_LD_LIBRARY_PATH "cp " MFX_C2_CONFIG_XML_FILE_NAME " " MFX_C2_CONFIG_XML_FILE_NAME ".bak; fi";
+    std::system(backup_cmd_line);
+
+    std::string config_filename;
+    config_filename.append(MFX_C2_CONFIG_XML_FILE_PATH);
+    config_filename.append("/");
+    config_filename.append(MFX_C2_CONFIG_XML_FILE_NAME);
+
+    std::ofstream config_file(config_filename.c_str(), std::ifstream::out);
+
+    if (!config_file)
+        return false;
+
+    std::string decoders_str;
+    std::string encoders_str;
+    for(const auto& component : g_components) {
+        std::string line = "        <MediaCodec name=\"";
+        line.append(component.component_name);
+        line.append("\" type=\"");
+        line.append(component.media_type);
+        line.append("\">\n");
+        line.append("        </MediaCodec>\n");
+        if(strstr(component.component_name, "decoder")) {
+            decoders_str.append(line);
+        } else if (strstr(component.component_name, "encoder")) {
+            encoders_str.append(line);
+        }
+    }
+
+
+    config_file << "<Included>\n";
+    config_file << "    <Decoders>\n";
+    config_file << decoders_str.c_str();
+    config_file << "    </Decoders>\n";
+    config_file << "\n";
+    config_file << "    <Encoders>\n";
+    config_file << encoders_str.c_str();
+    config_file << "    </Encoders>\n";
+    config_file << "</Included>\n";
+
+    config_file.close();
+    return true;
+}
+
 inline void RestoreConfFile()
 {
     const char* restore_cmd_line = "cd " MFX_C2_CONFIG_FILE_PATH "; "
         "if [ -f " MFX_C2_CONFIG_FILE_NAME ".bak ]; "
             "then " RESET_LD_LIBRARY_PATH " mv " MFX_C2_CONFIG_FILE_NAME ".bak " MFX_C2_CONFIG_FILE_NAME "; fi";
+    std::system(restore_cmd_line);
+}
+
+inline void RestoreXmlConfFile()
+{
+    const char* restore_cmd_line = "cd " MFX_C2_CONFIG_XML_FILE_PATH "; "
+        "if [ -f " MFX_C2_CONFIG_XML_FILE_NAME ".bak ]; "
+            "then " RESET_LD_LIBRARY_PATH " mv " MFX_C2_CONFIG_XML_FILE_NAME ".bak " MFX_C2_CONFIG_XML_FILE_NAME "; fi";
     std::system(restore_cmd_line);
 }
 
