@@ -25,6 +25,9 @@ typedef MfxC2Component* (CreateMfxC2ComponentFunc)(const char* name, int flags,
 #define MFX_C2_CONFIG_FILE_NAME "mfx_c2_store.conf"
 #define MFX_C2_CONFIG_FILE_PATH "/vendor/etc"
 
+#define MFX_C2_CONFIG_XML_FILE_NAME "media_codecs_intel_c2_video.xml"
+#define MFX_C2_CONFIG_XML_FILE_PATH "/vendor/etc"
+
 const c2_nsecs_t MFX_SECOND_NS = 1000000000; // 1e9
 
 extern const size_t g_h264_profile_levels_count;

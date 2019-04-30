@@ -126,6 +126,7 @@ private:
 
         StopC2Service();
         PrepareConfFile();
+        PrepareXmlConfFile();
         EnableVendorInterface();
         StartC2Service();
     }
@@ -133,6 +134,7 @@ private:
     void TearDown() override
     {
         RestoreConfFile();
+        RestoreXmlConfFile();
         StopC2Service();
     }
 

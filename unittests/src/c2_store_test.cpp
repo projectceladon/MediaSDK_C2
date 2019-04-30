@@ -38,14 +38,17 @@ static std::shared_ptr<C2ComponentStore> CreateComponentStore()
 
     bool conf_file_ready = PrepareConfFile();
     EXPECT_TRUE(conf_file_ready);
+    bool conf_xml_file_ready = PrepareXmlConfFile();
+    EXPECT_TRUE(conf_xml_file_ready);
 
-    if (conf_file_ready) {
+    if (conf_file_ready || conf_xml_file_ready) {
 
         c2_status_t status = C2_OK;
         result.reset(MfxC2ComponentStore::Create(&status));
         EXPECT_EQ(status, C2_OK);
         EXPECT_TRUE(result);
         RestoreConfFile();
+        RestoreXmlConfFile();
     }
     return result;
 }

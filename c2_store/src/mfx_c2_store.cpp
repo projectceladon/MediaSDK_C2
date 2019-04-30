@@ -35,8 +35,10 @@ MfxC2ComponentStore* MfxC2ComponentStore::Create(c2_status_t* status) {
 
     MfxC2ComponentStore* store = new (std::nothrow)MfxC2ComponentStore();
     if (store != nullptr) {
-        *status = store->readConfigFile();
-        if (*status != C2_OK) {
+        c2_status_t read_xml_cfg_res = store->readXmlConfigFile();
+        c2_status_t read_cfg_res = store->readConfigFile();
+        if (read_cfg_res != C2_OK || read_xml_cfg_res != C2_OK) {
+            *status = (read_cfg_res != C2_OK) ? read_cfg_res : read_xml_cfg_res;
             delete store;
             store = nullptr;
         }
@@ -275,11 +277,27 @@ c2_status_t MfxC2ComponentStore::readConfigFile()
                 flags = strtol(str.c_str(), NULL, 16);
             }
 
-            components_registry_.emplace(name, ComponentDesc(module.c_str(), flags));
+            C2String media_type = xml_parser_.getMediaType(name.c_str());
+
+            components_registry_.emplace(name, ComponentDesc(module.c_str(), media_type.c_str(), flags));
         }
         config_file.close();
     }
     MFX_DEBUG_TRACE_I32(components_registry_.size());
+    MFX_DEBUG_TRACE__android_c2_status_t(c2_res);
+    return c2_res;
+}
+
+c2_status_t MfxC2ComponentStore::readXmlConfigFile()
+{
+    MFX_DEBUG_TRACE_FUNC;
+    c2_status_t c2_res = C2_OK;
+    std::string config_filename = MFX_C2_CONFIG_XML_FILE_PATH;
+    config_filename.append("/");
+    config_filename.append(MFX_C2_CONFIG_XML_FILE_NAME);
+
+    c2_res = xml_parser_.parseConfig(config_filename.c_str());
+
     MFX_DEBUG_TRACE__android_c2_status_t(c2_res);
     return c2_res;
 }

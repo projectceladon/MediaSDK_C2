@@ -18,6 +18,7 @@ Defined help functions:
 #pragma once
 
 #include <C2Component.h>
+#include "mfx_c2_xml_parser.h"
 
 #include <map>
 
@@ -58,17 +59,20 @@ private: // C2ComponentStore overrides
 
 private: // implementation methods
     c2_status_t readConfigFile();
+    c2_status_t readXmlConfigFile();
 
     void* loadModule(const std::string& name);
 private: // data
     struct ComponentDesc {
         std::string dso_name_;
+        std::string media_type_;
         int flags_;
-        ComponentDesc(const char* dso_name, int flags):
-            dso_name_(dso_name), flags_(flags) {}
+        ComponentDesc(const char* dso_name, const char* media_type, int flags):
+            dso_name_(dso_name), media_type_(media_type), flags_(flags) {}
     };
     // this is a map between component names and component descriptions:
     //   (component's flags, dso name, etc.)
     // no mutexed access needed as written only once before any read access
     std::map<std::string, ComponentDesc> components_registry_;
+    MfxXmlParser xml_parser_;
 };
