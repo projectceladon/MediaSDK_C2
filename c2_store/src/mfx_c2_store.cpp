@@ -23,9 +23,9 @@ Defined help functions:
 #include "mfx_c2_component.h"
 
 #include <dlfcn.h>
+#include <fstream>
 
-#define MAX_LINE_LENGTH 1024
-#define FIELD_SEP " \t:"
+static const std::string FIELD_SEP = " : ";
 
 using namespace android;
 
@@ -207,107 +207,77 @@ c2_status_t MfxC2ComponentStore::querySupportedValues_sm(
 
 
 /* Searches in the given line field which is separated from other lines by
- * FILED_SEP characters, Returns pointer to the beginning of the field and
+ * FILED_SEP characters, Returns std::string which includes the field and
  * its size.
  */
-static void mfx_c2_get_field(const char *line, char **str, size_t *str_size)
+static void MfxC2GetField(const std::string &line, std::string *str, size_t *str_pos)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    if (!line || !str || !str_size) return;
+    if (str == nullptr || str_pos == nullptr) return;
 
-    MFX_DEBUG_TRACE_S(line);
+    *str = "";
 
-    *str = (char*)line;
-    for(; strchr(FIELD_SEP, **str) && (**str); ++(*str));
-    if (**str)
-    {
-        char *p = *str;
-        for(; !strchr(FIELD_SEP, *p) && (*p); ++p);
-        *str_size = (p - *str);
+    if (line.empty() || *str_pos == std::string::npos) return;
 
-        MFX_DEBUG_TRACE_I32(*str_size);
-    }
-    else
-    {
-        MFX_DEBUG_TRACE_MSG("field not found");
-        *str = NULL;
-        *str_size = 0;
-        MFX_DEBUG_TRACE_I32(*str_size);
-    }
+    MFX_DEBUG_TRACE_S(line.c_str());
+
+    size_t pos = line.find_first_of(FIELD_SEP, *str_pos);
+
+    size_t copy_size = (pos != std::string::npos) ? pos - *str_pos : line.size() - *str_pos;
+    *str = line.substr(*str_pos, copy_size);
+    *str_pos = (pos != std::string::npos) ? pos + FIELD_SEP.size() : std::string::npos;
+
+    MFX_DEBUG_TRACE_I32(copy_size);
+    MFX_DEBUG_TRACE_I32(*str_pos);
 }
 
 c2_status_t MfxC2ComponentStore::readConfigFile()
 {
     MFX_DEBUG_TRACE_FUNC;
     c2_status_t c2_res = C2_OK;
-    char config_filename[MFX_MAX_PATH] = {0};
-    FILE* config_file = NULL;
+    std::string config_filename;
 
-#ifndef ANDROID
-    { /* for Android we do not need this */
-        char* home = getenv("HOME");
-        if (home)
-        {
-            snprintf(config_filename, MFX_MAX_PATH, "%s/.%s", home, MFX_C2_CONFIG_FILE_NAME);
-            config_file = fopen(config_filename, "r");
-        }
-    }
-#endif
-    if (!config_file)
-    {
-        snprintf(config_filename, MFX_MAX_PATH, "%s/%s", MFX_C2_CONFIG_FILE_PATH, MFX_C2_CONFIG_FILE_NAME);
-        config_file = fopen(config_filename, "r");
-    }
+    config_filename.append(MFX_C2_CONFIG_FILE_PATH);
+    config_filename.append("/");
+    config_filename.append(MFX_C2_CONFIG_FILE_NAME);
+    std::ifstream config_file(config_filename.c_str(), std::ifstream::in);
+
     if (config_file)
     {
-        MFX_DEBUG_TRACE_S(config_filename);
-        char line[MAX_LINE_LENGTH] = {0}, *str = NULL;
-        char *name = NULL, *module = NULL, *str_flags = NULL;
-        size_t line_length = 0, n = 0;//, i = 0;
+        MFX_DEBUG_TRACE_S(config_filename.c_str());
+        std::string line, str, name, module;
 
-        while (NULL != (str = fgets(line, MAX_LINE_LENGTH, config_file)))
+        while (std::getline(config_file, line))
         {
-            line_length = n = strnlen(line, MAX_LINE_LENGTH);
-            for(; n && strchr("\n\r", line[n-1]); --n)
-            {
-                line[n-1] = '\0';
-                --line_length;
-            }
-            MFX_DEBUG_TRACE_S(line);
-            MFX_DEBUG_TRACE_I32(line_length);
+            MFX_DEBUG_TRACE_S(line.c_str());
+
+            size_t pos = 0;
 
             // getting name
-            mfx_c2_get_field(line, &str, &n);
-            //if (!n && ((str+n+1 - line) < line_length)) continue;
-            if (!n || !(str[n])) continue; // line is empty or field is the last one
+            MfxC2GetField(line, &str, &pos);
+            if (str.empty()) continue; // line is empty or field is the last one
             name = str;
-            name[n] = '\0';
-            MFX_DEBUG_TRACE_S(name);
+            MFX_DEBUG_TRACE_S(name.c_str());
 
             // getting module
-            mfx_c2_get_field(str+n+1, &str, &n);
-            if (!n) continue;
+            MfxC2GetField(line, &str, &pos);
+            if (str.empty()) continue;
             module = str;
-            module[n] = '\0';
-            MFX_DEBUG_TRACE_S(module);
+            MFX_DEBUG_TRACE_S(module.c_str());
 
             // getting optional flags
-            if ((str+n+1) < (line + line_length))
+            MfxC2GetField(line, &str, &pos);
+            int flags = 0;
+            if (!str.empty())
             {
-                mfx_c2_get_field(str+n+1, &str, &n);
-                if (n)
-                {
-                    str_flags = str;
-                    str_flags[n] = '\0';
-                    MFX_DEBUG_TRACE_S(str_flags);
-                }
+                MFX_DEBUG_TRACE_S(str.c_str());
+                flags = strtol(str.c_str(), NULL, 16);
             }
-            int flags = (str_flags) ? strtol(str_flags, NULL, 16) : 0;
 
-            components_registry_.emplace(std::string(name), ComponentDesc(module, flags));
+            components_registry_.emplace(name, ComponentDesc(module.c_str(), flags));
         }
-        fclose(config_file);
+        config_file.close();
     }
     MFX_DEBUG_TRACE_I32(components_registry_.size());
     MFX_DEBUG_TRACE__android_c2_status_t(c2_res);
