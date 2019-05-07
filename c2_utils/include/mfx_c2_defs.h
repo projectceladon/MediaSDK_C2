@@ -12,11 +12,12 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 #include <C2Component.h>
 #include "mfx_c2_params.h"
+#include "mfx_c2_param_reflector.h"
 
 class MfxC2Component;
 
 typedef MfxC2Component* (CreateMfxC2ComponentFunc)(const char* name, int flags,
-    c2_status_t* status);
+    std::shared_ptr<MfxC2ParamReflector> reflector, c2_status_t* status);
 
 #define MFX_C2_COMPONENT_STORE_NAME "MfxC2ComponentStore"
 

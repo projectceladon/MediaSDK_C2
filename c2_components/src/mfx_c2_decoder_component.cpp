@@ -25,11 +25,12 @@ using namespace android;
 
 const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
-MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, int flags, DecoderType decoder_type) :
-    MfxC2Component(name, flags),
-    decoder_type_(decoder_type),
-    initialized_(false),
-    synced_points_count_(0)
+MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, int flags,
+    std::shared_ptr<MfxC2ParamReflector> reflector, DecoderType decoder_type) :
+        MfxC2Component(name, flags, std::move(reflector)),
+        decoder_type_(decoder_type),
+        initialized_(false),
+        synced_points_count_(0)
 {
     MFX_DEBUG_TRACE_FUNC;
 

@@ -16,6 +16,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 #include "mfx_c2_store.h"
 #include "mfx_defs.h"
+#include "mfx_debug.h"
 #include "c2_store_test.h"
 
 #include <dlfcn.h>
@@ -201,4 +202,42 @@ TEST(MfxComponentStore, config_sm)
 
     c2_status_t status = componentStore->config_sm(params, &failures);
     EXPECT_EQ(status, C2_OMITTED);
+}
+
+// Assures that reflector provides desctiption about all parameters
+// supported by components created by the store.
+TEST(MfxComponentStore, getParamReflector)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    std::shared_ptr<C2ComponentStore> componentStore = GetCachedC2ComponentStore();
+    ASSERT_NE(componentStore, nullptr);
+
+    std::set<C2Param::CoreIndex> core_indices;
+
+    for (const auto& component_desc : g_components) {
+        std::shared_ptr<C2ComponentInterface> component_itf; // Create components to fill the reflector
+        componentStore->createInterface(component_desc.component_name, &component_itf);
+        if (component_itf) {
+            std::vector<std::shared_ptr<C2ParamDescriptor>> params;
+            c2_status_t status = component_itf->querySupportedParams_nb(&params);
+            EXPECT_EQ(status, C2_OK);
+            for (auto const& param : params) {
+                core_indices.insert(param->index().coreIndex());
+            }
+        }
+    }
+
+    MFX_DEBUG_TRACE_STREAM("Supported params core indices: " << core_indices.size());
+    EXPECT_GT(core_indices.size(), 0u);
+
+    std::shared_ptr<C2ParamReflector> reflector = componentStore->getParamReflector();
+    EXPECT_NE(reflector, nullptr);
+    if (reflector) {
+        for (C2Param::CoreIndex core_index : core_indices) {
+
+            std::unique_ptr<C2StructDescriptor> descriptor = reflector->describe(core_index);
+            EXPECT_NE(descriptor, nullptr);
+        }
+    }
 }

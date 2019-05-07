@@ -53,10 +53,11 @@ void EncoderControl::Modify(ModifyFunction& function)
     function(ctrl_once_.get());
 }
 
-MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, int flags, EncoderType encoder_type) :
-    MfxC2Component(name, flags),
-    encoder_type_(encoder_type),
-    synced_points_count_(0)
+MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, int flags,
+    std::shared_ptr<MfxC2ParamReflector> reflector, EncoderType encoder_type) :
+        MfxC2Component(name, flags, std::move(reflector)),
+        encoder_type_(encoder_type),
+        synced_points_count_(0)
 {
     MFX_DEBUG_TRACE_FUNC;
 

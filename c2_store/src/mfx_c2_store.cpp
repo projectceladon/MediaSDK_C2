@@ -77,7 +77,13 @@ c2_status_t MfxC2ComponentStore::createComponent(C2String name, std::shared_ptr<
                     reinterpret_cast<CreateMfxC2ComponentFunc*>(dlsym(dso.get(), CREATE_MFX_C2_COMPONENT_FUNC_NAME));
                 if(create_func != nullptr) {
 
-                    MfxC2Component* mfx_component = (*create_func)(name.c_str(), it->second.flags_, &result);
+                    std::shared_ptr<MfxC2ParamReflector> reflector;
+                    {
+                        std::lock_guard<std::mutex> lock(reflector_mutex_);
+                        reflector = reflector_; // safe copy
+                    }
+
+                    MfxC2Component* mfx_component = (*create_func)(name.c_str(), it->second.flags_, std::move(reflector), &result);
                     if(result == C2_OK) {
                         void* dso_handle = dso.release(); // release handle to be captured into lambda deleter
                         auto component_deleter = [dso_handle] (MfxC2Component* p) { delete p; dlclose(dso_handle); };
@@ -183,9 +189,11 @@ c2_status_t MfxC2ComponentStore::config_sm(
 std::shared_ptr<C2ParamReflector> MfxC2ComponentStore::getParamReflector() const
 {
     MFX_DEBUG_TRACE_FUNC;
-    static std::shared_ptr<C2ParamReflector> reflector =
-        std::make_shared<MfxC2ParamReflector>();
-
+    std::shared_ptr<MfxC2ParamReflector> reflector;
+    {
+        std::lock_guard<std::mutex> lock(reflector_mutex_);
+        reflector = reflector_; // safe copy
+    }
     return reflector;
 }
 

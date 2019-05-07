@@ -56,7 +56,7 @@ protected:
     };
 
 protected:
-    MfxC2Component(const C2String& name, int flags);
+    MfxC2Component(const C2String& name, int flags, std::shared_ptr<MfxC2ParamReflector> reflector);
     MFX_CLASS_NO_COPY(MfxC2Component)
 
     // provides static Create method to registrate in components registry
@@ -190,18 +190,21 @@ struct MfxC2Component::Factory
     // method to create and init instance of component
     // variadic args are passed to constructor
     template<ArgTypes... arg_values>
-    static MfxC2Component* Create(const char* name, int flags, c2_status_t* status)
+    static MfxC2Component* Create(const char* name, int flags,
+        std::shared_ptr<MfxC2ParamReflector> reflector, c2_status_t* status)
     {
         c2_status_t result = C2_OK;
         // class to make constructor public and get access to new operator
         struct ConstructedClass : public ComponentClass
         {
         public:
-            ConstructedClass(const char* name, int flags, ArgTypes... constructor_args) :
-               ComponentClass(name, flags, constructor_args...) { }
+            ConstructedClass(const char* name, int flags,
+                std::shared_ptr<MfxC2ParamReflector> reflector, ArgTypes... constructor_args) :
+                    ComponentClass(name, flags, std::move(reflector), constructor_args...) { }
         };
 
-        MfxC2Component* component = new (std::nothrow) ConstructedClass(name, flags, arg_values...);
+        MfxC2Component* component =
+            new (std::nothrow) ConstructedClass(name, flags, std::move(reflector), arg_values...);
         if(component != nullptr) {
             result = component->Init();
             if(result != C2_OK) {

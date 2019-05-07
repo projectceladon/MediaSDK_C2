@@ -12,9 +12,35 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 #include "mfx_c2_param_reflector.h"
 
-class MfxC2ParamStorage : public MfxC2ParamReflector
+class MfxC2ParamStorage
 {
 public:
+    MfxC2ParamStorage(std::shared_ptr<MfxC2ParamReflector> reflector):
+        reflector_(std::move(reflector)) {}
+
+    template<typename ParamType>
+    void RegisterParam(const char* param_name);
+
+    template<typename ParamType, typename ValueType, typename FieldType>
+    void RegisterSupportedRange(FieldType ValueType::* pm, FieldType min, FieldType max);
+
+    template<typename ParamType, typename ValueType, typename FieldType>
+    void RegisterSupportedValues(FieldType ValueType::* pm, const std::vector<FieldType> &supported_values);
+
+    bool ValidateParam(const C2Param* param,
+        std::vector<std::unique_ptr<C2SettingResult>>* const failures);
+
+    std::unique_ptr<C2SettingResult> FindParam(
+        const C2Param* param) const;
+
+    bool FindParam(C2Param::Index param_index) const;
+
+    c2_status_t getSupportedParams(
+        std::vector<std::shared_ptr<C2ParamDescriptor>>* const params) const;
+
+    c2_status_t querySupportedValues_vb(
+        std::vector<C2FieldSupportedValuesQuery> &queries, c2_blocking_t mayBlock) const;
+
     template<typename ParamType>
     void AddConstValue(const char* param_name, std::unique_ptr<ParamType>&& const_value);
 
@@ -24,6 +50,13 @@ public:
 
     // Returns param values to *dst, allocates if *dst == nullptr
     c2_status_t QueryParam(C2Param::Type type, C2Param** dst) const;
+
+#if MFX_DEBUG == MFX_DEBUG_YES
+    void DumpParams();
+#else
+    void DumpParams() { }
+#endif
+
 private:
     // Operations specified for any parameter type
     typedef std::function<C2Param*()> C2ParamAllocate;
@@ -36,9 +69,53 @@ private:
     };
 
 private:
+    std::shared_ptr<MfxC2ParamReflector> reflector_;
+
+    std::vector<std::shared_ptr<C2ParamDescriptor>> params_descriptors_;
+
+    std::map<C2ParamField, C2FieldSupportedValues> params_supported_values_;
+
     std::map<C2Param::Type, C2ParamOperations> param_operations_;
 
     std::list<std::unique_ptr<const C2Param>> const_values_;
+};
+
+template<typename ParamType>
+void MfxC2ParamStorage::RegisterParam(const char* param_name)
+{
+    using namespace android;
+
+    params_descriptors_.push_back(
+        std::make_shared<C2ParamDescriptor>(false, param_name, ParamType::PARAM_TYPE));
+
+    reflector_->AddDescription<ParamType>();
+
+};
+
+template<typename ParamType, typename ValueType, typename FieldType>
+void MfxC2ParamStorage::RegisterSupportedRange(FieldType ValueType::* pm, FieldType min, FieldType max)
+{
+    using namespace android;
+
+    ParamType temp_param; // C2ParamField constructor demands pointer to instance
+
+    C2ParamField field(&temp_param, pm);
+    C2FieldSupportedValues values(min, max);
+
+    params_supported_values_.emplace(field, values);
+};
+
+template<typename ParamType, typename ValueType, typename FieldType>
+void MfxC2ParamStorage::RegisterSupportedValues(FieldType ValueType::* pm, const std::vector<FieldType> &supported_values)
+{
+    using namespace android;
+
+    ParamType temp_param;
+
+    C2ParamField field(&temp_param, pm);
+    C2FieldSupportedValues values(false, supported_values);
+
+    params_supported_values_.emplace(field, values);
 };
 
 template<typename ParamType>
