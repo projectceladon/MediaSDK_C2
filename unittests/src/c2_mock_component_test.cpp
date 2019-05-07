@@ -46,7 +46,8 @@ TEST(MfxMockComponent, Create)
 {
     int flags = 0;
     c2_status_t sts = C2_OK;
-    std::shared_ptr<MfxC2Component> mfx_component(MfxCreateC2Component(MOCK_COMPONENT, flags, &sts));
+    std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
+    std::shared_ptr<MfxC2Component> mfx_component(MfxCreateC2Component(MOCK_COMPONENT, flags, reflector, &sts));
 
     EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(mfx_component, nullptr);
@@ -58,7 +59,8 @@ TEST(MfxMockComponent, intf)
 {
     int flags = 0;
     c2_status_t sts = C2_OK;
-    std::shared_ptr<MfxC2Component> mfx_component(MfxCreateC2Component(MOCK_COMPONENT, flags, &sts));
+    std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
+    std::shared_ptr<MfxC2Component> mfx_component(MfxCreateC2Component(MOCK_COMPONENT, flags, reflector, &sts));
 
     EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(mfx_component, nullptr);
@@ -353,7 +355,8 @@ TEST(MfxMockComponent, Encode)
 {
     int flags = 0;
     c2_status_t sts = C2_OK;
-    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT_ENC, flags, &sts));
+    std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
+    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT_ENC, flags, reflector, &sts));
 
     EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(component, nullptr);
@@ -407,7 +410,8 @@ TEST(MfxMockComponent, Decode)
 {
     int flags = 0;
     c2_status_t sts = C2_OK;
-    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT_DEC, flags, &sts));
+    std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
+    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT_DEC, flags, reflector, &sts));
 
     EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(component, nullptr);
@@ -503,7 +507,8 @@ TEST(MfxMockComponent, State)
 {
     int flags = 0;
     c2_status_t sts = C2_OK;
-    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, flags, &sts));
+    std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
+    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, flags, reflector, &sts));
 
     EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(component, nullptr);
@@ -520,7 +525,7 @@ TEST(MfxMockComponent, State)
 
         component = nullptr;
 
-        std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, flags, &sts));
+        std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, flags, reflector, &sts));
         EXPECT_EQ(sts, C2_OK);
         EXPECT_NE(component, nullptr);
 
@@ -608,7 +613,8 @@ TEST(MfxMockComponent, ConfigQueryBlocking)
 {
     int flags = 0;
     c2_status_t sts = C2_OK;
-    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT_DEC, flags, &sts));
+    std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
+    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT_DEC, flags, reflector, &sts));
     std::shared_ptr<C2ComponentInterface> component_intf;
 
     EXPECT_EQ(sts, C2_OK);

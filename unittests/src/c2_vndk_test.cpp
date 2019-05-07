@@ -52,7 +52,8 @@ public:
 
     std::shared_ptr<C2BlockPool> makeLinearBlockPool() {
 
-        std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, nullptr));
+        std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
+        std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, reflector, nullptr));
 
         std::shared_ptr<C2BlockPool> block_pool;
         GetCodec2BlockPool(C2BlockPool::BASIC_LINEAR, component, &block_pool);
@@ -61,7 +62,8 @@ public:
 
     std::shared_ptr<C2BlockPool> makeGraphicBlockPool() {
 
-        std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, nullptr));
+        std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
+        std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, reflector, nullptr));
 
         std::shared_ptr<C2BlockPool> block_pool;
         GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC, component, &block_pool);

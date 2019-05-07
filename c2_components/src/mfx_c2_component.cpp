@@ -18,9 +18,10 @@ using namespace android;
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_component"
 
-MfxC2Component::MfxC2Component(const C2String& name, int flags) :
+MfxC2Component::MfxC2Component(const C2String& name, int flags, std::shared_ptr<MfxC2ParamReflector> reflector) :
     name_(name),
     flags_(flags),
+    param_storage_(std::move(reflector)),
     mfx_implementation_(MFX_IMPLEMENTATION)
 {
     MFX_DEBUG_TRACE_FUNC;

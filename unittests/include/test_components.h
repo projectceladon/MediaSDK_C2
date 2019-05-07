@@ -164,7 +164,8 @@ std::shared_ptr<MfxC2Component> GetCachedComponent(const ComponentDesc& desc)
         ComponentsCache::GetInstance()->GetComponent(desc.component_name);
     if (result == nullptr) {
         c2_status_t status = C2_OK;
-        MfxC2Component* mfx_component = MfxCreateC2Component(desc.component_name, desc.flags, &status);
+        std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
+        MfxC2Component* mfx_component = MfxCreateC2Component(desc.component_name, desc.flags, reflector, &status);
 
         EXPECT_EQ(status, desc.creation_status);
         if(desc.creation_status == C2_OK) {

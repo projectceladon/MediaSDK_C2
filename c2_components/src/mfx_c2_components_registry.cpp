@@ -32,13 +32,15 @@ using namespace android;
 extern "C" EXPORT MfxC2Component* MfxCreateC2Component(
     const char* name,
     int flags,
+    std::shared_ptr<MfxC2ParamReflector> reflector,
     c2_status_t* status)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     MfxC2Component* component {};
     c2_status_t res =
-        MfxC2ComponentsRegistry::getInstance().CreateMfxC2Component(name, flags, &component);
+        MfxC2ComponentsRegistry::getInstance().CreateMfxC2Component(name, flags,
+            std::move(reflector),  &component);
     if (nullptr != status) *status = res;
     return component;
 }
@@ -64,7 +66,8 @@ MfxC2ComponentsRegistry& MfxC2ComponentsRegistry::getInstance()
     return g_registry;
 }
 
-c2_status_t MfxC2ComponentsRegistry::CreateMfxC2Component(const char* name, int flags, MfxC2Component** component)
+c2_status_t MfxC2ComponentsRegistry::CreateMfxC2Component(const char* name, int flags,
+    std::shared_ptr<MfxC2ParamReflector> reflector, MfxC2Component** component)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -76,7 +79,7 @@ c2_status_t MfxC2ComponentsRegistry::CreateMfxC2Component(const char* name, int 
     auto it = registry_.find(name);
     if(it != registry_.end()) {
         CreateMfxC2ComponentFunc* create_func = it->second;
-        *component = create_func(name, flags, &result);
+        *component = create_func(name, flags, std::move(reflector), &result);
     }
     else {
         result = C2_NOT_FOUND;

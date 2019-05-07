@@ -905,7 +905,8 @@ public:
         std::shared_ptr<C2BlockPool> c2_allocator;
         c2_status_t res = C2_OK;
 
-        std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, &res));
+        std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
+        std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, reflector, &res));
         EXPECT_EQ(res, C2_OK);
 
         res = GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC, component, &c2_allocator);
@@ -1193,7 +1194,8 @@ static void MfxFramePoolAllocatorTest(const std::vector<MfxFramePoolAllocatorTes
 {
     std::shared_ptr<C2BlockPool> c2_allocator;
     c2_status_t res = C2_OK;
-    std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, &res));
+    std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
+    std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, reflector, &res));
     EXPECT_EQ(res, C2_OK);
 
     res = GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC,
@@ -1332,7 +1334,8 @@ TEST(C2Utils, CopyGraphicView)
     do {
         c2_status_t res = C2_OK;
 
-        std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, &res));
+        std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
+        std::shared_ptr<const C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, {}, reflector, &res));
         std::shared_ptr<C2BlockPool> c2_allocator;
         GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC, component, &c2_allocator);
         EXPECT_NE(c2_allocator, nullptr);

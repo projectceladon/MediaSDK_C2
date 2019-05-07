@@ -22,6 +22,8 @@ Defined help functions:
 
 #include <map>
 
+#include "mfx_c2_param_reflector.h"
+
 using namespace android;
 
 class MfxC2ComponentStore : public C2ComponentStore {
@@ -74,5 +76,9 @@ private: // data
     //   (component's flags, dso name, etc.)
     // no mutexed access needed as written only once before any read access
     std::map<std::string, ComponentDesc> components_registry_;
+
     MfxXmlParser xml_parser_;
+
+    std::shared_ptr<MfxC2ParamReflector> reflector_ = std::make_shared<MfxC2ParamReflector>();
+    mutable std::mutex reflector_mutex_;
 };

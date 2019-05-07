@@ -45,7 +45,8 @@ public:
     };
 
 protected:
-    MfxC2EncoderComponent(const C2String name, int flags, EncoderType encoder_type);
+    MfxC2EncoderComponent(const C2String name, int flags,
+        std::shared_ptr<MfxC2ParamReflector> reflector, EncoderType encoder_type);
 
     MFX_CLASS_NO_COPY(MfxC2EncoderComponent)
 
