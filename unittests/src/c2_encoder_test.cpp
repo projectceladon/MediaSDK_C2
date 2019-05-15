@@ -265,8 +265,6 @@ static void PrepareWork(uint32_t frame_index, bool last_frame, bool graphics_mem
         buffer_pack->buffers.push_back(buffer);
 
         std::unique_ptr<C2Worklet> worklet = std::make_unique<C2Worklet>();
-        // C2 requires output items be allocated in buffers list and set to nulls
-        worklet->output.buffers.push_back(nullptr);
         // work of 1 worklet
         (*work)->worklets.push_back(std::move(worklet));
     } while(false);
