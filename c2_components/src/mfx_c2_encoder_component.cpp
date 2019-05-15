@@ -393,8 +393,8 @@ c2_status_t MfxC2EncoderComponent::AllocateBitstream(const std::unique_ptr<C2Wor
 
         std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
 
-        if(worklet->output.buffers.size() != 1) {
-            MFX_DEBUG_TRACE_MSG("Cannot handle multiple outputs");
+        if(worklet->output.buffers.size() != 0) {
+            MFX_DEBUG_TRACE_MSG("Caller is not supposed to allocate output");
             res = C2_BAD_VALUE;
             break;
         }
@@ -643,7 +643,7 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
             worklet->output.ordinal.frameIndex = work->input.ordinal.frameIndex;
             worklet->output.ordinal.customOrdinal = work->input.ordinal.customOrdinal;
 
-            worklet->output.buffers.front() = std::make_shared<C2Buffer>(out_buffer);
+            worklet->output.buffers.push_back(std::make_shared<C2Buffer>(out_buffer));
         }
     }
 
