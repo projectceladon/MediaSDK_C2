@@ -44,10 +44,10 @@ const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 // Tests if the mock component is created OK.
 TEST(MfxMockComponent, Create)
 {
-    int flags = 0;
+    MfxC2Component::CreateConfig config{};
     c2_status_t sts = C2_OK;
     std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
-    std::shared_ptr<MfxC2Component> mfx_component(MfxCreateC2Component(MOCK_COMPONENT, flags, reflector, &sts));
+    std::shared_ptr<MfxC2Component> mfx_component(MfxCreateC2Component(MOCK_COMPONENT, config, reflector, &sts));
 
     EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(mfx_component, nullptr);
@@ -57,10 +57,10 @@ TEST(MfxMockComponent, Create)
 // and return correct information once queried (component name).
 TEST(MfxMockComponent, intf)
 {
-    int flags = 0;
+    MfxC2Component::CreateConfig config{};
     c2_status_t sts = C2_OK;
     std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
-    std::shared_ptr<MfxC2Component> mfx_component(MfxCreateC2Component(MOCK_COMPONENT, flags, reflector, &sts));
+    std::shared_ptr<MfxC2Component> mfx_component(MfxCreateC2Component(MOCK_COMPONENT, config, reflector, &sts));
 
     EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(mfx_component, nullptr);
@@ -353,10 +353,10 @@ public:
 // All supplementary entities (c2 buffers and command queues) are tested by this test.
 TEST(MfxMockComponent, Encode)
 {
-    int flags = 0;
+    MfxC2Component::CreateConfig config{};
     c2_status_t sts = C2_OK;
     std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
-    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT_ENC, flags, reflector, &sts));
+    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT_ENC, config, reflector, &sts));
 
     EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(component, nullptr);
@@ -408,10 +408,10 @@ TEST(MfxMockComponent, Encode)
 // All supplementary entities (c2 buffers and command queues) are tested by this test.
 TEST(MfxMockComponent, Decode)
 {
-    int flags = 0;
+    MfxC2Component::CreateConfig config{};
     c2_status_t sts = C2_OK;
     std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
-    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT_DEC, flags, reflector, &sts));
+    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT_DEC, config, reflector, &sts));
 
     EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(component, nullptr);
@@ -505,10 +505,10 @@ public:
 // stop from RUNNING state. Otherwise, C2_BAD_STATE should be returned.
 TEST(MfxMockComponent, State)
 {
-    int flags = 0;
+    MfxC2Component::CreateConfig config{};
     c2_status_t sts = C2_OK;
     std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
-    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, flags, reflector, &sts));
+    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, config, reflector, &sts));
 
     EXPECT_EQ(sts, C2_OK);
     EXPECT_NE(component, nullptr);
@@ -525,7 +525,7 @@ TEST(MfxMockComponent, State)
 
         component = nullptr;
 
-        std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, flags, reflector, &sts));
+        std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT, config, reflector, &sts));
         EXPECT_EQ(sts, C2_OK);
         EXPECT_NE(component, nullptr);
 
@@ -611,10 +611,10 @@ TEST(MfxMockComponent, State)
 // Tests mayBlock option handling of config_vb and query_vb methods.
 TEST(MfxMockComponent, ConfigQueryBlocking)
 {
-    int flags = 0;
+    MfxC2Component::CreateConfig config{};
     c2_status_t sts = C2_OK;
     std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
-    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT_DEC, flags, reflector, &sts));
+    std::shared_ptr<C2Component> component(MfxCreateC2Component(MOCK_COMPONENT_DEC, config, reflector, &sts));
     std::shared_ptr<C2ComponentInterface> component_intf;
 
     EXPECT_EQ(sts, C2_OK);

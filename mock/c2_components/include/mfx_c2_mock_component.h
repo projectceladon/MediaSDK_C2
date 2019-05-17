@@ -32,7 +32,7 @@ public:
         Decoder
     };
 protected:
-    MfxC2MockComponent(const C2String name, int flags,
+    MfxC2MockComponent(const C2String name, const CreateConfig& config,
         std::shared_ptr<MfxC2ParamReflector> reflector, Type type);
 
     MFX_CLASS_NO_COPY(MfxC2MockComponent)

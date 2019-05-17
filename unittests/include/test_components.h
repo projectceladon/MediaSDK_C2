@@ -11,9 +11,6 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #pragma once
 
 #include <vector>
-#include <fstream>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sstream>
@@ -24,6 +21,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include <C2Component.h>
 #include <gtest/gtest.h>
 #include "mfx_c2_component.h"
+#include "mfx_c2_utils.h"
 
 // Collection of binary buffers hashes.
 // The purpose is to check if component outputs differ between runs or the same.
@@ -66,34 +64,9 @@ private:
     std::list<uint32_t> crc32_; // one crc32 for evety resolution change
 };
 
-// Writes binary buffers to file.
-class BinaryWriter
-{
-public:
-    // File named <name> is created/overwritten in: ./<folders[0]>/.../<folders[N-1]>
-    // Folders are created if missing.
-    // So if a file with path ./Folder1/Folder2/File.txt is supposed to be written,
-    // then it should be passed as: BinaryWriter( { "Folder1", "Folder2" }, "File.txt")
-    BinaryWriter(const std::vector<std::string>& folders, const std::string& name);
-
-public:
-    void Write(const uint8_t* data, size_t length)
-    {
-        stream_.write((const char*)data, length);
-    }
-
-    static void Enable(bool enable)
-    {
-        enabled_ = enable;
-    }
-private:
-    static bool enabled_;
-    std::ofstream stream_;
-};
-
 // BinaryTester descendant simplifying BinaryWriter constructing for gtest tests
 // It automatically gathered folders structure as ./<test_case_name>/<test_name>
-class GTestBinaryWriter : public BinaryWriter
+class GTestBinaryWriter
 {
 public:
     GTestBinaryWriter(const std::string& name);
@@ -101,8 +74,24 @@ public:
     GTestBinaryWriter(const std::ostringstream& stream)
         : GTestBinaryWriter(stream.str()) { }
 
+    void Write(const uint8_t* data, size_t length)
+    {
+        if (writer_) {
+            writer_->Write(data, length);
+        }
+    }
+
+    static void Enable(bool enable)
+    {
+        enabled_ = enable;
+    }
+
 private:
+    std::unique_ptr<BinaryWriter> writer_;
+
     static std::vector<std::string> GetTestFolders();
+
+    static bool enabled_;
 };
 
 class ComponentsCache : public testing::Environment
@@ -165,7 +154,7 @@ std::shared_ptr<MfxC2Component> GetCachedComponent(const ComponentDesc& desc)
     if (result == nullptr) {
         c2_status_t status = C2_OK;
         std::shared_ptr<MfxC2ParamReflector> reflector = std::make_shared<MfxC2ParamReflector>();
-        MfxC2Component* mfx_component = MfxCreateC2Component(desc.component_name, desc.flags, reflector, &status);
+        MfxC2Component* mfx_component = MfxCreateC2Component(desc.component_name, desc.config, reflector, &status);
 
         EXPECT_EQ(status, desc.creation_status);
         if(desc.creation_status == C2_OK) {

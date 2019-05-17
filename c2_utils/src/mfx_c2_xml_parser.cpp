@@ -59,6 +59,18 @@ C2String MfxXmlParser::getMediaType(const char* name) {
     return codec->second.typeMap.begin()->first;
 }
 
+bool MfxXmlParser::dumpOutputEnabled(const char *name) {
+
+    MFX_DEBUG_TRACE_FUNC;
+
+    auto codec = codec_map_.find(name);
+    if (codec == codec_map_.end()) {
+        MFX_DEBUG_TRACE_STREAM("codec " << name << "wasn't found");
+        return false;
+    }
+    return codec->second.dump_output;
+}
+
 c2_status_t MfxXmlParser::addMediaCodecFromAttributes(bool encoder, const char** attrs) {
 
     MFX_DEBUG_TRACE_FUNC;
@@ -110,6 +122,39 @@ c2_status_t MfxXmlParser::addMediaCodecFromAttributes(bool encoder, const char**
     return C2_OK;
 }
 
+static bool parseBoolean(const char* s) {
+    return strcasecmp(s, "y") == 0 ||
+        strcasecmp(s, "yes") == 0 ||
+        strcasecmp(s, "t") == 0 ||
+        strcasecmp(s, "true") == 0 ||
+        strcasecmp(s, "1") == 0;
+}
+
+c2_status_t MfxXmlParser::addDiagnostics(const char **attrs) {
+    MFX_DEBUG_TRACE_FUNC;
+
+    bool dump_output{false};
+
+    size_t i = 0;
+    while (attrs[i] != nullptr) {
+        if (strcmp(attrs[i], "dumpOutput") == 0) {
+            if (attrs[++i] == nullptr) {
+                MFX_DEBUG_TRACE_STREAM("dumpOutput is null");
+                return C2_BAD_VALUE;
+            }
+            dump_output = parseBoolean(attrs[i]);
+            MFX_DEBUG_TRACE_STREAM("dumpOutput value " << attrs[i] << " parsed to " << (int)dump_output);
+        } else {
+            MFX_DEBUG_TRACE_STREAM("unrecognized attribute: " << attrs[i]);
+            return C2_BAD_VALUE;
+        }
+        ++i;
+    }
+
+    current_codec_->second.dump_output = dump_output;
+    return C2_OK;
+}
+
 void MfxXmlParser::startElementHandler(const char* name, const char** attrs) {
 
     MFX_DEBUG_TRACE_FUNC;
@@ -158,6 +203,15 @@ void MfxXmlParser::startElementHandler(const char* name, const char** attrs) {
                 current_section_ = SECTION_ENCODER;
             }
             break;
+        }
+
+        case SECTION_DECODER:
+        case SECTION_ENCODER:
+        {
+            if (strcmp(name, "Diagnostics") == 0) {
+                parsing_status_ =
+                    addDiagnostics(attrs);
+            }
         }
 
         default:

@@ -14,6 +14,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_defs.h"
 #include <C2Buffer.h>
 #include <C2Param.h>
+#include <fstream>
 
 c2_status_t MfxStatusToC2(mfxStatus mfx_status);
 
@@ -123,3 +124,24 @@ bool operator==(const C2PlanarLayout& src, const C2PlanarLayout& dst);
 c2_status_t CopyGraphicView(const C2GraphicView* src, C2GraphicView* dst);
 
 std::string FormatHex(const uint8_t* data, size_t len);
+
+// Writes binary buffers to file.
+class BinaryWriter
+{
+public:
+    // File named <name> is created/overwritten in: dir/<sub_dirs[0]>/.../<sub_dirs[N-1]>
+    // Folders are created if missing.
+    // So if a file with path Dir/SubDir1/SubDir2/File.txt is supposed to be written,
+    // then it should be passed as: BinaryWriter( "Dir", { "SubDir1", "SubDir2" }, "File.txt")
+    BinaryWriter(const std::string& dir,
+        const std::vector<std::string>& sub_dirs, const std::string& name);
+
+public:
+    void Write(const uint8_t* data, size_t length)
+    {
+        stream_.write((const char*)data, length);
+    }
+
+private:
+    std::ofstream stream_;
+};

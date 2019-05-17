@@ -25,42 +25,11 @@ void CRC32Generator::AddData(uint32_t width, uint32_t height, const uint8_t* dat
     }
 }
 
-BinaryWriter::BinaryWriter(const std::vector<std::string>& folders, const std::string& name)
-{
-    if(enabled_) {
-
-        std::stringstream full_name;
-        full_name << "./";
-
-        for(const std::string& folder : folders) {
-            full_name << folder;
-
-            bool dir_exists = false;
-
-            struct stat info;
-
-            if (stat(full_name.str().c_str(), &info) == 0) {
-                dir_exists = (info.st_mode & S_IFDIR) != 0;
-            }
-
-            if (!dir_exists) {
-                mkdir(full_name.str().c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-            }
-
-            full_name << "/";
-        }
-
-        full_name << name;
-        stream_.open(full_name.str().c_str(), std::fstream::trunc | std::fstream::binary);
-    }
-}
-
-bool BinaryWriter::enabled_ = false;
-
 GTestBinaryWriter::GTestBinaryWriter(const std::string& name)
-    : BinaryWriter(GetTestFolders(), name)
 {
-
+    if (enabled_) {
+        writer_ = std::make_unique<BinaryWriter>(".", GetTestFolders(), name);
+    }
 }
 
 std::vector<std::string> GTestBinaryWriter::GetTestFolders()
@@ -79,6 +48,8 @@ std::vector<std::string> GTestBinaryWriter::GetTestFolders()
     }
     return res;
 }
+
+bool GTestBinaryWriter::enabled_ = false;
 
 ComponentsCache* ComponentsCache::g_cache = ComponentsCache::Create();
 

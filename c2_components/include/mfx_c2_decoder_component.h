@@ -28,7 +28,7 @@ public:
     };
 
 protected:
-    MfxC2DecoderComponent(const C2String name, int flags,
+    MfxC2DecoderComponent(const C2String name, const CreateConfig& config,
         std::shared_ptr<MfxC2ParamReflector> reflector, DecoderType decoder_type);
 
     MFX_CLASS_NO_COPY(MfxC2DecoderComponent)

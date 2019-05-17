@@ -22,6 +22,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include <limits>
 #include <thread>
 #include <chrono>
+#include <iomanip>
 
 using namespace android;
 
@@ -53,9 +54,9 @@ void EncoderControl::Modify(ModifyFunction& function)
     function(ctrl_once_.get());
 }
 
-MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, int flags,
+MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateConfig& config,
     std::shared_ptr<MfxC2ParamReflector> reflector, EncoderType encoder_type) :
-        MfxC2Component(name, flags, std::move(reflector)),
+        MfxC2Component(name, config, std::move(reflector)),
         encoder_type_(encoder_type),
         synced_points_count_(0)
 {
@@ -179,6 +180,24 @@ c2_status_t MfxC2EncoderComponent::DoStart()
         working_queue_.Start();
         waiting_queue_.Start();
 
+        if (create_config_.dump_output) {
+
+            std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+            std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+            std::ostringstream oss;
+            std::tm local_tm;
+            localtime_r(&now_c, &local_tm);
+
+            oss << name_ << "-" << std::put_time(std::localtime(&now_c), "%Y%m%d%H%M%S") << ".bin";
+
+            MFX_DEBUG_TRACE_STREAM("Encoder output dump is started to " <<
+                MFX_C2_DUMP_DIR << "/" << MFX_C2_DUMP_OUTPUT_SUB_DIR << "/" <<
+                oss.str());
+
+            output_writer_ = std::make_unique<BinaryWriter>(MFX_C2_DUMP_DIR,
+                std::vector<std::string>({MFX_C2_DUMP_OUTPUT_SUB_DIR}), oss.str());
+        }
+
     } while(false);
 
     return C2_OK;
@@ -202,6 +221,8 @@ c2_status_t MfxC2EncoderComponent::DoStop(bool abort)
     }
 
     FreeEncoder();
+
+    output_writer_.reset();
 
     return C2_OK;
 }
@@ -629,8 +650,12 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
 
         if(!mfx_bitstream) mfx_res = MFX_ERR_NULL_PTR;
         else {
-            MFX_DEBUG_TRACE_U32(mfx_bitstream->DataOffset);
-            MFX_DEBUG_TRACE_U32(mfx_bitstream->DataLength);
+            MFX_DEBUG_TRACE_STREAM(NAMED(mfx_bitstream->DataOffset) << NAMED(mfx_bitstream->DataLength));
+
+            if (output_writer_ && mfx_bitstream->DataLength > 0) {
+                output_writer_->Write(mfx_bitstream->Data + mfx_bitstream->DataOffset,
+                    mfx_bitstream->DataLength);
+            }
 
             C2ConstLinearBlock const_linear = bit_stream.GetC2LinearBlock()->share(
                 mfx_bitstream->DataOffset,

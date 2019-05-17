@@ -14,11 +14,6 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_params.h"
 #include "mfx_c2_param_reflector.h"
 
-class MfxC2Component;
-
-typedef MfxC2Component* (CreateMfxC2ComponentFunc)(const char* name, int flags,
-    std::shared_ptr<MfxC2ParamReflector> reflector, c2_status_t* status);
-
 #define MFX_C2_COMPONENT_STORE_NAME "MfxC2ComponentStore"
 
 #define CREATE_MFX_C2_COMPONENT_FUNC_NAME "MfxCreateC2Component"
@@ -28,6 +23,9 @@ typedef MfxC2Component* (CreateMfxC2ComponentFunc)(const char* name, int flags,
 
 #define MFX_C2_CONFIG_XML_FILE_NAME "media_codecs_intel_c2_video.xml"
 #define MFX_C2_CONFIG_XML_FILE_PATH "/vendor/etc"
+
+#define MFX_C2_DUMP_DIR "/data/local/tmp"
+#define MFX_C2_DUMP_OUTPUT_SUB_DIR "c2-output"
 
 const c2_nsecs_t MFX_SECOND_NS = 1000000000; // 1e9
 

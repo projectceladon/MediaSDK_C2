@@ -19,9 +19,9 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 using namespace android;
 
-MfxC2MockComponent::MfxC2MockComponent(const C2String name, int flags,
+MfxC2MockComponent::MfxC2MockComponent(const C2String name, const CreateConfig& config,
     std::shared_ptr<MfxC2ParamReflector> reflector, Type type) :
-        MfxC2Component(name, flags, std::move(reflector)), type_(type)
+        MfxC2Component(name, config, std::move(reflector)), type_(type)
 {
     MFX_DEBUG_TRACE_FUNC;
 }
