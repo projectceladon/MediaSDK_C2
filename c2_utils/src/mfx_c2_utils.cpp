@@ -13,6 +13,8 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_debug.h"
 
 #include <iomanip>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 using namespace android;
 
@@ -592,4 +594,35 @@ std::string FormatHex(const uint8_t* data, size_t len)
         ss << std::setw(2) << std::setfill('0') << (uint32_t)data[i] << " ";
     }
     return ss.str();
+}
+
+BinaryWriter::BinaryWriter(const std::string& dir,
+    const std::vector<std::string>& sub_dirs, const std::string& name)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    std::stringstream full_name;
+    full_name << dir << "/";
+
+    for(const std::string& sub_dir : sub_dirs) {
+        full_name << sub_dir;
+
+        bool dir_exists = false;
+
+        struct stat info;
+
+        if (stat(full_name.str().c_str(), &info) == 0) {
+            dir_exists = (info.st_mode & S_IFDIR) != 0;
+        }
+
+        if (!dir_exists) {
+            MFX_DEBUG_TRACE_STREAM(NAMED(full_name.str()));
+            mkdir(full_name.str().c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+        }
+
+        full_name << "/";
+    }
+
+    full_name << name;
+    stream_.open(full_name.str().c_str(), std::fstream::trunc | std::fstream::binary);
 }

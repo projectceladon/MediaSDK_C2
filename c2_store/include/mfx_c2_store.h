@@ -22,6 +22,7 @@ Defined help functions:
 
 #include <map>
 
+#include "mfx_c2_component.h"
 #include "mfx_c2_param_reflector.h"
 
 using namespace android;
@@ -68,12 +69,12 @@ private: // data
     struct ComponentDesc {
         std::string dso_name_;
         std::string media_type_;
-        int flags_;
-        ComponentDesc(const char* dso_name, const char* media_type, int flags):
-            dso_name_(dso_name), media_type_(media_type), flags_(flags) {}
+        MfxC2Component::CreateConfig config_;
+        ComponentDesc(const char* dso_name, const char* media_type, const MfxC2Component::CreateConfig& config):
+            dso_name_(dso_name), media_type_(media_type), config_(config) {}
     };
     // this is a map between component names and component descriptions:
-    //   (component's flags, dso name, etc.)
+    //   (component's config, dso name, etc.)
     // no mutexed access needed as written only once before any read access
     std::map<std::string, ComponentDesc> components_registry_;
 

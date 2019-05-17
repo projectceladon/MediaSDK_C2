@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    BinaryWriter::Enable(dump_output);
+    GTestBinaryWriter::Enable(dump_output);
 
     return RUN_ALL_TESTS();
 }

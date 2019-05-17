@@ -37,6 +37,8 @@ public:
     ~MfxXmlParser() {}
     c2_status_t parseConfig(const char *path);
     C2String getMediaType(const char *name);
+    bool dumpOutputEnabled(const char *name);
+
 private:
 
     typedef std::map<C2String, C2String> AttributeMap;
@@ -45,6 +47,7 @@ private:
         bool isEncoder;    // whether this codec is an encoder or a decoder
         size_t order;      // order of appearance in the file (starting from 0)
         std::map<C2String, AttributeMap> typeMap;   // map of types supported by this codec
+        bool dump_output{false};
     };
 
     enum Section {
@@ -61,6 +64,8 @@ private:
     c2_status_t include(const char **attrs);
 
     c2_status_t addMediaCodecFromAttributes(bool encoder, const char **attrs);
+
+    c2_status_t addDiagnostics(const char **attrs);
 
     void startElementHandler(const char *name, const char **attrs);
     void endElementHandler(const char *name);

@@ -36,6 +36,10 @@ cc_binary_c2_service {
 
     init_rc: ["hardware.intel.media.c2@1.0-service.rc"],
 
+    header_libs: [
+        "mfx_c2_components_headers"
+    ],
+
     static_libs: [
         "libmfx_c2_store",
         "libmfx_c2_utils",

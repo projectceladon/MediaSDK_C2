@@ -16,6 +16,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include "mfx_cmd_queue.h"
 #include "mfx_c2_frame_in.h"
 #include "mfx_c2_bitstream_out.h"
+#include "mfx_c2_utils.h"
 
 // Assumes all calls are done from one (working) thread, no sync is needed.
 // ctrl_once_ accumulates subsequent changes for one next frame.
@@ -45,7 +46,7 @@ public:
     };
 
 protected:
-    MfxC2EncoderComponent(const C2String name, int flags,
+    MfxC2EncoderComponent(const C2String name, const CreateConfig& config,
         std::shared_ptr<MfxC2ParamReflector> reflector, EncoderType encoder_type);
 
     MFX_CLASS_NO_COPY(MfxC2EncoderComponent)
@@ -161,4 +162,6 @@ private:
     EncoderControl encoder_control_;
 
     std::shared_ptr<C2BlockPool> c2_allocator_;
+
+    std::unique_ptr<BinaryWriter> output_writer_;
 };

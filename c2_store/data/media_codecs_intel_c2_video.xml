@@ -71,6 +71,7 @@ and updated to vendor media codecs.
             <Limit name="blocks-per-second" range="1-245760" />
             <Limit name="bitrate" range="1-12000000" />
             <Feature name="intra-refresh" />
+            <Diagnostics dumpOutput="false" />
         </MediaCodec>
         <MediaCodec name="c2.intel.hevc.encoder" type="video/hevc" >
             <Limit name="size" min="64x64" max="3840x2160" />

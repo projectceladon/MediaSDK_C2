@@ -117,7 +117,7 @@ namespace {
     struct ComponentDesc
     {
         const char* component_name;
-        int flags;
+        MfxC2Component::CreateConfig config{};
         c2_status_t creation_status;
         std::vector<C2ParamDescriptor> params_desc;
         std::vector<TestValuesQuery> param_values;
@@ -208,13 +208,13 @@ static std::vector<std::vector<const StreamDescription*>> vp9_streams =
 };
 
 static ComponentDesc g_components_desc[] = {
-    { "c2.intel.avc.decoder", 0, C2_OK, dec_params_desc, dec_params_values_h264, h264_streams },
-    { "c2.intel.hevc.decoder", 0, C2_OK, dec_params_desc, dec_params_values_h265, h265_streams },
-    { "c2.intel.vp9.decoder",  0, C2_OK, dec_params_desc, dec_params_values_vp9,  vp9_streams },
+    { "c2.intel.avc.decoder", MfxC2Component::CreateConfig{}, C2_OK, dec_params_desc, dec_params_values_h264, h264_streams },
+    { "c2.intel.hevc.decoder", MfxC2Component::CreateConfig{}, C2_OK, dec_params_desc, dec_params_values_h265, h265_streams },
+    { "c2.intel.vp9.decoder", MfxC2Component::CreateConfig{}, C2_OK, dec_params_desc, dec_params_values_vp9, vp9_streams },
 };
 
 static ComponentDesc g_invalid_components_desc[] = {
-    { "c2.intel.missing.decoder", 0, C2_NOT_FOUND, {}, {}, {} },
+    { "c2.intel.missing.decoder", MfxC2Component::CreateConfig{}, C2_NOT_FOUND, {}, {}, {} },
 };
 
 static std::list<StreamChunk> ReadChunks(const std::vector<const StreamDescription*>& streams)

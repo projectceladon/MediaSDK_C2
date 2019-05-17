@@ -25,9 +25,9 @@ using namespace android;
 
 const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
-MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, int flags,
+MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateConfig& config,
     std::shared_ptr<MfxC2ParamReflector> reflector, DecoderType decoder_type) :
-        MfxC2Component(name, flags, std::move(reflector)),
+        MfxC2Component(name, config, std::move(reflector)),
         decoder_type_(decoder_type),
         initialized_(false),
         synced_points_count_(0)

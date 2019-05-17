@@ -71,7 +71,7 @@ namespace {
     struct ComponentDesc
     {
         const char* component_name;
-        int flags;
+        MfxC2Component::CreateConfig config;
         c2_status_t creation_status;
         std::vector<C2ParamDescriptor> params_desc;
         C2ParamValues default_values;
@@ -145,10 +145,10 @@ static ComponentDesc NonExistingEncoderDesc()
 }
 
 static ComponentDesc g_components_desc[] = {
-    { "c2.intel.avc.encoder", 0, C2_OK, h264_params_desc, GetDefaultValues("c2.intel.avc.encoder"), C2_CORRUPTED,
+    { "c2.intel.avc.encoder", MfxC2Component::CreateConfig{}, C2_OK, h264_params_desc, GetDefaultValues("c2.intel.avc.encoder"), C2_CORRUPTED,
         { g_h264_profile_levels, g_h264_profile_levels + g_h264_profile_levels_count },
         &TestAvcStreamProfileLevel },
-    { "c2.intel.hevc.encoder", 0, C2_OK, h265_params_desc, GetDefaultValues("c2.intel.hevc.encoder"), C2_CORRUPTED,
+    { "c2.intel.hevc.encoder", MfxC2Component::CreateConfig{}, C2_OK, h265_params_desc, GetDefaultValues("c2.intel.hevc.encoder"), C2_CORRUPTED,
         { g_h265_profile_levels, g_h265_profile_levels + g_h265_profile_levels_count },
         &TestHevcStreamProfileLevel },
 };

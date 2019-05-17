@@ -83,7 +83,7 @@ c2_status_t MfxC2ComponentStore::createComponent(C2String name, std::shared_ptr<
                         reflector = reflector_; // safe copy
                     }
 
-                    MfxC2Component* mfx_component = (*create_func)(name.c_str(), it->second.flags_, std::move(reflector), &result);
+                    MfxC2Component* mfx_component = (*create_func)(name.c_str(), it->second.config_, std::move(reflector), &result);
                     if(result == C2_OK) {
                         void* dso_handle = dso.release(); // release handle to be captured into lambda deleter
                         auto component_deleter = [dso_handle] (MfxC2Component* p) { delete p; dlclose(dso_handle); };
@@ -290,7 +290,11 @@ c2_status_t MfxC2ComponentStore::readConfigFile()
             C2String media_type = xml_parser_.getMediaType(name.c_str());
             MFX_DEBUG_TRACE_S(media_type.c_str());
 
-            components_registry_.emplace(name, ComponentDesc(module.c_str(), media_type.c_str(), flags));
+            MfxC2Component::CreateConfig config;
+            config.flags = flags;
+            config.dump_output = xml_parser_.dumpOutputEnabled(name.c_str());
+
+            components_registry_.emplace(name, ComponentDesc(module.c_str(), media_type.c_str(), config));
         }
         config_file.close();
     }

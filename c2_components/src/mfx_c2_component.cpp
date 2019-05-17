@@ -18,9 +18,9 @@ using namespace android;
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_component"
 
-MfxC2Component::MfxC2Component(const C2String& name, int flags, std::shared_ptr<MfxC2ParamReflector> reflector) :
+MfxC2Component::MfxC2Component(const C2String& name, const CreateConfig& config, std::shared_ptr<MfxC2ParamReflector> reflector) :
     name_(name),
-    flags_(flags),
+    create_config_(config),
     param_storage_(std::move(reflector)),
     mfx_implementation_(MFX_IMPLEMENTATION)
 {
