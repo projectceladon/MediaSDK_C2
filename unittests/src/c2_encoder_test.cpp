@@ -944,11 +944,30 @@ TEST_P(Encoder, IntraRefresh)
                 };
 
                 EncoderConsumer::OnFrame on_frame =
-                    [&] (const C2Worklet&, const uint8_t* data, size_t length) {
+                    [&] (const C2Worklet& worklet, const uint8_t* data, size_t length) {
 
                     const char* ch_data = (const char*)data;
                     std::copy(ch_data, ch_data + length, std::back_inserter(bitstream));
                     writer.Write(data, length);
+
+                    std::vector<char>&& frame_contents{ch_data, ch_data + length};
+                    uint32_t idr_frame_count = CountIdrSlices(std::move(frame_contents), comp_desc.component_name);
+
+                    bool key_frame_found = false;
+                    const C2FrameData& buffer_pack = worklet.output;
+                    if (buffer_pack.buffers.size() > 0) {
+                        const std::shared_ptr<C2Buffer>& buffer{buffer_pack.buffers.front()};
+                        std::shared_ptr<const C2Info> info =
+                            buffer->getInfo(C2StreamPictureTypeMaskInfo::output::PARAM_TYPE);
+                        if (info) {
+                            C2StreamPictureTypeMaskInfo::output* frame_type = (C2StreamPictureTypeMaskInfo::output*)info.get();
+                            if ((frame_type->value & C2PictureTypeKeyFrame) != 0) {
+                                key_frame_found = true;
+                            }
+                        }
+                    }
+
+                    EXPECT_EQ(idr_frame_count, key_frame_found ? 1u : 0u);
                 };
 
                 std::shared_ptr<EncoderConsumer> validator =
