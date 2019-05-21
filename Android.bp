@@ -2,6 +2,16 @@ mfx_cc_defaults {
 
     name: "mfx_c2_defaults",
 
+    arch: {
+        x86: {
+            cflags: ["-DLINUX32"]
+        },
+        x86_64: {
+            cflags: ["-DLINUX32",
+                     "-DLINUX64"]
+        },
+    },
+
     cflags: [
         "-Wall",
         "-Werror",
