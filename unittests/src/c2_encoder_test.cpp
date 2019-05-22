@@ -77,6 +77,7 @@ namespace {
         C2ParamValues default_values;
         c2_status_t query_status;
         std::vector<C2ProfileLevelStruct> profile_levels;
+        uint32_t four_cc;
 
         typedef bool TestStreamProfileLevel(
             const C2ProfileLevelStruct& profile_level, std::vector<char>&& stream, std::string* message);
@@ -146,10 +147,10 @@ static ComponentDesc NonExistingEncoderDesc()
 
 static ComponentDesc g_components_desc[] = {
     { "c2.intel.avc.encoder", MfxC2Component::CreateConfig{}, C2_OK, h264_params_desc, GetDefaultValues("c2.intel.avc.encoder"), C2_CORRUPTED,
-        { g_h264_profile_levels, g_h264_profile_levels + g_h264_profile_levels_count },
+        { g_h264_profile_levels, g_h264_profile_levels + g_h264_profile_levels_count }, MFX_CODEC_AVC,
         &TestAvcStreamProfileLevel },
     { "c2.intel.hevc.encoder", MfxC2Component::CreateConfig{}, C2_OK, h265_params_desc, GetDefaultValues("c2.intel.hevc.encoder"), C2_CORRUPTED,
-        { g_h265_profile_levels, g_h265_profile_levels + g_h265_profile_levels_count },
+        { g_h265_profile_levels, g_h265_profile_levels + g_h265_profile_levels_count }, MFX_CODEC_HEVC,
         &TestHevcStreamProfileLevel },
 };
 
@@ -1306,6 +1307,93 @@ TEST_P(Encoder, FrameRate)
         }
 
     }); // CallComponentTest
+}
+
+static std::vector<char> ExtractHeader(std::vector<char>&& bitstream, uint32_t four_cc)
+{
+    EXPECT_TRUE(four_cc == MFX_CODEC_AVC || four_cc == MFX_CODEC_HEVC);
+
+    const uint8_t UNIT_TYPE_SPS = (four_cc == MFX_CODEC_AVC) ? 7 : 33;
+    const uint8_t UNIT_TYPE_PPS = (four_cc == MFX_CODEC_AVC) ? 8 : 34;
+
+    std::vector<char> sps;
+    std::vector<char> pps;
+
+    StreamDescription stream{};
+    stream.data = std::move(bitstream); // do not init sps/pps regions, don't care of them
+    SingleStreamReader reader(&stream);
+    StreamDescription::Region region{};
+    bool header{};
+    size_t start_code_len{};
+
+    while (reader.Read(StreamReader::Slicing::NalUnit(), &region, &header, &start_code_len)) {
+        if (region.size > start_code_len) {
+            char header_byte = stream.data[region.offset + start_code_len];
+            uint8_t nal_unit_type = (four_cc == MFX_CODEC_AVC) ?
+                (uint8_t)header_byte & 0x1F :
+                ((uint8_t)header_byte & 0x7E) >> 1;
+
+            if (nal_unit_type == UNIT_TYPE_SPS) {
+                sps = reader.GetRegionContents(region);
+            } else if (nal_unit_type == UNIT_TYPE_PPS) {
+                pps = reader.GetRegionContents(region);
+            }
+        }
+    }
+    EXPECT_NE(sps.size(), 0u);
+    EXPECT_NE(pps.size(), 0u);
+
+    std::vector<char> res = std::move(sps);
+    res.insert(res.end(), pps.begin(), pps.end()); // concatenate
+
+    return res;
+}
+
+// Tests that header (sps + pps) is supplied with C2StreamCsdInfo::output
+// through C2Worklet::output::configUpdate.
+// Checks if C2StreamCsdInfo::output contents is the same as sps + pps from encoded stream.
+TEST_P(Encoder, EncodeHeaderSupplied)
+{
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr) {
+
+        StripeGenerator stripe_generator;
+
+        int header_update_count = 0;
+
+        EncoderConsumer::OnFrame on_frame =
+            [&] (const C2Worklet& worklet, const uint8_t* data, size_t length) {
+
+            const auto& update = worklet.output.configUpdate;
+            const auto& it = std::find_if(update.begin(), update.end(), [](const auto& p) {
+                return p->type() == C2Param::Type(C2StreamCsdInfo::output::PARAM_TYPE);
+            });
+
+            if (it != update.end() && *it) {
+
+                const C2StreamCsdInfo::output* csd_info = (const C2StreamCsdInfo::output*)it->get();
+
+                ++header_update_count;
+
+                EXPECT_EQ(csd_info->stream(), 0u);
+
+                std::vector<char> frame_contents((const char*)data, (const char*)data + length);
+                std::vector<char> read_header = ExtractHeader(std::move(frame_contents), desc.four_cc);
+
+                EXPECT_EQ(csd_info->flexCount(), read_header.size());
+
+                size_t compare_len = std::min(csd_info->flexCount(), read_header.size());
+                EXPECT_EQ(0, memcmp(csd_info->m.value, read_header.data(), compare_len));
+            }
+        };
+
+        std::shared_ptr<EncoderConsumer> validator =
+            std::make_shared<EncoderConsumer>(on_frame);
+
+        Encode(FRAME_COUNT, true, comp, validator, { &stripe_generator } );
+
+        EXPECT_EQ(header_update_count, 1);
+    } );
 }
 
 static C2ParamValues GetConstParamValues()

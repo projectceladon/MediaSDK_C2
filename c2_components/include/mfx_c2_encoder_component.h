@@ -164,4 +164,6 @@ private:
     std::shared_ptr<C2BlockPool> c2_allocator_;
 
     std::unique_ptr<BinaryWriter> output_writer_;
+
+    bool header_sent_{false};
 };
