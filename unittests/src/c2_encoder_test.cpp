@@ -58,6 +58,7 @@ std::vector<C2ParamDescriptor> DefaultC2Params()
         { false, C2_NAME_OUTPUT_STREAM_FORMAT_SETTING, C2StreamFormatConfig::output::PARAM_TYPE },
         { false, C2_NAME_INPUT_PORT_MIME_SETTING, C2PortMimeConfig::input::PARAM_TYPE },
         { false, C2_NAME_OUTPUT_PORT_MIME_SETTING, C2PortMimeConfig::output::PARAM_TYPE },
+        { false, C2_NAME_STREAM_VIDEO_SIZE_SETTING, C2VideoSizeStreamTuning::input::PARAM_TYPE },
     };
     return param;
 }
@@ -1393,6 +1394,37 @@ TEST_P(Encoder, EncodeHeaderSupplied)
         Encode(FRAME_COUNT, true, comp, validator, { &stripe_generator } );
 
         EXPECT_EQ(header_update_count, 1);
+    } );
+}
+
+// Tests that output resolution is provided through
+// C2VideoSizeStreamTuning::input parameter.
+// Compares the parameter value with actual input stream resolution.
+TEST_P(Encoder, EncodeResolutionInfo)
+{
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+
+        StripeGenerator stripe_generator;
+
+        EncoderConsumer::OnFrame on_frame =
+            [&] (const C2Worklet&, const uint8_t*, size_t) {
+
+            std::unique_ptr<C2VideoSizeStreamTuning::input> resolution_param =
+                std::make_unique<C2VideoSizeStreamTuning::input>(0/*stream id*/);
+
+            c2_status_t sts = comp_intf->query_vb({resolution_param.get()},
+                {}, C2_MAY_BLOCK, nullptr);
+            EXPECT_EQ(sts, C2_OK);
+
+            EXPECT_EQ(resolution_param->width, FRAME_WIDTH);
+            EXPECT_EQ(resolution_param->height, FRAME_HEIGHT);
+        };
+
+        std::shared_ptr<EncoderConsumer> validator =
+            std::make_shared<EncoderConsumer>(on_frame);
+
+        Encode(FRAME_COUNT, true, comp, validator, { &stripe_generator } );
     } );
 }
 
