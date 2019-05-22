@@ -147,6 +147,7 @@ c2_status_t MfxC2EncoderComponent::DoStart()
 
     synced_points_count_ = 0;
     mfxStatus mfx_res = MFX_ERR_NONE;
+    header_sent_ = false;
 
     do {
         bool allocator_required = (video_params_config_.IOPattern == MFX_IOPATTERN_IN_VIDEO_MEMORY);
@@ -667,9 +668,49 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
 
             std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
 
-            worklet->output.ordinal.timestamp = work->input.ordinal.timestamp;
-            worklet->output.ordinal.frameIndex = work->input.ordinal.frameIndex;
-            worklet->output.ordinal.customOrdinal = work->input.ordinal.customOrdinal;
+            worklet->output.flags = work->input.flags;
+            if (!header_sent_) {
+
+                mfxExtCodingOptionSPSPPS spspps{};
+                mfxVideoParam video_param{};
+
+                mfxExtBuffer* ext_buf = &spspps.Header;
+
+                spspps.Header.BufferId = MFX_EXTBUFF_CODING_OPTION_SPSPPS;
+                spspps.Header.BufferSz = sizeof(mfxExtCodingOptionSPSPPS);
+                mfxU8 buf[1024] = {0};
+                spspps.SPSBuffer = buf;
+                spspps.SPSBufSize = 512;
+                spspps.PPSBuffer = buf + spspps.SPSBufSize;
+                spspps.PPSBufSize = 512;
+
+                video_param.NumExtParam = 1;
+                video_param.ExtParam = &ext_buf;
+
+                mfx_res = encoder_->GetVideoParam(&video_param);
+                if (MFX_ERR_NONE == mfx_res) {
+
+                    const int header_size = spspps.SPSBufSize + spspps.PPSBufSize;
+
+                    std::unique_ptr<C2StreamCsdInfo::output> csd =
+                        C2StreamCsdInfo::output::AllocUnique(header_size, 0u);
+
+                    MFX_DEBUG_TRACE_STREAM("SPS: " << FormatHex(spspps.SPSBuffer, spspps.SPSBufSize));
+                    MFX_DEBUG_TRACE_STREAM("PPS: " << FormatHex(spspps.PPSBuffer, spspps.PPSBufSize));
+
+                    uint8_t* dst = csd->m.value;
+                    std::copy(spspps.SPSBuffer, spspps.SPSBuffer + spspps.SPSBufSize, dst);
+                    dst += spspps.SPSBufSize;
+
+                    std::copy(spspps.PPSBuffer, spspps.PPSBuffer + spspps.PPSBufSize, dst);
+
+                    work->worklets.front()->output.configUpdate.push_back(std::move(csd));
+
+                    worklet->output.flags = (C2FrameData::flags_t)(worklet->output.flags | C2FrameData::FLAG_CODEC_CONFIG);
+                    header_sent_ = true;
+                }
+            }
+            worklet->output.ordinal = work->input.ordinal;
 
             worklet->output.buffers.push_back(std::make_shared<C2Buffer>(out_buffer));
         }
