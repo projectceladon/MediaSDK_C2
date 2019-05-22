@@ -105,6 +105,17 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
             pr.AddConstValue(C2_NAME_OUTPUT_PORT_MIME_SETTING,
                 AllocUniqueString<C2PortMimeConfig::output>("video/avc"));
 
+            pr.AddStreamInfo<C2VideoSizeStreamTuning::input>(
+                C2_NAME_STREAM_VIDEO_SIZE_SETTING, SINGLE_STREAM_ID,
+                [this] (C2VideoSizeStreamTuning::input* dst)->bool {
+                    MFX_DEBUG_TRACE("AssignPictureSize");
+                    dst->width = video_params_config_.mfx.FrameInfo.Width;
+                    dst->height = video_params_config_.mfx.FrameInfo.Height;
+                    MFX_DEBUG_TRACE_STREAM(NAMED(dst->width) << NAMED(dst->height));
+                    return true;
+                }
+            );
+
         break;
     }
 
