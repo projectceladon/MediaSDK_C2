@@ -16,9 +16,6 @@ include $(MFX_C2_HOME)/mfx_c2_env.mk
 
 MFX_C2_CFLAGS := -DANDROID
 
-LOCAL_CFLAGS_32 := -DLINUX32
-LOCAL_CFLAGS_64 := -DLINUX32 -DLINUX64
-
 # Android version preference:
 ifneq ($(filter 9 9.% P ,$(PLATFORM_VERSION)),)
   MFX_ANDROID_VERSION:= MFX_P
