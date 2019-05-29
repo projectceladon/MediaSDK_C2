@@ -143,7 +143,9 @@ namespace {
     // See examples in g_decoding_conditions initialization.
     struct DecodingConditions
     {
-        const char* name;
+        DecodingConditions() = default;
+        DecodingConditions(const char* cond_name): name(cond_name) {}
+        std::string name;
         int repeat_count{1};
         bool check_expectations{true};
         bool check_frame_crc{false}; // check per frame, otherwise for whole stream
@@ -466,16 +468,16 @@ static std::vector<DecodingConditions> g_decoding_conditions = []() {
 
     std::vector<DecodingConditions> res;
 
-    res.push_back({});
-    res.back().name = "DecodeBitExact";
+    // Decodes same stream repeatedly, using system and graphics memory,
+    // check output are bitwise the same.
+    res.push_back(DecodingConditions("DecodeBitExact"));
     const int BIT_EXACT_REPEAT_COUNT = 3;
     res.back().repeat_count = BIT_EXACT_REPEAT_COUNT;
 
     // Decodes streams that caused resolution change,
     // supply part of second header, it caused undefined behaviour in mediasdk decoder (264)
     // then supply completed header, expects decoder recovers and decodes stream fine.
-    res.push_back({});
-    res.back().name = "BrokenHeader";
+    res.push_back(DecodingConditions("BrokenHeader"));
     res.back().skip = [](const std::vector<const StreamDescription*>& streams, const ComponentDesc&) {
         return streams.size() == 1;
     };
@@ -483,26 +485,22 @@ static std::vector<DecodingConditions> g_decoding_conditions = []() {
 
     // Sends streams for decoding emulating C2 runtime behaviour:
     // if frame contains header, the frame is sent split by NAL units.
-    res.push_back({});
-    res.back().name = "SeparateHeaders";
+    res.push_back(DecodingConditions("SeparateHeaders"));
     res.back().skip = [](const std::vector<const StreamDescription*>&, const ComponentDesc& desc) {
         return std::string(desc.component_name) == "c2.intel.vp9.decoder";
     };
     res.back().chunks_mutator = SplitHeaders;
 
     // Sends last frame without eos flag, then empty input buffer with eos flag.
-    res.push_back({});
-    res.back().name = "SeparateEos";
+    res.push_back(DecodingConditions("SeparateEos"));
     res.back().chunks_mutator = CutEos;
 
     // Follow last frame with series of Eos works without frame.
-    res.push_back({});
-    res.back().name = "MultipleEos";
+    res.push_back(DecodingConditions("MultipleEos"));
     res.back().chunks_mutator = AppendMultipleEos;
 
     // Playback till 3/4 of stream, seek to 2nd gop then playback till the end.
-    res.push_back({});
-    res.back().name = "Seek";
+    res.push_back(DecodingConditions("Seek"));
     res.back().check_expectations = false;
     res.back().check_frame_crc = true;
     res.back().skip = [](const std::vector<const StreamDescription*>& streams, const ComponentDesc&) {
@@ -524,8 +522,7 @@ static std::vector<DecodingConditions> g_decoding_conditions = []() {
 
     // Playback till 3/4 of stream, seek to 2nd gop, play 1 frame,
     // repeat seek and ply 10 times, then playback till the end.
-    res.push_back({});
-    res.back().name = "BoringSeek";
+    res.push_back(DecodingConditions("BoringSeek"));
     res.back().check_expectations = false;
     res.back().check_frame_crc = true;
     res.back().skip = [](const std::vector<const StreamDescription*>& streams, const ComponentDesc&) {
@@ -541,8 +538,7 @@ static std::vector<DecodingConditions> g_decoding_conditions = []() {
     res.back().chunks_mutator = std::bind(SeekStream, _1, _2, false/*seek_start*/, REPEATS_COUNT);
 
     // Playback till 3/4 of stream, seek to start then playback till the end.
-    res.push_back({});
-    res.back().name = "SeekStart";
+    res.push_back(DecodingConditions("SeekStart"));
     res.back().chunks_mutator = std::bind(SeekStream, _1, _2, true/*seek_start*/, 1);
     res.back().check_expectations = false;
     res.back().check_frame_crc = true;
