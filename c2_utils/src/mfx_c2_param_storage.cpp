@@ -82,12 +82,66 @@ c2_status_t MfxC2ParamStorage::QueryParam(C2Param::Index index, C2Param** dst) c
             if (nullptr == *dst) {
                 *dst = operations.allocate_();
             }
-            operations.fill_(*dst);
+            operations.get_(*dst);
         } else {
             res = C2_NOT_FOUND;
         }
     }
     return res;
+}
+
+c2_status_t MfxC2ParamStorage::ConfigParam(const C2Param& param, bool component_stopped,
+    std::vector<std::unique_ptr<C2SettingResult>>* const failures)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    do {
+        // check whether plugin supports this parameter
+        std::unique_ptr<C2SettingResult> find_res = FindParam(&param);
+        if(nullptr != find_res) {
+            failures->push_back(std::move(find_res));
+            break;
+        }
+        // check whether plugin is in a correct state to apply this parameter
+        bool modifiable = ((param.kind() & C2Param::TUNING) != 0) ||
+            component_stopped; /* all kinds, even INFO might be set by stagefright */
+
+        if (!modifiable) {
+            failures->push_back(MakeC2SettingResult(C2ParamField(&param), C2SettingResult::READ_ONLY));
+            break;
+        }
+
+        // check ranges
+        if(!ValidateParam(&param, failures)) {
+            break;
+        }
+
+        C2Param::Index index = param.index();
+        auto const_value_found = const_values_.find(index);
+        if (const_value_found != const_values_.end()) {
+            failures->push_back(MakeC2SettingResult(C2ParamField(&param), C2SettingResult::READ_ONLY));
+            break;
+        }
+
+        auto operations_found = param_operations_.find(index);
+        if (operations_found == param_operations_.end()) {
+            failures->push_back(MakeC2SettingResult(C2ParamField(&param), C2SettingResult::READ_ONLY));
+            break;
+        }
+
+        const C2ParamOperations& operations = operations_found->second;
+        if (!operations.set_) {
+            failures->push_back(MakeC2SettingResult(C2ParamField(&param), C2SettingResult::READ_ONLY));
+            break;
+        }
+        if (!operations.set_(param)) {
+            failures->push_back(MakeC2SettingResult(C2ParamField(&param), C2SettingResult::BAD_VALUE));
+            break;
+        }
+
+    } while(false);
+
+    return GetAggregateStatus(failures);
 }
 
 bool MfxC2ParamStorage::ValidateParam(const C2Param* param,
