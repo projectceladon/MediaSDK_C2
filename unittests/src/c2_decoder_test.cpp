@@ -1179,6 +1179,42 @@ TEST_P(Decoder, ComponentConstParams)
     }); // CallComponentTest
 }
 
+static C2ParamValues GetKeptParamValues()
+{
+    C2ParamValues kept_values;
+
+    kept_values.Append(new C2StreamPictureSizeInfo::output(0/*stream*/, 1280, 720));
+    return kept_values;
+}
+
+// Configures C2StreamPictureSizeInfo::output and checks that the value
+// is kept and queried back the same.
+TEST_P(Decoder, ComponentKeptParams)
+{
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [&] (const ComponentDesc&, C2CompPtr, C2CompIntfPtr comp_intf) {
+
+        // check query through stack placeholders and the same with heap allocated
+        std::vector<std::unique_ptr<C2Param>> heap_params;
+        const C2ParamValues& kept_values = GetKeptParamValues();
+
+        c2_blocking_t may_block{C2_MAY_BLOCK};
+        std::vector<std::unique_ptr<C2SettingResult>> failures;
+
+        c2_status_t res = comp_intf->config_vb(kept_values.GetExpectedParams(),
+            may_block, &failures);
+        EXPECT_EQ(res, C2_OK);
+        EXPECT_EQ(failures.size(), 0u);
+
+        res = comp_intf->query_vb(kept_values.GetStackPointers(),
+            kept_values.GetIndices(), may_block, &heap_params);
+        EXPECT_EQ(res, C2_OK);
+
+        kept_values.CheckStackValues();
+        kept_values.Check(heap_params, false);
+    }); // CallComponentTest
+}
+
 // This test runs Decode on streams by different decoders
 // on different decoding conditions
 // (like how streams are split into chunks supplied to decoder).

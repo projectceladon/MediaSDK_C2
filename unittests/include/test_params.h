@@ -22,6 +22,15 @@ inline bool Equal(const C2Param& param1, const C2Param& param2)
     return param1 == param2;
 }
 
+inline std::string FormatParam(const C2Param& param)
+{
+    std::ostringstream oss;
+    oss << "index: " << std::hex << param.index() << "; "
+        << "size: " << std::dec << param.size() << "\n" <<
+        FormatHex((const uint8_t*)&param, param.size());
+    return oss.str();
+}
+
 // C2 parameters values set.
 class C2ParamValues
 {
@@ -54,6 +63,17 @@ public:
         // need this temp vector as cannot init vector<smth const> in one step
         std::vector<C2Param*> params;
         std::transform(stack_values_.begin(), stack_values_.end(), std::back_inserter(params),
+            [] (const std::shared_ptr<C2Param>& p) { return p.get(); } );
+
+        std::vector<C2Param*> res(params.begin(), params.end());
+        return res;
+    }
+
+    std::vector<C2Param*> GetExpectedParams() const
+    {
+        // need this temp vector as cannot init vector<smth const> in one step
+        std::vector<C2Param*> params;
+        std::transform(expected_.begin(), expected_.end(), std::back_inserter(params),
             [] (const std::shared_ptr<C2Param>& p) { return p.get(); } );
 
         std::vector<C2Param*> res(params.begin(), params.end());
@@ -108,7 +128,9 @@ public:
                     << actual_item->size() << " instead of " << expected_item->size();
 
                 if (Valid(*expected_item)) {
-                    EXPECT_TRUE(Equal(*actual_item, *expected_item));
+                    EXPECT_TRUE(Equal(*actual_item, *expected_item)) <<
+                        "Actual:" << FormatParam(*actual_item) << "\n" <<
+                        "Expected:" << FormatParam(*expected_item);
                 }
 
                 ++actual_it;

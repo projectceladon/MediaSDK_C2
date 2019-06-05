@@ -46,10 +46,15 @@ public:
 
     template<typename ParamType>
     void AddStreamInfo(const char* param_name, unsigned int stream_id,
-        std::function<bool (ParamType*)> param_get);
+        std::function<bool (ParamType*)> param_get,
+        std::function<bool (const ParamType&)> param_set = {});
 
     // Returns param values to *dst, allocates if *dst == nullptr
     c2_status_t QueryParam(C2Param::Index index, C2Param** dst) const;
+
+    c2_status_t ConfigParam(const C2Param& src, bool component_stopped,
+        std::vector<std::unique_ptr<C2SettingResult>>* const failures);
+
 
 #if MFX_DEBUG == MFX_DEBUG_YES
     void DumpParams();
@@ -60,12 +65,14 @@ public:
 private:
     // Operations specified for any parameter type
     typedef std::function<C2Param*()> C2ParamAllocate;
-    typedef std::function<bool(C2Param* dst)> C2ParamFill;
+    typedef std::function<bool(C2Param* dst)> C2ParamGet;
+    typedef std::function<bool(const C2Param& src)> C2ParamSet;
 
     struct C2ParamOperations
     {
         C2ParamAllocate allocate_;
-        C2ParamFill fill_;
+        C2ParamGet get_;
+        C2ParamSet set_;
     };
 
 private:
@@ -131,7 +138,8 @@ void MfxC2ParamStorage::AddConstValue(
 
 template<typename ParamType>
 void MfxC2ParamStorage::AddStreamInfo(const char* param_name, unsigned int stream_id,
-    std::function<bool (ParamType*)> param_fill)
+    std::function<bool (ParamType*)> param_get,
+    std::function<bool (const ParamType&)> param_set)
 {
     RegisterParam<ParamType>(param_name);
 
@@ -140,10 +148,16 @@ void MfxC2ParamStorage::AddStreamInfo(const char* param_name, unsigned int strea
         res->setStream(stream_id); // compiled if ParamType is C2StreamParam
         return res;
     };
-    C2ParamFill fill = [param_fill](C2Param* dst)->bool {
-        return param_fill((ParamType*)dst);
+
+    C2ParamGet get_function = [param_get](C2Param* dst)->bool {
+        return param_get((ParamType*)dst);
+    };
+
+    C2ParamSet set_function = [param_set](const C2Param& src)->bool {
+        return param_set(*(const ParamType*)&src);
     };
 
     C2Param::Index index{ParamType::PARAM_TYPE};
-    param_operations_.emplace(index.withStream(stream_id), C2ParamOperations{allocate, fill});
+    param_operations_.emplace(index.withStream(stream_id),
+        C2ParamOperations{allocate, get_function, set_function});
 }

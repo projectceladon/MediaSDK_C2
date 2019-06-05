@@ -53,10 +53,19 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     pr.AddStreamInfo<C2StreamPictureSizeInfo::output>(
         C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
         [this] (C2StreamPictureSizeInfo::output* dst)->bool {
-            MFX_DEBUG_TRACE("AssignPictureSize");
+            MFX_DEBUG_TRACE("GetPictureSize");
+            // Called from Query, video_params_ is already protected there with lock on init_decoder_mutex_
             dst->width = video_params_.mfx.FrameInfo.Width;
             dst->height = video_params_.mfx.FrameInfo.Height;
             MFX_DEBUG_TRACE_STREAM(NAMED(dst->width) << NAMED(dst->height));
+            return true;
+        },
+        [this] (const C2StreamPictureSizeInfo::output& src)->bool {
+            MFX_DEBUG_TRACE("SetPictureSize");
+            MFX_DEBUG_TRACE_STREAM(NAMED(src.width) << NAMED(src.height));
+            // Called from Config, video_params_ is already protected there with lock on init_decoder_mutex_
+            video_params_.mfx.FrameInfo.Width = src.width;
+            video_params_.mfx.FrameInfo.Height = src.height;
             return true;
         }
     );
@@ -64,7 +73,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     pr.AddStreamInfo<C2StreamCropRectInfo::output>(
         C2_PARAMKEY_CROP_RECT, SINGLE_STREAM_ID,
         [this] (C2StreamCropRectInfo::output* dst)->bool {
-            MFX_DEBUG_TRACE("AssignCrop");
+            MFX_DEBUG_TRACE("GetCropRect");
+            // Called from Query, video_params_ is already protected there with lock on init_decoder_mutex_
             dst->width = video_params_.mfx.FrameInfo.CropW;
             dst->height = video_params_.mfx.FrameInfo.CropH;
             dst->left = video_params_.mfx.FrameInfo.CropX;
@@ -558,6 +568,7 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
     MFX_DEBUG_TRACE_FUNC;
 
     for (const C2Param* param : params) {
+
         // check whether plugin supports this parameter
         std::unique_ptr<C2SettingResult> find_res = param_storage_.FindParam(param);
         if(nullptr != find_res) {
@@ -565,8 +576,8 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
             continue;
         }
         // check whether plugin is in a correct state to apply this parameter
-        bool modifiable = (param->kind() == C2Param::TUNING) ||
-            (param->kind() == C2Param::SETTING && state_ == State::STOPPED);
+        bool modifiable = ((param->kind() & C2Param::TUNING) != 0) ||
+            state_ == State::STOPPED; /* all kinds, even INFO might be set by stagefright */
 
         if (!modifiable) {
             failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::READ_ONLY));
@@ -589,7 +600,7 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 break;
             }
             default:
-                failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE));
+                param_storage_.ConfigParam(*param, state_ == State::STOPPED, failures);
                 break;
         }
     }
