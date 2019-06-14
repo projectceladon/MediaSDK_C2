@@ -50,7 +50,7 @@ public:
      *
      * \param renderCallbak callback to call for all dequeue buffer.
      */
-    virtual void setRenderCallback(const OnRenderCallback &renderCallback = OnRenderCallback());
+    void setRenderCallback(const OnRenderCallback &renderCallback = OnRenderCallback());
 
     /**
      * Configures an IGBP in order to create blocks. A newly created block is
