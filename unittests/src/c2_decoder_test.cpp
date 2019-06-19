@@ -1156,7 +1156,9 @@ TEST_P(Decoder, State)
 // Decodes till the end on last pass though.
 // Despite the stop operation it should normally process all queued works,
 // except streams with reordering for those some works should be
-// flushed with C2_CANCELED.
+// flushed with C2_NOT_FOUND, not C2_CANCELED.
+// C2_NOT_FOUND status should be returned as other error statuses are treated
+// by libstagefright as fatal.
 TEST_P(Decoder, StopWhileDecoding)
 {
     CallComponentTest<ComponentDesc>(GetParam(),
@@ -1221,9 +1223,9 @@ TEST_P(Decoder, StopWhileDecoding)
 
         std::set<c2_status_t> expected_status_set{C2_OK};
         if (std::string(desc.component_name) != "c2.intel.vp9.decoder") {
-            // h264, h265 streams have reordering what causes C2_CANCELED works on stop,
+            // h264, h265 streams have reordering what causes C2_NOT_FOUND works on stop,
             // vp9 has not.
-            expected_status_set.insert(C2_CANCELED);
+            expected_status_set.insert(C2_NOT_FOUND);
         }
 
         EXPECT_EQ(listener->status_set_, expected_status_set);

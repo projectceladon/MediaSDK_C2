@@ -273,7 +273,8 @@ c2_status_t MfxC2DecoderComponent::DoStop(bool abort)
     {
         std::lock_guard<std::mutex> lock(pending_works_mutex_);
         for (auto& pair : pending_works_) {
-            NotifyWorkDone(std::move(pair.second), C2_CANCELED);
+            // Other statuses cause libstagefright_ccodec fatal error
+            NotifyWorkDone(std::move(pair.second), C2_NOT_FOUND);
         }
         pending_works_.clear();
     }
