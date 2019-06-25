@@ -1149,6 +1149,87 @@ TEST_P(Decoder, State)
     } );
 }
 
+// Decodes streams multiple times on the same decoder instance.
+// While decoding streams, stops when gets first output,
+// then starts again
+// (reproduces RECONFIGURE_MODE of cts testCodecResetsH264WithSurface).
+// Decodes till the end on last pass though.
+// Despite the stop operation it should normally process all queued works,
+// except streams with reordering for those some works should be
+// flushed with C2_CANCELED.
+TEST_P(Decoder, StopWhileDecoding)
+{
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr) {
+
+        struct DecoderListener : public C2Component::Listener
+        {
+            void onWorkDone_nb(std::weak_ptr<C2Component>,
+                std::list<std::unique_ptr<C2Work>> workItems) override
+            {
+                for (auto const& work : workItems) {
+                    status_set_.insert(work->result);
+                    got_work_ = true;
+                }
+            }
+
+            void onTripped_nb(std::weak_ptr<C2Component>,
+                std::vector<std::shared_ptr<C2SettingResult>>) override {};
+            void onError_nb(std::weak_ptr<C2Component>, uint32_t) override {};
+
+            std::set<c2_status_t> status_set_;
+            std::atomic<bool> got_work_{false};
+        };
+        std::shared_ptr<DecoderListener> listener =
+            std::make_shared<DecoderListener>();
+
+        for (const std::vector<const StreamDescription*>& streams : desc.streams) {
+
+            const int REPEATS_COUNT = 3;
+            for (int i = 0; i < REPEATS_COUNT; ++i) {
+
+                c2_status_t sts = comp->setListener_vb(listener, C2_MAY_BLOCK);
+
+                std::list<StreamChunk> stream_chunks = ReadChunks(streams);
+                std::unique_ptr<StreamReader> reader{StreamReader::Create(streams)};
+
+                uint32_t frame_index = 0;
+
+                listener->got_work_ = false;
+                sts = comp->start();
+                EXPECT_EQ(sts, C2_OK);
+
+                for (const StreamChunk& chunk : stream_chunks) {
+
+                    // if pass is not last stop queueing
+                    if (i != REPEATS_COUNT - 1 && listener->got_work_) break;
+
+                    std::list<std::unique_ptr<C2Work>> works{1};
+                    std::vector<char> stream_part = reader->GetRegionContents(chunk.region);
+
+                    PrepareWork(frame_index++, comp, &works.front(), stream_part,
+                        chunk.end_stream, chunk.header, chunk.complete_frame);
+
+                    sts = comp->queue_nb(&works);
+                    EXPECT_EQ(sts, C2_OK);
+                }
+
+                sts = comp->stop();
+                EXPECT_EQ(sts, C2_OK);
+            }
+        }
+
+        std::set<c2_status_t> expected_status_set{C2_OK};
+        if (std::string(desc.component_name) != "c2.intel.vp9.decoder") {
+            // h264, h265 streams have reordering what causes C2_CANCELED works on stop,
+            // vp9 has not.
+            expected_status_set.insert(C2_CANCELED);
+        }
+
+        EXPECT_EQ(listener->status_set_, expected_status_set);
+    } );
+}
+
 static C2ParamValues GetConstParamValues()
 {
     C2ParamValues const_values;
