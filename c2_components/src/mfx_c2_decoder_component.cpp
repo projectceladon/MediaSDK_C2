@@ -256,12 +256,18 @@ c2_status_t MfxC2DecoderComponent::DoStop(bool abort)
 {
     MFX_DEBUG_TRACE_FUNC;
 
+    // Working queue should stop first otherwise race condition
+    // is possible when waiting queue is stopped (first), but working
+    // queue is pushing tasks into it (via DecodeFrameAsync). As a
+    // result, such tasks will be processed after next start
+    // which is bad as sync point becomes invalid after
+    // decoder Close/Init.
     if (abort) {
-        waiting_queue_.Abort();
         working_queue_.Abort();
+        waiting_queue_.Abort();
     } else {
-        waiting_queue_.Stop();
         working_queue_.Stop();
+        waiting_queue_.Stop();
     }
 
     {
