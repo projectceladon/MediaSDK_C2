@@ -219,12 +219,18 @@ c2_status_t MfxC2EncoderComponent::DoStop(bool abort)
 {
     MFX_DEBUG_TRACE_FUNC;
 
+    // Working queue should stop first otherwise race condition
+    // is possible when waiting queue is stopped (first), but working
+    // queue is pushing tasks into it (via EncodeFrameAsync). As a
+    // result, such tasks will be processed after next start
+    // which is bad as sync point becomes invalid after
+    // encoder Close/Init.
     if (abort) {
-        waiting_queue_.Abort();
         working_queue_.Abort();
+        waiting_queue_.Abort();
     } else {
-        waiting_queue_.Stop();
         working_queue_.Stop();
+        waiting_queue_.Stop();
     }
 
     while (!pending_works_.empty()) {
@@ -463,26 +469,27 @@ c2_status_t MfxC2EncoderComponent::ApplyWorkTunings(C2Work& work)
             break;
         }
 
-        // need this temp vector as cannot init vector<smth const> in one step
-        std::vector<C2Param*> temp;
-        std::transform(worklet->tunings.begin(), worklet->tunings.end(), std::back_inserter(temp),
-            [] (const std::unique_ptr<C2Tuning>& p) { return p.get(); } );
+        if (worklet->tunings.size() != 0) {
+            // need this temp vector as cannot init vector<smth const> in one step
+            std::vector<C2Param*> temp;
+            std::transform(worklet->tunings.begin(), worklet->tunings.end(), std::back_inserter(temp),
+                [] (const std::unique_ptr<C2Tuning>& p) { return p.get(); } );
 
-        std::vector<C2Param*> params(temp.begin(), temp.end());
+            std::vector<C2Param*> params(temp.begin(), temp.end());
 
-        std::vector<std::unique_ptr<C2SettingResult>> failures;
-        {
-            // These parameters update comes with C2Work from work queue,
-            // there is no guarantee that state is not changed meanwhile
-            // in contrast to Config method protected with state mutex.
-            // So AcquireStableStateLock is needed here.
-            std::unique_lock<std::mutex> lock = AcquireStableStateLock(true);
-            DoConfig(params, &failures, false);
+            std::vector<std::unique_ptr<C2SettingResult>> failures;
+            {
+                // These parameters update comes with C2Work from work queue,
+                // there is no guarantee that state is not changed meanwhile
+                // in contrast to Config method protected with state mutex.
+                // So AcquireStableStateLock is needed here.
+                std::unique_lock<std::mutex> lock = AcquireStableStateLock(true);
+                DoConfig(params, &failures, false);
+            }
+            for(auto& failure : failures) {
+                worklet->failures.push_back(std::move(failure));
+            }
         }
-        for(auto& failure : failures) {
-            worklet->failures.push_back(std::move(failure));
-        }
-
     } while(false);
 
     return res;

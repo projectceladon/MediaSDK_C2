@@ -480,6 +480,79 @@ TEST_P(Encoder, EncodeBitExact)
     } );
 }
 
+struct EncoderListener : public C2Component::Listener
+{
+    std::function<void(const std::unique_ptr<C2Work>& work)> on_work_done_;
+
+    EncoderListener(std::function<void(const std::unique_ptr<C2Work>& work)> on_work_done):
+        on_work_done_(on_work_done) {}
+
+    void onWorkDone_nb(std::weak_ptr<C2Component>,
+        std::list<std::unique_ptr<C2Work>> workItems) override
+    {
+        for (auto const& work : workItems) {
+            on_work_done_(work);
+        }
+    }
+
+    void onTripped_nb(std::weak_ptr<C2Component>,
+        std::vector<std::shared_ptr<C2SettingResult>>) override {};
+    void onError_nb(std::weak_ptr<C2Component>, uint32_t) override {};
+
+};
+
+// Encodes streams multiple times on the same encoder instance.
+// While encoding, stops when gets first output,
+// then starts again.
+// Decodes till the end on last pass though.
+// Despite the stop operation it should normally process all queued works,
+// except streams with reordering for those some works should be
+// flushed with C2_CANCELED.
+TEST_P(Encoder, StopWhileEncoding)
+{
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr) {
+
+        const int REPEATS_COUNT = 3;
+        std::set<c2_status_t> status_set_; // gather statuses for all passes
+
+        for (int i = 0; i < REPEATS_COUNT; ++i) {
+
+            std::atomic<bool> got_work_{false};
+
+            auto on_work_done = [&](const std::unique_ptr<C2Work>& work) {
+                status_set_.insert(work->result);
+                got_work_ = true;
+            };
+
+            comp->setListener_vb(std::make_shared<EncoderListener>(on_work_done), C2_MAY_BLOCK);
+
+            StripeGenerator stripe_generator;
+
+            EXPECT_EQ(comp->start(), C2_OK);
+
+            for(uint32_t frame_index = 0; frame_index < FRAME_COUNT; ++frame_index) {
+
+                // if pass is not last stop queueing
+                if (i != (REPEATS_COUNT - 1) && got_work_) break;
+
+                std::unique_ptr<C2Work> work;
+                PrepareWork(frame_index, frame_index == FRAME_COUNT - 1, false/*graphics_memory*/,
+                    comp, &work, { &stripe_generator });
+
+                std::list<std::unique_ptr<C2Work>> works;
+                works.push_back(std::move(work));
+                EXPECT_EQ(comp->queue_nb(&works), C2_OK);
+            }
+
+            EXPECT_EQ(comp->stop(), C2_OK);
+
+            std::set<c2_status_t> expected_status_set{C2_OK, C2_CANCELED};
+            EXPECT_EQ(status_set_, expected_status_set);
+        }
+    } );
+}
+
 // Checks the correctness of all encoding components state machine.
 // The component should be able to start from STOPPED (initial) state,
 // stop from RUNNING state. Otherwise, C2_BAD_STATE should be returned.
