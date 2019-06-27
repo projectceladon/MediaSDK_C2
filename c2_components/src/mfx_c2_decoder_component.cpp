@@ -661,6 +661,11 @@ mfxStatus MfxC2DecoderComponent::DecodeFrameAsync(
 
       if (MFX_WRN_DEVICE_BUSY == mfx_res) {
 
+        if (flushing_) {
+            // break waiting as flushing in progress and return MFX_WRN_DEVICE_BUSY as sign of it
+            break;
+        }
+
         if (trying_count >= MAX_TRYING_COUNT) {
             MFX_DEBUG_TRACE_MSG("Too many MFX_WRN_DEVICE_BUSY from DecodeFrameAsync");
             mfx_res = MFX_ERR_DEVICE_FAILED;
@@ -669,6 +674,9 @@ mfxStatus MfxC2DecoderComponent::DecodeFrameAsync(
 
         std::unique_lock<std::mutex> lock(dev_busy_mutex_);
         dev_busy_cond_.wait_for(lock, timeout, [this] { return synced_points_count_ < video_params_.AsyncDepth; } );
+        if (flushing_) { // do check flushing again after timeout to not call DecodeFrameAsync once more
+            break;
+        }
       }
     } while (MFX_WRN_DEVICE_BUSY == mfx_res);
 
@@ -677,13 +685,15 @@ mfxStatus MfxC2DecoderComponent::DecodeFrameAsync(
 }
 
 // Can return MFX_ERR_NONE, MFX_ERR_MORE_DATA, MFX_ERR_MORE_SURFACE in case of success
-mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& frame_work, bool* expect_output)
+mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& frame_work,
+    bool* flushing, bool* expect_output)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     mfxStatus mfx_sts = MFX_ERR_NONE;
     mfxFrameSurface1 *surface_work = nullptr, *surface_out = nullptr;
     *expect_output = false;
+    *flushing = false;
 
     do {
 
@@ -760,6 +770,10 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
             MFX_DEBUG_TRACE_MSG("MFX_ERR_INCOMPATIBLE_VIDEO_PARAM: resolution was changed");
         }
     } while(false); // fake loop to have a cleanup point there
+
+    if (mfx_sts == MFX_WRN_DEVICE_BUSY) {
+        *flushing = true;
+    }
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
     return mfx_sts;
@@ -851,6 +865,12 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 {
     MFX_DEBUG_TRACE_FUNC;
 
+    if (flushing_)
+    {
+        flushed_works_.push_back(std::move(work));
+        return;
+    }
+
     c2_status_t res = C2_OK;
     mfxStatus mfx_sts = MFX_ERR_NONE;
 
@@ -861,6 +881,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         " flags: " << std::hex << incoming_flags);
 
     bool expect_output = false;
+    bool flushing = false;
 
     do {
         std::unique_ptr<MfxC2BitstreamIn::FrameView> bitstream_view;
@@ -904,7 +925,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 res = AllocateFrame(&frame_out);
                 if (C2_OK != res) break;
 
-                mfx_sts = DecodeFrame(bs, std::move(frame_out), &expect_output);
+                mfx_sts = DecodeFrame(bs, std::move(frame_out), &flushing, &expect_output);
             } while (mfx_sts == MFX_ERR_NONE || mfx_sts == MFX_ERR_MORE_SURFACE);
 
             if (MFX_ERR_MORE_DATA == mfx_sts) {
@@ -975,7 +996,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         (incoming_flags & (C2FrameData::FLAG_INCOMPLETE | C2FrameData::FLAG_CODEC_CONFIG)) != 0;
 
     // notify listener in case of failure or empty output
-    if (C2_OK != res || !expect_output || incomplete_frame) {
+    if (C2_OK != res || !expect_output || incomplete_frame || flushing) {
         if (!work) {
             std::lock_guard<std::mutex> lock(pending_works_mutex_);
             auto it = pending_works_.find(incoming_frame_index);
@@ -994,7 +1015,11 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 worklet->output.flags = (C2FrameData::flags_t)(work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
                 worklet->output.ordinal = work->input.ordinal;
             }
-            NotifyWorkDone(std::move(work), res);
+            if (flushing) {
+                flushed_works_.push_back(std::move(work));
+            } else {
+                NotifyWorkDone(std::move(work), res);
+            }
         }
     }
 }
@@ -1008,13 +1033,26 @@ void MfxC2DecoderComponent::Drain(std::unique_ptr<C2Work>&& work)
     if (initialized_) {
         do {
 
+            if (flushing_) {
+                if (work) {
+                    flushed_works_.push_back(std::move(work));
+                }
+                break;
+            }
+
             MfxC2FrameOut frame_out;
             c2_status_t c2_sts = AllocateFrame(&frame_out);
             if (C2_OK != c2_sts) break; // no output allocated, no sense in calling DecodeFrame
 
             bool expect_output{};
-            mfx_sts = DecodeFrame(nullptr, std::move(frame_out), &expect_output);
-
+            bool flushing{};
+            mfx_sts = DecodeFrame(nullptr, std::move(frame_out), &flushing, &expect_output);
+            if (flushing) {
+                if (work) {
+                    flushed_works_.push_back(std::move(work));
+                }
+                break;
+            }
         // exit cycle if MFX_ERR_MORE_DATA or critical error happens
         } while (MFX_ERR_NONE == mfx_sts || MFX_ERR_MORE_SURFACE == mfx_sts);
 
@@ -1257,20 +1295,28 @@ c2_status_t MfxC2DecoderComponent::Flush(std::list<std::unique_ptr<C2Work>>* con
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    //TODO: check if working_queue_ might be flushed too, (queued works which doesn't reach DoWork yet)
+    flushing_ = true;
+
     working_queue_.Push([this] () {
         MFX_DEBUG_TRACE("DecoderReset");
         mfxStatus reset_sts = decoder_->Reset(&video_params_);
         MFX_DEBUG_TRACE__mfxStatus(reset_sts);
     } );
+
     // Wait to have no works queued between Queue and DoWork.
     working_queue_.WaitForEmpty();
+    waiting_queue_.WaitForEmpty();
+    // Turn off flushing mode only after working/waiting queues did all the job,
+    // given queue_nb should not be called by libstagefright simultaneously with
+    // flush_sm, no threads read/write flushed_works_ list, so it can be used here
+    // without block.
+    flushing_ = false;
 
     {
         std::lock_guard<std::mutex> lock(pending_works_mutex_);
 
         for (auto& item : pending_works_) {
-            flushedWork->push_back(std::move(item.second));
+            flushed_works_.push_back(std::move(item.second));
         }
         pending_works_.clear();
     }
@@ -1278,5 +1324,8 @@ c2_status_t MfxC2DecoderComponent::Flush(std::list<std::unique_ptr<C2Work>>* con
         std::lock_guard<std::mutex> lock(locked_surfaces_mutex_);
         locked_surfaces_.clear();
     }
+
+    *flushedWork = std::move(flushed_works_);
+
     return C2_OK;
 }

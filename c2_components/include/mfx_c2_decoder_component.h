@@ -100,7 +100,8 @@ private:
         mfxBitstream *bs, mfxFrameSurface1 *surface_work, mfxFrameSurface1 **surface_out,
         mfxSyncPoint *syncp);
 
-    mfxStatus DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& frame_out, bool* expect_output);
+    mfxStatus DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& frame_out,
+        bool* flushing, bool* expect_output);
 
     c2_status_t AllocateC2Block(uint32_t width, uint32_t height, std::shared_ptr<C2GraphicBlock>* out_block);
 
@@ -167,4 +168,8 @@ private:
     std::shared_ptr<MfxFramePoolAllocator> allocator_; // used when Video memory output
     // for pre-allocation when Video memory is chosen and always when System memory output
     std::shared_ptr<C2BlockPool> c2_allocator_;
+
+    std::atomic<bool> flushing_{false};
+
+    std::list<std::unique_ptr<C2Work>> flushed_works_;
 };
