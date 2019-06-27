@@ -234,7 +234,8 @@ c2_status_t MfxC2EncoderComponent::DoStop(bool abort)
     }
 
     while (!pending_works_.empty()) {
-        NotifyWorkDone(std::move(pending_works_.front()), C2_CANCELED);
+        // Other statuses cause libstagefright_ccodec fatal error
+        NotifyWorkDone(std::move(pending_works_.front()), C2_NOT_FOUND);
         pending_works_.pop();
     }
 

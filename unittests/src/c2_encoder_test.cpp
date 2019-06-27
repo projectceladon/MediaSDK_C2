@@ -507,7 +507,9 @@ struct EncoderListener : public C2Component::Listener
 // Decodes till the end on last pass though.
 // Despite the stop operation it should normally process all queued works,
 // except streams with reordering for those some works should be
-// flushed with C2_CANCELED.
+// flushed with C2_NOT_FOUND, not C2_CANCELED.
+// C2_NOT_FOUND status should be returned as other error statuses are treated
+// by libstagefright as fatal.
 TEST_P(Encoder, StopWhileEncoding)
 {
     CallComponentTest<ComponentDesc>(GetParam(),
@@ -547,7 +549,7 @@ TEST_P(Encoder, StopWhileEncoding)
 
             EXPECT_EQ(comp->stop(), C2_OK);
 
-            std::set<c2_status_t> expected_status_set{C2_OK, C2_CANCELED};
+            std::set<c2_status_t> expected_status_set{C2_OK, C2_NOT_FOUND};
             EXPECT_EQ(status_set_, expected_status_set);
         }
     } );
