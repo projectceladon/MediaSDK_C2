@@ -1236,6 +1236,88 @@ TEST_P(Decoder, StopWhileDecoding)
     } );
 }
 
+// Checks flush_sm implementation performance, how fast flush_sm
+// stops processing of queued works.
+// It is checked by counting of frames being normally processed
+// since flush_sm is called.
+// It should be not more than some threshold, suggested value is 20 frames.
+// It also checks total works count (processed + flushed) is equal to
+// enqueued count.
+TEST_P(Decoder, FlushPerformance)
+{
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr) {
+
+        MFX_DEBUG_TRACE_FUNC;
+
+        const int MAX_PROCESSED_COUNT = 20;
+
+        struct DecoderListener : public C2Component::Listener
+        {
+            void onWorkDone_nb(std::weak_ptr<C2Component>,
+                std::list<std::unique_ptr<C2Work>> workItems) override
+            {
+                MFX_DEBUG_TRACE_FUNC;
+                works_count_ += workItems.size();
+                MFX_DEBUG_TRACE_STREAM(NAMED(works_count_));
+            }
+
+            void onTripped_nb(std::weak_ptr<C2Component>,
+                std::vector<std::shared_ptr<C2SettingResult>>) override {};
+            void onError_nb(std::weak_ptr<C2Component>, uint32_t) override {};
+
+            std::atomic<int> works_count_{0};
+        };
+
+        for (const std::vector<const StreamDescription*>& streams : desc.streams) {
+
+            std::shared_ptr<DecoderListener> listener =
+                std::make_shared<DecoderListener>();
+
+            c2_status_t sts = comp->start();
+            EXPECT_EQ(sts, C2_OK);
+
+            uint32_t frame_index = 0;
+
+            sts = comp->setListener_vb(listener, C2_MAY_BLOCK);
+
+            std::list<StreamChunk> stream_chunks = ReadChunks(streams);
+            std::unique_ptr<StreamReader> reader{StreamReader::Create(streams)};
+
+            EXPECT_EQ(sts, C2_OK);
+
+            for (const StreamChunk& chunk : stream_chunks) {
+
+                std::list<std::unique_ptr<C2Work>> works{1};
+                std::vector<char> stream_part = reader->GetRegionContents(chunk.region);
+
+                PrepareWork(frame_index++, comp, &works.front(), stream_part,
+                    chunk.end_stream, chunk.header, chunk.complete_frame);
+
+                sts = comp->queue_nb(&works);
+                EXPECT_EQ(sts, C2_OK);
+            }
+            int works_before_flush = listener->works_count_.exchange(0); // reset counter
+            std::list<std::unique_ptr<C2Work>> flushed_work;
+            sts = comp->flush_sm(C2Component::FLUSH_COMPONENT, &flushed_work);
+            EXPECT_EQ(sts, C2_OK);
+
+            sts = comp->stop();
+            EXPECT_EQ(sts, C2_OK);
+
+            int works_after_flush = listener->works_count_.exchange(0);
+            // works_after_flush is only a coarse approximation to the real number of works
+            // we will process after signalling flush since there could be time elapsed
+            // between resetting works_count_ and real flush
+            std::cerr << "[          ] " << "Works after flush: " << works_after_flush
+                << std::endl;
+            EXPECT_LE(works_after_flush, MAX_PROCESSED_COUNT);
+
+            EXPECT_EQ(works_before_flush + works_after_flush + flushed_work.size(), stream_chunks.size());
+        }
+    } );
+}
+
 static C2ParamValues GetConstParamValues()
 {
     C2ParamValues const_values;
