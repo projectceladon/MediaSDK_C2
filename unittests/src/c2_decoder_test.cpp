@@ -331,7 +331,7 @@ static void AppendMultipleEos(const std::vector<const StreamDescription*>&/* str
 // 2) multi-resolutions stream change resolution in the middle of the stream,
 // so seek from 3/4 to 2nd GOP or start should test resolution change while seek.
 static void SeekStream(const std::vector<const StreamDescription*>& streams,
-    std::list<StreamChunk>* chunks, bool seek_start, int repeat_count)
+    std::list<StreamChunk>* chunks, bool seek_start, int repeat_count, bool resend_headers)
 {
     size_t first_index = 0;
     if (!seek_start && streams[0]->gop_size < streams[0]->frames_crc32_nv12.size()) {
@@ -355,7 +355,7 @@ static void SeekStream(const std::vector<const StreamDescription*>& streams,
 
         // src_first == chunks->begin() is a special case
         // as stream copying should done from the start
-        if (src_first != chunks->begin() && has_header) {
+        if (src_first != chunks->begin() && has_header && resend_headers) {
             // copy header
             for (auto it = chunks->begin(); it != src_first; ++it) {
                 if (it->header) {
@@ -440,19 +440,25 @@ TEST(ChunksMutator, SeekStream)
     std::list<StreamChunk> original = chunks;
     EXPECT_EQ(format(chunks), "SP0;1;2;3;4;5;6;7;8;9;");
 
-    SeekStream({&stream}, &chunks, false/*seek_start*/, 1/*repeats*/);
+    SeekStream({&stream}, &chunks, false/*seek_start*/, 1/*repeats*/, true/*resend_headers*/);
     EXPECT_EQ(format(chunks), "S;P;0;1;2;3;4;5;6;S;P;5;6;7;8;9;");
 
     chunks = original;
-    SeekStream({&stream}, &chunks, true/*seek_start*/, 1/*repeats*/);
+    SeekStream({&stream}, &chunks, false/*seek_start*/, 1/*repeats*/, false/*resend_headers*/);
+    // Still splits header as C2FrameData::FLAG_CODEC_CONFIG doesn't go to C2Work otherwise,
+    // see PrepareWork function.
+    EXPECT_EQ(format(chunks), "S;P;0;1;2;3;4;5;6;5;6;7;8;9;");
+
+    chunks = original;
+    SeekStream({&stream}, &chunks, true/*seek_start*/, 1/*repeats*/, true/*resend_headers*/);
     EXPECT_EQ(format(chunks), "SP0;1;2;3;4;5;6;SP0;1;2;3;4;5;6;7;8;9;");
 
     chunks = original;
-    SeekStream({&stream}, &chunks, false/*seek_start*/, 3/*repeats*/);
+    SeekStream({&stream}, &chunks, false/*seek_start*/, 3/*repeats*/, true/*resend_headers*/);
     EXPECT_EQ(format(chunks), "S;P;0;1;2;3;4;5;6;S;P;5;S;P;5;S;P;5;6;7;8;9;");
 
     chunks = original;
-    SeekStream({&stream}, &chunks, true/*seek_start*/, 3/*repeats*/);
+    SeekStream({&stream}, &chunks, true/*seek_start*/, 3/*repeats*/, true/*resend_headers*/);
     EXPECT_EQ(format(chunks), "SP0;1;2;3;4;5;6;SP0;SP0;SP0;1;2;3;4;5;6;7;8;9;");
 }
 
@@ -518,7 +524,31 @@ static std::vector<DecodingConditions> g_decoding_conditions = []() {
         const StreamDescription* stream = streams.front();
         return total_frames_count - stream->gop_size;
     };
-    res.back().chunks_mutator = std::bind(SeekStream, _1, _2, false/*seek_start*/, 1);
+    res.back().chunks_mutator =
+        std::bind(SeekStream, _1, _2, false/*seek_start*/, 1, true/*resend_headers*/);
+
+    // Playback till 3/4 of stream, seek to 2nd gop then playback till the end,
+    // withous headers resending.
+    res.push_back(DecodingConditions("SeekWithoutHeader"));
+    res.back().check_expectations = false;
+    res.back().check_frame_crc = true;
+    res.back().skip = [](const std::vector<const StreamDescription*>& streams, const ComponentDesc&) {
+        // If first stream doesn't have a valid point to seek - no difference from SeekStart test,
+        // it is skipped from this test.
+        return !StreamsAbleToSeek(streams.front());
+    };
+
+    res.back().checked_frames_count = [](const std::vector<const StreamDescription*>& streams) {
+        size_t total_frames_count = 0;
+        for (const StreamDescription* stream : streams) {
+            total_frames_count += stream->frames_crc32_nv12.size();
+        }
+
+        const StreamDescription* stream = streams.front();
+        return total_frames_count - stream->gop_size;
+    };
+    res.back().chunks_mutator =
+        std::bind(SeekStream, _1, _2, false/*seek_start*/, 1, false/*resend_headers*/);
 
     // Playback till 3/4 of stream, seek to 2nd gop, play 1 frame,
     // repeat seek and ply 10 times, then playback till the end.
@@ -535,11 +565,13 @@ static std::vector<DecodingConditions> g_decoding_conditions = []() {
         return 0;
     };
     const int REPEATS_COUNT = 10;
-    res.back().chunks_mutator = std::bind(SeekStream, _1, _2, false/*seek_start*/, REPEATS_COUNT);
+    res.back().chunks_mutator =
+        std::bind(SeekStream, _1, _2, false/*seek_start*/, REPEATS_COUNT, true/*resend_headers*/);
 
     // Playback till 3/4 of stream, seek to start then playback till the end.
     res.push_back(DecodingConditions("SeekStart"));
-    res.back().chunks_mutator = std::bind(SeekStream, _1, _2, true/*seek_start*/, 1);
+    res.back().chunks_mutator =
+        std::bind(SeekStream, _1, _2, true/*seek_start*/, 1, true/*resend_headers*/);
     res.back().check_expectations = false;
     res.back().check_frame_crc = true;
 

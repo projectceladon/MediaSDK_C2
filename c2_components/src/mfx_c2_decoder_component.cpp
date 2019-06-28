@@ -1307,8 +1307,16 @@ c2_status_t MfxC2DecoderComponent::Flush(std::list<std::unique_ptr<C2Work>>* con
 
     working_queue_.Push([this] () {
         MFX_DEBUG_TRACE("DecoderReset");
-        mfxStatus reset_sts = decoder_->Reset(&video_params_);
-        MFX_DEBUG_TRACE__mfxStatus(reset_sts);
+        MFX_DEBUG_TRACE_STREAM(NAMED(decoder_.get()));
+        if (decoder_) { // check if initialized already
+            mfxStatus reset_sts = decoder_->Reset(&video_params_);
+            MFX_DEBUG_TRACE__mfxStatus(reset_sts);
+        }
+
+        if (c2_bitstream_) {
+            c2_bitstream_->Reset();
+        }
+
     } );
 
     // Wait to have no works queued between Queue and DoWork.
