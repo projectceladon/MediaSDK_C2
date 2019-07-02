@@ -88,6 +88,8 @@ private:
         std::vector<std::unique_ptr<C2SettingResult>>* const failures,
         bool queue_update);
 
+    void InitFrameConstructor();
+
     mfxStatus InitSession();
 
     mfxStatus Reset();

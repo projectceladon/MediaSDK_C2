@@ -186,24 +186,7 @@ c2_status_t MfxC2DecoderComponent::Init()
         mfx_res = InitSession();
     }
     if(MFX_ERR_NONE == mfx_res) {
-        MfxC2FrameConstructorType fc_type;
-        switch (decoder_type_)
-        {
-        case DECODER_H264:
-            fc_type = MfxC2FC_AVC;
-            break;
-        case DECODER_H265:
-            fc_type = MfxC2FC_HEVC;
-            break;
-        case DECODER_VP9:
-            fc_type = MfxC2FC_VP9;
-            break;
-        default:
-            MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
-            fc_type = MfxC2FC_None;
-            break;
-        }
-        c2_bitstream_ = std::make_unique<MfxC2BitstreamIn>(fc_type);
+        InitFrameConstructor();
     }
 
     return MfxStatusToC2(mfx_res);
@@ -283,9 +266,10 @@ c2_status_t MfxC2DecoderComponent::DoStop(bool abort)
 
     FreeDecoder();
 
-    if (c2_bitstream_) {
-        c2_bitstream_->Reset();
-    }
+    // c2_bitstream_->Reset() doesn't cleanup header stored in frame constructor
+    // that causes test influence to each other
+    // and false positive, so re-create it.
+    InitFrameConstructor();
 
     return C2_OK;
 }
@@ -306,6 +290,30 @@ c2_status_t MfxC2DecoderComponent::Release()
         device_ = nullptr;
     }
     return res;
+}
+
+void MfxC2DecoderComponent::InitFrameConstructor()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    MfxC2FrameConstructorType fc_type;
+    switch (decoder_type_)
+    {
+    case DECODER_H264:
+        fc_type = MfxC2FC_AVC;
+        break;
+    case DECODER_H265:
+        fc_type = MfxC2FC_HEVC;
+        break;
+    case DECODER_VP9:
+        fc_type = MfxC2FC_VP9;
+        break;
+    default:
+        MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
+        fc_type = MfxC2FC_None;
+        break;
+    }
+    c2_bitstream_ = std::make_unique<MfxC2BitstreamIn>(fc_type);
 }
 
 mfxStatus MfxC2DecoderComponent::InitSession()
