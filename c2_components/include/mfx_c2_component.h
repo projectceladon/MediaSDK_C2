@@ -176,6 +176,8 @@ protected: // variables
 
     mutable std::condition_variable cond_state_stable_; // notified when state gets stable
 
+    mutable std::mutex release_mutex_;
+
     C2String name_;
 
     CreateConfig create_config_;
