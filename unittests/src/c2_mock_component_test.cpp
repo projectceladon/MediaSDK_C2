@@ -609,6 +609,11 @@ TEST(MfxMockComponent, State)
 }
 
 // Tests mayBlock option handling of config_vb and query_vb methods.
+// config_vb should be mutually blocked with state change,
+// should return C2_BLOCKING result while state change for C2_DONT_BLOCK option and
+// wait for state change completion for C2_MAY_BLOCK option.
+// query_vb should always return C2_OK as it is not affected by running->stopped
+// state change and not supported in RELEASED state only.
 TEST(MfxMockComponent, ConfigQueryBlocking)
 {
     MfxC2Component::CreateConfig config{};
@@ -632,7 +637,7 @@ TEST(MfxMockComponent, ConfigQueryBlocking)
             c2_status_t sts = component_intf->config_vb({&some_setting}, blocking, nullptr);
             EXPECT_EQ(sts, expected);
             sts = component_intf->query_vb({&some_setting}, {}, blocking, {});
-            EXPECT_EQ(sts, expected);
+            EXPECT_EQ(sts, C2_OK);
         };
 
         // This class implements listener interface
@@ -691,8 +696,8 @@ TEST(MfxMockComponent, ConfigQueryBlocking)
         std::thread another_thread([&] () {
 
             C2ProducerMemoryType some_setting{C2MemoryUsage::CPU_WRITE}; // any setting supported by the component
-            // If query_vb is OK, state is not transition, stop() not started yet
-            while (C2_OK == component_intf->query_vb({&some_setting}, {}, C2_DONT_BLOCK, {})) {
+            // If config_vb is OK, state is not transition, stop() not started yet
+            while (C2_OK == component_intf->config_vb({&some_setting}, C2_DONT_BLOCK, nullptr)) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
 

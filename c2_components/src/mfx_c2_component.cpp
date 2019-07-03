@@ -108,7 +108,14 @@ c2_status_t MfxC2Component::query_vb(
 
     c2_status_t res = C2_OK;
 
-    std::unique_lock<std::mutex> lock = AcquireStableStateLock(mayBlock == C2_MAY_BLOCK);
+    std::unique_lock<std::mutex> lock(release_mutex_, std::defer_lock);
+
+    if (mayBlock == C2_MAY_BLOCK) {
+        lock.lock();
+    } else {
+        lock.try_lock();
+    }
+
     if (lock.owns_lock()) {
         if (State::RELEASED != state_) {
             res = Query(std::move(lock), stackParams, heapParamIndices, mayBlock, heapParams);
@@ -371,6 +378,8 @@ c2_status_t MfxC2Component::reset()
 c2_status_t MfxC2Component::release()
 {
     MFX_DEBUG_TRACE_FUNC;
+
+    std::lock_guard<std::mutex> release_lock(release_mutex_);
 
     c2_status_t res = C2_OK;
     bool do_stop = false;
