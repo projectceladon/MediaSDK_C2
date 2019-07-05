@@ -1030,6 +1030,17 @@ static void Decode(
     std::unique_ptr<StreamReader> reader{StreamReader::Create(streams)};
 
     for (const StreamChunk& chunk : stream_chunks) {
+        Expectation& expect = chunk.flush ? flush_expect : validator->GetExpectation();
+        if (chunk.valid) {
+            expect.ExpectFrame(frame_index, !chunk.complete_frame);
+        } else {
+            expect.ExpectFailures(1, C2_BAD_VALUE);
+        }
+        frame_index++;
+    }
+
+    frame_index = 0;
+    for (const StreamChunk& chunk : stream_chunks) {
 
         std::vector<char> stream_part = reader->GetRegionContents(chunk.region);
 
@@ -1039,13 +1050,6 @@ static void Decode(
         // insert input data
         PrepareWork(frame_index, component, &work, stream_part,
             chunk.end_stream, chunk.header, chunk.complete_frame);
-
-        Expectation& expect = chunk.flush ? flush_expect : validator->GetExpectation();
-        if (chunk.valid) {
-            expect.ExpectFrame(frame_index, !chunk.complete_frame);
-        } else {
-            expect.ExpectFailures(1, C2_BAD_VALUE);
-        }
 
         if (chunk.seek) { // seek back
             std::list<std::unique_ptr<C2Work>> flushed_works;
