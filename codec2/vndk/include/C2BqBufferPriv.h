@@ -20,7 +20,7 @@
 #include <functional>
 
 #include <C2Buffer.h>
-#include <media/stagefright/bqhelper/WGraphicBufferProducer.h>
+#include <gui/bufferqueue/1.0/WGraphicBufferProducer.h>
 
 class C2BufferQueueBlockPool : public C2BlockPool {
 public:

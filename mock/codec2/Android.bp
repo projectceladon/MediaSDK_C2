@@ -17,7 +17,7 @@ cc_library_static {
     cflags: [
         "-Werror",
         "-Wall",
-        "-std=c++14",
+        "-std=c++17",
         "-fexceptions",
     ],
 

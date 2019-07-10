@@ -32,6 +32,7 @@ cc_library_shared {
     ],
 
     header_libs: [
+        "libgui_headers",
         "codec2_headers",
         "media_plugin_headers",
     ],
@@ -41,6 +42,7 @@ cc_library_shared {
         "android.hardware.graphics.bufferqueue@1.0",
         "android.hardware.graphics.mapper@2.0",
         "android.hardware.media.bufferpool@1.0",
+        "android.hidl.token@1.0-utils",
         "libbase",
         "libbinder",
         "libcutils",
@@ -55,6 +57,7 @@ cc_library_shared {
         "libstagefright_bufferpool_mfx@1.0",
         "libui",
         "libutils",
+        "libEGL"
     ],
 
     whole_static_libs: [
@@ -77,6 +80,7 @@ cc_defaults {
         "liblog", // for ALOG
         "libstagefright_codec2_vndk",
         "libutils",
+        "libgui"
     ],
 }
 

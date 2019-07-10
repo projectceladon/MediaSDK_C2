@@ -17,6 +17,9 @@ include $(MFX_C2_HOME)/mfx_c2_env.mk
 MFX_C2_CFLAGS := -DANDROID
 
 # Android version preference:
+ifneq ($(filter 10 10.% Q ,$(PLATFORM_VERSION)),)
+  MFX_ANDROID_VERSION:= MFX_Q
+endif
 ifneq ($(filter 9 9.% P ,$(PLATFORM_VERSION)),)
   MFX_ANDROID_VERSION:= MFX_P
 endif
@@ -47,8 +50,11 @@ MFX_C2_CFLAGS += \
   -DMFX_ANDROID_PLATFORM=$(MFX_ANDROID_PLATFORM)
 
 ifeq ($(BOARD_USES_GRALLOC1),true)
+  # plugins should use PRIME buffer descriptor since Android P
+  ifneq ($(filter MFX_Q ,$(MFX_ANDROID_VERSION)),)
+      MFX_C2_CFLAGS += -DMFX_C2_USE_PRIME
+  endif
   ifneq ($(filter MFX_P ,$(MFX_ANDROID_VERSION)),)
-      # plugins should use PRIME buffer descriptor since Android P
       MFX_C2_CFLAGS += -DMFX_C2_USE_PRIME
   endif
 else
@@ -61,7 +67,7 @@ MFX_C2_CFLAGS += \
   -fPIE -fPIC \
   -O2 -D_FORTIFY_SOURCE=2 \
   -Wformat -Wformat-security \
-  -fexceptions -std=c++14
+  -fexceptions -std=c++17
 
 # LibVA support.
 MFX_C2_CFLAGS_LIBVA := -DLIBVA_SUPPORT -DLIBVA_ANDROID_SUPPORT
