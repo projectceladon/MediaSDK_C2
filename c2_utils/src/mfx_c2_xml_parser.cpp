@@ -212,6 +212,7 @@ void MfxXmlParser::startElementHandler(const char* name, const char** attrs) {
                 parsing_status_ =
                     addDiagnostics(attrs);
             }
+            break;
         }
 
         default:

@@ -1150,7 +1150,7 @@ static std::string GetStreamsCombinedName(const std::vector<const StreamDescript
 TEST_P(Decoder, State)
 {
     CallComponentTest<ComponentDesc>(GetParam(),
-        [this] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr) {
+        [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr) {
 
         c2_status_t sts = C2_OK;
 
