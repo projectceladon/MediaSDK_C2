@@ -480,6 +480,50 @@ TEST_P(Encoder, EncodeBitExact)
     } );
 }
 
+// Encodes same stream twice: as usual and eos separated into empty work.
+// Compare the results.
+TEST_P(Encoder, EncodeSeparateEOS)
+{
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+
+        BinaryChunks bitstream_original;
+        BinaryChunks bitstream_separate_eos;
+
+        for (BinaryChunks* binary : {&bitstream_original, &bitstream_separate_eos}) {
+
+            bool separate_eos = (binary == &bitstream_separate_eos);
+
+            GTestBinaryWriter writer(std::ostringstream()
+                << comp_intf->getName() << "-" <<
+                (separate_eos ? "original" : "separate-eos") << ".out");
+
+            BeforeQueueWork before_queue_work = [&] (uint32_t frame_index, C2Work* work) {
+                if (separate_eos && frame_index == FRAME_COUNT) {
+                    work->input.buffers.resize(0); // drop buffers from extra frame
+                }
+            };
+
+            StripeGenerator stripe_generator;
+
+            EncoderConsumer::OnFrame on_frame =
+                [&] (const C2Worklet&, const uint8_t* data, size_t length) {
+
+                writer.Write(data, length);
+                binary->PushBack(data, length);
+            };
+
+            std::shared_ptr<EncoderConsumer> validator =
+                std::make_shared<EncoderConsumer>(on_frame);
+
+            Encode(separate_eos ? FRAME_COUNT + 1 : FRAME_COUNT,
+                false/*graphics_mem*/, comp, validator, { &stripe_generator },
+                before_queue_work);
+        }
+        EXPECT_EQ(bitstream_original, bitstream_separate_eos);
+    } );
+}
+
 struct EncoderListener : public C2Component::Listener
 {
     std::function<void(const std::unique_ptr<C2Work>& work)> on_work_done_;
