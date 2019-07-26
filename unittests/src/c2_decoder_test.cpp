@@ -1385,11 +1385,15 @@ static C2ParamValues GetKeptParamValues()
     C2ParamValues kept_values;
 
     kept_values.Append(new C2StreamPictureSizeInfo::output(0/*stream*/, 1280, 720));
+
+    C2Rect crop_rect = C2Rect(128, 64).at(32, 16);
+    kept_values.Append(new C2StreamCropRectInfo::output(0/*stream*/, crop_rect));
     return kept_values;
 }
 
-// Configures C2StreamPictureSizeInfo::output and checks that the value
-// is kept and queried back the same.
+// Configures C2StreamPictureSizeInfo::output, C2StreamCropRectInfo::output
+// and checks that their values
+// are kept and queried back the same.
 TEST_P(Decoder, ComponentKeptParams)
 {
     CallComponentTest<ComponentDesc>(GetParam(),
