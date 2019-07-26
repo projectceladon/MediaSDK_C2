@@ -82,6 +82,17 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             MFX_DEBUG_TRACE_STREAM(NAMED(dst->left) << NAMED(dst->top) <<
                 NAMED(dst->width) << NAMED(dst->height));
             return true;
+        },
+        [this] (const C2StreamCropRectInfo::output& src)->bool {
+            MFX_DEBUG_TRACE("SetCropRect");
+            // Called from Config, video_params_ is already protected there with lock on init_decoder_mutex_
+            MFX_DEBUG_TRACE_STREAM(NAMED(src.left) << NAMED(src.top) <<
+                NAMED(src.width) << NAMED(src.height));
+            video_params_.mfx.FrameInfo.CropW = src.width;
+            video_params_.mfx.FrameInfo.CropH = src.height;
+            video_params_.mfx.FrameInfo.CropX = src.left;
+            video_params_.mfx.FrameInfo.CropY = src.top;
+            return true;
         }
     );
 
