@@ -112,7 +112,7 @@ private:
     // Work routines
     void DoWork(std::unique_ptr<C2Work>&& work);
 
-    void Drain();
+    void Drain(std::unique_ptr<C2Work>&& work);
     // waits for the sync_point and update work with encoder output then
     void WaitWork(std::unique_ptr<C2Work>&& work,
         std::unique_ptr<mfxEncodeCtrl>&& encode_ctrl,

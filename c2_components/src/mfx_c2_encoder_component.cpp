@@ -408,6 +408,7 @@ mfxStatus MfxC2EncoderComponent::EncodeFrameAsync(
       }
     } while (MFX_WRN_DEVICE_BUSY == sts);
 
+    MFX_DEBUG_TRACE__mfxStatus(sts);
     return sts;
 }
 
@@ -588,7 +589,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
     }
 }
 
-void MfxC2EncoderComponent::Drain()
+void MfxC2EncoderComponent::Drain(std::unique_ptr<C2Work>&& work)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -628,6 +629,19 @@ void MfxC2EncoderComponent::Drain()
             res = MfxStatusToC2(mfx_sts);
             break;
         }
+    }
+
+    // eos work, should be sent after last work returned
+    if (work) {
+        waiting_queue_.Push([work = std::move(work), this]() mutable {
+
+            std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
+
+            worklet->output.flags = (C2FrameData::flags_t)(work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
+            worklet->output.ordinal = work->input.ordinal;
+
+            NotifyWorkDone(std::move(work), C2_OK);
+        });
     }
 
     if(C2_OK != res) {
@@ -1082,7 +1096,7 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                             }
                         };
 
-                        Drain();
+                        Drain(nullptr);
 
                         if (queue_update) {
                             working_queue_.Push(std::move(update_bitrate_value));
@@ -1225,15 +1239,26 @@ c2_status_t MfxC2EncoderComponent::Queue(std::list<std::unique_ptr<C2Work>>* con
     for(auto& item : *items) {
 
         bool eos = (item->input.flags & C2FrameData::FLAG_END_OF_STREAM);
+        bool empty = (item->input.buffers.size() == 0);
+        MFX_DEBUG_TRACE_STREAM(NAMED(eos) << NAMED(empty));
 
-        working_queue_.Push( [ work = std::move(item), this ] () mutable {
+        if (empty) {
+            if (eos) {
+                working_queue_.Push( [work = std::move(item), this] () mutable {
+                    Drain(std::move(work));
+                });
+            } else {
+                MFX_DEBUG_TRACE_MSG("Empty work without EOS flag, error reported.");
+                NotifyWorkDone(std::move(item), C2_BAD_VALUE);
+            }
+        } else {
+            working_queue_.Push( [ work = std::move(item), this ] () mutable {
+                DoWork(std::move(work));
+            } );
 
-            DoWork(std::move(work));
-
-        } );
-
-        if(eos) {
-            working_queue_.Push( [this] () { Drain(); } );
+            if(eos) {
+                working_queue_.Push( [this] () { Drain(nullptr); } );
+            }
         }
     }
 
