@@ -93,11 +93,7 @@ service=hardware.intel.media.c2@1.0-service
 
 service_system_libs="\
 libstagefright_bufferpool_mfx@1.0.so,\
-hardware.google.media.c2@1.0.so,\
-libcodec2_hidl_utils@1.0.so,\
-libstagefright_bufferpool@1.0.so,\
-libstagefright_codec2.so,\
-libstagefright_codec2_vndk.so"
+android.hardware.media.c2@1.0.so"
 
 if ssh $remote_server "test -e ${remote_output}vendor/bin/hw/${service}"
 then
@@ -108,6 +104,7 @@ then
     service_libs="\
 libmfx_mock_c2_components.so,\
 libmfx_c2_components_hw.so,\
+libcodec2_hidl@1.0.so,\
 libmfxhw32.so,\
 libstagefright_codec2_vndk_mfx.so"
 
@@ -117,7 +114,7 @@ libstagefright_codec2_vndk_mfx.so"
     update $remote_output/system/bin/${system_exec}${bitness} ${local_dir}
 fi
 
-system_libs="libcodec2_hidl_client.so,$service_system_libs"
+system_libs="libcodec2_hidl_client@1.0.so,$service_system_libs"
 
 update ${remote_output}system/$remote_lib/\{$system_libs\} ${local_dir}
 
@@ -126,8 +123,8 @@ update $remote_dir/${c2_sources}c2_store/data/media_codecs_intel_c2_video.xml ${
 
 if [ ! -z "$src_files" ]
 then
-    ssh $remote_server md5sum $src_files > /tmp/src_md5.txt
-    md5sum $dst_files > /tmp/dst_md5.txt
+    ssh $remote_server md5sum -b $src_files > /tmp/src_md5.txt
+    md5sum -b $dst_files > /tmp/dst_md5.txt
     pr --merge --join-lines -t /tmp/src_md5.txt /tmp/dst_md5.txt /tmp/scp.txt | \
         awk '{ if ($1 != $3) {print "scp $remote_server:"$5,$6} else {print "touch "substr($4,2)} }' | bash
 fi

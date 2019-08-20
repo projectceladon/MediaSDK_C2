@@ -49,10 +49,10 @@ cc_binary_c2_service {
 
     shared_libs: [
         "android.hardware.media.omx@1.0",
-        "//hardware/google/interfaces:hardware.google.media.c2@1.0",
+        "android.hardware.media.c2@1.0",
         "libavservices_minijail_vendor",
         "libbinder",
-        "//hardware/google/av:libcodec2_hidl_utils@1.0",
+        "libcodec2_hidl@1.0",
         "libhidlbase",
         "libhidltransport",
         "libhwbinder",

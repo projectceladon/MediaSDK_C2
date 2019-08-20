@@ -15,7 +15,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include <codec2/hidl/client.h>
 
 #define SERVICE_NAME "hardware.intel.media.c2@1.0-service"
-#define VINTF_NAME "hardware.google.media.c2"
+#define VINTF_NAME "android.hardware.media.c2"
 
 // C2 service needs some changes in root filesystem to be accessed with hwbinder.
 // Vendor interface for IComponentStore should be enabled.
@@ -44,7 +44,7 @@ private:
 
     static void StartC2Service()
     {
-        int result = std::system("LD_LIBRARY_PATH=./service:/system/lib/vndk-28 "
+        int result = std::system("LD_LIBRARY_PATH=./service:/system/lib/vndk-29 "
             "./service/" SERVICE_NAME " &");
         ASSERT_EQ(result, 0);
 
@@ -55,7 +55,7 @@ private:
     {
         file <<
         "    <hal format=\"hidl\">\n"
-        "        <name>hardware.google.media.c2</name>\n";
+        "        <name>" VINTF_NAME "</name>\n";
         if (full) file <<
         "        <transport>hwbinder</transport>\n";
         file <<
@@ -148,7 +148,7 @@ C2Client* C2Client::g_client = [] {
 } ();
 
 std::shared_ptr<android::Codec2Client> GetCodec2Client() {
-    return android::Codec2Client::CreateFromService("default", false);
+    return android::Codec2Client::CreateFromService("default");
 }
 
 TEST(MfxC2Service, Start)
