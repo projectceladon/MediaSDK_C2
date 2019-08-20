@@ -59,7 +59,7 @@ LOCAL_CFLAGS := $(MFX_C2_CFLAGS)
 LOCAL_LDFLAGS := $(MFX_C2_LDFLAGS)
 
 LOCAL_STATIC_LIBRARIES := libgtest libz
-LOCAL_SHARED_LIBRARIES := libdl liblog libcodec2_hidl_client
+LOCAL_SHARED_LIBRARIES := libdl liblog libcodec2_hidl_client@1.0 libcodec2_client libcodec2_vndk
 LOCAL_HEADER_LIBRARIES := $(MFX_C2_HEADER_LIBRARIES)
 
 LOCAL_MULTILIB := both

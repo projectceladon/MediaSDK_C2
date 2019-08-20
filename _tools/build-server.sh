@@ -31,27 +31,6 @@ fi
 source build/envsetup.sh
 lunch $target_platform
 
-internal_product=$(find device -maxdepth 4 -name $TARGET_PRODUCT.mk)
-if [ -z "${internal_product}" ]
-then
-    echo 'Invalid $TARGET_PRODUCT'
-    exit 1
-fi
-
-# patch device mk file with soong namespaces, no other way found to specify them
-if grep PRODUCT_SOONG_NAMESPACES ${internal_product} > /dev/null
-then
-    if [ -z "$build_c2_service" ]
-    then
-        sed -i '/PRODUCT_SOONG_NAMESPACES/d' ${internal_product}
-    fi
-else
-    if [ -n "$build_c2_service" ]
-    then
-        echo "PRODUCT_SOONG_NAMESPACES := hardware/google/av hardware/google/interfaces" >> ${internal_product}
-    fi
-fi
-
 # If out/ dir was cleaned then we need to directly make targets depended from other dirs at least once.
 # They cannot be built with mm from mdp_msdk-c2-plugins folder from scratch.
 make -j32 $make_options $components

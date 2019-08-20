@@ -55,7 +55,7 @@ static constexpr char kExtSeccompPolicyPath[] =
 // Create and register IComponentStore service.
 void RegisterC2Service()
 {
-    using namespace ::hardware::google::media::c2::V1_0;
+    using namespace ::android::hardware::media::c2::V1_0;
     android::sp<IComponentStore> store;
 
     ALOGD("Instantiating MFX IComponentStore service...");
