@@ -158,7 +158,8 @@ public:
     struct CoreIndex {
     //public:
         enum : uint32_t {
-            IS_FLEX_FLAG = 0x00010000,
+            IS_FLEX_FLAG    = 0x00010000,
+            IS_REQUEST_FLAG = 0x00020000,
         };
 
     protected:
@@ -176,8 +177,8 @@ public:
             DIR_OUTPUT     = 0x10000000,
 
             IS_STREAM_FLAG  = 0x02000000,
-            STREAM_ID_MASK  = 0x01FE0000,
-            STREAM_ID_SHIFT = 17,
+            STREAM_ID_MASK  = 0x01F00000,
+            STREAM_ID_SHIFT = 20,
             MAX_STREAM_ID   = STREAM_ID_MASK >> STREAM_ID_SHIFT,
             STREAM_MASK     = IS_STREAM_FLAG | STREAM_ID_MASK,
 
@@ -360,6 +361,10 @@ public:
             mIndex = (mIndex & ~(DIR_MASK | IS_STREAM_FLAG)) | DIR_GLOBAL;
         }
 
+        inline void convertToRequest() {
+            mIndex = mIndex | IS_REQUEST_FLAG;
+        }
+
         /**
          * Sets the stream index.
          * \return true on success, false if could not set index (e.g. not a stream param).
@@ -472,6 +477,15 @@ public:
         std::unique_ptr<C2Param> copy = Copy(orig);
         if (copy) {
             copy->_mIndex.convertToGlobal();
+        }
+        return copy;
+    }
+
+    /// Returns managed clone of |orig| as a stream parameter at heap.
+    inline static std::unique_ptr<C2Param> CopyAsRequest(const C2Param &orig) {
+        std::unique_ptr<C2Param> copy = Copy(orig);
+        if (copy) {
+            copy->_mIndex.convertToRequest();
         }
         return copy;
     }
@@ -1011,15 +1025,6 @@ public:
           _mName(name),
           _mNamedValues(_NamedValuesGetter<B>::getNamedValues()),
           _mFieldId(offset) {}
-
-/*
-    template<typename T, typename B=typename std::remove_extent<T>::type>
-    inline C2FieldDescriptor<T, B, false>(T* offset, const char *name)
-        : _mType(this->GetType((B*)nullptr)),
-          _mExtent(std::is_array<T>::value ? std::extent<T>::value : 1),
-          _mName(name),
-          _mFieldId(offset) {}
-*/
 
     /// \deprecated
     template<typename T, typename S, class B=typename std::remove_extent<T>::type>
