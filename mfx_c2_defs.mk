@@ -83,7 +83,7 @@ MFX_C2_INCLUDES := \
   $(MFX_C2_HOME)/codec2/vndk/include \
   $(MFX_C2_HOME)/codec2/vndk/include/util
 
-MFX_C2_SHARED_LIBS := libstagefright_codec2_vndk_mfx
+MFX_C2_SHARED_LIBS := libcodec2_vndk_mfx
 
 ifeq ($(BOARD_USES_GRALLOC1),true)
   MFX_C2_INCLUDES += $(INTEL_MINIGBM)/cros_gralloc

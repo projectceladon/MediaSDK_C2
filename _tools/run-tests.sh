@@ -58,7 +58,7 @@ libs=\
 libmfx_mock_c2_components.so,\
 libmfx_c2_components_hw.so,\
 libmfxhw${bitness}.so,\
-libstagefright_codec2_vndk_mfx.so
+libcodec2_vndk_mfx.so
 
 execs=\
 mfx_c2_store_unittests,\
@@ -91,22 +91,20 @@ update ${remote_output}vendor/\{$remote_lib/\{$libs\},bin/\{$execs\}$bitness\} $
 
 service=hardware.intel.media.c2@1.0-service
 
-service_system_libs="\
-libstagefright_bufferpool_mfx@1.0.so,\
-android.hardware.media.c2@1.0.so"
+service_system_lib="android.hardware.media.c2@1.0.so"
 
 if ssh $remote_server "test -e ${remote_output}vendor/bin/hw/${service}"
 then
     update ${remote_output}vendor/bin/hw/${service} ${local_dir}/service
 
-    update ${remote_output}system/lib/\{$service_system_libs\} ${local_dir}/service
+    update ${remote_output}system/lib/$service_system_lib ${local_dir}/service
 
     service_libs="\
 libmfx_mock_c2_components.so,\
 libmfx_c2_components_hw.so,\
 libcodec2_hidl@1.0.so,\
 libmfxhw32.so,\
-libstagefright_codec2_vndk_mfx.so"
+libcodec2_vndk_mfx.so"
 
     update ${remote_output}vendor/lib/\{$service_libs\} ${local_dir}/service
 
@@ -114,7 +112,7 @@ libstagefright_codec2_vndk_mfx.so"
     update $remote_output/system/bin/${system_exec}${bitness} ${local_dir}
 fi
 
-system_libs="libcodec2_hidl_client@1.0.so,$service_system_libs"
+system_libs="libcodec2_hidl_client@1.0.so,$service_system_lib"
 
 update ${remote_output}system/$remote_lib/\{$system_libs\} ${local_dir}
 

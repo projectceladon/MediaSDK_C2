@@ -57,7 +57,7 @@ cc_binary_c2_service {
         "libhidltransport",
         "libhwbinder",
         "liblog",
-        "libstagefright_codec2_vndk_mfx",
+        "libcodec2_vndk_mfx",
         "libstagefright_omx",
         "libstagefright_xmlparser",
         "libutils",
