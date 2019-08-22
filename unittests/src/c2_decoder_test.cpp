@@ -36,13 +36,13 @@ const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 static std::vector<C2ParamDescriptor> dec_params_desc =
 {
     { false, "MemoryType", C2MemoryTypeSetting::PARAM_TYPE },
-    { false, C2_NAME_INPUT_STREAM_FORMAT_SETTING, C2StreamFormatConfig::input::PARAM_TYPE },
-    { false, C2_NAME_OUTPUT_STREAM_FORMAT_SETTING, C2StreamFormatConfig::output::PARAM_TYPE },
+    { false, C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE, C2StreamBufferTypeSetting::input::PARAM_TYPE },
+    { false, C2_PARAMKEY_OUTPUT_STREAM_BUFFER_TYPE, C2StreamBufferTypeSetting::output::PARAM_TYPE },
     { false, C2_PARAMKEY_COMPONENT_DOMAIN, C2ComponentDomainSetting::PARAM_TYPE },
     { false, C2_PARAMKEY_COMPONENT_KIND, C2ComponentKindSetting::PARAM_TYPE },
     { false, C2_PARAMKEY_PICTURE_SIZE, C2StreamPictureSizeInfo::output::PARAM_TYPE },
     { false, C2_PARAMKEY_CROP_RECT, C2StreamCropRectInfo::output::PARAM_TYPE },
-    { false, C2_PARAMKEY_STREAM_PROFILE_LEVEL, C2StreamProfileLevelInfo::input::PARAM_TYPE },
+    { false, C2_PARAMKEY_PROFILE_LEVEL, C2StreamProfileLevelInfo::input::PARAM_TYPE },
 };
 
 struct TestValuesQuery {
@@ -1356,8 +1356,8 @@ static C2ParamValues GetConstParamValues()
 
     const_values.Append(new C2ComponentDomainSetting(C2Component::DOMAIN_VIDEO));
     const_values.Append(new C2ComponentKindSetting(C2Component::KIND_DECODER));
-    const_values.Append(new C2StreamFormatConfig::input(0/*stream*/, C2FormatCompressed));
-    const_values.Append(new C2StreamFormatConfig::output(0/*stream*/, C2FormatVideo));
+    const_values.Append(new C2StreamBufferTypeSetting::input(0/*stream*/, C2BufferData::LINEAR));
+    const_values.Append(new C2StreamBufferTypeSetting::output(0/*stream*/, C2BufferData::GRAPHIC));
     return const_values;
 }
 

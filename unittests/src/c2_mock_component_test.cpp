@@ -159,7 +159,7 @@ static std::unique_ptr<C2ConstLinearBlock> CreateFilledLinearBlock(
 static void PrepareWork(uint32_t frame_index,
     std::shared_ptr<const C2Component> component,
     std::unique_ptr<C2Work>* work,
-    C2BufferData::Type buffer_type, uint64_t consumer_memory_type)
+    C2BufferData::type_t buffer_type, uint64_t consumer_memory_type)
 {
     *work = std::make_unique<C2Work>();
     C2FrameData* buffer_pack = &((*work)->input);
@@ -233,7 +233,7 @@ static void CheckFilledBuffer(const uint8_t* raw, int expected_item)
 class MockOutputValidator : public C2Component::Listener
 {
 public:
-    MockOutputValidator(C2BufferData::Type output_type)
+    MockOutputValidator(C2BufferData::type_t output_type)
         : output_type_(output_type)
     {
     }
@@ -340,7 +340,7 @@ protected:
 public:
     std::mutex expectations_mutex_;
     uint64_t frame_expected_ = 0; // frame index is next to come
-    C2BufferData::Type output_type_;
+    C2BufferData::type_t output_type_;
     std::promise<void> done_; // fire when all expected frames came
 };
 
