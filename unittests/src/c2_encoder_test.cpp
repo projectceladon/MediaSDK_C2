@@ -54,11 +54,11 @@ std::vector<C2ParamDescriptor> DefaultC2Params()
         { false, "MemoryType", C2MemoryTypeSetting::PARAM_TYPE },
         { false, C2_PARAMKEY_COMPONENT_DOMAIN, C2ComponentDomainSetting::PARAM_TYPE },
         { false, C2_PARAMKEY_COMPONENT_KIND, C2ComponentKindSetting::PARAM_TYPE },
-        { false, C2_NAME_INPUT_STREAM_FORMAT_SETTING, C2StreamFormatConfig::input::PARAM_TYPE },
-        { false, C2_NAME_OUTPUT_STREAM_FORMAT_SETTING, C2StreamFormatConfig::output::PARAM_TYPE },
-        { false, C2_NAME_INPUT_PORT_MIME_SETTING, C2PortMimeConfig::input::PARAM_TYPE },
-        { false, C2_NAME_OUTPUT_PORT_MIME_SETTING, C2PortMimeConfig::output::PARAM_TYPE },
-        { false, C2_NAME_STREAM_VIDEO_SIZE_SETTING, C2VideoSizeStreamTuning::input::PARAM_TYPE },
+        { false, C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE, C2StreamBufferTypeSetting::input::PARAM_TYPE },
+        { false, C2_PARAMKEY_OUTPUT_STREAM_BUFFER_TYPE, C2StreamBufferTypeSetting::output::PARAM_TYPE },
+        { false, C2_PARAMKEY_INPUT_MEDIA_TYPE, C2PortMediaTypeSetting::input::PARAM_TYPE },
+        { false, C2_PARAMKEY_OUTPUT_MEDIA_TYPE, C2PortMediaTypeSetting::output::PARAM_TYPE },
+        { false, C2_PARAMKEY_PICTURE_SIZE, C2StreamPictureSizeInfo::input::PARAM_TYPE },
     };
     return param;
 }
@@ -1082,7 +1082,7 @@ TEST_P(Encoder, IntraRefresh)
                             buffer->getInfo(C2StreamPictureTypeMaskInfo::output::PARAM_TYPE);
                         if (info) {
                             C2StreamPictureTypeMaskInfo::output* frame_type = (C2StreamPictureTypeMaskInfo::output*)info.get();
-                            if ((frame_type->value & C2PictureTypeKeyFrame) != 0) {
+                            if ((frame_type->value & C2Config::SYNC_FRAME) != 0) {
                                 key_frame_found = true;
                             }
                         }
@@ -1469,9 +1469,9 @@ static std::vector<char> ExtractHeader(std::vector<char>&& bitstream, uint32_t f
     return res;
 }
 
-// Tests that header (sps + pps) is supplied with C2StreamCsdInfo::output
+// Tests that header (sps + pps) is supplied with C2StreamInitDataInfo::output
 // through C2Worklet::output::configUpdate.
-// Checks if C2StreamCsdInfo::output contents is the same as sps + pps from encoded stream.
+// Checks if C2StreamInitDataInfo::output contents is the same as sps + pps from encoded stream.
 TEST_P(Encoder, EncodeHeaderSupplied)
 {
     CallComponentTest<ComponentDesc>(GetParam(),
@@ -1486,12 +1486,12 @@ TEST_P(Encoder, EncodeHeaderSupplied)
 
             const auto& update = worklet.output.configUpdate;
             const auto& it = std::find_if(update.begin(), update.end(), [](const auto& p) {
-                return p->type() == C2Param::Type(C2StreamCsdInfo::output::PARAM_TYPE);
+                return p->type() == C2Param::Type(C2StreamInitDataInfo::output::PARAM_TYPE);
             });
 
             if (it != update.end() && *it) {
 
-                const C2StreamCsdInfo::output* csd_info = (const C2StreamCsdInfo::output*)it->get();
+                const C2StreamInitDataInfo::output* csd_info = (const C2StreamInitDataInfo::output*)it->get();
 
                 ++header_update_count;
 
@@ -1517,7 +1517,7 @@ TEST_P(Encoder, EncodeHeaderSupplied)
 }
 
 // Tests that output resolution is provided through
-// C2VideoSizeStreamTuning::input parameter.
+// C2StreamPictureSizeInfo::input parameter.
 // Compares the parameter value with actual input stream resolution.
 TEST_P(Encoder, EncodeResolutionInfo)
 {
@@ -1529,8 +1529,8 @@ TEST_P(Encoder, EncodeResolutionInfo)
         EncoderConsumer::OnFrame on_frame =
             [&] (const C2Worklet&, const uint8_t*, size_t) {
 
-            std::unique_ptr<C2VideoSizeStreamTuning::input> resolution_param =
-                std::make_unique<C2VideoSizeStreamTuning::input>(0/*stream id*/);
+            std::unique_ptr<C2StreamPictureSizeInfo::input> resolution_param =
+                std::make_unique<C2StreamPictureSizeInfo::input>(0/*stream id*/);
 
             c2_status_t sts = comp_intf->query_vb({resolution_param.get()},
                 {}, C2_MAY_BLOCK, nullptr);
@@ -1553,10 +1553,10 @@ static C2ParamValues GetConstParamValues()
 
     const_values.Append(new C2ComponentDomainSetting(C2Component::DOMAIN_VIDEO));
     const_values.Append(new C2ComponentKindSetting(C2Component::KIND_ENCODER));
-    const_values.Append(new C2StreamFormatConfig::input(0/*stream*/, C2FormatVideo));
-    const_values.Append(new C2StreamFormatConfig::output(0/*stream*/, C2FormatCompressed));
-    const_values.AppendFlex(AllocUniqueString<C2PortMimeConfig::input>("video/raw"));
-    const_values.AppendFlex(AllocUniqueString<C2PortMimeConfig::output>("video/avc"));
+    const_values.Append(new C2StreamBufferTypeSetting::input(0/*stream*/, C2BufferData::GRAPHIC));
+    const_values.Append(new C2StreamBufferTypeSetting::output(0/*stream*/, C2BufferData::LINEAR));
+    const_values.AppendFlex(AllocUniqueString<C2PortMediaTypeSetting::input>("video/raw"));
+    const_values.AppendFlex(AllocUniqueString<C2PortMediaTypeSetting::output>("video/avc"));
     return const_values;
 }
 

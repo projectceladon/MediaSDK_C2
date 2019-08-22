@@ -95,19 +95,19 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
                 std::make_unique<C2ComponentKindSetting>(C2Component::KIND_ENCODER));
 
             const unsigned int SINGLE_STREAM_ID = 0u;
-            pr.AddConstValue(C2_NAME_INPUT_STREAM_FORMAT_SETTING,
-                std::make_unique<C2StreamFormatConfig::input>(SINGLE_STREAM_ID, C2FormatVideo));
-            pr.AddConstValue(C2_NAME_OUTPUT_STREAM_FORMAT_SETTING,
-                std::make_unique<C2StreamFormatConfig::output>(SINGLE_STREAM_ID, C2FormatCompressed));
+            pr.AddConstValue(C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE,
+                std::make_unique<C2StreamBufferTypeSetting::input>(SINGLE_STREAM_ID, C2BufferData::GRAPHIC));
+            pr.AddConstValue(C2_PARAMKEY_OUTPUT_STREAM_BUFFER_TYPE,
+                std::make_unique<C2StreamBufferTypeSetting::output>(SINGLE_STREAM_ID, C2BufferData::LINEAR));
 
-            pr.AddConstValue(C2_NAME_INPUT_PORT_MIME_SETTING,
-                AllocUniqueString<C2PortMimeConfig::input>("video/raw"));
-            pr.AddConstValue(C2_NAME_OUTPUT_PORT_MIME_SETTING,
-                AllocUniqueString<C2PortMimeConfig::output>("video/avc"));
+            pr.AddConstValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
+                AllocUniqueString<C2PortMediaTypeSetting::input>("video/raw"));
+            pr.AddConstValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
+                AllocUniqueString<C2PortMediaTypeSetting::output>("video/avc"));
 
-            pr.AddStreamInfo<C2VideoSizeStreamTuning::input>(
-                C2_NAME_STREAM_VIDEO_SIZE_SETTING, SINGLE_STREAM_ID,
-                [this] (C2VideoSizeStreamTuning::input* dst)->bool {
+            pr.AddStreamInfo<C2StreamPictureSizeInfo::input>(
+                C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
+                [this] (C2StreamPictureSizeInfo::input* dst)->bool {
                     MFX_DEBUG_TRACE("AssignPictureSize");
                     dst->width = video_params_config_.mfx.FrameInfo.Width;
                     dst->height = video_params_config_.mfx.FrameInfo.Height;
@@ -696,7 +696,7 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
                 mfx_bitstream->DataLength, event.fence());
             C2Buffer out_buffer = MakeC2Buffer( { const_linear } );
             if ((mfx_bitstream->FrameType & MFX_FRAMETYPE_IDR) != 0) {
-                out_buffer.setInfo(std::make_shared<C2StreamPictureTypeMaskInfo::output>(0u/*stream id*/, C2PictureTypeKeyFrame));
+                out_buffer.setInfo(std::make_shared<C2StreamPictureTypeMaskInfo::output>(0u/*stream id*/, C2Config::SYNC_FRAME));
             }
 
             std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
@@ -725,8 +725,8 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
 
                     const int header_size = spspps.SPSBufSize + spspps.PPSBufSize;
 
-                    std::unique_ptr<C2StreamCsdInfo::output> csd =
-                        C2StreamCsdInfo::output::AllocUnique(header_size, 0u);
+                    std::unique_ptr<C2StreamInitDataInfo::output> csd =
+                        C2StreamInitDataInfo::output::AllocUnique(header_size, 0u);
 
                     MFX_DEBUG_TRACE_STREAM("SPS: " << FormatHex(spspps.SPSBuffer, spspps.SPSBufSize));
                     MFX_DEBUG_TRACE_STREAM("PPS: " << FormatHex(spspps.PPSBuffer, spspps.PPSBufSize));

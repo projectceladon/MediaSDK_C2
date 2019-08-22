@@ -45,10 +45,10 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         std::make_unique<C2ComponentKindSetting>(C2Component::KIND_DECODER));
 
     const unsigned int SINGLE_STREAM_ID = 0u;
-    pr.AddConstValue(C2_NAME_INPUT_STREAM_FORMAT_SETTING,
-        std::make_unique<C2StreamFormatConfig::input>(SINGLE_STREAM_ID, C2FormatCompressed));
-    pr.AddConstValue(C2_NAME_OUTPUT_STREAM_FORMAT_SETTING,
-        std::make_unique<C2StreamFormatConfig::output>(SINGLE_STREAM_ID, C2FormatVideo));
+    pr.AddConstValue(C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE,
+        std::make_unique<C2StreamBufferTypeSetting::input>(SINGLE_STREAM_ID, C2BufferData::LINEAR));
+    pr.AddConstValue(C2_PARAMKEY_OUTPUT_STREAM_BUFFER_TYPE,
+        std::make_unique<C2StreamBufferTypeSetting::output>(SINGLE_STREAM_ID, C2BufferData::GRAPHIC));
 
     pr.AddStreamInfo<C2StreamPictureSizeInfo::output>(
         C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
@@ -158,7 +158,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             break;
     }
 
-    pr.RegisterParam<C2StreamProfileLevelInfo::input>(C2_PARAMKEY_STREAM_PROFILE_LEVEL);
+    pr.RegisterParam<C2StreamProfileLevelInfo::input>(C2_PARAMKEY_PROFILE_LEVEL);
     pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::profile, supported_profiles);
     pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::level, supported_levels);
 
