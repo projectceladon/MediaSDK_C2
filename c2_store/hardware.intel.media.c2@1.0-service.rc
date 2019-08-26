@@ -1,7 +1,7 @@
 service hardware-intel-media-c2-hal-1-0 /vendor/bin/hw/hardware.intel.media.c2@1.0-service
     class hal
-    user mediacodec
-    group camera mediadrm drmrpc
+    user root
+    group root camera mediadrm drmrpc
     ioprio rt 4
     writepid /dev/cpuset/foreground/tasks
-
+    seclabel u:r:su:s0
