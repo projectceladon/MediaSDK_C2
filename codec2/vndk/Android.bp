@@ -1,7 +1,7 @@
 // !!!DO NOT DEPEND ON THIS SHARED LIBRARY DIRECTLY!!!
-// use libstagefright_codec2-impl-defaults instead
+// use libcodec2-impl-defaults instead
 cc_library_shared {
-    name: "libstagefright_codec2_vndk_mfx",
+    name: "libcodec2_vndk_mfx",
     vendor_available: true,
 
     srcs: [
@@ -12,6 +12,7 @@ cc_library_shared {
         "C2PlatformStorePluginLoader.cpp",
         "C2Store.cpp",
         "platform/C2BqBuffer.cpp",
+        "types.cpp",
         "util/C2Debug.cpp",
         "util/C2InterfaceHelper.cpp",
         "util/C2InterfaceUtils.cpp",
@@ -24,7 +25,7 @@ cc_library_shared {
 
     export_shared_lib_headers: [
         "libbase",
-        "android.hardware.media.bufferpool@1.0",
+        "android.hardware.media.bufferpool@2.0",
     ],
 
     local_include_dirs: [
@@ -32,17 +33,17 @@ cc_library_shared {
     ],
 
     header_libs: [
-        "libgui_headers",
-        "codec2_headers",
         "media_plugin_headers",
+        "libcodec2_headers",
     ],
 
     shared_libs: [
         "android.hardware.graphics.allocator@2.0",
-        "android.hardware.graphics.bufferqueue@1.0",
+        "android.hardware.graphics.allocator@3.0",
+        "android.hardware.graphics.bufferqueue@2.0",
         "android.hardware.graphics.mapper@2.0",
-        "android.hardware.media.bufferpool@1.0",
-        "android.hidl.token@1.0-utils",
+        "android.hardware.graphics.mapper@3.0",
+        "android.hardware.media.bufferpool@2.0",
         "libbase",
         "libbinder",
         "libcutils",
@@ -52,12 +53,11 @@ cc_library_shared {
         "libion",
         "libfmq",
         "liblog",
-        "libstagefright_bufferqueue_helper",
+        "libnativewindow",
         "libstagefright_foundation",
-        "libstagefright_bufferpool_mfx@1.0",
+        "libstagefright_bufferpool@2.0",
         "libui",
         "libutils",
-        "libEGL"
     ],
 
     whole_static_libs: [
@@ -68,31 +68,4 @@ cc_library_shared {
         "-Werror",
         "-Wall",
     ],
-}
-
-// public dependency for implementing Codec 2 components
-cc_defaults {
-    name: "libstagefright_codec2-impl-defaults",
-
-    shared_libs: [
-        "libbase", // for C2_LOG
-        "libcodec2",
-        "liblog", // for ALOG
-        "libstagefright_codec2_vndk",
-        "libutils",
-        "libgui"
-    ],
-}
-
-// public dependency for implementing Codec 2 framework utilities
-// THIS IS ONLY FOR FRAMEWORK USE ONLY
-cc_defaults {
-    name: "libstagefright_codec2-internal-defaults",
-    defaults: ["libstagefright_codec2-impl-defaults"],
-
-    shared_libs: [
-        "libcutils", // for properties
-    ],
-
-    // TODO: separate internal headers so they can be exposed here
 }
