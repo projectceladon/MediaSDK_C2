@@ -278,9 +278,11 @@ public:
     typedef std::function<void(const C2Worklet& worklet, const uint8_t* data, size_t length)> OnFrame;
 
 public:
-    EncoderConsumer(OnFrame on_frame, uint64_t frame_count = FRAME_COUNT)
+    EncoderConsumer(OnFrame on_frame, uint64_t frame_count = FRAME_COUNT,
+            std::vector<uint64_t>&& empty_frame_indices = {})
         :on_frame_(on_frame)
         ,frame_count_(frame_count)
+        ,empty_frame_indices_(std::move(empty_frame_indices))
         ,frame_expected_(0)
     {
     }
@@ -321,24 +323,32 @@ protected:
                 ++frame_expected_;
             }
 
-            std::unique_ptr<C2ConstLinearBlock> linear_block;
-            c2_status_t sts = GetC2ConstLinearBlock(buffer_pack, &linear_block);
-            EXPECT_EQ(sts, C2_OK);
+            auto empty_frame_found = std::find(empty_frame_indices_.begin(), empty_frame_indices_.end(), frame_index);
+            bool expected_empty = empty_frame_found != empty_frame_indices_.end();
 
-            if(nullptr != linear_block) {
+            EXPECT_EQ(buffer_pack.buffers.size() == 0, expected_empty) << NAMED(frame_index);
 
-                std::unique_ptr<C2ReadView> read_view;
-                sts = MapConstLinearBlock(*linear_block, TIMEOUT_NS, &read_view);
-                EXPECT_EQ(sts, C2_OK);
-                EXPECT_NE(read_view, nullptr);
+            if (buffer_pack.buffers.size() != 0) {
 
-                if (nullptr != read_view) {
-                    const uint8_t* raw  = read_view->data();
-                    EXPECT_NE(raw, nullptr);
-                    EXPECT_NE(linear_block->size(), 0u);
+                std::unique_ptr<C2ConstLinearBlock> linear_block;
+                c2_status_t sts = GetC2ConstLinearBlock(buffer_pack, &linear_block);
+                EXPECT_EQ(sts, C2_OK) << frame_index;
 
-                    if(nullptr != raw) {
-                        on_frame_(*worklet, raw + linear_block->offset(), linear_block->size());
+                if(nullptr != linear_block) {
+
+                    std::unique_ptr<C2ReadView> read_view;
+                    sts = MapConstLinearBlock(*linear_block, TIMEOUT_NS, &read_view);
+                    EXPECT_EQ(sts, C2_OK);
+                    EXPECT_NE(read_view, nullptr);
+
+                    if (nullptr != read_view) {
+                        const uint8_t* raw  = read_view->data();
+                        EXPECT_NE(raw, nullptr);
+                        EXPECT_NE(linear_block->size(), 0u);
+
+                        if(nullptr != raw) {
+                            on_frame_(*worklet, raw + linear_block->offset(), linear_block->size());
+                        }
                     }
                 }
             }
@@ -372,6 +382,7 @@ private:
     OnFrame on_frame_;
     std::mutex expectations_mutex_;
     uint64_t frame_count_; // total frame count expected
+    std::vector<uint64_t> empty_frame_indices_;
     uint64_t frame_expected_; // frame index is next to come
     std::promise<void> done_; // fire when all expected frames came
 };
@@ -513,10 +524,16 @@ TEST_P(Encoder, EncodeSeparateEOS)
                 binary->PushBack(data, length);
             };
 
-            std::shared_ptr<EncoderConsumer> validator =
-                std::make_shared<EncoderConsumer>(on_frame);
+            const uint64_t frame_count = separate_eos ? FRAME_COUNT + 1 : FRAME_COUNT;
+            std::vector<uint64_t> expected_empty_frames;
+            if (separate_eos) {
+                expected_empty_frames.push_back(FRAME_COUNT); // last frame
+            }
 
-            Encode(separate_eos ? FRAME_COUNT + 1 : FRAME_COUNT,
+            std::shared_ptr<EncoderConsumer> validator =
+                std::make_shared<EncoderConsumer>(on_frame, frame_count, std::move(expected_empty_frames));
+
+            Encode(frame_count,
                 false/*graphics_mem*/, comp, validator, { &stripe_generator },
                 before_queue_work);
         }
