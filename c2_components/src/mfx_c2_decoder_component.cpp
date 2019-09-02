@@ -674,6 +674,16 @@ mfxStatus MfxC2DecoderComponent::DecodeFrameAsync(
     const int MAX_TRYING_COUNT = 200;
     const auto timeout = std::chrono::milliseconds(5);
 
+    {
+        // Prevent msdk decoder from overfeeding.
+        // It may result in all allocated surfaces become locked, nothing to supply as surface_work
+        // to DecodeFrameAsync.
+        std::unique_lock<std::mutex> lock(dev_busy_mutex_);
+        dev_busy_cond_.wait(lock, [this] { return synced_points_count_ < video_params_.AsyncDepth; } );
+        // Can release the lock here as synced_points_count_ is incremented in this thread,
+        // so condition cannot go to false.
+    }
+
     do {
       mfx_res = decoder_->DecodeFrameAsync(bs, surface_work, surface_out, syncp);
       ++trying_count;
@@ -692,7 +702,12 @@ mfxStatus MfxC2DecoderComponent::DecodeFrameAsync(
         }
 
         std::unique_lock<std::mutex> lock(dev_busy_mutex_);
-        dev_busy_cond_.wait_for(lock, timeout, [this] { return synced_points_count_ < video_params_.AsyncDepth; } );
+        unsigned int synced_points_count = synced_points_count_;
+        // wait for change of synced_points_count_
+        // that might help with MFX_WRN_DEVICE_BUSY
+        dev_busy_cond_.wait_for(lock, timeout, [this, synced_points_count] {
+            return synced_points_count_ < synced_points_count;
+        } );
         if (flushing_) { // do check flushing again after timeout to not call DecodeFrameAsync once more
             break;
         }
