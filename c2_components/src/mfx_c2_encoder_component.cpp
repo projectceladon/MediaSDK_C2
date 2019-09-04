@@ -652,6 +652,18 @@ void MfxC2EncoderComponent::Drain(std::unique_ptr<C2Work>&& work)
     }
 }
 
+void MfxC2EncoderComponent::ReturnEmptyWork(std::unique_ptr<C2Work>&& work)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    if (work->worklets.size() > 0) {
+        std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
+        worklet->output.flags = work->input.flags;
+        worklet->output.ordinal = work->input.ordinal;
+    }
+    NotifyWorkDone(std::move(work), C2_OK);
+}
+
 void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
     std::unique_ptr<mfxEncodeCtrl>&& encode_ctrl,
     MfxC2BitstreamOut&& bit_stream, mfxSyncPoint sync_point)
@@ -1236,23 +1248,23 @@ c2_status_t MfxC2EncoderComponent::Queue(std::list<std::unique_ptr<C2Work>>* con
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    for(auto& item : *items) {
+    for(auto& work : *items) {
 
-        bool eos = (item->input.flags & C2FrameData::FLAG_END_OF_STREAM);
-        bool empty = (item->input.buffers.size() == 0);
+        bool eos = (work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
+        bool empty = (work->input.buffers.size() == 0);
         MFX_DEBUG_TRACE_STREAM(NAMED(eos) << NAMED(empty));
 
         if (empty) {
             if (eos) {
-                working_queue_.Push( [work = std::move(item), this] () mutable {
+                working_queue_.Push( [work = std::move(work), this] () mutable {
                     Drain(std::move(work));
                 });
             } else {
-                MFX_DEBUG_TRACE_MSG("Empty work without EOS flag, error reported.");
-                NotifyWorkDone(std::move(item), C2_BAD_VALUE);
+                MFX_DEBUG_TRACE_MSG("Empty work without EOS flag, return back.");
+                ReturnEmptyWork(std::move(work));
             }
         } else {
-            working_queue_.Push( [ work = std::move(item), this ] () mutable {
+            working_queue_.Push( [ work = std::move(work), this ] () mutable {
                 DoWork(std::move(work));
             } );
 
