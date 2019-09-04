@@ -8,6 +8,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 #include <C2.h>
+#include <C2Component.h>
 #include <fstream>
 
 #include "mfx_c2_defs.h"
@@ -18,16 +19,17 @@ struct ComponentDesc
 {
     const char* component_name;
     const char* media_type;
+    C2Component::kind_t kind;
     const char* module_name;
     int flags;
     c2_status_t creation_status;
 };
 
 ComponentDesc g_components[] = {
-    { "c2.intel.mock.encoder", "video/mock", "libmfx_mock_c2_components.so", 0, C2_OK },
-    { "c2.intel.avc.decoder", "video/avc", "libmfx_c2_components_hw.so", 0, C2_OK },
-    { "c2.intel.avc.encoder", "video/avc", "libmfx_c2_components_hw.so", 0, C2_OK },
-    { "c2.intel.missing.encoder", "video/missed", "libmfx_mock_c2_components.so", 0, C2_NOT_FOUND },
+    { "c2.intel.mock.encoder", "video/mock", KIND_ENCODER, "libmfx_mock_c2_components.so", 0, C2_OK },
+    { "c2.intel.avc.decoder", "video/avc", KIND_DECODER, "libmfx_c2_components_hw.so", 0, C2_OK },
+    { "c2.intel.avc.encoder", "video/avc", KIND_ENCODER, "libmfx_c2_components_hw.so", 0, C2_OK },
+    { "c2.intel.missing.encoder", "video/missed", KIND_ENCODER, "libmfx_mock_c2_components.so", 0, C2_NOT_FOUND },
 };
 
 #define RESET_LD_LIBRARY_PATH "LD_LIBRARY_PATH= "

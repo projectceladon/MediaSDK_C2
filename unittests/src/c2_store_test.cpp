@@ -80,15 +80,16 @@ TEST(MfxComponentStore, getComponents)
 
     EXPECT_EQ(components.size(), MFX_GET_ARRAY_SIZE(g_components));
 
-    for(size_t i = 0; i < components.size(); i++) {
-        std::string actual_name = components[i]->name;
-        std::string actual_media_type = components[i]->mediaType;
+    for (const auto& actual_comp : components) {
 
         bool found = false;
-        for(const auto& component : g_components) {
-            if(actual_name == component.component_name) {
-                EXPECT_NE(actual_media_type, "");
-                EXPECT_EQ(actual_media_type, component.media_type);
+        for (const auto& expected_comp : g_components) {
+            if (actual_comp->name == expected_comp.component_name) {
+                EXPECT_NE(actual_comp->mediaType, "");
+                EXPECT_EQ(actual_comp->mediaType, expected_comp.media_type);
+                EXPECT_EQ(actual_comp->domain, DOMAIN_VIDEO);
+                EXPECT_EQ(actual_comp->kind, expected_comp.kind);
+
                 found = true;
                 break;
             }
