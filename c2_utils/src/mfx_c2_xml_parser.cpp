@@ -59,6 +59,17 @@ C2String MfxXmlParser::getMediaType(const char* name) {
     return codec->second.typeMap.begin()->first;
 }
 
+C2Component::kind_t MfxXmlParser::getKind(const char *name) {
+    MFX_DEBUG_TRACE_FUNC;
+
+    auto codec = codec_map_.find(name);
+    if (codec == codec_map_.end()) {
+        MFX_DEBUG_TRACE_STREAM("codec " << name << "wasn't found");
+        return KIND_OTHER;
+    }
+    return codec->second.isEncoder ? KIND_ENCODER : KIND_DECODER;
+}
+
 bool MfxXmlParser::dumpOutputEnabled(const char *name) {
 
     MFX_DEBUG_TRACE_FUNC;

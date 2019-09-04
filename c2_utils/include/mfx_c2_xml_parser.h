@@ -36,6 +36,7 @@ public:
     MfxXmlParser();
     ~MfxXmlParser() {}
     c2_status_t parseConfig(const char *path);
+    C2Component::kind_t getKind(const char *name);
     C2String getMediaType(const char *name);
     bool dumpOutputEnabled(const char *name);
 
