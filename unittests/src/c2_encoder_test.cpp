@@ -278,13 +278,19 @@ public:
     typedef std::function<void(const C2Worklet& worklet, const uint8_t* data, size_t length)> OnFrame;
 
 public:
-    EncoderConsumer(OnFrame on_frame, uint64_t frame_count = FRAME_COUNT,
-            std::vector<uint64_t>&& empty_frame_indices = {})
-        :on_frame_(on_frame)
-        ,frame_count_(frame_count)
-        ,empty_frame_indices_(std::move(empty_frame_indices))
-        ,frame_expected_(0)
-    {
+    EncoderConsumer(
+        OnFrame on_frame,
+        uint64_t frame_count = FRAME_COUNT,
+        std::set<uint64_t>&& empty_frames = {}):
+
+        on_frame_(on_frame),
+        expected_empty_frames_(std::move(empty_frames))
+    {   // fill expected_filled_frames_ with those not in expected_empty_frames_
+        for (uint64_t i = 0; i < frame_count; ++i) {
+            if (expected_empty_frames_.find(i) == expected_empty_frames_.end()) {
+                expected_filled_frames_.push_back(i);
+            }
+        }
     }
 
     // future ready when validator got all expected frames
@@ -314,22 +320,16 @@ protected:
 
             EXPECT_EQ(buffer_pack.ordinal.timestamp, frame_index * FRAME_DURATION_US); // 30 fps
 
-            {
-                std::lock_guard<std::mutex> lock(expectations_mutex_);
-                EXPECT_EQ(frame_index < frame_count_, true)
-                    << "unexpected frame_index value" << frame_index;
-                EXPECT_EQ(frame_index, frame_expected_)
-                    << " frame " << frame_index << " is out of order";
-                ++frame_expected_;
-            }
-
-            auto empty_frame_found = std::find(empty_frame_indices_.begin(), empty_frame_indices_.end(), frame_index);
-            bool expected_empty = empty_frame_found != empty_frame_indices_.end();
-
-            EXPECT_EQ(buffer_pack.buffers.size() == 0, expected_empty) << NAMED(frame_index);
-
             if (buffer_pack.buffers.size() != 0) {
-
+                {
+                    std::lock_guard<std::mutex> lock(expectations_mutex_);
+                    // expect filled frame is first of expected filled frames - check their order
+                    if (!expected_filled_frames_.empty() && expected_filled_frames_.front() == frame_index) {
+                        expected_filled_frames_.pop_front();
+                    } else {
+                        ADD_FAILURE() << "unexpected filled: " << frame_index;
+                    }
+                }
                 std::unique_ptr<C2ConstLinearBlock> linear_block;
                 c2_status_t sts = GetC2ConstLinearBlock(buffer_pack, &linear_block);
                 EXPECT_EQ(sts, C2_OK) << frame_index;
@@ -351,12 +351,17 @@ protected:
                         }
                     }
                 }
+            } else {
+                std::lock_guard<std::mutex> lock(expectations_mutex_);
+                // check empty frame is just in expected set - no order checking
+                size_t erased_count = expected_empty_frames_.erase(frame_index);
+                EXPECT_EQ(erased_count, 1) << "unexpected empty: " << frame_index;
             }
         }
         {
             std::lock_guard<std::mutex> lock(expectations_mutex_);
             // if collected all expected frames
-            if(frame_expected_ >= frame_count_) {
+            if (expected_empty_frames_.size() == 0 && expected_filled_frames_.size() == 0) {
                 done_.set_value();
             }
         }
@@ -381,9 +386,9 @@ protected:
 private:
     OnFrame on_frame_;
     std::mutex expectations_mutex_;
-    uint64_t frame_count_; // total frame count expected
-    std::vector<uint64_t> empty_frame_indices_;
-    uint64_t frame_expected_; // frame index is next to come
+
+    std::list<uint64_t> expected_filled_frames_;
+    std::set<uint64_t> expected_empty_frames_;
     std::promise<void> done_; // fire when all expected frames came
 };
 
@@ -491,26 +496,27 @@ TEST_P(Encoder, EncodeBitExact)
     } );
 }
 
-// Encodes same stream twice: as usual and eos separated into empty work.
-// Compare the results.
-TEST_P(Encoder, EncodeSeparateEOS)
+// Encodes same stream with diffetent amounts of empty works at the end
+// 0 empty works - usual stream, last work eos flagged and contains a buffer
+// 1 - last work is empty and eos
+// 2 - extra empty work before eos flagged work
+// Test checks encoder handling empty works.
+// Results should be the same.
+TEST_P(Encoder, EncodeEmptyWorks)
 {
     CallComponentTest<ComponentDesc>(GetParam(),
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
-        BinaryChunks bitstream_original;
-        BinaryChunks bitstream_separate_eos;
+        std::vector<uint64_t> empty_works_count{0, 1, 2};
+        BinaryChunks bitstreams[empty_works_count.size()];
 
-        for (BinaryChunks* binary : {&bitstream_original, &bitstream_separate_eos}) {
-
-            bool separate_eos = (binary == &bitstream_separate_eos);
+        for (int i = 0; i < empty_works_count.size(); ++i) {
 
             GTestBinaryWriter writer(std::ostringstream()
-                << comp_intf->getName() << "-" <<
-                (separate_eos ? "original" : "separate-eos") << ".out");
+                << comp_intf->getName() << "-" << i << ".out");
 
             BeforeQueueWork before_queue_work = [&] (uint32_t frame_index, C2Work* work) {
-                if (separate_eos && frame_index == FRAME_COUNT) {
+                if (frame_index >= FRAME_COUNT) {
                     work->input.buffers.resize(0); // drop buffers from extra frame
                 }
             };
@@ -521,13 +527,13 @@ TEST_P(Encoder, EncodeSeparateEOS)
                 [&] (const C2Worklet&, const uint8_t* data, size_t length) {
 
                 writer.Write(data, length);
-                binary->PushBack(data, length);
+                bitstreams[i].PushBack(data, length);
             };
 
-            const uint64_t frame_count = separate_eos ? FRAME_COUNT + 1 : FRAME_COUNT;
-            std::vector<uint64_t> expected_empty_frames;
-            if (separate_eos) {
-                expected_empty_frames.push_back(FRAME_COUNT); // last frame
+            const uint64_t frame_count = FRAME_COUNT + empty_works_count[i];
+            std::set<uint64_t> expected_empty_frames;
+            for (int j = FRAME_COUNT; j < frame_count; ++j) {
+                expected_empty_frames.insert(j); // extra frames
             }
 
             std::shared_ptr<EncoderConsumer> validator =
@@ -536,8 +542,11 @@ TEST_P(Encoder, EncodeSeparateEOS)
             Encode(frame_count,
                 false/*graphics_mem*/, comp, validator, { &stripe_generator },
                 before_queue_work);
+
+            if (i > 0) {
+                EXPECT_EQ(bitstreams[0], bitstreams[i]);
+            }
         }
-        EXPECT_EQ(bitstream_original, bitstream_separate_eos);
     } );
 }
 
