@@ -7,7 +7,7 @@ then
     exit 1
 fi
 
-components="libmfx_c2_components_hw mfx_c2_store_unittests"
+components="libmfx_c2_components_hw mfx_c2_store_unittests hardware.intel.media.c2@1.0-service"
 
 case $mediasdk_source in
     open)
@@ -21,12 +21,6 @@ case $mediasdk_source in
         echo 'specify $mediasdk_source as "open" or "closed"'
         exit 1
 esac
-
-if [ -n "$build_c2_service" ]
-then
-    components="$components hardware.intel.media.c2@1.0-service"
-    make_options="$make_options BUILD_C2_SERVICE=true"
-fi
 
 source build/envsetup.sh
 lunch $target_platform
