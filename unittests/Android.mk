@@ -37,8 +37,6 @@ include $(BUILD_EXECUTABLE)
 
 # =============================================================================
 
-ifeq ($(BUILD_C2_SERVICE),true)
-
 include $(CLEAR_VARS)
 include $(MFX_C2_HOME)/mfx_c2_defs.mk
 
@@ -69,8 +67,6 @@ LOCAL_MODULE_STEM_32 := mfx_c2_service_unittests32
 LOCAL_MODULE_STEM_64 := mfx_c2_service_unittests64
 
 include $(BUILD_EXECUTABLE)
-
-endif
 
 # =============================================================================
 
