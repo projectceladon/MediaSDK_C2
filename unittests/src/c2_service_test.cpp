@@ -14,7 +14,11 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include <gtest/gtest.h>
 #include <codec2/hidl/client.h>
 
-#define SERVICE_NAME "hardware.intel.media.c2@1.0-service"
+#define SERVICE_EXECUTABLE "hardware.intel.media.c2@1.0-service" // binary executable - service implementation
+
+#define SERVICE_NAME "hardware-intel-media-c2-hal-1-0" // service name for operations with hwservicemanager
+// got from c2_store/hardware.intel.media.c2@1.0-service.rc
+
 #define VINTF_NAME "android.hardware.media.c2"
 
 // C2 service needs some changes in root filesystem to be accessed with hwbinder.
@@ -32,20 +36,21 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 // In that case open another adb shell console and run there command from
 // StopC2Service function (see below).
 
+// Also if a system has running C2 intel service running as a true hwservice
+// it is stopped/started to not interfere with testing binary, see SetUp/TearDown below
+
 class C2Client : public testing::Environment
 {
 private:
     static void StopC2Service()
-    {
-        std::system("ps -e | "
-            "awk '$NF == \"" SERVICE_NAME "\" { print $2 }' | "
-            "xargs -n 1 kill -INT 1>/dev/null 2>&1");
+    {   // stop any background processes from SERVICE_EXECUTABLE binary
+        std::system("kill -INT $(pidof " SERVICE_EXECUTABLE ") 1>/dev/null 2>&1");
     }
 
     static void StartC2Service()
-    {
+    {   // start binary being tested as a background process
         int result = std::system("LD_LIBRARY_PATH=./service:/system/lib/vndk-29 "
-            "./service/" SERVICE_NAME " &");
+            "./service/" SERVICE_EXECUTABLE " &");
         ASSERT_EQ(result, 0);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -124,6 +129,7 @@ private:
         char env_update[]{"LD_LIBRARY_PATH="}; // variable to provide char* argument to putenv
         putenv(env_update); // reset LD_LIBRARY_PATH env to be not inherited by child processed run below
 
+        std::system("stop " SERVICE_NAME); // stop service if working to not interfere with binary being tested
         StopC2Service();
         PrepareConfFile();
         PrepareXmlConfFile();
@@ -136,6 +142,7 @@ private:
         RestoreConfFile();
         RestoreXmlConfFile();
         StopC2Service();
+        std::system("start " SERVICE_NAME); // start service to restore environment
     }
 
     static C2Client* g_client;
