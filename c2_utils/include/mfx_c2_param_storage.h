@@ -42,7 +42,10 @@ public:
         std::vector<C2FieldSupportedValuesQuery> &queries, c2_blocking_t mayBlock) const;
 
     template<typename ParamType>
-    void AddConstValue(const char* param_name, std::unique_ptr<ParamType>&& const_value);
+    void AddValue(const char* param_name, std::unique_ptr<ParamType>&& value);
+
+    template<typename ParamType>
+    c2_status_t UpdateValue(C2Param::Index param_index, std::unique_ptr<ParamType>&& value);
 
     template<typename ParamType>
     void AddStreamInfo(const char* param_name, unsigned int stream_id,
@@ -84,7 +87,9 @@ private:
 
     std::map<C2Param::Index, C2ParamOperations> param_operations_;
 
-    std::map<C2Param::Index, std::unique_ptr<const C2Param>> const_values_;
+    std::map<C2Param::Index, std::unique_ptr<const C2Param>> values_;
+
+    mutable std::mutex values_mutex_;
 };
 
 template<typename ParamType>
@@ -126,14 +131,32 @@ void MfxC2ParamStorage::RegisterSupportedValues(FieldType ValueType::* pm, const
 };
 
 template<typename ParamType>
-void MfxC2ParamStorage::AddConstValue(
-    const char* param_name, std::unique_ptr<ParamType>&& const_value)
+void MfxC2ParamStorage::AddValue(
+    const char* param_name, std::unique_ptr<ParamType>&& value)
 {
     RegisterParam<ParamType>(param_name);
 
-    C2Param::Index index = C2Param::Index(const_value->index());
+    C2Param::Index index = C2Param::Index(value->index());
 
-    const_values_.emplace(index, std::move(const_value));
+    {
+        std::lock_guard<std::mutex> lock(values_mutex_);
+        values_.emplace(index, std::move(value));
+    }
+}
+
+template<typename ParamType>
+c2_status_t MfxC2ParamStorage::UpdateValue(C2Param::Index param_index, std::unique_ptr<ParamType>&& value)
+{
+    {
+        std::lock_guard<std::mutex> lock(values_mutex_);
+        auto found = values_.find(param_index);
+
+        if (found != values_.end()) {
+            found->second = std::move(value);
+            return C2_OK;
+        }
+    }
+    return C2_NOT_FOUND;
 }
 
 template<typename ParamType>

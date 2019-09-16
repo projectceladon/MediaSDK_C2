@@ -43,6 +43,7 @@ static std::vector<C2ParamDescriptor> dec_params_desc =
     { false, C2_PARAMKEY_PICTURE_SIZE, C2StreamPictureSizeInfo::output::PARAM_TYPE },
     { false, C2_PARAMKEY_CROP_RECT, C2StreamCropRectInfo::output::PARAM_TYPE },
     { false, C2_PARAMKEY_PROFILE_LEVEL, C2StreamProfileLevelInfo::input::PARAM_TYPE },
+    { false, C2_PARAMKEY_OUTPUT_DELAY, C2PortDelayTuning::output::PARAM_TYPE },
 };
 
 struct TestValuesQuery {
@@ -122,6 +123,7 @@ namespace {
         std::vector<C2ParamDescriptor> params_desc;
         std::vector<TestValuesQuery> param_values;
         std::vector<std::vector<const StreamDescription*>> streams;
+        unsigned int default_output_delay {}; // in frames
     };
 
     struct StreamChunk
@@ -210,13 +212,13 @@ static std::vector<std::vector<const StreamDescription*>> vp9_streams =
 };
 
 static ComponentDesc g_components_desc[] = {
-    { "c2.intel.avc.decoder", MfxC2Component::CreateConfig{}, C2_OK, dec_params_desc, dec_params_values_h264, h264_streams },
-    { "c2.intel.hevc.decoder", MfxC2Component::CreateConfig{}, C2_OK, dec_params_desc, dec_params_values_h265, h265_streams },
-    { "c2.intel.vp9.decoder", MfxC2Component::CreateConfig{}, C2_OK, dec_params_desc, dec_params_values_vp9, vp9_streams },
+    { "c2.intel.avc.decoder", MfxC2Component::CreateConfig{}, C2_OK, dec_params_desc, dec_params_values_h264, h264_streams, 18u},
+    { "c2.intel.hevc.decoder", MfxC2Component::CreateConfig{}, C2_OK, dec_params_desc, dec_params_values_h265, h265_streams, 18u},
+    { "c2.intel.vp9.decoder", MfxC2Component::CreateConfig{}, C2_OK, dec_params_desc, dec_params_values_vp9, vp9_streams, 10u},
 };
 
 static ComponentDesc g_invalid_components_desc[] = {
-    { "c2.intel.missing.decoder", MfxC2Component::CreateConfig{}, C2_NOT_FOUND, {}, {}, {} },
+    { "c2.intel.missing.decoder", MfxC2Component::CreateConfig{}, C2_NOT_FOUND, {}, {}, {}, {}},
 };
 
 static std::list<StreamChunk> ReadChunks(const std::vector<const StreamDescription*>& streams)
@@ -1350,33 +1352,35 @@ TEST_P(Decoder, FlushPerformance)
     } );
 }
 
-static C2ParamValues GetConstParamValues()
+static C2ParamValues GetDefaultParamValues(const ComponentDesc& desc)
 {
-    C2ParamValues const_values;
+    C2ParamValues default_values;
 
-    const_values.Append(new C2ComponentDomainSetting(C2Component::DOMAIN_VIDEO));
-    const_values.Append(new C2ComponentKindSetting(C2Component::KIND_DECODER));
-    const_values.Append(new C2StreamBufferTypeSetting::input(0/*stream*/, C2BufferData::LINEAR));
-    const_values.Append(new C2StreamBufferTypeSetting::output(0/*stream*/, C2BufferData::GRAPHIC));
-    return const_values;
+    default_values.Append(new C2ComponentDomainSetting(C2Component::DOMAIN_VIDEO));
+    default_values.Append(new C2ComponentKindSetting(C2Component::KIND_DECODER));
+    default_values.Append(new C2StreamBufferTypeSetting::input(0/*stream*/, C2BufferData::LINEAR));
+    default_values.Append(new C2StreamBufferTypeSetting::output(0/*stream*/, C2BufferData::GRAPHIC));
+    default_values.Append(new C2PortDelayTuning::output(desc.default_output_delay));
+
+    return default_values;
 }
 
 // Queries constant platform parameters values and checks expectations.
-TEST_P(Decoder, ComponentConstParams)
+TEST_P(Decoder, ComponentDefaultParams)
 {
     CallComponentTest<ComponentDesc>(GetParam(),
-        [&] (const ComponentDesc&, C2CompPtr, C2CompIntfPtr comp_intf) {
+        [&] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         // check query through stack placeholders and the same with heap allocated
         std::vector<std::unique_ptr<C2Param>> heap_params;
-        const C2ParamValues& const_values = GetConstParamValues();
+        const C2ParamValues& default_values = GetDefaultParamValues(desc);
         c2_blocking_t may_block{C2_MAY_BLOCK};
-        c2_status_t res = comp_intf->query_vb(const_values.GetStackPointers(),
-            const_values.GetIndices(), may_block, &heap_params);
+        c2_status_t res = comp_intf->query_vb(default_values.GetStackPointers(),
+            default_values.GetIndices(), may_block, &heap_params);
         EXPECT_EQ(res, C2_OK);
 
-        const_values.CheckStackValues();
-        const_values.Check(heap_params, false);
+        default_values.CheckStackValues();
+        default_values.Check(heap_params, false);
     }); // CallComponentTest
 }
 

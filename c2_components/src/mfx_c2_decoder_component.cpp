@@ -38,16 +38,16 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
 
     pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
 
-    pr.AddConstValue(C2_PARAMKEY_COMPONENT_DOMAIN,
+    pr.AddValue(C2_PARAMKEY_COMPONENT_DOMAIN,
         std::make_unique<C2ComponentDomainSetting>(C2Component::DOMAIN_VIDEO));
 
-    pr.AddConstValue(C2_PARAMKEY_COMPONENT_KIND,
+    pr.AddValue(C2_PARAMKEY_COMPONENT_KIND,
         std::make_unique<C2ComponentKindSetting>(C2Component::KIND_DECODER));
 
     const unsigned int SINGLE_STREAM_ID = 0u;
-    pr.AddConstValue(C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE,
+    pr.AddValue(C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE,
         std::make_unique<C2StreamBufferTypeSetting::input>(SINGLE_STREAM_ID, C2BufferData::LINEAR));
-    pr.AddConstValue(C2_PARAMKEY_OUTPUT_STREAM_BUFFER_TYPE,
+    pr.AddValue(C2_PARAMKEY_OUTPUT_STREAM_BUFFER_TYPE,
         std::make_unique<C2StreamBufferTypeSetting::output>(SINGLE_STREAM_ID, C2BufferData::GRAPHIC));
 
     pr.AddStreamInfo<C2StreamPictureSizeInfo::output>(
@@ -98,6 +98,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
 
     std::vector<C2Config::profile_t> supported_profiles = {};
     std::vector<C2Config::level_t> supported_levels = {};
+    unsigned int output_delay = 8u;
 
     switch(decoder_type_) {
         case DECODER_H264: {
@@ -109,7 +110,6 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 PROFILE_AVC_PROGRESSIVE_HIGH,
                 PROFILE_AVC_HIGH,
             };
-
             supported_levels = {
                 LEVEL_AVC_1, LEVEL_AVC_1B, LEVEL_AVC_1_1,
                 LEVEL_AVC_1_2, LEVEL_AVC_1_3,
@@ -118,6 +118,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 LEVEL_AVC_4, LEVEL_AVC_4_1, LEVEL_AVC_4_2,
                 LEVEL_AVC_5, LEVEL_AVC_5_1, LEVEL_AVC_5_2,
             };
+
+            output_delay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
         case DECODER_H265: {
@@ -137,6 +139,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 LEVEL_HEVC_HIGH_4_1, LEVEL_HEVC_HIGH_5,
                 LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
             };
+
+            output_delay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
         case DECODER_VP9: {
@@ -152,11 +156,22 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 LEVEL_VP9_4, LEVEL_VP9_4_1,
                 LEVEL_VP9_5,
             };
+
+            output_delay = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
+
         default:
+            MFX_DEBUG_TRACE_STREAM("C2PortDelayTuning::output value is not customized which can lead to hangs:" << output_delay);
             break;
     }
+
+    // C2PortDelayTuning::output parameter is needed to say framework about the max delay expressed in
+    // decoded frames. If parameter is set too low, framework will stop sanding new portions
+    // of bitstream and will wait for decoded frames.
+    // The parameter value is differet for codecs and must be equal the DPD value is gotten
+    // form QueryIOSurf function call result.
+    pr.AddValue(C2_PARAMKEY_OUTPUT_DELAY, std::make_unique<C2PortDelayTuning::output>(output_delay));
 
     pr.RegisterParam<C2StreamProfileLevelInfo::input>(C2_PARAMKEY_PROFILE_LEVEL);
     pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::profile, supported_profiles);
