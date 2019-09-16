@@ -89,21 +89,21 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
 
             pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
 
-            pr.AddConstValue(C2_PARAMKEY_COMPONENT_DOMAIN,
+            pr.AddValue(C2_PARAMKEY_COMPONENT_DOMAIN,
                 std::make_unique<C2ComponentDomainSetting>(C2Component::DOMAIN_VIDEO));
 
-            pr.AddConstValue(C2_PARAMKEY_COMPONENT_KIND,
+            pr.AddValue(C2_PARAMKEY_COMPONENT_KIND,
                 std::make_unique<C2ComponentKindSetting>(C2Component::KIND_ENCODER));
 
             const unsigned int SINGLE_STREAM_ID = 0u;
-            pr.AddConstValue(C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE,
+            pr.AddValue(C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE,
                 std::make_unique<C2StreamBufferTypeSetting::input>(SINGLE_STREAM_ID, C2BufferData::GRAPHIC));
-            pr.AddConstValue(C2_PARAMKEY_OUTPUT_STREAM_BUFFER_TYPE,
+            pr.AddValue(C2_PARAMKEY_OUTPUT_STREAM_BUFFER_TYPE,
                 std::make_unique<C2StreamBufferTypeSetting::output>(SINGLE_STREAM_ID, C2BufferData::LINEAR));
 
-            pr.AddConstValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
+            pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
                 AllocUniqueString<C2PortMediaTypeSetting::input>("video/raw"));
-            pr.AddConstValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
+            pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
                 AllocUniqueString<C2PortMediaTypeSetting::output>("video/avc"));
 
             pr.AddStreamInfo<C2StreamPictureSizeInfo::input>(

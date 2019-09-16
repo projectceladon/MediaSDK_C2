@@ -62,29 +62,33 @@ c2_status_t MfxC2ParamStorage::QueryParam(C2Param::Index index, C2Param** dst) c
 
     c2_status_t res = C2_OK;
 
-    auto const_value_found = const_values_.find(index);
-    if (const_value_found != const_values_.end()) {
-        if (nullptr == *dst) {
-            *dst = C2Param::Copy(*const_value_found->second).release();
-        }
-        else {
-            bool copy_res = (*dst)->updateFrom(*const_value_found->second);
-            if (!copy_res) {
-                (*dst)->invalidate();
-                res = C2_NO_MEMORY;
-            }
-        }
+    {
+        std::lock_guard<std::mutex> lock(values_mutex_);
+        auto value_found = values_.find(index);
 
-    } else {
-        auto operations_found = param_operations_.find(index);
-        if (operations_found != param_operations_.end()) {
-            const C2ParamOperations& operations = operations_found->second;
+        if (value_found != values_.end()) {
             if (nullptr == *dst) {
-                *dst = operations.allocate_();
+                *dst = C2Param::Copy(*value_found->second).release();
             }
-            operations.get_(*dst);
+            else {
+                bool copy_res = (*dst)->updateFrom(*value_found->second);
+                if (!copy_res) {
+                    (*dst)->invalidate();
+                    res = C2_NO_MEMORY;
+                }
+            }
+
         } else {
-            res = C2_NOT_FOUND;
+            auto operations_found = param_operations_.find(index);
+            if (operations_found != param_operations_.end()) {
+                const C2ParamOperations& operations = operations_found->second;
+                if (nullptr == *dst) {
+                    *dst = operations.allocate_();
+                }
+                operations.get_(*dst);
+            } else {
+                res = C2_NOT_FOUND;
+            }
         }
     }
     return res;
@@ -117,10 +121,13 @@ c2_status_t MfxC2ParamStorage::ConfigParam(const C2Param& param, bool component_
         }
 
         C2Param::Index index = param.index();
-        auto const_value_found = const_values_.find(index);
-        if (const_value_found != const_values_.end()) {
-            failures->push_back(MakeC2SettingResult(C2ParamField(&param), C2SettingResult::READ_ONLY));
-            break;
+        {
+            std::lock_guard<std::mutex> lock(values_mutex_);
+            auto value_found = values_.find(index);
+            if (value_found != values_.end()) {
+                failures->push_back(MakeC2SettingResult(C2ParamField(&param), C2SettingResult::READ_ONLY));
+                break;
+            }
         }
 
         auto operations_found = param_operations_.find(index);
