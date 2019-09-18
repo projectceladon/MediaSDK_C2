@@ -21,6 +21,12 @@ enum C2ParamIndexKindVendor : C2Param::type_index_t {
     kParamIndexMemoryType,
 };
 
+// not existing tuning, Google defines bitrate as Info,
+// so define bitrate tuning here for test purpose,
+// otherwise cannot push_back it into C2Worklet::tunings
+typedef C2StreamParam<C2Tuning, C2Uint32Value, kParamIndexBitrate> C2BitrateTuning;
+constexpr char MFX_C2_PARAMKEY_BITRATE_TUNING[] = "coded.bitrate.tuning";
+
 C2ENUM(C2RateControlMethod, int32_t,
     C2RateControlCQP,
     C2RateControlCBR,

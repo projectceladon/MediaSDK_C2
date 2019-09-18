@@ -1129,7 +1129,6 @@ constexpr char C2_PARAMKEY_SECURE_MODE[] = "algo.secure-mode";
  * Bitrate
  */
 typedef C2StreamParam<C2Info, C2Uint32Value, kParamIndexBitrate> C2StreamBitrateInfo;
-typedef C2StreamParam<C2Tuning, C2Uint32Value, kParamIndexBitrate> C2BitrateTuning;
 constexpr char C2_PARAMKEY_BITRATE[] = "coded.bitrate";
 
 /**
