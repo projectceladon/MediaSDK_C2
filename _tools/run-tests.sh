@@ -156,7 +156,7 @@ cp ./vendor/etc/* /vendor/etc; \
 for exec_name in $(find . ! -name \*.so -type f); do chmod a+x $exec_name; done;\
 status=0; \
 for exec_name in ./*unittests*; do \
-LD_LIBRARY_PATH=.:/system/'$remote_lib'/vndk-28 ./$exec_name --gtest_filter='$gtest_filter' --dump-output; \
+LD_LIBRARY_PATH=. ./$exec_name --gtest_filter='$gtest_filter' --dump-output; \
 if [ $? -ne 0 ]; then status=1; fi; \
 done; \
 exit $status'
