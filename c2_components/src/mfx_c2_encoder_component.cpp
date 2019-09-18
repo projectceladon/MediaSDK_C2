@@ -70,7 +70,8 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
 
             pr.RegisterParam<C2RateControlSetting>("RateControl");
             pr.RegisterParam<C2FrameRateSetting::output>("FrameRate");
-            pr.RegisterParam<C2BitrateTuning::output>("Bitrate");
+            pr.RegisterParam<C2StreamBitrateInfo::output>(C2_PARAMKEY_BITRATE);
+            pr.RegisterParam<C2BitrateTuning::output>(MFX_C2_PARAMKEY_BITRATE_TUNING);
 
             pr.RegisterParam<C2FrameQPSetting>("FrameQP");
             const uint32_t MIN_QP = 1;
@@ -840,9 +841,9 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
             }
             case kParamIndexBitrate: {
                 if (nullptr == *dst) {
-                    *dst = new C2BitrateTuning::output();
+                    *dst = new C2StreamBitrateInfo::output();
                 }
-                C2BitrateTuning* bitrate = (C2BitrateTuning*)*dst;
+                C2StreamBitrateInfo* bitrate = (C2StreamBitrateInfo*)*dst;
                 if (src->mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
                     bitrate->value = src->mfx.TargetKbps;
                 } else {
@@ -1035,7 +1036,10 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
             continue;
         }
         // check whether plugin is in a correct state to apply this parameter
-        bool modifiable = (param->kind() == C2Param::TUNING) ||
+        // the check is bypassed for bitrate parameter as it should be updatable
+        // despite its type 'info' (workaround of Google's bug)
+        bool modifiable = (param->coreIndex().coreIndex() == kParamIndexBitrate) ||
+            (param->kind() == C2Param::TUNING) ||
             (param->kind() == C2Param::SETTING && state_ == State::STOPPED);
 
         if (!modifiable) {

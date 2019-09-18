@@ -45,7 +45,8 @@ std::vector<C2ParamDescriptor> DefaultC2Params()
     {
         { false, "RateControl", C2RateControlSetting::PARAM_TYPE },
         { false, "FrameRate", C2FrameRateSetting::output::PARAM_TYPE },
-        { false, "Bitrate", C2BitrateTuning::output::PARAM_TYPE },
+        { false, C2_PARAMKEY_BITRATE, C2StreamBitrateInfo::output::PARAM_TYPE },
+        { false, MFX_C2_PARAMKEY_BITRATE_TUNING, C2BitrateTuning::output::PARAM_TYPE },
         { false, "FrameQP", C2FrameQPSetting::PARAM_TYPE },
         { false, "IntraRefresh", C2IntraRefreshTuning::PARAM_TYPE },
         { false, "Profile", C2ProfileSetting::PARAM_TYPE },
@@ -133,7 +134,7 @@ static C2ParamValues GetDefaultValues(const char * component_name)
 
     default_values.Append(new C2RateControlSetting(MfxRateControlToC2(video_params.mfx.RateControlMethod)));
     default_values.Append(new C2FrameRateSetting::output(0/*stream*/, C2FloatValue((float)video_params.mfx.FrameInfo.FrameRateExtN / video_params.mfx.FrameInfo.FrameRateExtD)));
-    default_values.Append(new C2BitrateTuning::output(0/*stream*/, video_params.mfx.TargetKbps));
+    default_values.Append(new C2StreamBitrateInfo::output(0/*stream*/, video_params.mfx.TargetKbps));
     default_values.Append(Invalidate(new C2FrameQPSetting()));
     return default_values;
 }
@@ -729,7 +730,7 @@ TEST_P(Encoder, StaticBitrate)
 
         C2RateControlSetting param_rate_control;
         C2FrameRateSetting::output param_framerate;
-        C2BitrateTuning::output param_bitrate;
+        C2StreamBitrateInfo::output param_bitrate;
 
         param_rate_control.value = C2RateControlCBR;
         param_framerate.value = FRAME_RATE;
@@ -1166,8 +1167,8 @@ TEST_P(Encoder, DynamicBitrate)
 
             SCOPED_TRACE((use_config_nb ? "config_vb" : "C2Work"));
 
-            std::unique_ptr<C2BitrateTuning::output> param_bitrate =
-                std::make_unique<C2BitrateTuning::output>();
+            std::unique_ptr<C2StreamBitrateInfo::output> param_bitrate_info =
+                std::make_unique<C2StreamBitrateInfo::output>(); // for config_vb
 
             const uint32_t BITRATE_1 = 100;
             const uint32_t MULTIPLIER = 2;
@@ -1182,9 +1183,9 @@ TEST_P(Encoder, DynamicBitrate)
             GTestBinaryWriter writer(std::ostringstream()
                 << comp_intf->getName() << "-" << (int)use_config_nb << ".out");
 
-            param_bitrate->value = BITRATE_1;
+            param_bitrate_info->value = BITRATE_1;
 
-            std::vector<C2Param*> dynamic_params = { param_bitrate.get() };
+            std::vector<C2Param*> dynamic_params = { param_bitrate_info.get() };
             c2_blocking_t may_block{C2_MAY_BLOCK};
 
             c2_status_t sts = comp_intf->config_vb(dynamic_params, may_block, &failures);
@@ -1195,9 +1196,9 @@ TEST_P(Encoder, DynamicBitrate)
 
                 if (frame_index == TEST_FRAME_COUNT / 2) {
 
-                    param_bitrate->value = BITRATE_2;
 
                     if (use_config_nb) {
+                        param_bitrate_info->value = BITRATE_2;
                         c2_status_t sts = comp_intf->config_vb(dynamic_params, may_block, &failures);
 
                         EXPECT_EQ(sts, C2_OK);
@@ -1206,7 +1207,10 @@ TEST_P(Encoder, DynamicBitrate)
                         ASSERT_EQ(work->worklets.size(), 1ul);
                         C2Worklet* worklet = work->worklets.front().get();
                         ASSERT_NE(worklet, nullptr);
-                        worklet->tunings.push_back(std::move(param_bitrate));
+                        std::unique_ptr<C2BitrateTuning::output> param_bitrate_tuning =
+                            std::make_unique<C2BitrateTuning::output>(); // for C2Worklet::tunings
+                        param_bitrate_tuning->value = BITRATE_2;
+                        worklet->tunings.push_back(std::move(param_bitrate_tuning));
                     }
                 }
             };
@@ -1388,7 +1392,7 @@ TEST_P(Encoder, FrameRate)
         TestRunDescription test_runs[2] = { { 25.0, 0 }, { 50.0, 0 } };
         const uint32_t CONST_BITRATE = 300;
 
-        C2BitrateTuning::output param_bitrate;
+        C2StreamBitrateInfo::output param_bitrate;
         C2RateControlSetting param_rate_control;
 
         param_bitrate.value = CONST_BITRATE;
