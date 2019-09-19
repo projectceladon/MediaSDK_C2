@@ -17,8 +17,11 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 // Generic pool resource management providing allocated resource through
 // std::shared_ptr.
+// Keeps unique_ptr inside pool and provides shared_ptr outside.
+// Returned shared_ptr has custom deleter to return freed object back to the pool.
 // Automatically tracks returned shared_ptrs and
 // returns released resources back to the pool.
+// Raw pointers of the same objects are retained.
 template<typename T>
 class MfxPool
 {
@@ -41,7 +44,7 @@ public:
     MFX_CLASS_NO_COPY(MfxPool<T>)
 
 public:
-    void Append(std::shared_ptr<T>&& free_item)
+    void Append(std::unique_ptr<T>&& free_item)
     {
         pool_impl_->Append(std::move(free_item));
     }
@@ -61,7 +64,7 @@ private:
         // Signals new free resource added to the pool.
         std::condition_variable condition_;
         // Collection of free resources.
-        std::list<std::shared_ptr<T>> free_;
+        std::list<std::unique_ptr<T>> free_;
         // Signal when instance destroyed
         std::promise<void> destroyed_;
     public:
@@ -70,7 +73,7 @@ private:
             destroyed_.set_value();
         }
 
-        void Append(std::shared_ptr<T>&& free_item)
+        void Append(std::unique_ptr<T>&& free_item)
         {
             std::lock_guard<std::mutex> lock(mutex_);
             free_.push_back(std::move(free_item));
@@ -94,14 +97,15 @@ private:
                 // live longer than this pool
                 std::shared_ptr<MfxPoolImpl> shared_this = weak_this.lock();
                 if (shared_this) {
-                    shared_this->Append(std::make_shared<T>(*item)); // resource deep copy
+                    shared_this->Append(std::unique_ptr<T>(item));
+                } else {
+                    delete item;
                 }
-                delete item;
             };
 
-            std::shared_ptr<T> free_block = free_.front();
+            std::unique_ptr<T> free_block = std::move(free_.front());
             free_.pop_front();
-            return std::shared_ptr<T>(new T(*free_block.get()), deleter); // resource deep copy
+            return std::shared_ptr<T>(free_block.release(), deleter);
         }
 
         std::future<void> Destroyed()
