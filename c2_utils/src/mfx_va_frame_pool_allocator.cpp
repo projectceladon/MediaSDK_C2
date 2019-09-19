@@ -54,6 +54,8 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                     MfxFourCCToGralloc(request->Info.FourCC),
                     { C2MemoryUsage::CPU_READ, C2AndroidMemoryUsage::HW_CODEC_WRITE },
                     &new_block);
+                // deep copy to have unique_ptr as pool_ required unique_ptr
+                std::unique_ptr<C2GraphicBlock> unique_block = std::make_unique<C2GraphicBlock>(*new_block);
 
                 if (C2_OK != err) {
                     res = MFX_ERR_MEMORY_ALLOC;
@@ -61,12 +63,12 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                 }
                 bool decode_target = true;
 
-                res = ConvertGrallocToVa(new_block->handle(), decode_target, &mids[i]);
+                res = ConvertGrallocToVa(unique_block->handle(), decode_target, &mids[i]);
                 if (MFX_ERR_NONE != res) break;
 
-                MFX_DEBUG_TRACE_STREAM(NAMED(new_block->handle()) << NAMED(mids[i]));
+                MFX_DEBUG_TRACE_STREAM(NAMED(unique_block->handle()) << NAMED(mids[i]));
 
-                pool_->Append(std::move(new_block));
+                pool_->Append(std::move(unique_block));
 
                 ++response->NumFrameActual;
             }

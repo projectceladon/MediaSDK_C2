@@ -875,7 +875,7 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
 
         auto it = surfaces_.end();
         if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
-            it = surfaces_.find(out_block->handle());
+            it = surfaces_.find(out_block.get());
         }
         if (it == surfaces_.end()) {
             // haven't been used for decoding yet
@@ -884,7 +884,7 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
 
             // put to map
             if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
-                surfaces_.emplace(out_block->handle(), frame_out->GetMfxFrameSurface());
+                surfaces_.emplace(out_block.get(), frame_out->GetMfxFrameSurface());
             }
         } else {
             *frame_out = MfxC2FrameOut(std::move(out_block), it->second);

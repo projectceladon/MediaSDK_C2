@@ -158,8 +158,8 @@ private:
     std::mutex dev_busy_mutex_;
 
     std::unique_ptr<MfxC2BitstreamIn> c2_bitstream_;
-
-    std::map<const C2Handle*, std::shared_ptr<mfxFrameSurface1>> surfaces_; // all ever send to Decoder
+    // Store raw pointers there as don't want to keep objects by shared_ptr
+    std::map<const C2GraphicBlock*, std::shared_ptr<mfxFrameSurface1>> surfaces_; // all ever send to Decoder
 
     std::mutex locked_surfaces_mutex_;
     std::list<MfxC2FrameOut> locked_surfaces_; // allocated, but cannot be re-used as Locked by Decoder
