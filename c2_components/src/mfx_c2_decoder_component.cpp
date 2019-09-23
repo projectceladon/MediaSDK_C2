@@ -1147,8 +1147,8 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
 
     do {
 
-        C2Event event;
-        event.fire(); // pre-fire event as output buffer is ready to use
+        //C2Event event; // not supported yet, left for future use
+        //event.fire(); // pre-fire event as output buffer is ready to use
 
         const C2Rect rect = C2Rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH)
             .at(mfx_surface->Info.CropX, mfx_surface->Info.CropY);
@@ -1210,7 +1210,7 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
         }
 
         if (work) {
-            C2ConstGraphicBlock const_graphic = block->share(rect, event.fence());
+            C2ConstGraphicBlock const_graphic = block->share(rect, C2Fence()/*event.fence()*/);
             C2Buffer out_buffer = MakeC2Buffer( { const_graphic } );
 
             std::unique_ptr<C2Worklet>& worklet = work->worklets.front();

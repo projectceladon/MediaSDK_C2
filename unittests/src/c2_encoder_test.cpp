@@ -259,9 +259,9 @@ static void PrepareWork(uint32_t frame_index, bool last_frame, bool graphics_mem
             }
         }
 
-        C2Event event;
-        event.fire(); // pre-fire as buffer is already ready to use
-        C2ConstGraphicBlock const_block = block->share(block->crop(), event.fence());
+        // C2Event event; // not supported yet, left for future use
+        // event.fire(); // pre-fire as buffer is already ready to use
+        C2ConstGraphicBlock const_block = block->share(block->crop(), C2Fence()/*event.fence()*/);
         // make buffer of graphic block
         std::shared_ptr<C2Buffer> buffer = std::make_shared<C2Buffer>(MakeC2Buffer( { const_block } ));
 

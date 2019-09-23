@@ -60,10 +60,6 @@ cc_library_shared {
         "libutils",
     ],
 
-    whole_static_libs: [
-        "libmfx_mock_codec2_event",
-    ],
-
     cflags: [
         "-Werror",
         "-Wall",
