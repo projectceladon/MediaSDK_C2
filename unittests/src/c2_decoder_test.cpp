@@ -749,9 +749,9 @@ static void PrepareWork(uint32_t frame_index,
 
             std::copy(bitstream.begin(), bitstream.end(), data);
 
-            C2Event event;
-            event.fire(); // pre-fire as buffer is already ready to use
-            C2ConstLinearBlock const_block = block->share(0, bitstream.size(), event.fence());
+            // C2Event event; // not supported yet, left for future use
+            // event.fire(); // pre-fire as buffer is already ready to use
+            C2ConstLinearBlock const_block = block->share(0, bitstream.size(), C2Fence()/*event.fence()*/);
             // make buffer of linear block
             std::shared_ptr<C2Buffer> buffer = std::make_shared<C2Buffer>(MakeC2Buffer( { const_block } ));
 

@@ -102,9 +102,9 @@ static std::unique_ptr<C2ConstGraphicBlock> CreateFilledGraphicBlock(
 
             memset(graph_view->data()[0], fill, FRAME_BUF_SIZE);
         }
-        C2Event event;
-        event.fire(); // pre-fire as buffer is already ready to use
-        res = std::make_unique<C2ConstGraphicBlock>(block->share(block->crop(), event.fence()));
+        // C2Event event; // not supported yet, left for future use
+        // event.fire(); // pre-fire as buffer is already ready to use
+        res = std::make_unique<C2ConstGraphicBlock>(block->share(block->crop(), C2Fence()/*event.fence()*/));
 
     } while(false);
 
@@ -142,9 +142,9 @@ static std::unique_ptr<C2ConstLinearBlock> CreateFilledLinearBlock(
 
         memset(data, fill, FRAME_BUF_SIZE);
 
-        C2Event event;
-        event.fire(); // pre-fire as buffer is already ready to use
-        res = std::make_unique<C2ConstLinearBlock>(block->share(0, block->capacity(), event.fence()));
+        // C2Event event; // not supported yet, left for future use
+        // event.fire(); // pre-fire as buffer is already ready to use
+        res = std::make_unique<C2ConstLinearBlock>(block->share(0, block->capacity(), C2Fence()/*event.fence()*/));
 
     } while(false);
 

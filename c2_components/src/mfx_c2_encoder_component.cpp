@@ -689,8 +689,8 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
 
     if(MFX_ERR_NONE == mfx_res) {
 
-        C2Event event;
-        event.fire(); // pre-fire event as output buffer is ready to use
+        //C2Event event; // not supported yet, left for future use
+        //event.fire(); // pre-fire event as output buffer is ready to use
 
         mfxBitstream* mfx_bitstream = bit_stream.GetMfxBitstream();
         MFX_DEBUG_TRACE_P(mfx_bitstream);
@@ -706,7 +706,7 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
 
             C2ConstLinearBlock const_linear = bit_stream.GetC2LinearBlock()->share(
                 mfx_bitstream->DataOffset,
-                mfx_bitstream->DataLength, event.fence());
+                mfx_bitstream->DataLength, C2Fence()/*event.fence()*/);
             C2Buffer out_buffer = MakeC2Buffer( { const_linear } );
             if ((mfx_bitstream->FrameType & MFX_FRAMETYPE_IDR) != 0) {
                 out_buffer.setInfo(std::make_shared<C2StreamPictureTypeMaskInfo::output>(0u/*stream id*/, C2Config::SYNC_FRAME));
