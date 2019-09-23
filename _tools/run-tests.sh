@@ -57,8 +57,7 @@ mkdir -p $local_dir/vendor/etc
 libs=\
 libmfx_mock_c2_components.so,\
 libmfx_c2_components_hw.so,\
-libmfxhw${bitness}.so,\
-libcodec2_vndk_mfx.so
+libmfxhw${bitness}.so
 
 execs=\
 mfx_c2_store_unittests,\
@@ -103,8 +102,7 @@ then
 libmfx_mock_c2_components.so,\
 libmfx_c2_components_hw.so,\
 libcodec2_hidl@1.0.so,\
-libmfxhw32.so,\
-libcodec2_vndk_mfx.so"
+libmfxhw32.so"
 
     update ${remote_output}vendor/lib/\{$service_libs\} ${local_dir}/service
 
