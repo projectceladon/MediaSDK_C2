@@ -78,12 +78,9 @@ endif
 
 # Setting usual paths to include files
 MFX_C2_INCLUDES := \
-  $(LOCAL_PATH)/include \
-  $(MFX_C2_HOME)/codec2/include \
-  $(MFX_C2_HOME)/codec2/vndk/include \
-  $(MFX_C2_HOME)/codec2/vndk/include/util
+  $(LOCAL_PATH)/include
 
-MFX_C2_SHARED_LIBS := libcodec2_vndk_mfx
+MFX_C2_SHARED_LIBS := libcodec2_vndk
 
 ifeq ($(BOARD_USES_GRALLOC1),true)
   MFX_C2_INCLUDES += $(INTEL_MINIGBM)/cros_gralloc
@@ -92,7 +89,7 @@ endif
 MFX_C2_INCLUDES_LIBVA := $(TARGET_OUT_HEADERS)/libva
 
 # Setting MediaSDK imported headers
-MFX_C2_HEADER_LIBRARIES := libmfx_headers
+MFX_C2_HEADER_LIBRARIES := libmfx_headers libcodec2_headers
 
 # Setting usual imported headers
 MFX_C2_HEADER_LIBRARIES += \
