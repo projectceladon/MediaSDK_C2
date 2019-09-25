@@ -89,7 +89,7 @@ private:
 
     mfxStatus InitSession();
 
-    mfxStatus Reset();
+    mfxStatus ResetSettings();
 
     mfxStatus InitEncoder(const mfxFrameInfo& frame_info);
 

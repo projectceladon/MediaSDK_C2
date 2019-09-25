@@ -132,6 +132,8 @@ c2_status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handle,
     {
         res = C2_CORRUPTED;
     }
+
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 
