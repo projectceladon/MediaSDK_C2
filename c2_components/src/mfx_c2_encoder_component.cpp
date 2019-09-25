@@ -144,9 +144,9 @@ c2_status_t MfxC2EncoderComponent::Init()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    Reset();
-
     mfxStatus mfx_res = MfxDev::Create(MfxDev::Usage::Encoder, &device_);
+
+    if(mfx_res == MFX_ERR_NONE) mfx_res = ResetSettings(); // requires device_ initialized
 
     if(mfx_res == MFX_ERR_NONE) mfx_res = InitSession();
 
@@ -292,7 +292,7 @@ mfxStatus MfxC2EncoderComponent::InitSession()
     return mfx_res;
 }
 
-mfxStatus MfxC2EncoderComponent::Reset()
+mfxStatus MfxC2EncoderComponent::ResetSettings()
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -313,8 +313,13 @@ mfxStatus MfxC2EncoderComponent::Reset()
 
     res = mfx_set_defaults_mfxVideoParam_enc(&video_params_config_);
 
-    // default pattern
-    video_params_config_.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY;
+    if (device_) {
+        // default pattern: video memory if allocator available
+        video_params_config_.IOPattern = device_->GetFrameAllocator() ?
+            MFX_IOPATTERN_IN_VIDEO_MEMORY : MFX_IOPATTERN_IN_SYSTEM_MEMORY;
+    } else {
+        res = MFX_ERR_NULL_PTR;
+    }
 
     return res;
 }

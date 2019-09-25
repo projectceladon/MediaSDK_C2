@@ -53,6 +53,7 @@ static unsigned int ConvertGrallocFourccToVAFormat(int fourcc)
     switch (fourcc)
     {
         case HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL:
+        case HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL:
             return VA_FOURCC_NV12;
         default:
             return 0;
@@ -519,7 +520,14 @@ mfxStatus MfxVaFrameAllocator::MapGrallocBufferToSurface(buffer_handle_t gralloc
             break;
         }
 
-        if (buffer_details.format == HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL) {
+        MFX_DEBUG_TRACE_STREAM(buffer_details.format);
+
+        if (buffer_details.format == HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL ||
+            buffer_details.format == HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL) {
+
+            // on Android Q HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL works the same way
+            // some other driveers might demand creation of separate VASurface and copy contents there.
+            // see format difference in include/ufo/graphics.h
             mfx_res = CreateNV12SurfaceFromGralloc(buffer_details, decode_target, surface);
             *fourcc = ConvertVAFourccToMfxFormat(ConvertGrallocFourccToVAFormat(buffer_details.format));
         } else {
