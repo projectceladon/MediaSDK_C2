@@ -92,7 +92,7 @@ private:
 
     mfxStatus InitSession();
 
-    mfxStatus Reset();
+    mfxStatus ResetSettings();
 
     mfxStatus InitDecoder(std::shared_ptr<C2BlockPool> c2_allocator);
 
