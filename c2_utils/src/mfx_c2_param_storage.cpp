@@ -260,8 +260,10 @@ c2_status_t MfxC2ParamStorage::querySupportedValues_vb(
         std::ostringstream oss;
 
         const auto iter = std::find_if(params_supported_values_.begin(), params_supported_values_.end(),
-            [query](const std::pair<C2ParamField, C2FieldSupportedValues>& p){ return (_C2ParamInspector::getIndex(p.first) & _C2ParamInspector::getIndex(query.field()) & 0xFFF) &&
-                                                                                      (_C2ParamInspector::getFieldId(p.first) == _C2ParamInspector::getFieldId(query.field())); });
+            [query](const std::pair<C2ParamField, C2FieldSupportedValues>& p) {
+                return (C2Param::CoreIndex(_C2ParamInspector::getIndex(p.first)).coreIndex()
+                        == C2Param::CoreIndex(_C2ParamInspector::getIndex(query.field())).coreIndex())
+                       && _C2ParamInspector::getFieldId(p.first) == _C2ParamInspector::getFieldId(query.field()); });
 
         if (iter == params_supported_values_.end()) {
             oss << "bad field:"
