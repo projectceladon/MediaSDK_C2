@@ -44,6 +44,9 @@ static std::vector<C2ParamDescriptor> dec_params_desc =
     { false, C2_PARAMKEY_CROP_RECT, C2StreamCropRectInfo::output::PARAM_TYPE },
     { false, C2_PARAMKEY_PROFILE_LEVEL, C2StreamProfileLevelInfo::input::PARAM_TYPE },
     { false, C2_PARAMKEY_OUTPUT_DELAY, C2PortDelayTuning::output::PARAM_TYPE },
+    { false, C2_PARAMKEY_DEFAULT_COLOR_ASPECTS, C2StreamColorAspectsTuning::output::PARAM_TYPE },
+    { false, C2_PARAMKEY_VUI_COLOR_ASPECTS, C2StreamColorAspectsInfo::input::PARAM_TYPE },
+    { false, C2_PARAMKEY_COLOR_ASPECTS, C2StreamColorAspectsInfo::output::PARAM_TYPE },
 };
 
 struct TestValuesQuery {
@@ -1361,6 +1364,21 @@ static C2ParamValues GetDefaultParamValues(const ComponentDesc& desc)
     default_values.Append(new C2StreamBufferTypeSetting::input(0/*stream*/, C2BufferData::LINEAR));
     default_values.Append(new C2StreamBufferTypeSetting::output(0/*stream*/, C2BufferData::GRAPHIC));
     default_values.Append(new C2PortDelayTuning::output(desc.default_output_delay));
+
+    default_values.Append(new C2StreamColorAspectsTuning::output(0u, C2Color::RANGE_UNSPECIFIED,
+                                                                     C2Color::PRIMARIES_UNSPECIFIED,
+                                                                     C2Color::TRANSFER_UNSPECIFIED,
+                                                                     C2Color::MATRIX_UNSPECIFIED));
+
+    default_values.Append(new C2StreamColorAspectsInfo::input(0u, C2Color::RANGE_UNSPECIFIED,
+                                                                  C2Color::PRIMARIES_UNSPECIFIED,
+                                                                  C2Color::TRANSFER_UNSPECIFIED,
+                                                                  C2Color::MATRIX_UNSPECIFIED));
+
+    default_values.Append(new C2StreamColorAspectsInfo::output(0u, C2Color::RANGE_UNSPECIFIED,
+                                                                   C2Color::PRIMARIES_UNSPECIFIED,
+                                                                   C2Color::TRANSFER_UNSPECIFIED,
+                                                                   C2Color::MATRIX_UNSPECIFIED));
 
     return default_values;
 }
