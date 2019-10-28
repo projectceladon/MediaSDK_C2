@@ -44,6 +44,7 @@ static std::vector<C2ParamDescriptor> dec_params_desc =
     { false, C2_PARAMKEY_CROP_RECT, C2StreamCropRectInfo::output::PARAM_TYPE },
     { false, C2_PARAMKEY_PROFILE_LEVEL, C2StreamProfileLevelInfo::input::PARAM_TYPE },
     { false, C2_PARAMKEY_OUTPUT_DELAY, C2PortDelayTuning::output::PARAM_TYPE },
+    { false, C2_PARAMKEY_INPUT_DELAY, C2PortDelayTuning::input::PARAM_TYPE },
     { false, C2_PARAMKEY_DEFAULT_COLOR_ASPECTS, C2StreamColorAspectsTuning::output::PARAM_TYPE },
     { false, C2_PARAMKEY_VUI_COLOR_ASPECTS, C2StreamColorAspectsInfo::input::PARAM_TYPE },
     { false, C2_PARAMKEY_COLOR_ASPECTS, C2StreamColorAspectsInfo::output::PARAM_TYPE },
@@ -127,6 +128,7 @@ namespace {
         std::vector<TestValuesQuery> param_values;
         std::vector<std::vector<const StreamDescription*>> streams;
         unsigned int default_output_delay {}; // in frames
+        unsigned int default_input_delay {}; // in frames
     };
 
     struct StreamChunk
@@ -215,13 +217,13 @@ static std::vector<std::vector<const StreamDescription*>> vp9_streams =
 };
 
 static ComponentDesc g_components_desc[] = {
-    { "c2.intel.avc.decoder", MfxC2Component::CreateConfig{}, C2_OK, dec_params_desc, dec_params_values_h264, h264_streams, 18u},
-    { "c2.intel.hevc.decoder", MfxC2Component::CreateConfig{}, C2_OK, dec_params_desc, dec_params_values_h265, h265_streams, 18u},
-    { "c2.intel.vp9.decoder", MfxC2Component::CreateConfig{}, C2_OK, dec_params_desc, dec_params_values_vp9, vp9_streams, 10u},
+    { "c2.intel.avc.decoder", MfxC2Component::CreateConfig{}, C2_OK, dec_params_desc, dec_params_values_h264, h264_streams, 18u, 1u},
+    { "c2.intel.hevc.decoder", MfxC2Component::CreateConfig{}, C2_OK, dec_params_desc, dec_params_values_h265, h265_streams, 18u, 1u},
+    { "c2.intel.vp9.decoder", MfxC2Component::CreateConfig{}, C2_OK, dec_params_desc, dec_params_values_vp9, vp9_streams, 10u, 1u},
 };
 
 static ComponentDesc g_invalid_components_desc[] = {
-    { "c2.intel.missing.decoder", MfxC2Component::CreateConfig{}, C2_NOT_FOUND, {}, {}, {}, {}},
+    { "c2.intel.missing.decoder", MfxC2Component::CreateConfig{}, C2_NOT_FOUND, {}, {}, {}, {}, {}},
 };
 
 static std::list<StreamChunk> ReadChunks(const std::vector<const StreamDescription*>& streams)
@@ -1364,6 +1366,7 @@ static C2ParamValues GetDefaultParamValues(const ComponentDesc& desc)
     default_values.Append(new C2StreamBufferTypeSetting::input(0/*stream*/, C2BufferData::LINEAR));
     default_values.Append(new C2StreamBufferTypeSetting::output(0/*stream*/, C2BufferData::GRAPHIC));
     default_values.Append(new C2PortDelayTuning::output(desc.default_output_delay));
+    default_values.Append(new C2PortDelayTuning::input(desc.default_input_delay));
 
     default_values.Append(new C2StreamColorAspectsTuning::output(0u, C2Color::RANGE_UNSPECIFIED,
                                                                      C2Color::PRIMARIES_UNSPECIFIED,

@@ -173,6 +173,9 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     // form QueryIOSurf function call result.
     pr.AddValue(C2_PARAMKEY_OUTPUT_DELAY, std::make_unique<C2PortDelayTuning::output>(output_delay));
 
+    // The input delay parameter set to magic number 1u due to hardcoded delay values in framework
+    pr.AddValue(C2_PARAMKEY_INPUT_DELAY, std::make_unique<C2PortDelayTuning::input>(1u));
+
     pr.RegisterParam<C2StreamProfileLevelInfo::input>(C2_PARAMKEY_PROFILE_LEVEL);
     pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::profile, supported_profiles);
     pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::level, supported_levels);
