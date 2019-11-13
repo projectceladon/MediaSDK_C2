@@ -75,7 +75,7 @@ c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_
         res = MapConstLinearBlock(*c_linear_block, timeout, &read_view);
         if(C2_OK != res) break;
 
-        MFX_DEBUG_TRACE_I64(buf_pack.ordinal.frameIndex.peeku());
+        MFX_DEBUG_TRACE_I64(buf_pack.ordinal.timestamp.peeku());
 
         data = read_view->data() + c_linear_block->offset();
         filled_len = c_linear_block->size();
@@ -86,7 +86,7 @@ c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_
 
         mfxStatus mfx_res = frame_constructor_->Load(data,
                                                      filled_len,
-                                                     buf_pack.ordinal.frameIndex.peeku(), // pass frameIndex as pts
+                                                     buf_pack.ordinal.timestamp.peeku(), // pass pts
                                                      buf_pack.flags & C2FrameData::FLAG_CODEC_CONFIG,
                                                      true);
         res = MfxStatusToC2(mfx_res);
