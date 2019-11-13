@@ -165,7 +165,7 @@ private:
     std::list<MfxC2FrameOut> locked_surfaces_; // allocated, but cannot be re-used as Locked by Decoder
 
     std::mutex pending_works_mutex_;
-    std::map<decltype(C2WorkOrdinalStruct::frameIndex), std::unique_ptr<C2Work>> pending_works_;
+    std::map<decltype(C2WorkOrdinalStruct::timestamp), std::unique_ptr<C2Work>> pending_works_;
 
     std::shared_ptr<MfxFramePoolAllocator> allocator_; // used when Video memory output
     // for pre-allocation when Video memory is chosen and always when System memory output

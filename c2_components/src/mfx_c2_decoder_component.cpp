@@ -1181,13 +1181,17 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
     MFX_DEBUG_TRACE_I32(mfx_surface->Data.Locked);
     MFX_DEBUG_TRACE_I64(mfx_surface->Data.TimeStamp);
 
-    decltype(C2WorkOrdinalStruct::frameIndex) ready_frame_index{mfx_surface->Data.TimeStamp};
+    decltype(C2WorkOrdinalStruct::timestamp) ready_timestamp{mfx_surface->Data.TimeStamp};
 
     std::unique_ptr<C2Work> work;
 
     {
         std::lock_guard<std::mutex> lock(pending_works_mutex_);
-        auto it = pending_works_.find(ready_frame_index);
+
+        auto it = find_if(pending_works_.begin(), pending_works_.end(), [ready_timestamp] (const auto &item) {
+            return item.second->input.ordinal.timestamp == ready_timestamp;
+        });
+
         if (it != pending_works_.end()) {
             work = std::move(it->second);
             pending_works_.erase(it);
@@ -1313,7 +1317,20 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
 
 void MfxC2DecoderComponent::PushPending(std::unique_ptr<C2Work>&& work)
 {
+    MFX_DEBUG_TRACE_FUNC;
+
     std::lock_guard<std::mutex> lock(pending_works_mutex_);
+
+    const auto incoming_frame_timestamp = work->input.ordinal.timestamp;
+    auto duplicate = find_if(pending_works_.begin(), pending_works_.end(),
+        [incoming_frame_timestamp] (const auto &item) {
+            return item.second->input.ordinal.timestamp == incoming_frame_timestamp;
+        });
+    if (duplicate != pending_works_.end()) {
+        MFX_DEBUG_TRACE_STREAM("Potentional error: Found duplicated timestamp: "
+                               << duplicate->second->input.ordinal.timestamp.peeku());
+    }
+
     const auto incoming_frame_index = work->input.ordinal.frameIndex;
     auto it = pending_works_.find(incoming_frame_index);
     if (it != pending_works_.end()) { // Shouldn't be the same index there
