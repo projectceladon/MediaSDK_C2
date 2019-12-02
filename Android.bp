@@ -9,6 +9,7 @@ mfx_cc_defaults {
         "-fstack-protector-strong",
         "-fPIE",
         "-fPIC",
+        "-fexceptions",
         "-O2",
         "-D_FORTIFY_SOURCE=2",
         "-Wformat",
