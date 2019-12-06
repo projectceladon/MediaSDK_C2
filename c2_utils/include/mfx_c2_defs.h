@@ -36,4 +36,4 @@ extern const size_t g_h265_profile_levels_count;
 extern const C2ProfileLevelStruct g_h265_profile_levels[];
 
 // TODO: Update this value if you need to add ExtBufHolder type
-constexpr uint16_t g_max_num_ext_buffers = 0;
+constexpr uint16_t g_max_num_ext_buffers = 2;

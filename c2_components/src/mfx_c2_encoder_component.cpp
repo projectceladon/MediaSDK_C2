@@ -103,8 +103,14 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
 
             pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
                 AllocUniqueString<C2PortMediaTypeSetting::input>("video/raw"));
-            pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
-                AllocUniqueString<C2PortMediaTypeSetting::output>("video/avc"));
+
+            if (encoder_type_ == ENCODER_H264) {
+                pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
+                    AllocUniqueString<C2PortMediaTypeSetting::output>("video/avc"));
+            } else {
+                pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
+                    AllocUniqueString<C2PortMediaTypeSetting::output>("video/hevc"));
+            }
 
             pr.AddStreamInfo<C2StreamPictureSizeInfo::input>(
                 C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
@@ -722,42 +728,68 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
             worklet->output.flags = work->input.flags;
             if (!header_sent_) {
 
-                mfxExtCodingOptionSPSPPS spspps{};
-                mfxVideoParam video_param{};
+                mfxExtCodingOptionSPSPPS* spspps{};
+                mfxExtCodingOptionVPS* vps{};
+                MfxVideoParamsWrapper video_param {};
 
-                mfxExtBuffer* ext_buf = &spspps.Header;
+                mfxU8 buf[256/*VPS*/ + 1024/*SPS*/ + 128/*PPS*/] = {0};
+                try {
+                    spspps = video_param.AddExtBuffer<mfxExtCodingOptionSPSPPS>();
 
-                spspps.Header.BufferId = MFX_EXTBUFF_CODING_OPTION_SPSPPS;
-                spspps.Header.BufferSz = sizeof(mfxExtCodingOptionSPSPPS);
-                mfxU8 buf[1024] = {0};
-                spspps.SPSBuffer = buf;
-                spspps.SPSBufSize = 512;
-                spspps.PPSBuffer = buf + spspps.SPSBufSize;
-                spspps.PPSBufSize = 512;
+                    if (ENCODER_H265 == encoder_type_)
+                        vps = video_param.AddExtBuffer<mfxExtCodingOptionVPS>();
 
-                video_param.NumExtParam = 1;
-                video_param.ExtParam = &ext_buf;
+                    spspps->SPSBuffer = buf;
+                    spspps->SPSBufSize = 1024;
 
-                mfx_res = encoder_->GetVideoParam(&video_param);
+                    spspps->PPSBuffer = buf + spspps->SPSBufSize;
+                    spspps->PPSBufSize = 128;
+
+                    if (ENCODER_H265 == encoder_type_) {
+                        vps->VPSBuffer = spspps->PPSBuffer + spspps->PPSBufSize;
+                        vps->VPSBufSize = 256;
+                    }
+
+                    mfx_res = encoder_->GetVideoParam(&video_param);
+
+                } catch(std::exception err) {
+                    MFX_DEBUG_TRACE_STREAM("Error:" << err.what());
+                    mfx_res = MFX_ERR_MEMORY_ALLOC;
+                }
+
                 if (MFX_ERR_NONE == mfx_res) {
 
-                    const int header_size = spspps.SPSBufSize + spspps.PPSBufSize;
+                    int header_size = spspps->SPSBufSize + spspps->PPSBufSize;
+                    if (ENCODER_H265 == encoder_type_)
+                        header_size += vps->VPSBufSize;
 
                     std::unique_ptr<C2StreamInitDataInfo::output> csd =
                         C2StreamInitDataInfo::output::AllocUnique(header_size, 0u);
 
-                    MFX_DEBUG_TRACE_STREAM("SPS: " << FormatHex(spspps.SPSBuffer, spspps.SPSBufSize));
-                    MFX_DEBUG_TRACE_STREAM("PPS: " << FormatHex(spspps.PPSBuffer, spspps.PPSBufSize));
+                    if (ENCODER_H265 == encoder_type_)
+                        MFX_DEBUG_TRACE_STREAM("VPS: " << FormatHex(vps->VPSBuffer, vps->VPSBufSize));
+
+                    MFX_DEBUG_TRACE_STREAM("SPS: " << FormatHex(spspps->SPSBuffer, spspps->SPSBufSize));
+                    MFX_DEBUG_TRACE_STREAM("PPS: " << FormatHex(spspps->PPSBuffer, spspps->PPSBufSize));
 
                     uint8_t* dst = csd->m.value;
-                    std::copy(spspps.SPSBuffer, spspps.SPSBuffer + spspps.SPSBufSize, dst);
-                    dst += spspps.SPSBufSize;
 
-                    std::copy(spspps.PPSBuffer, spspps.PPSBuffer + spspps.PPSBufSize, dst);
+                    // Copy buffers in the order of VPS, SPS, PPS for HEVC or SPS, PPS for AVC
+                    if (ENCODER_H265 == encoder_type_) {
+                        std::copy(vps->VPSBuffer, vps->VPSBuffer + vps->VPSBufSize, dst);
+                        dst += vps->VPSBufSize;
+                    }
+
+                    std::copy(spspps->SPSBuffer, spspps->SPSBuffer + spspps->SPSBufSize, dst);
+                    dst += spspps->SPSBufSize;
+
+                    std::copy(spspps->PPSBuffer, spspps->PPSBuffer + spspps->PPSBufSize, dst);
 
                     work->worklets.front()->output.configUpdate.push_back(std::move(csd));
 
-                    worklet->output.flags = (C2FrameData::flags_t)(worklet->output.flags | C2FrameData::FLAG_CODEC_CONFIG);
+                    worklet->output.flags = (C2FrameData::flags_t)(worklet->output.flags |
+                        C2FrameData::FLAG_CODEC_CONFIG);
+
                     header_sent_ = true;
                 }
             }
@@ -786,7 +818,7 @@ std::unique_ptr<mfxVideoParam> MfxC2EncoderComponent::GetParamsView() const
     mfxStatus sts = MFX_ERR_NONE;
 
     if(nullptr == encoder_) {
-        mfxVideoParam* in_params = const_cast<mfxVideoParam*>(&video_params_config_);
+        MfxVideoParamsWrapper* in_params = const_cast<MfxVideoParamsWrapper*>(&video_params_config_);
 
         res->mfx.CodecId = in_params->mfx.CodecId;
 

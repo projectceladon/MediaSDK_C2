@@ -149,7 +149,12 @@ private:
 //declare used extension buffers
 template<class T>
 struct mfx_ext_buffer_id{};
-// TODO: Add new types when necessary, increase g_max_num_ext_buffers constant
+template<>struct mfx_ext_buffer_id<mfxExtCodingOptionSPSPPS> {
+    enum {id = MFX_EXTBUFF_CODING_OPTION_SPSPPS};
+};
+template<>struct mfx_ext_buffer_id<mfxExtCodingOptionVPS> {
+    enum {id = MFX_EXTBUFF_CODING_OPTION_VPS};
+};
 
 template <typename R>
 struct ExtParamAccessor
