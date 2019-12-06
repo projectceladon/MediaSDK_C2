@@ -1465,9 +1465,11 @@ static std::vector<char> ExtractHeader(std::vector<char>&& bitstream, uint32_t f
 
     const uint8_t UNIT_TYPE_SPS = (four_cc == MFX_CODEC_AVC) ? 7 : 33;
     const uint8_t UNIT_TYPE_PPS = (four_cc == MFX_CODEC_AVC) ? 8 : 34;
+    const uint8_t UNIT_TYPE_VPS = 32; // used for HEVC only
 
     std::vector<char> sps;
     std::vector<char> pps;
+    std::vector<char> vps;
 
     StreamDescription stream{};
     stream.data = std::move(bitstream); // do not init sps/pps regions, don't care of them
@@ -1487,21 +1489,28 @@ static std::vector<char> ExtractHeader(std::vector<char>&& bitstream, uint32_t f
                 sps = reader.GetRegionContents(region);
             } else if (nal_unit_type == UNIT_TYPE_PPS) {
                 pps = reader.GetRegionContents(region);
+            } else if (nal_unit_type == UNIT_TYPE_VPS) {
+                vps = reader.GetRegionContents(region);
             }
         }
     }
     EXPECT_NE(sps.size(), 0u);
     EXPECT_NE(pps.size(), 0u);
+    if (four_cc != MFX_CODEC_AVC)
+        EXPECT_NE(vps.size(), 0u);
 
-    std::vector<char> res = std::move(sps);
-    res.insert(res.end(), pps.begin(), pps.end()); // concatenate
+    std::vector<char> res;
+    if (four_cc != MFX_CODEC_AVC)
+        res = std::move(vps);
+    res.insert(res.end(), sps.begin(), sps.end()); // concatenate
+    res.insert(res.end(), pps.begin(), pps.end());
 
     return res;
 }
 
-// Tests that header (sps + pps) is supplied with C2StreamInitDataInfo::output
+// Tests that header (vps + sps + pps) is supplied with C2StreamInitDataInfo::output
 // through C2Worklet::output::configUpdate.
-// Checks if C2StreamInitDataInfo::output contents is the same as sps + pps from encoded stream.
+// Checks if C2StreamInitDataInfo::output contents is the same as vps + sps + pps from encoded stream.
 TEST_P(Encoder, EncodeHeaderSupplied)
 {
     CallComponentTest<ComponentDesc>(GetParam(),
@@ -1577,7 +1586,7 @@ TEST_P(Encoder, EncodeResolutionInfo)
     } );
 }
 
-static C2ParamValues GetConstParamValues()
+static C2ParamValues GetConstParamValues(uint32_t four_cc)
 {
     C2ParamValues const_values;
 
@@ -1586,7 +1595,13 @@ static C2ParamValues GetConstParamValues()
     const_values.Append(new C2StreamBufferTypeSetting::input(0/*stream*/, C2BufferData::GRAPHIC));
     const_values.Append(new C2StreamBufferTypeSetting::output(0/*stream*/, C2BufferData::LINEAR));
     const_values.AppendFlex(AllocUniqueString<C2PortMediaTypeSetting::input>("video/raw"));
-    const_values.AppendFlex(AllocUniqueString<C2PortMediaTypeSetting::output>("video/avc"));
+
+    if (MFX_CODEC_AVC == four_cc)
+        const_values.AppendFlex(AllocUniqueString<C2PortMediaTypeSetting::output>("video/avc"));
+
+    if (MFX_CODEC_HEVC == four_cc)
+        const_values.AppendFlex(AllocUniqueString<C2PortMediaTypeSetting::output>("video/hevc"));
+
     return const_values;
 }
 
@@ -1594,11 +1609,11 @@ static C2ParamValues GetConstParamValues()
 TEST_P(Encoder, ComponentConstParams)
 {
     CallComponentTest<ComponentDesc>(GetParam(),
-        [&] (const ComponentDesc&, C2CompPtr, C2CompIntfPtr comp_intf) {
+        [&] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
         // check query through stack placeholders and the same with heap allocated
         std::vector<std::unique_ptr<C2Param>> heap_params;
-        const C2ParamValues& const_values = GetConstParamValues();
+        const C2ParamValues& const_values = GetConstParamValues(desc.four_cc);
         c2_blocking_t may_block{C2_MAY_BLOCK};
         c2_status_t res = comp_intf->query_vb(const_values.GetStackPointers(),
             const_values.GetIndices(), may_block, &heap_params);

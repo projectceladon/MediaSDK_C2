@@ -138,9 +138,9 @@ private:
     // Video params configured through config_vb, retained between Start/Stop
     // sessions, used for init encoder,
     // can have zero (default) fields.
-    mfxVideoParam video_params_config_;
+    MfxVideoParamsWrapper video_params_config_;
     // Internal encoder state, queried from encoder.
-    mfxVideoParam video_params_state_ {};
+    MfxVideoParamsWrapper video_params_state_ {};
     // Protects encoder initializatin and video_params_config_/video_params_state_
     mutable std::mutex init_encoder_mutex_;
 
