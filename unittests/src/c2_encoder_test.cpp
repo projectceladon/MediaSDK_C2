@@ -134,7 +134,7 @@ static C2ParamValues GetDefaultValues(const char * component_name)
 
     default_values.Append(new C2RateControlSetting(MfxRateControlToC2(video_params.mfx.RateControlMethod)));
     default_values.Append(new C2FrameRateSetting::output(0/*stream*/, C2FloatValue((float)video_params.mfx.FrameInfo.FrameRateExtN / video_params.mfx.FrameInfo.FrameRateExtD)));
-    default_values.Append(new C2StreamBitrateInfo::output(0/*stream*/, video_params.mfx.TargetKbps));
+    default_values.Append(new C2StreamBitrateInfo::output(0/*stream*/, video_params.mfx.TargetKbps * 1000)); // Convert from Kbsp to bps
     default_values.Append(Invalidate(new C2FrameQPSetting()));
     return default_values;
 }
@@ -736,15 +736,15 @@ TEST_P(Encoder, StaticBitrate)
         param_framerate.value = FRAME_RATE;
 
         // these bit rates handles accurately for low res (320x240) and significant frame count (150)
-        const uint32_t bitrates[] = { 100, 500, 1000 };
-        const int TESTS_COUNT = MFX_GET_ARRAY_SIZE(bitrates);
+        const uint32_t bitrates_bs[] = { 100000, 500000, 1000000 };
+        const int TESTS_COUNT = MFX_GET_ARRAY_SIZE(bitrates_bs);
 
         for(int test_index = 0; test_index < TESTS_COUNT; ++test_index) {
 
             StripeGenerator stripe_generator;
             NoiseGenerator noise_generator;
 
-            param_bitrate.value = bitrates[test_index];
+            param_bitrate.value = bitrates_bs[test_index];
 
             std::vector<C2Param*> params = { &param_rate_control, &param_framerate, &param_bitrate };
             std::vector<std::unique_ptr<C2SettingResult>> failures;
@@ -754,7 +754,7 @@ TEST_P(Encoder, StaticBitrate)
             EXPECT_EQ(sts, C2_OK);
 
             GTestBinaryWriter writer(std::ostringstream() << comp_intf->getName()
-                << "-" << bitrates[test_index] << ".out");
+                << "-" << bitrates_bs[test_index] << ".out");
 
             int64_t bitstream_len = 0;
 
@@ -771,11 +771,11 @@ TEST_P(Encoder, StaticBitrate)
             Encode(FRAME_COUNT, false/*system memory*/, comp, validator,
                 { &stripe_generator, &noise_generator } );
 
-            int64_t expected_bitrate = 1000 * bitrates[test_index]; // target bitrate in bits
+            int64_t expected_bitrate = bitrates_bs[test_index]; // target bitrate in bits
             int64_t real_bitrate = (bitstream_len * FRAME_RATE * 8) / FRAME_COUNT;
             EXPECT_TRUE(abs(real_bitrate - expected_bitrate) < expected_bitrate * 0.1)
                 << "Expected bitrate: " << expected_bitrate << " Actual: " << real_bitrate
-                << " for bitrate " << bitrates[test_index] << " kbit";
+                << " for bitrate " << bitrates_bs[test_index] / 1000 << " kbit";
 
         }
     }); // CallComponentTest
@@ -1170,7 +1170,7 @@ TEST_P(Encoder, DynamicBitrate)
             std::unique_ptr<C2StreamBitrateInfo::output> param_bitrate_info =
                 std::make_unique<C2StreamBitrateInfo::output>(); // for config_vb
 
-            const uint32_t BITRATE_1 = 100;
+            const uint32_t BITRATE_1 = 100000; // bs (bit per second)
             const uint32_t MULTIPLIER = 2;
             const uint32_t BITRATE_2 = BITRATE_1 * MULTIPLIER;
 
@@ -1237,11 +1237,11 @@ TEST_P(Encoder, DynamicBitrate)
             int64_t real_bitrate_1 = (stream_len_1 * FRAME_RATE * 8) / FRAME_COUNT;
             int64_t real_bitrate_2 = (stream_len_2 * FRAME_RATE * 8) / FRAME_COUNT;
 
-            EXPECT_TRUE(abs(real_bitrate_1 - BITRATE_1 * 1000) < BITRATE_1 * 1000 * 0.1)
-                << "Expected bitrate: " << BITRATE_1 * 1000 << " Actual: " << real_bitrate_1;
+            EXPECT_TRUE(abs(real_bitrate_1 - BITRATE_1) < BITRATE_1 * 0.1)
+                << "Expected bitrate: " << BITRATE_1 << " Actual: " << real_bitrate_1;
 
-            EXPECT_TRUE(abs(real_bitrate_2 - BITRATE_2 * 1000) < BITRATE_2 * 1000 * 0.1)
-                << "Expected bitrate: " << BITRATE_2 * 1000 << " Actual: " << real_bitrate_2;
+            EXPECT_TRUE(abs(real_bitrate_2 - BITRATE_2) < BITRATE_2 * 0.1)
+                << "Expected bitrate: " << BITRATE_2 << " Actual: " << real_bitrate_2;
         }
     }); // CallComponentTest
 }
@@ -1390,7 +1390,7 @@ TEST_P(Encoder, FrameRate)
             size_t stream_len;
         };
         TestRunDescription test_runs[2] = { { 25.0, 0 }, { 50.0, 0 } };
-        const uint32_t CONST_BITRATE = 300;
+        const uint32_t CONST_BITRATE = 300000; // bit per second
 
         C2StreamBitrateInfo::output param_bitrate;
         C2RateControlSetting param_rate_control;
@@ -1450,7 +1450,7 @@ TEST_P(Encoder, FrameRate)
             bool stream_ok = CheckFrameRateInStream(std::move(bitstream), test_run.expected_framerate, comp_desc.component_name, &error_message);
             EXPECT_TRUE(stream_ok) << error_message;
 
-            float real_framerate = (CONST_BITRATE * FRAME_COUNT * 1000.0) /
+            float real_framerate = (CONST_BITRATE * FRAME_COUNT) /
                 (test_run.stream_len * 8);
             EXPECT_TRUE(abs(real_framerate - test_run.expected_framerate) < test_run.expected_framerate * 0.2)
                 << "Expected framerate: " << test_run.expected_framerate << " Actual: " << real_framerate;
