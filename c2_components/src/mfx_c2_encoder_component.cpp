@@ -850,7 +850,7 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
                 }
                 C2StreamBitrateInfo* bitrate = (C2StreamBitrateInfo*)*dst;
                 if (src->mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
-                    bitrate->value = src->mfx.TargetKbps;
+                    bitrate->value = src->mfx.TargetKbps * 1000; // Convert from Kbps to bps
                 } else {
                     res = C2_CORRUPTED;
                 }
@@ -1090,12 +1090,12 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 if (video_params_config_.mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
                     uint32_t bitrate_value = static_cast<const C2BitrateTuning*>(param)->value;
                     if (state_ == State::STOPPED) {
-                        video_params_config_.mfx.TargetKbps = bitrate_value;
+                        video_params_config_.mfx.TargetKbps = bitrate_value / 1000; // Convert from bps to Kbps
                     } else if (video_params_config_.mfx.RateControlMethod == MFX_RATECONTROL_VBR) {
                         auto update_bitrate_value = [this, bitrate_value, queue_update, failures, param] () {
                             MFX_DEBUG_TRACE("update_bitrate_value");
                             MFX_DEBUG_TRACE_I32(bitrate_value);
-                            video_params_config_.mfx.TargetKbps = bitrate_value;
+                            video_params_config_.mfx.TargetKbps = bitrate_value / 1000; // Convert from bps to Kbps
                             if (nullptr != encoder_) {
                                 {   // waiting for encoding completion of all enqueued frames
                                     std::unique_lock<std::mutex> lock(dev_busy_mutex_);
