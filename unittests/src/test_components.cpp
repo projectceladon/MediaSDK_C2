@@ -10,7 +10,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 #include "test_components.h"
 #include <sstream>
-#include <src/zlib.h>
+#include <zlib.h>
 
 void CRC32Generator::AddData(uint32_t width, uint32_t height, const uint8_t* data, size_t length)
 {

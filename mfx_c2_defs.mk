@@ -17,6 +17,9 @@ include $(MFX_C2_HOME)/mfx_c2_env.mk
 MFX_C2_CFLAGS := -DANDROID
 
 # Android version preference:
+ifneq ($(filter 11 11.% R ,$(PLATFORM_VERSION)),)
+  MFX_ANDROID_VERSION:= MFX_R
+endif
 ifneq ($(filter 10 10.% Q ,$(PLATFORM_VERSION)),)
   MFX_ANDROID_VERSION:= MFX_Q
 endif
@@ -51,6 +54,9 @@ MFX_C2_CFLAGS += \
 
 ifeq ($(BOARD_USES_GRALLOC1),true)
   # plugins should use PRIME buffer descriptor since Android P
+  ifneq ($(filter MFX_R ,$(MFX_ANDROID_VERSION)),)
+      MFX_C2_CFLAGS += -DMFX_C2_USE_PRIME
+  endif
   ifneq ($(filter MFX_Q ,$(MFX_ANDROID_VERSION)),)
       MFX_C2_CFLAGS += -DMFX_C2_USE_PRIME
   endif
