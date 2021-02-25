@@ -1,0 +1,53 @@
+cc_library_shared {
+    name: "libc2plugin_store",
+    vendor: true,
+
+    defaults: [
+        "mfx_c2_defaults",
+    ],
+
+    srcs: ["src/*.cpp"],
+
+    export_include_dirs: [
+        "include",
+    ],
+
+    include_dirs: [
+        "frameworks/av/media/codec2/vndk/include",
+        "frameworks/av/media/codec2/components/base/include",
+        "frameworks/av/media/codec2/core/include",
+        "frameworks/av/media/codec2/vndk/include",
+        "frameworks/av/media/libstagefright/include",
+        "frameworks/av/media/libstagefright/include",
+        "vendor/intel/mediasdk_c2/c2_utils/include",
+    ],
+
+    header_libs: [
+        "libcodec2_internal",
+    ],
+
+    static_libs: [
+        "libmfx_c2_utils"
+    ],
+
+    shared_libs: [
+        "libbase",
+        "android.hardware.graphics.bufferqueue@2.0",
+        "libcutils",
+        "libhardware",
+        "libhidlbase",
+        "libnativewindow",
+        "liblog",
+        "libstagefright_bufferqueue_helper",
+        "libstagefright_foundation",
+        "libui",
+        "libutilscallstack",
+        "libutils",
+        "libcodec2_vndk",
+    ],
+
+    cflags: [
+      "-Werror",
+      "-Wall",
+    ],
+}
