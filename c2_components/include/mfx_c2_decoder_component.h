@@ -170,7 +170,7 @@ private:
     std::shared_ptr<MfxFramePoolAllocator> allocator_; // used when Video memory output
     // for pre-allocation when Video memory is chosen and always when System memory output
     std::shared_ptr<C2BlockPool> c2_allocator_;
-
+    C2BlockPool::local_id_t output_pool_id_ = C2BlockPool::BASIC_GRAPHIC;
     std::atomic<bool> flushing_{false};
 
     std::list<std::unique_ptr<C2Work>> flushed_works_;

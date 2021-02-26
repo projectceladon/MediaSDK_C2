@@ -217,8 +217,6 @@ bool MfxC2ParamStorage::ValidateParam(const C2Param* param,
 
             } else {
                 MFX_DEBUG_TRACE_MSG("other types not supported yet");
-                res = false;
-                failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE));
             }
         }
 

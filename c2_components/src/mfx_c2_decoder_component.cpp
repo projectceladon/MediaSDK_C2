@@ -16,6 +16,8 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_components_registry.h"
 #include "mfx_c2_utils.h"
 #include "mfx_defaults.h"
+#include "mfx_c2_allocator_id.h"
+#include "mfx_c2_buffer_queue.h"
 #include "C2PlatformSupport.h"
 
 using namespace android;
@@ -37,6 +39,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     MfxC2ParamStorage& pr = param_storage_;
 
     pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
+    pr.RegisterParam<C2PortAllocatorsTuning::output>(C2_PARAMKEY_OUTPUT_ALLOCATORS);
+    pr.RegisterParam<C2PortBlockPoolsTuning::output>(C2_PARAMKEY_OUTPUT_BLOCK_POOLS);
 
     pr.AddValue(C2_PARAMKEY_COMPONENT_DOMAIN,
         std::make_unique<C2ComponentDomainSetting>(C2Component::DOMAIN_VIDEO));
@@ -549,6 +553,7 @@ void MfxC2DecoderComponent::FreeDecoder()
 
 c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Index index, C2Param** dst) const
 {
+    MFX_DEBUG_TRACE_FUNC;
     c2_status_t res = C2_OK;
 
     res = param_storage_.QueryParam(index, dst);
@@ -561,6 +566,20 @@ c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
 
                 C2MemoryTypeSetting* setting = static_cast<C2MemoryTypeSetting*>(*dst);
                 if (!MfxIOPatternToC2MemoryType(false, src->IOPattern, &setting->value)) res = C2_CORRUPTED;
+                break;
+            }
+            case C2PortAllocatorsTuning::output::PARAM_TYPE: {
+                if (nullptr == *dst) {
+                    std::unique_ptr<C2PortAllocatorsTuning::output> outAlloc =
+                                                C2PortAllocatorsTuning::output::AllocUnique(1);
+                    outAlloc->m.values[0] = C2PlatformAllocatorStore::GRALLOC;//Swith to customer allocator later
+                    MFX_DEBUG_TRACE_PRINTF("Set output port alloctor to: %d", outAlloc->m.values[0]);
+                    *dst = outAlloc.release();
+                    res = C2_OK;
+                } else {
+                    // It is not possible to return flexible params through stack
+                    res = C2_NO_MEMORY;
+                }
                 break;
             }
             default:
@@ -673,6 +692,19 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 const C2MemoryTypeSetting* setting = static_cast<const C2MemoryTypeSetting*>(param);
                 bool set_res = C2MemoryTypeToMfxIOPattern(false, setting->value, &video_params_.IOPattern);
                 if (!set_res) {
+                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
+                }
+                break;
+            }
+            case kParamIndexBlockPools: {
+                const C2PortBlockPoolsTuning::output* outputPools =
+                                static_cast<const C2PortBlockPoolsTuning::output*>(param);
+
+                if (outputPools && outputPools->flexCount() >= 1) {
+                    output_pool_id_ = outputPools->m.values[0];
+                    MFX_DEBUG_TRACE_PRINTF("config kParamIndexBlockPools to %d",output_pool_id_);
+                }
+                else {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
                 }
                 break;
@@ -979,7 +1011,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         PushPending(std::move(work));
 
         if (!c2_allocator_) {
-            res = GetCodec2BlockPool(C2BlockPool::BASIC_GRAPHIC,
+            res = GetCodec2BlockPool(output_pool_id_,
                 shared_from_this(), &c2_allocator_);
             if (res != C2_OK) break;
         }

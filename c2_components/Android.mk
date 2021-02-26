@@ -12,7 +12,8 @@ define build_components
   LOCAL_C_INCLUDES := \
       $$(MFX_C2_INCLUDES) \
       $$(MFX_C2_HOME)/c2_utils/include \
-      $$(MFX_C2_HOME)/c2_buffers/include
+      $$(MFX_C2_HOME)/c2_buffers/include \
+      $$(MFX_C2_HOME)/plugin_store/include
 
   LOCAL_CFLAGS := $$(MFX_C2_CFLAGS)
 
@@ -20,7 +21,13 @@ define build_components
 
   LOCAL_SHARED_LIBRARIES := \
     libhardware libdl liblog \
-    $(MFX_C2_SHARED_LIBS)
+    $(MFX_C2_SHARED_LIBS) \
+        libexpat \
+        libgralloctypes \
+        libstagefright_foundation \
+        android.hardware.media.bufferpool@2.0 \
+        android.hardware.graphics.bufferqueue@2.0 \
+        android.hardware.graphics.common@1.2
 
   LOCAL_STATIC_LIBRARIES := \
     libmfx_c2_buffers
