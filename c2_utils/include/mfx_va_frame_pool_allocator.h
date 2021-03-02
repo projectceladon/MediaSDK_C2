@@ -52,6 +52,14 @@ private:
     {
         pool_ = std::make_unique<MfxPool<C2GraphicBlock>>();
     }
+    bool InCache(buffer_handle_t hdl) {
+        auto it = cached_buffer_handle_.find(hdl);
+        if (it == cached_buffer_handle_.end()){
+            return false;
+        }
+
+        return true;
+    }
 private:
     virtual mfxStatus AllocFrames(mfxFrameAllocRequest *request, mfxFrameAllocResponse *response) override;
 
@@ -63,6 +71,8 @@ private:
     std::shared_ptr<C2BlockPool> c2_allocator_;
 
     std::unique_ptr<MfxPool<C2GraphicBlock>> pool_;
+
+    std::map<buffer_handle_t, int> cached_buffer_handle_;
 
 private:
     MFX_CLASS_NO_COPY(MfxVaFramePoolAllocator)

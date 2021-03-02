@@ -31,7 +31,8 @@ public:
                                     std::shared_ptr<C2GraphicBlock> block,
                                     const mfxFrameInfo& info,
                                     c2_nsecs_t timeout,
-                                    MfxC2FrameOut* wrapper);
+                                    MfxC2FrameOut* wrapper,
+                                    buffer_handle_t hndl);
 
     std::shared_ptr<C2GraphicBlock> GetC2GraphicBlock() const;
     std::shared_ptr<C2GraphicView> GetC2GraphicView() const;

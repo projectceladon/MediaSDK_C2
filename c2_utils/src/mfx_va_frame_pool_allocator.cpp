@@ -11,6 +11,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #if defined(LIBVA_SUPPORT)
 
 #include "mfx_va_frame_pool_allocator.h"
+#include "mfx_c2_buffer_queue.h"
 
 #include "mfx_c2_utils.h"
 #include "mfx_debug.h"
@@ -37,7 +38,7 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                 res = MFX_ERR_UNSUPPORTED;
                 break;
             }
-            std::unique_ptr<mfxMemId[]> mids { new (std::nothrow)mfxMemId[request->NumFrameSuggested] };
+            std::unique_ptr<mfxMemId[]> mids { new (std::nothrow)mfxMemId[32] };
             if (!mids) {
                 res = MFX_ERR_MEMORY_ALLOC;
                 break;
@@ -45,15 +46,21 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
 
             response->NumFrameActual = 0;
 
-            for (int i = 0; i < request->NumFrameSuggested; ++i) {
+            for (int i = 0; i < 32; ++i) {
 
                 std::shared_ptr<C2GraphicBlock> new_block;
+                c2_status_t err;
+                do{
+                    err = c2_allocator_->fetchGraphicBlock(
+                        request->Info.Width, request->Info.Height,
+                        MfxFourCCToGralloc(request->Info.FourCC),
+                        { C2MemoryUsage::CPU_READ, C2AndroidMemoryUsage::HW_CODEC_WRITE },
+                        &new_block);
+                } while(err == C2_BLOCKING);
 
-                c2_status_t err = c2_allocator_->fetchGraphicBlock(
-                    request->Info.Width, request->Info.Height,
-                    MfxFourCCToGralloc(request->Info.FourCC),
-                    { C2MemoryUsage::CPU_READ, C2AndroidMemoryUsage::HW_CODEC_WRITE },
-                    &new_block);
+                buffer_handle_t hndl;
+                std::static_pointer_cast<MfxC2BufferQueueBlockPool>(c2_allocator_)->ImportHandle(new_block, &hndl);
+                cached_buffer_handle_.emplace(hndl, i);
                 // deep copy to have unique_ptr as pool_ required unique_ptr
                 std::unique_ptr<C2GraphicBlock> unique_block = std::make_unique<C2GraphicBlock>(*new_block);
 
@@ -62,19 +69,19 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                     break;
                 }
                 bool decode_target = true;
-
-                res = ConvertGrallocToVa(unique_block->handle(), decode_target, &mids[i]);
+                res = ConvertGrallocToVa(hndl, decode_target, &mids[i]);
                 if (MFX_ERR_NONE != res) break;
 
                 MFX_DEBUG_TRACE_STREAM(NAMED(unique_block->handle()) << NAMED(mids[i]));
 
-                pool_->Append(std::move(unique_block));
+                pool_->Append(std::move(unique_block));//tmp cache it, in case return it to system and alloc again at once.
 
                 ++response->NumFrameActual;
             }
 
             if (response->NumFrameActual >= request->NumFrameMin) {
                 response->mids = mids.release();
+                pool_ = std::make_unique<MfxPool<C2GraphicBlock>>(); //release graphic buffer
                 res = MFX_ERR_NONE; // suppress the error if allocated enough
             } else {
                 response->NumFrameActual = 0;

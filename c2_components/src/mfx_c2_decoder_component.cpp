@@ -427,11 +427,15 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
 
     mfx_set_defaults_mfxVideoParam_dec(&video_params_);
 
-    if (device_) {
+    if (device_)
+    {
         // default pattern: video memory if allocator available
-        video_params_.IOPattern = device_->GetFrameAllocator() ?
-            MFX_IOPATTERN_OUT_VIDEO_MEMORY : MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
-    } else {
+        //video_params_.IOPattern = device_->GetFrameAllocator() ?
+        //MFX_IOPATTERN_OUT_VIDEO_MEMORY : MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
+        video_params_.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY; //swith to MFX_IOPATTERN_OUT_VIDEO_MEMORY later
+    }
+    else
+    {
         res = MFX_ERR_NULL_PTR;
     }
 
@@ -571,8 +575,11 @@ c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
             case C2PortAllocatorsTuning::output::PARAM_TYPE: {
                 if (nullptr == *dst) {
                     std::unique_ptr<C2PortAllocatorsTuning::output> outAlloc =
-                                                C2PortAllocatorsTuning::output::AllocUnique(1);
-                    outAlloc->m.values[0] = C2PlatformAllocatorStore::GRALLOC;//Swith to customer allocator later
+                        C2PortAllocatorsTuning::output::AllocUnique(1);
+                    if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
+                        outAlloc->m.values[0] = MFX_BUFFERQUEUE;
+                    else
+                        outAlloc->m.values[0] = C2PlatformAllocatorStore::GRALLOC;
                     MFX_DEBUG_TRACE_PRINTF("Set output port alloctor to: %d", outAlloc->m.values[0]);
                     *dst = outAlloc.release();
                     res = C2_OK;
@@ -903,31 +910,32 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
 
     c2_status_t res = C2_OK;
 
-    do {
-
-        if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
-            std::shared_ptr<C2GraphicBlock> block = allocator_->Alloc();
-            if (!block) {
-                res = C2_TIMED_OUT;
-                break;
-            }
-
-            *out_block = std::move(block);
-
-        } else {
-
-            if (!c2_allocator_) {
-                res = C2_NOT_FOUND;
-                break;
-            }
-
-            C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
-
-            res = c2_allocator_->fetchGraphicBlock(width, height,
-                HAL_PIXEL_FORMAT_NV12_TILED_INTEL, mem_usage, out_block);
+    do
+    {
+        if (!c2_allocator_)
+        {
+            res = C2_NOT_FOUND;
+            break;
         }
-    } while (false);
 
+        C2MemoryUsage mem_usage = {C2AndroidMemoryUsage::CPU_READ, C2AndroidMemoryUsage::HW_CODEC_WRITE};
+        res = c2_allocator_->fetchGraphicBlock(width, height,
+                                               HAL_PIXEL_FORMAT_NV12_TILED_INTEL, mem_usage, out_block);
+        if (res == C2_OK && video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
+        {
+            buffer_handle_t hndl;
+            std::static_pointer_cast<MfxC2BufferQueueBlockPool>(c2_allocator_)->ImportHandle(*out_block, &hndl);
+            if (!allocator_->InCache(hndl))
+            {
+                //temporary solution: lock this buffer, and get others, need refine it in furture.
+                locked_block_.push_back(std::move(*out_block));
+                res = C2_BLOCKING;
+                MFX_DEBUG_TRACE_PRINTF("fetchGraphicBlock: BLOCKING");
+            }
+        }
+    } while (res == C2_BLOCKING);
+
+    MFX_DEBUG_TRACE_I32(res);
     return res;
 }
 
@@ -942,8 +950,11 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
         converter = device_->GetFrameConverter();
     }
 
-    do {
-        auto pred_unlocked = [] (const MfxC2FrameOut& item) { return !item.GetMfxFrameSurface()->Data.Locked; };
+    do
+    {
+        auto pred_unlocked = [&](const MfxC2FrameOut &item) {
+            return !item.GetMfxFrameSurface()->Data.Locked;
+        };
         {
             std::lock_guard<std::mutex> lock(locked_surfaces_mutex_);
             locked_surfaces_.remove_if(pred_unlocked);
@@ -951,27 +962,33 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
 
         std::shared_ptr<C2GraphicBlock> out_block;
         res = AllocateC2Block(video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height, &out_block);
-        if (C2_TIMED_OUT == res) {
+        if (C2_TIMED_OUT == res)
+        {
             continue;
         }
-
         if (C2_OK != res) break;
 
         auto it = surfaces_.end();
-        if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
-            it = surfaces_.find(out_block.get());
-        }
-        if (it == surfaces_.end()) {
-            // haven't been used for decoding yet
-            res = MfxC2FrameOut::Create(converter, out_block, video_params_.mfx.FrameInfo, TIMEOUT_NS, frame_out);
-            if (C2_OK != res) break;
+        if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
+        {
+            buffer_handle_t hndl;
+            std::static_pointer_cast<MfxC2BufferQueueBlockPool>(c2_allocator_)->ImportHandle(out_block, &hndl);
 
-            // put to map
-            if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
-                surfaces_.emplace(out_block.get(), frame_out->GetMfxFrameSurface());
+            it = surfaces_.find(hndl);
+            if (it == surfaces_.end()){
+                // haven't been used for decoding yet
+                res = MfxC2FrameOut::Create(converter, out_block, video_params_.mfx.FrameInfo, TIMEOUT_NS, frame_out, hndl);
+                if (C2_OK != res)
+                    break;
+
+                surfaces_.emplace(hndl, frame_out->GetMfxFrameSurface());
             }
+            else
+                *frame_out = MfxC2FrameOut(std::move(out_block), it->second);
         } else {
-            *frame_out = MfxC2FrameOut(std::move(out_block), it->second);
+            res = MfxC2FrameOut::Create(converter, out_block, video_params_.mfx.FrameInfo, TIMEOUT_NS, frame_out, out_block->handle());
+            if (C2_OK != res)
+            break;
         }
     } while (C2_TIMED_OUT == res);
 
@@ -1269,46 +1286,6 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             // if output is Locked - remove it temporarily from locked_surfaces_ to avoid holding
             // locked_surfaces_mutex_ while long copy operation.
             locked_surfaces_.remove(frame_out);
-        }
-
-        // do output contents copy if
-        // 1. System memory and Locked by msdk - cannot unmap from memory
-        // 2. Always for video memory as we don't know how long output will be used for rendering
-        // and when we can re-use it for next msdk working surface.
-        // Tricks with std::shared_ptr deleter (below in this function and in MfxPool) don't work
-        // as C++ graphic block objects are deleted but gralloc handles moved to other processes
-        // with HIDL and still used.
-        // Some solution to find when they aren't used should be found to avoid slow content copying.
-        if (work && (mfx_surface->Data.Locked || video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)) {
-            // if output is locked, we have to copy its contents for output
-            std::shared_ptr<C2GraphicBlock> new_block;
-
-            C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
-            res = c2_allocator_->fetchGraphicBlock(block->width(), block->height(),
-               HAL_PIXEL_FORMAT_NV12_TILED_INTEL, mem_usage, &new_block);
-
-            if (C2_OK != res) break;
-
-            std::unique_ptr<C2GraphicView> new_view;
-            res = MapGraphicBlock(*new_block, TIMEOUT_NS, &new_view);
-            if (C2_OK != res) break;
-
-            const C2GraphicView* src_view{};
-
-            std::unique_ptr<C2GraphicView> block_view;
-            if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
-                res = MapGraphicBlock(*block, TIMEOUT_NS, &block_view);
-                if (C2_OK != res) break;
-
-                src_view = block_view.get();
-            } else {
-                src_view = frame_out.GetC2GraphicView().get(); // have view already
-            }
-
-            res = CopyGraphicView(src_view, new_view.get());
-            if (C2_OK != res) break;
-
-            block = new_block; // use new_block to deliver decoded result
         }
 
         if (mfx_surface->Data.Locked) {
