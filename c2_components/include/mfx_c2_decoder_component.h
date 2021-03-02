@@ -159,10 +159,11 @@ private:
 
     std::unique_ptr<MfxC2BitstreamIn> c2_bitstream_;
     // Store raw pointers there as don't want to keep objects by shared_ptr
-    std::map<const C2GraphicBlock*, std::shared_ptr<mfxFrameSurface1>> surfaces_; // all ever send to Decoder
+    std::map<buffer_handle_t, std::shared_ptr<mfxFrameSurface1>> surfaces_; // all ever send to Decoder
 
     std::mutex locked_surfaces_mutex_;
     std::list<MfxC2FrameOut> locked_surfaces_; // allocated, but cannot be re-used as Locked by Decoder
+    std::list<std::shared_ptr<C2GraphicBlock>> locked_block_; //locked block, don't use
 
     std::mutex pending_works_mutex_;
     std::map<decltype(C2WorkOrdinalStruct::timestamp), std::unique_ptr<C2Work>> pending_works_;

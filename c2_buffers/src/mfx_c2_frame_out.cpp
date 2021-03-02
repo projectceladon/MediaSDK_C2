@@ -22,7 +22,7 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
                                std::shared_ptr<C2GraphicBlock> block,
                                const mfxFrameInfo& info,
                                c2_nsecs_t timeout,
-                               MfxC2FrameOut* wrapper)
+                               MfxC2FrameOut* wrapper, buffer_handle_t hndl)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -56,7 +56,7 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
             mfxMemId mem_id = nullptr;
             bool decode_target = true;
 
-            mfxStatus mfx_sts = frame_converter->ConvertGrallocToVa(block->handle(),
+            mfxStatus mfx_sts = frame_converter->ConvertGrallocToVa(hndl,
                 decode_target, &mem_id);
             if (MFX_ERR_NONE != mfx_sts) {
                 res = MfxStatusToC2(mfx_sts);
