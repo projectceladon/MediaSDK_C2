@@ -54,7 +54,7 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                     err = c2_allocator_->fetchGraphicBlock(
                         request->Info.Width, request->Info.Height,
                         MfxFourCCToGralloc(request->Info.FourCC),
-                        { C2MemoryUsage::CPU_READ, C2AndroidMemoryUsage::HW_CODEC_WRITE },
+                        { C2AndroidMemoryUsage::CPU_READ|C2AndroidMemoryUsage::HW_COMPOSER_READ, C2AndroidMemoryUsage::HW_CODEC_WRITE },
                         &new_block);
                 } while(err == C2_BLOCKING);
 

@@ -918,7 +918,8 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
             break;
         }
 
-        C2MemoryUsage mem_usage = {C2AndroidMemoryUsage::CPU_READ, C2AndroidMemoryUsage::HW_CODEC_WRITE};
+        C2MemoryUsage mem_usage = {C2AndroidMemoryUsage::CPU_READ|C2AndroidMemoryUsage::HW_COMPOSER_READ,
+                                            C2AndroidMemoryUsage::HW_CODEC_WRITE};
         res = c2_allocator_->fetchGraphicBlock(width, height,
                                                HAL_PIXEL_FORMAT_NV12_TILED_INTEL, mem_usage, out_block);
         if (res == C2_OK && video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)

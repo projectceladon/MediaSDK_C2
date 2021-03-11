@@ -303,6 +303,12 @@ private:
                                 shared_from_this());
                 mPoolDatas[slot] = poolData;
                 *block = _C2BlockFactory::CreateGraphicBlock(alloc, poolData);
+                auto iter = gbuffer_.find(c2Handle);
+                if (iter == gbuffer_.end()) {
+                    gbuffer_.emplace(c2Handle, slotBuffer->handle);
+                } else {
+                    iter->second = slotBuffer->handle;
+                }
                 return C2_OK;
             }
             // Block was not created. call requestBuffer# again next time.
@@ -330,13 +336,22 @@ public:
             }
             mBuffers[i].clear();
         }
+
+        gbuffer_.clear();
     }
 
-    c2_status_t handle(int slot, buffer_handle_t *hndl){
+    c2_status_t handle(const C2Handle * c2_hdl, buffer_handle_t *hndl){
         MFX_DEBUG_TRACE_FUNC;
-        sp<GraphicBuffer> &slotBuffer = mBuffers[slot];
-        *hndl = slotBuffer->handle;
-        return C2_OK;
+        auto iter = gbuffer_.find(c2_hdl);
+        if (iter != gbuffer_.end()) {
+            buffer_handle_t handle = iter->second;
+            if(handle != NULL) {
+                *hndl = handle;
+                return C2_OK;
+            }
+        }
+        MFX_DEBUG_TRACE_PRINTF("not BQ buffer" );
+        return C2_CORRUPTED;
     }
 
     c2_status_t fetchGraphicBlock(
@@ -454,7 +469,49 @@ public:
                                 producerId, mBuffers, oldGeneration);
                         if (slot >= 0) {
                             buffers[slot] = mBuffers[i];
+                            mBuffers[i] = NULL;
                             poolDatas[slot] = data;
+                            ++migrated;
+                        }
+                    } else {
+                        // free buffer migrate
+                        if (mBuffers[i]) {
+                            sp<GraphicBuffer> const& graphicBuffer = mBuffers[i];
+                            graphicBuffer->setGenerationNumber(generation);
+
+                            HBuffer hBuffer{};
+                            uint32_t hGenerationNumber{};
+                            if (!b2h(graphicBuffer, &hBuffer, &hGenerationNumber))
+                            {
+                                MFX_DEBUG_TRACE_PRINTF("I to O conversion failed");
+                                continue;
+                            }
+
+                            bool converted{};
+                            status_t bStatus{};
+                            int slot_new;
+                            int *outSlot = &slot_new;
+                            Return<void> transResult =
+                                producer->attachBuffer(hBuffer, hGenerationNumber,
+                                                       [&converted, &bStatus, outSlot](
+                                                           HStatus hStatus, int32_t hSlot, bool releaseAll) {
+                                                           converted = h2b(hStatus, &bStatus);
+                                                           *outSlot = static_cast<int>(hSlot);
+                                                           if (converted && releaseAll && bStatus == android::OK)
+                                                           {
+                                                               bStatus = android::INVALID_OPERATION;
+                                                           }
+                                                       });
+                            if (!transResult.isOk() || !converted || bStatus != android::OK)
+                            {
+                                MFX_DEBUG_TRACE_PRINTF("attach failed %d", static_cast<int>(bStatus));
+                                continue;
+                            }
+                            MFX_DEBUG_TRACE_PRINTF("local migration from gen %u : %u slot %d : %d",
+                                                   oldGeneration, generation, i, slot_new);
+
+                            buffers[slot_new] = mBuffers[i];
+                            producer->cancelBuffer(slot_new, hidl_handle{}).isOk();
                             ++migrated;
                         }
                     }
@@ -504,6 +561,7 @@ private:
 
     sp<GraphicBuffer> mBuffers[NUM_BUFFER_SLOTS];
     std::weak_ptr<MfxC2BufferQueueBlockPoolData> mPoolDatas[NUM_BUFFER_SLOTS];
+    std::map<const C2Handle *, buffer_handle_t> gbuffer_;
 };
 
 MfxC2BufferQueueBlockPoolData::MfxC2BufferQueueBlockPoolData(
@@ -634,9 +692,12 @@ c2_status_t MfxC2BufferQueueBlockPool::ImportHandle(const std::shared_ptr<C2Grap
     _UnwrapNativeCodec2GrallocMetadata(block->handle(), &width, &height,
                                                 &format, &usage, &stride, &generation, &igbp_id,
                                                 &igbp_slot);
-    if (impl_) {
-        return impl_->handle(igbp_slot, hndl);
+
+    if (impl_ && igbp_slot < NUM_BUFFER_SLOTS) {
+        return impl_->handle(block->handle(), hndl);
     }
+
+    MFX_DEBUG_TRACE_PRINTF("invalid C2GraphicBlock, igbp_slot = %d", igbp_slot);
     return C2_CORRUPTED;
 }
 
