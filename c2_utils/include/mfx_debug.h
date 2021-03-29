@@ -13,7 +13,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #define MFX_DEBUG_NO  0
 #define MFX_DEBUG_YES 1
 
-#define MFX_DEBUG MFX_DEBUG_YES // enables DEBUG output
+#define MFX_DEBUG MFX_DEBUG_NO // enables DEBUG output
 #define MFX_PERF MFX_DEBUG_NO // enables PERF output, doesn't depends on MFX_DEBUG
 
 #define MFX_DEBUG_FILE MFX_DEBUG_NO // sends DEBUG and PERF output to file, otherwise to logcat

@@ -685,6 +685,22 @@ c2_status_t MfxC2BufferQueueBlockPool::fetchGraphicBlock(
     return C2_CORRUPTED;
 }
 
+void MfxC2BufferQueueBlockPool::configureProducer(const sp<HGraphicBufferProducer> &producer) {
+    MFX_DEBUG_TRACE_FUNC;
+    ALOGE("MfxC2BufferQueueBlockPool::configureProducer, line:%d", __LINE__);
+    if (impl_) {
+        impl_->configureProducer(producer);
+    }
+}
+
+void MfxC2BufferQueueBlockPool::setRenderCallback(const OnRenderCallback &renderCallback) {
+    MFX_DEBUG_TRACE_FUNC;
+    ALOGE("MfxC2BufferQueueBlockPool::setRenderCallback, line:%d", __LINE__);
+    if (impl_) {
+        impl_->setRenderCallback(renderCallback);
+    }
+}
+
 c2_status_t MfxC2BufferQueueBlockPool::ImportHandle(const std::shared_ptr<C2GraphicBlock> block, buffer_handle_t *hndl){
     MFX_DEBUG_TRACE_FUNC;
     uint32_t width, height, format, stride, igbp_slot, generation;
@@ -699,18 +715,4 @@ c2_status_t MfxC2BufferQueueBlockPool::ImportHandle(const std::shared_ptr<C2Grap
 
     MFX_DEBUG_TRACE_PRINTF("invalid C2GraphicBlock, igbp_slot = %d", igbp_slot);
     return C2_CORRUPTED;
-}
-
-void MfxC2BufferQueueBlockPool::configureProducer(const sp<HGraphicBufferProducer> &producer) {
-    MFX_DEBUG_TRACE_FUNC;
-    if (impl_) {
-        impl_->configureProducer(producer);
-    }
-}
-
-void MfxC2BufferQueueBlockPool::setRenderCallback(const OnRenderCallback &renderCallback) {
-    MFX_DEBUG_TRACE_FUNC;
-    if (impl_) {
-        impl_->setRenderCallback(renderCallback);
-    }
 }

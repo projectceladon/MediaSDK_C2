@@ -38,9 +38,6 @@ public:
             C2MemoryUsage usage,
             std::shared_ptr<C2GraphicBlock> *block /* nonnull */) override;
 
-    virtual c2_status_t ImportHandle(
-            const std::shared_ptr<C2GraphicBlock> block, buffer_handle_t *hndl);
-
     typedef std::function<void(uint64_t producer, int32_t slot, int64_t nsecs)> OnRenderCallback;
 
     /**
@@ -63,6 +60,9 @@ public:
      * \param producer      the IGBP, which will be used to fetch blocks
      */
     virtual void configureProducer(const android::sp<HGraphicBufferProducer> &producer);
+
+    virtual c2_status_t ImportHandle(
+            const std::shared_ptr<C2GraphicBlock> block, buffer_handle_t *hndl);
 
 private:
     const std::shared_ptr<C2Allocator> mAllocator;

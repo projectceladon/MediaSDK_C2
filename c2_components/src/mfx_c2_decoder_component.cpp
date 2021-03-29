@@ -430,9 +430,9 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
     if (device_)
     {
         // default pattern: video memory if allocator available
-        //video_params_.IOPattern = device_->GetFrameAllocator() ?
-        //MFX_IOPATTERN_OUT_VIDEO_MEMORY : MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
-        video_params_.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY; //swith to MFX_IOPATTERN_OUT_VIDEO_MEMORY later
+        video_params_.IOPattern = device_->GetFrameAllocator() ?
+        MFX_IOPATTERN_OUT_VIDEO_MEMORY : MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
+
     }
     else
     {
