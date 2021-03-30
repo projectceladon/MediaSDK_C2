@@ -15,6 +15,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 #define MFX_DEBUG MFX_DEBUG_NO // enables DEBUG output
 #define MFX_PERF MFX_DEBUG_NO // enables PERF output, doesn't depends on MFX_DEBUG
+#define MFX_ATRACE MFX_DEBUG_NO //enables systrace
 
 #define MFX_DEBUG_FILE MFX_DEBUG_NO // sends DEBUG and PERF output to file, otherwise to logcat
 
@@ -286,9 +287,26 @@ protected:
 #define MFX_AUTO_PERF_FUNC \
     MFX_AUTO_PERF(NULL)
 
+#if !(MFX_DEBUG == MFX_DEBUG_YES)
+#undef MFX_DEBUG_TRACE_FUNC
+#define MFX_DEBUG_TRACE_FUNC \
+  MFX_AUTO_PERF_FUNC
+#endif
+
 #else // #if MFX_PERF == MFX_DEBUG_YES
 
 #define MFX_AUTO_PERF(_task_name)
 #define MFX_AUTO_PERF_FUNC
 
 #endif // #if MFX_PERF == MFX_DEBUG_YES
+
+#if MFX_ATRACE == MFX_DEBUG_YES
+
+#define ATRACE_TAG ATRACE_TAG_VIDEO
+#include <utils/Trace.h>
+#include <utils/String16.h>
+
+#undef MFX_DEBUG_TRACE_FUNC
+#define MFX_DEBUG_TRACE_FUNC ATRACE_CALL()
+
+#endif

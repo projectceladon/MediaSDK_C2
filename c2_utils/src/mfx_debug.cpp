@@ -39,8 +39,6 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     #include <android/log.h>
 #endif
 
-#if MFX_DEBUG == MFX_DEBUG_YES
-
 #if MFX_DEBUG_FILE == MFX_DEBUG_YES
 static FILE* GetDbgFile()
 {
@@ -49,6 +47,7 @@ static FILE* GetDbgFile()
 }
 #endif
 
+#if MFX_DEBUG == MFX_DEBUG_YES
 static const char* g_debug_pattern[] =
 {
 };
@@ -371,9 +370,9 @@ mfxPerf::~mfxPerf(void)
     if (GetDbgFile())
     {
         if (taskname)
-            fprintf(GetDbgFile(), "%s: %s: %s: time = %f ms", modulename, taskname, function, task_time);
+            fprintf(GetDbgFile(), "%s: %s: %s: time = %f ms\n", modulename, taskname, function, task_time);
         else
-            fprintf(GetDbgFile(), "%s: %s: time = %f ms", modulename, function, task_time);
+            fprintf(GetDbgFile(), "%s: %s: time = %f ms\n", modulename, function, task_time);
         fflush(GetDbgFile());
     }
 #else

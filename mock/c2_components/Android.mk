@@ -22,7 +22,7 @@ LOCAL_CFLAGS := \
 LOCAL_LDFLAGS := $(MFX_C2_LDFLAGS)
 
 LOCAL_SHARED_LIBRARIES := \
-    libhardware \
+    libhardware libcutils\
     libdl liblog \
     $(MFX_C2_SHARED_LIBS)
 
