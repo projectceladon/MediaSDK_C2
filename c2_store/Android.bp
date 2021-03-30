@@ -61,6 +61,7 @@ cc_binary {
         "libstagefright_omx",
         "libstagefright_xmlparser",
         "libutils",
+        "libcutils",
     ],
 
     arch: {

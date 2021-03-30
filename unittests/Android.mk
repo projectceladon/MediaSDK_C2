@@ -24,7 +24,7 @@ LOCAL_CFLAGS := $(MFX_C2_CFLAGS)
 LOCAL_LDFLAGS := $(MFX_C2_EXE_LDFLAGS)
 
 LOCAL_STATIC_LIBRARIES := libgtest libz libmfx_c2_store libmfx_c2_utils
-LOCAL_SHARED_LIBRARIES := libexpat libdl liblog
+LOCAL_SHARED_LIBRARIES := libexpat libdl liblog libcutils
 LOCAL_HEADER_LIBRARIES := $(MFX_C2_HEADER_LIBRARIES)
 
 LOCAL_MULTILIB := both
@@ -101,6 +101,7 @@ LOCAL_STATIC_LIBRARIES := \
 LOCAL_SHARED_LIBRARIES := \
     libdl \
     liblog \
+    libcutils \
     libmfx_c2_components_hw \
     $(MFX_C2_SHARED_LIBS)
 
@@ -153,6 +154,7 @@ define build_mock_unittests
     libdl \
     liblog \
     libhardware \
+    libcutils \
     $(MFX_C2_SHARED_LIBS)
 
   ifneq ($(1),pure)

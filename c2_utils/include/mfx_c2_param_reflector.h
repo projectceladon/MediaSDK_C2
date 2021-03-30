@@ -10,6 +10,11 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 #pragma once
 
+#include <stdio.h>
+#include <string>
+#include <sstream>
+#include <unordered_map>
+#include <thread>
 #include "mfx_debug.h"
 #include <C2Param.h>
 #include <C2Component.h>
