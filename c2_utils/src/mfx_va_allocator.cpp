@@ -459,8 +459,16 @@ mfxStatus MfxVaFrameAllocator::CreateNV12SurfaceFromGralloc(const MfxGrallocModu
     surfExtBuf.pixel_format = ConvertGrallocFourccToVAFormat(info.format);
     surfExtBuf.width = width;
     surfExtBuf.height = height;
+    surfExtBuf.pitches[0] = info.pitches[0];
+    surfExtBuf.pitches[1] = info.pitches[1];
+    surfExtBuf.pitches[2] = 0;
+    surfExtBuf.pitches[3] = 0;
+    surfExtBuf.offsets[0] = 0;
+    surfExtBuf.offsets[1] = info.pitches[0] * ((height + 31) & ~31); // Gralloc buffer has been aligned with 32 pixels
+    surfExtBuf.offsets[2] = 0;
+    surfExtBuf.offsets[3] = 0;
+    surfExtBuf.data_size = info.pitches[0] * ((height + 31) & ~31) * 1.5;
     surfExtBuf.num_planes = info.planes_count;
-    std::copy(info.pitches, info.pitches + surfExtBuf.num_planes, surfExtBuf.pitches);
     surfExtBuf.num_buffers = 1;
     if (IS_PRIME_VALID(info.prime)) {
         surfExtBuf.buffers = (uintptr_t *)&info.prime;
