@@ -13,5 +13,5 @@ Copyright(c) 2021 Intel Corporation. All Rights Reserved.
 #include <C2PlatformSupport.h>
 
 enum : C2AllocatorStore::id_t {
-    MFX_BUFFERQUEUE = android::C2PlatformAllocatorStore::PLATFORM_END,
+    MFX_BUFFERQUEUE = android::C2PlatformAllocatorStore::PLATFORM_END, //0x14
 };
