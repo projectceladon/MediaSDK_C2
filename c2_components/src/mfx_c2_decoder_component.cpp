@@ -103,6 +103,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     std::vector<C2Config::profile_t> supported_profiles = {};
     std::vector<C2Config::level_t> supported_levels = {};
     unsigned int output_delay = 8u;
+    unsigned int input_delay = 1u;
 
     switch(decoder_type_) {
         case DECODER_H264: {
@@ -124,6 +125,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             };
 
             output_delay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            input_delay = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
         case DECODER_H265: {
@@ -145,6 +147,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             };
 
             output_delay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            input_delay = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
         case DECODER_VP9: {
@@ -162,11 +165,13 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             };
 
             output_delay = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            input_delay = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
 
         default:
             MFX_DEBUG_TRACE_STREAM("C2PortDelayTuning::output value is not customized which can lead to hangs:" << output_delay);
+            MFX_DEBUG_TRACE_STREAM("C2PortDelayTuning::input value is not customized which can lead to hangs:" << input_delay);
             break;
     }
 
@@ -177,8 +182,9 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     // form QueryIOSurf function call result.
     pr.AddValue(C2_PARAMKEY_OUTPUT_DELAY, std::make_unique<C2PortDelayTuning::output>(output_delay));
 
-    // The input delay parameter set to magic number 1u due to hardcoded delay values in framework
-    pr.AddValue(C2_PARAMKEY_INPUT_DELAY, std::make_unique<C2PortDelayTuning::input>(1u));
+    // The numInputSlots = inputDelayValue + pipelineDelayValue + kSmoothnessFactor;
+    // pipelineDelayValue is 0, and kSmoothnessFactor is 4, for 4k video the first frame need 6 input
+    pr.AddValue(C2_PARAMKEY_INPUT_DELAY, std::make_unique<C2PortDelayTuning::input>(input_delay));
 
     pr.RegisterParam<C2StreamProfileLevelInfo::input>(C2_PARAMKEY_PROFILE_LEVEL);
     pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::profile, supported_profiles);
