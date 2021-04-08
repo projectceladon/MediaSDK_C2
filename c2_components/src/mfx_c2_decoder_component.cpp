@@ -989,9 +989,15 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
                     break;
 
                 surfaces_.emplace(hndl, frame_out->GetMfxFrameSurface());
+            } else {
+                if (it->second->Data.Locked) {
+                    /* Buffer locked, try next block. */
+                    MFX_DEBUG_TRACE_PRINTF("Buffer still locked, try next block");
+                    res = C2_TIMED_OUT;
+                }
+                else
+                    *frame_out = MfxC2FrameOut(std::move(out_block), it->second);
             }
-            else
-                *frame_out = MfxC2FrameOut(std::move(out_block), it->second);
         } else {
             res = MfxC2FrameOut::Create(converter, out_block, video_params_.mfx.FrameInfo, TIMEOUT_NS, frame_out, out_block->handle());
             if (C2_OK != res)
