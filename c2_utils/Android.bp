@@ -9,6 +9,10 @@ cc_library_static {
     defaults: ["mfx_c2_defaults"],
 
     srcs: ["src/*.cpp"],
+
+    include_dirs: [
+        "vendor/intel/mediasdk_c2/plugin_store/include",
+    ],
 }
 
 cc_library_static {
@@ -17,6 +21,15 @@ cc_library_static {
 
     static_libs: [
         "libexpat",
+    ],
+
+    shared_libs: [
+        "libexpat",
+        "libgralloctypes",
+        "libstagefright_foundation",
+        "android.hardware.media.bufferpool@2.0",
+        "android.hardware.graphics.bufferqueue@2.0",
+        "android.hardware.graphics.common@1.2",
     ],
 
     defaults: ["mfx_c2_defaults"],
@@ -28,5 +41,28 @@ cc_library_static {
         "-DLIBVA_ANDROID_SUPPORT"
     ],
 
-    include_dirs: ["hardware/intel/external/libva"], // remove when libva gets Android.bp
+    header_libs: [
+        "mfx_c2_components_headers"
+    ],
+
+    export_include_dirs: [
+        "include",
+    ],
+
+    include_dirs: [
+        "hardware/intel/external/libva",
+        "frameworks/av/media/codec2/vndk/include",
+        "frameworks/native/include",
+        "frameworks/native/libs/ui/include",
+        "frameworks/native/libs/nativewindow/include",
+        "frameworks/native/libs/arect/include",
+        "frameworks/native/libs/nativebase/include",
+        "frameworks/av/media/codec2/components/base/include",
+        "frameworks/av/media/codec2/core/include",
+        "frameworks/av/media/libstagefright/include",
+        "frameworks/av/media/libstagefright/foundation/include",
+        "system/core/include/utils",
+        "system/core/base/include",
+        "vendor/intel/mediasdk_c2/plugin_store/include",
+    ],
 }
