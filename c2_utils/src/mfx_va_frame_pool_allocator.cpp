@@ -24,8 +24,12 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
     MFX_DEBUG_TRACE_FUNC;
 
     mfxStatus res = MFX_ERR_NONE;
+    c2_status_t err;
 
     std::lock_guard<std::mutex> lock(mutex_);
+    // The max buffer needed is calculated from c2 framework:
+    // buffers_count = output_delay + kSmoothnessFactor(4)+ RecorderDepth(4) + kRenderingDepth(3) + input_delay(2)
+    int max_buffers = suggest_buffer_cnt_ + 13;
 
     if (request->Type & MFX_MEMTYPE_VIDEO_MEMORY_DECODER_TARGET) {
 
@@ -38,15 +42,20 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                 res = MFX_ERR_UNSUPPORTED;
                 break;
             }
-            std::unique_ptr<mfxMemId[]> mids { new (std::nothrow)mfxMemId[32] };
+            std::unique_ptr<mfxMemId[]> mids { new (std::nothrow)mfxMemId[max_buffers] };
             if (!mids) {
+                res = MFX_ERR_MEMORY_ALLOC;
+                break;
+            }
+            err = std::static_pointer_cast<MfxC2BufferQueueBlockPool>(c2_allocator_)->requestNewBufferSet(max_buffers);
+            if(err != C2_OK) {
                 res = MFX_ERR_MEMORY_ALLOC;
                 break;
             }
 
             response->NumFrameActual = 0;
 
-            for (int i = 0; i < 32; ++i) {
+            for (int i = 0; i < max_buffers; ++i) {
 
                 std::shared_ptr<C2GraphicBlock> new_block;
                 c2_status_t err;

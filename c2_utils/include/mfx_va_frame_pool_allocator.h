@@ -52,6 +52,10 @@ private:
     {
         pool_ = std::make_unique<MfxPool<C2GraphicBlock>>();
     }
+    virtual void SetBufferCount(unsigned int cnt) override
+    {
+        suggest_buffer_cnt_ = cnt;
+    }
     bool InCache(buffer_handle_t hdl) {
         auto it = cached_buffer_handle_.find(hdl);
         if (it == cached_buffer_handle_.end()){
@@ -73,6 +77,8 @@ private:
     std::unique_ptr<MfxPool<C2GraphicBlock>> pool_;
 
     std::map<buffer_handle_t, int> cached_buffer_handle_;
+
+    unsigned int suggest_buffer_cnt_=0;
 
 private:
     MFX_CLASS_NO_COPY(MfxVaFramePoolAllocator)

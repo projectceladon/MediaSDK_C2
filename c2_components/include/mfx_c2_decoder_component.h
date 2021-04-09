@@ -175,4 +175,7 @@ private:
     std::atomic<bool> flushing_{false};
 
     std::list<std::unique_ptr<C2Work>> flushed_works_;
+
+    unsigned int output_delay_ = 8u;
+    unsigned int input_delay_ = 1u;
 };
