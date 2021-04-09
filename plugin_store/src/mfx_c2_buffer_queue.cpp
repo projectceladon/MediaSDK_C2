@@ -403,6 +403,8 @@ public:
             // in order not to drain cpu from component's spinning
             ::usleep(kMaxIgbpRetryDelayUs);
         }
+
+        MFX_DEBUG_TRACE_I32(status);
         return status;
     }
 
@@ -527,6 +529,24 @@ public:
                   "bqId: %llu migrated buffers # %d",
                   generation, (unsigned long long)producerId, migrated);
         }
+    }
+
+    c2_status_t requestNewBufferSet(int32_t bufferCount) {
+        MFX_DEBUG_TRACE_FUNC;
+
+        if (bufferCount <= 0) {
+            MFX_DEBUG_TRACE_PRINTF("Invalid requested buffer count = %d", bufferCount);
+            return C2_BAD_VALUE;
+        }
+
+        std::lock_guard<std::mutex> lock(mMutex);
+        if (!mProducer) {
+            MFX_DEBUG_TRACE_PRINTF("No HGraphicBufferProducer is configured...");
+            return C2_NO_INIT;
+        }
+
+        mProducer->setMaxDequeuedBufferCount(bufferCount);
+        return C2_OK;
     }
 
 private:
@@ -715,4 +735,10 @@ c2_status_t MfxC2BufferQueueBlockPool::ImportHandle(const std::shared_ptr<C2Grap
 
     MFX_DEBUG_TRACE_PRINTF("invalid C2GraphicBlock, igbp_slot = %d", igbp_slot);
     return C2_CORRUPTED;
+}
+c2_status_t MfxC2BufferQueueBlockPool::requestNewBufferSet(int32_t bufferCount) {
+    if (impl_) {
+        return impl_->requestNewBufferSet(bufferCount);
+    }
+    return C2_NO_INIT;
 }

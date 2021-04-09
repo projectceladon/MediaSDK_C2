@@ -102,8 +102,6 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
 
     std::vector<C2Config::profile_t> supported_profiles = {};
     std::vector<C2Config::level_t> supported_levels = {};
-    unsigned int output_delay = 8u;
-    unsigned int input_delay = 1u;
 
     switch(decoder_type_) {
         case DECODER_H264: {
@@ -124,8 +122,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 LEVEL_AVC_5, LEVEL_AVC_5_1, LEVEL_AVC_5_2,
             };
 
-            output_delay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
-            input_delay = /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            output_delay_ = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
         case DECODER_H265: {
@@ -146,8 +144,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
             };
 
-            output_delay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
-            input_delay = /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            output_delay_ = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
         case DECODER_VP9: {
@@ -164,14 +162,14 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 LEVEL_VP9_5,
             };
 
-            output_delay = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
-            input_delay = /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            output_delay_ = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
 
         default:
-            MFX_DEBUG_TRACE_STREAM("C2PortDelayTuning::output value is not customized which can lead to hangs:" << output_delay);
-            MFX_DEBUG_TRACE_STREAM("C2PortDelayTuning::input value is not customized which can lead to hangs:" << input_delay);
+            MFX_DEBUG_TRACE_STREAM("C2PortDelayTuning::output value is not customized which can lead to hangs:" << output_delay_);
+            MFX_DEBUG_TRACE_STREAM("C2PortDelayTuning::input value is not customized which can lead to hangs:" << input_delay_);
             break;
     }
 
@@ -180,11 +178,11 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     // of bitstream and will wait for decoded frames.
     // The parameter value is differet for codecs and must be equal the DPD value is gotten
     // form QueryIOSurf function call result.
-    pr.AddValue(C2_PARAMKEY_OUTPUT_DELAY, std::make_unique<C2PortDelayTuning::output>(output_delay));
+    pr.AddValue(C2_PARAMKEY_OUTPUT_DELAY, std::make_unique<C2PortDelayTuning::output>(output_delay_));
 
     // The numInputSlots = inputDelayValue + pipelineDelayValue + kSmoothnessFactor;
     // pipelineDelayValue is 0, and kSmoothnessFactor is 4, for 4k video the first frame need 6 input
-    pr.AddValue(C2_PARAMKEY_INPUT_DELAY, std::make_unique<C2PortDelayTuning::input>(input_delay));
+    pr.AddValue(C2_PARAMKEY_INPUT_DELAY, std::make_unique<C2PortDelayTuning::input>(input_delay_));
 
     pr.RegisterParam<C2StreamProfileLevelInfo::input>(C2_PARAMKEY_PROFILE_LEVEL);
     pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::profile, supported_profiles);
@@ -503,7 +501,10 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
 
         MFX_DEBUG_TRACE__mfxVideoParam_dec(video_params_);
 
-        if (allocator_) allocator_->SetC2Allocator(c2_allocator);
+        if (allocator_) {
+            allocator_->SetC2Allocator(c2_allocator);
+            allocator_->SetBufferCount(output_delay_);
+        }
 
         MFX_DEBUG_TRACE_MSG("Decoder initializing...");
         mfx_res = decoder_->Init(&video_params_);

@@ -63,6 +63,7 @@ public:
 
     virtual c2_status_t ImportHandle(
             const std::shared_ptr<C2GraphicBlock> block, buffer_handle_t *hndl);
+    virtual c2_status_t requestNewBufferSet(int32_t bufferCount);
 
 private:
     const std::shared_ptr<C2Allocator> mAllocator;
