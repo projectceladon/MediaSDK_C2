@@ -21,8 +21,8 @@ enum MfxC2FrameConstructorType
     MfxC2FC_AVC_Secure_HUC,*/
     MfxC2FC_HEVC,
     /*MfxC2FC_HEVC_Secure_HUC,
-    MfxC2FC_VC1,
-    MfxC2FC_VP8,*/
+    MfxC2FC_VC1,*/
+    MfxC2FC_VP8,
     MfxC2FC_VP9,
     /*MfxC2FC_VP9_Secure_HUC*/
 };

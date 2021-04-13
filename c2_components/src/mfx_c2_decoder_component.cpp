@@ -27,6 +27,14 @@ using namespace android;
 
 const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
+enum VP8_PROFILE {
+	PROFILE_VP8_0 = C2_PROFILE_LEVEL_VENDOR_START,
+};
+
+enum VP8_LEVEL {
+	LEVEL_VP8_Version0 = C2_PROFILE_LEVEL_VENDOR_START,
+};
+
 MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateConfig& config,
     std::shared_ptr<MfxC2ParamReflector> reflector, DecoderType decoder_type) :
         MfxC2Component(name, config, std::move(reflector)),
@@ -166,6 +174,19 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
+        case DECODER_VP8: {
+            supported_profiles = {
+                (C2Config::profile_t)PROFILE_VP8_0,
+            };
+
+            supported_levels = {
+                (C2Config::level_t)LEVEL_VP8_Version0,
+            };
+
+            output_delay_ = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            break;
+        }
 
         default:
             MFX_DEBUG_TRACE_STREAM("C2PortDelayTuning::output value is not customized which can lead to hangs:" << output_delay_);
@@ -234,6 +255,9 @@ void MfxC2DecoderComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
 
     registry.RegisterMfxC2Component("c2.intel.vp9.decoder",
         &MfxC2Component::Factory<MfxC2DecoderComponent, DecoderType>::Create<DECODER_VP9>);
+
+	registry.RegisterMfxC2Component("c2.intel.vp8.decoder",
+        &MfxC2Component::Factory<MfxC2DecoderComponent, DecoderType>::Create<DECODER_VP8>);
 }
 
 c2_status_t MfxC2DecoderComponent::Init()
@@ -372,6 +396,9 @@ void MfxC2DecoderComponent::InitFrameConstructor()
     case DECODER_VP9:
         fc_type = MfxC2FC_VP9;
         break;
+	case DECODER_VP8:
+        fc_type = MfxC2FC_VP8;
+        break;
     default:
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
         fc_type = MfxC2FC_None;
@@ -423,6 +450,9 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
         break;
     case DECODER_VP9:
         video_params_.mfx.CodecId = MFX_CODEC_VP9;
+        break;
+	case DECODER_VP8:
+        video_params_.mfx.CodecId = MFX_CODEC_VP8;
         break;
     default:
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
