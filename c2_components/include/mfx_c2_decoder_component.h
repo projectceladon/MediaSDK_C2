@@ -26,6 +26,7 @@ public:
         DECODER_H265,
         DECODER_VP9,
         DECODER_VP8,
+        DECODER_MPEG2,
     };
 
 protected:
