@@ -27,6 +27,7 @@ public:
         DECODER_VP9,
         DECODER_VP8,
         DECODER_MPEG2,
+        DECODER_AV1,
     };
 
 protected:

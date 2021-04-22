@@ -202,6 +202,23 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
+        case DECODER_AV1: {
+            supported_profiles = {
+                PROFILE_AV1_0,
+                PROFILE_AV1_1,
+            };
+
+            supported_levels = {
+                LEVEL_AV1_2, LEVEL_AV1_2_1,
+                LEVEL_AV1_2_1, LEVEL_AV1_2_3,
+                LEVEL_AV1_3, LEVEL_AV1_3_1,
+                LEVEL_AV1_3_2,
+            };
+
+            output_delay_ = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            break;
+        }
 
         default:
             MFX_DEBUG_TRACE_STREAM("C2PortDelayTuning::output value is not customized which can lead to hangs:" << output_delay_);
@@ -276,6 +293,9 @@ void MfxC2DecoderComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
 
     registry.RegisterMfxC2Component("c2.intel.mp2.decoder",
         &MfxC2Component::Factory<MfxC2DecoderComponent, DecoderType>::Create<DECODER_MPEG2>);
+
+    registry.RegisterMfxC2Component("c2.intel.av1.decoder",
+        &MfxC2Component::Factory<MfxC2DecoderComponent, DecoderType>::Create<DECODER_AV1>);
 }
 
 c2_status_t MfxC2DecoderComponent::Init()
@@ -420,6 +440,9 @@ void MfxC2DecoderComponent::InitFrameConstructor()
     case DECODER_MPEG2:
         fc_type = MfxC2FC_MP2;
         break;
+    case DECODER_AV1:
+        fc_type = MfxC2FC_AV1;
+        break;
     default:
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
         fc_type = MfxC2FC_None;
@@ -478,6 +501,9 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
     case DECODER_MPEG2:
         video_params_.mfx.CodecId = MFX_CODEC_MPEG2;
         break;
+    case DECODER_AV1:
+        video_params_.mfx.CodecId = MFX_CODEC_AV1;
+        break;
     default:
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
         break;
@@ -510,6 +536,7 @@ mfxU16 MfxC2DecoderComponent::GetAsyncDepth(void)
          (MFX_CODEC_HEVC == video_params_.mfx.CodecId) ||
          (MFX_CODEC_VP9 == video_params_.mfx.CodecId) ||
          (MFX_CODEC_VP8 == video_params_.mfx.CodecId) ||
+         (MFX_CODEC_AV1 == video_params_.mfx.CodecId) ||
          (MFX_CODEC_MPEG2 == video_params_.mfx.CodecId)))
         asyncDepth = 1;
     else
