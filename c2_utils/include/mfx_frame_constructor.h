@@ -20,7 +20,8 @@ enum MfxC2FrameConstructorType
     MfxC2FC_HEVC,
     MfxC2FC_VP8,
     MfxC2FC_VP9,
-    MfxC2FC_MPEG2,
+    MfxC2FC_MP2,
+    MfxC2FC_AV1,
 };
 
 enum MfxC2BitstreamState
