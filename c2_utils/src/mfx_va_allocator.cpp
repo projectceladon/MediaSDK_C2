@@ -464,10 +464,11 @@ mfxStatus MfxVaFrameAllocator::CreateNV12SurfaceFromGralloc(const MfxGrallocModu
     surfExtBuf.pitches[2] = 0;
     surfExtBuf.pitches[3] = 0;
     surfExtBuf.offsets[0] = 0;
-    surfExtBuf.offsets[1] = info.pitches[0] * ((height + 31) & ~31); // Gralloc buffer has been aligned with 32 pixels
+    // Gralloc buffer has been aligned with 32 pixels for decoder
+    surfExtBuf.offsets[1] = decode_target ? info.pitches[0] * ((height + 31) & ~31) : info.pitches[0] * ((height + 15) & ~15);
     surfExtBuf.offsets[2] = 0;
     surfExtBuf.offsets[3] = 0;
-    surfExtBuf.data_size = info.pitches[0] * ((height + 31) & ~31) * 1.5;
+    surfExtBuf.data_size = decode_target ? info.pitches[0] * ((height + 31) & ~31) * 1.5 : info.pitches[0] * ((height + 15) & ~15) * 1.5;
     surfExtBuf.num_planes = info.planes_count;
     surfExtBuf.num_buffers = 1;
     if (IS_PRIME_VALID(info.prime)) {
