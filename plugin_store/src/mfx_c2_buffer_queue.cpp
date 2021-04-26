@@ -549,6 +549,10 @@ public:
         return C2_OK;
     }
 
+    void getBufferQueueProducer(sp<HGraphicBufferProducer> &producer) {
+        producer = mProducer;
+    }
+
 private:
     friend struct MfxC2BufferQueueBlockPoolData;
 
@@ -741,4 +745,17 @@ c2_status_t MfxC2BufferQueueBlockPool::requestNewBufferSet(int32_t bufferCount) 
         return impl_->requestNewBufferSet(bufferCount);
     }
     return C2_NO_INIT;
+}
+
+bool MfxC2BufferQueueBlockPool::outputSurfaceSet(void) {
+    if (impl_) {
+        sp<HGraphicBufferProducer> producer;
+        impl_->getBufferQueueProducer(producer);
+
+        if (!producer) {
+            ALOGI("No HGraphicBufferProducer is configured...");
+            return false;
+        }
+    }
+    return true;
 }
