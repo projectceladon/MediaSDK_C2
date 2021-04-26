@@ -1127,6 +1127,17 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             res = GetCodec2BlockPool(output_pool_id_,
                 shared_from_this(), &c2_allocator_);
             if (res != C2_OK) break;
+
+            bool hasSurface = std::static_pointer_cast<MfxC2BufferQueueBlockPool>(c2_allocator_)->outputSurfaceSet();
+            video_params_.IOPattern = hasSurface ? MFX_IOPATTERN_OUT_VIDEO_MEMORY : MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
+            if (video_params_.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
+                allocator_ = nullptr;
+                mfx_sts = session_.SetFrameAllocator(nullptr);
+                allocator_set_ = false;
+                ALOGI("System memory is being used for decoding!");
+
+                if (MFX_ERR_NONE != mfx_sts) break;
+            }
         }
 
         // loop repeats DecodeFrame on the same frame
