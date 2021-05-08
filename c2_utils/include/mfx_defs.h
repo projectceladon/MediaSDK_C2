@@ -4,7 +4,7 @@ INTEL CORPORATION PROPRIETARY INFORMATION
 This software is supplied under the terms of a license agreement or nondisclosure
 agreement with Intel Corporation and may not be copied or disclosed except in
 accordance with the terms of that agreement
-Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
+Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
@@ -38,8 +38,13 @@ extern mfxVersion g_required_mfx_version;
 
 #define MFX_TIMEOUT_INFINITE 0xEFFFFFFF
 
+#define MFX_MEM_ALIGN(X, N) ((X) & ((N)-1)) ? (((X)+(N)-1) & (~((N)-1))): (X)
+
 #define MFX_GET_ARRAY_SIZE(_array) \
     (sizeof(_array) / sizeof(_array[0]))
+
+#define MFX_NEW(_ptr, _class) \
+    { try { (_ptr) = new _class; } catch(...) { (_ptr) = NULL; } }
 
 #define MFX_CLASS_NO_COPY(class_name) \
     class_name(const class_name&) = delete; \
