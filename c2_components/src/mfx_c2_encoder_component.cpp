@@ -4,7 +4,7 @@ INTEL CORPORATION PROPRIETARY INFORMATION
 This software is supplied under the terms of a license agreement or nondisclosure
 agreement with Intel Corporation and may not be copied or disclosed except in
 accordance with the terms of that agreement
-Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
+Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
@@ -115,10 +115,19 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
             pr.AddStreamInfo<C2StreamPictureSizeInfo::input>(
                 C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
                 [this] (C2StreamPictureSizeInfo::input* dst)->bool {
-                    MFX_DEBUG_TRACE("AssignPictureSize");
+                    MFX_DEBUG_TRACE("GetPictureSize");
                     dst->width = video_params_config_.mfx.FrameInfo.Width;
                     dst->height = video_params_config_.mfx.FrameInfo.Height;
                     MFX_DEBUG_TRACE_STREAM(NAMED(dst->width) << NAMED(dst->height));
+                    return true;
+                },
+                [this] (const C2StreamPictureSizeInfo::input& src)->bool {
+                    MFX_DEBUG_TRACE("SetPictureSize");
+                    video_params_config_.mfx.FrameInfo.Width = MFX_MEM_ALIGN(src.width, 16);
+                    video_params_config_.mfx.FrameInfo.Height = MFX_MEM_ALIGN(src.height, 16);
+                    video_params_config_.mfx.FrameInfo.CropW = MFX_MEM_ALIGN(src.width, 16);
+                    video_params_config_.mfx.FrameInfo.CropH = MFX_MEM_ALIGN(src.height, 16);
+                    MFX_DEBUG_TRACE_STREAM(NAMED(src.width) << NAMED(src.height));
                     return true;
                 }
             );
@@ -268,6 +277,8 @@ c2_status_t MfxC2EncoderComponent::Release()
 
         device_ = nullptr;
     }
+
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 
@@ -302,7 +313,7 @@ mfxStatus MfxC2EncoderComponent::ResetSettings()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    mfxStatus res = MFX_ERR_NONE;
+    mfxStatus mfx_res = MFX_ERR_NONE;
 
     switch (encoder_type_)
     {
@@ -317,17 +328,18 @@ mfxStatus MfxC2EncoderComponent::ResetSettings()
         break;
     }
 
-    res = mfx_set_defaults_mfxVideoParam_enc(&video_params_config_);
+    mfx_res = mfx_set_defaults_mfxVideoParam_enc(&video_params_config_);
 
     if (device_) {
         // default pattern: video memory if allocator available
         video_params_config_.IOPattern = device_->GetFrameAllocator() ?
             MFX_IOPATTERN_IN_VIDEO_MEMORY : MFX_IOPATTERN_IN_SYSTEM_MEMORY;
     } else {
-        res = MFX_ERR_NULL_PTR;
+        mfx_res = MFX_ERR_NULL_PTR;
     }
 
-    return res;
+    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+    return mfx_res;
 }
 
 mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
@@ -468,6 +480,8 @@ c2_status_t MfxC2EncoderComponent::AllocateBitstream(const std::unique_ptr<C2Wor
 
 c2_status_t MfxC2EncoderComponent::ApplyWorkTunings(C2Work& work)
 {
+    MFX_DEBUG_TRACE_FUNC;
+
     c2_status_t res = C2_OK;
 
     do {
@@ -506,6 +520,7 @@ c2_status_t MfxC2EncoderComponent::ApplyWorkTunings(C2Work& work)
         }
     } while(false);
 
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 
@@ -989,6 +1004,8 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
                 break;
         }
     }
+
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 
@@ -1076,7 +1093,7 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
         // the check is bypassed for bitrate parameter as it should be updatable
         // despite its type 'info' (workaround of Google's bug)
         bool modifiable = (param->coreIndex().coreIndex() == kParamIndexBitrate) ||
-            (param->kind() == C2Param::TUNING) ||
+            (param->kind() == C2Param::TUNING) || (param->kind() == C2Param::INFO) ||
             (param->kind() == C2Param::SETTING && state_ == State::STOPPED);
 
         if (!modifiable) {
@@ -1249,7 +1266,7 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 break;
             }
             default:
-                failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE));
+                param_storage_.ConfigParam(*param, state_ == State::STOPPED, failures);
                 break;
         }
     }
@@ -1282,6 +1299,7 @@ c2_status_t MfxC2EncoderComponent::Config(std::unique_lock<std::mutex> state_loc
 
     } while(false);
 
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 
