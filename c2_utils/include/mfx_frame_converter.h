@@ -20,8 +20,6 @@ public:
     virtual mfxStatus ConvertGrallocToVa(buffer_handle_t gralloc_buffer,
         bool decode_target, mfxMemId* mem_id) = 0;
 
-    virtual void FreeGrallocToVaMapping(buffer_handle_t gralloc_buffer) = 0;
-
     virtual void FreeGrallocToVaMapping(mfxMemId mem_id) = 0;
 
     virtual void FreeAllMappings() = 0;

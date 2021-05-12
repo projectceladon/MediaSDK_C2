@@ -4,7 +4,7 @@ INTEL CORPORATION PROPRIETARY INFORMATION
 This software is supplied under the terms of a license agreement or nondisclosure
 agreement with Intel Corporation and may not be copied or disclosed except in
 accordance with the terms of that agreement
-Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
+Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
@@ -93,6 +93,8 @@ public:
     virtual c2_status_t Free(const buffer_handle_t handle);
     virtual c2_status_t LockFrame(buffer_handle_t handle, uint8_t** data, C2PlanarLayout *layout);
     virtual c2_status_t UnlockFrame(buffer_handle_t handle);
+    virtual c2_status_t ImportBuffer(const buffer_handle_t rawHandle, buffer_handle_t *outBuffer);
+    virtual c2_status_t GetBackingStore(const buffer_handle_t rawHandle, uint64_t *id);
 
 private:
     MfxGrallocAllocator() = default;
@@ -110,6 +112,8 @@ protected:
     Gralloc1Func<GRALLOC1_PFN_SET_DIMENSIONS, GRALLOC1_FUNCTION_SET_DIMENSIONS> gr_set_dimensions_;
     Gralloc1Func<GRALLOC1_PFN_SET_FORMAT, GRALLOC1_FUNCTION_SET_FORMAT> gr_set_format_;
     Gralloc1Func<GRALLOC1_PFN_DESTROY_DESCRIPTOR, GRALLOC1_FUNCTION_DESTROY_DESCRIPTOR> gr_destroy_descriptor_;
+    Gralloc1Func<GRALLOC1_PFN_IMPORT_BUFFER, GRALLOC1_FUNCTION_IMPORT_BUFFER> gr_import_buffer_;
+    Gralloc1Func<GRALLOC1_PFN_GET_BACKING_STORE, GRALLOC1_FUNCTION_GET_BACKING_STORE> gr_get_backing_store_;
 
     MFX_CLASS_NO_COPY(MfxGrallocAllocator)
 };

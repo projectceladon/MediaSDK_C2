@@ -4,7 +4,7 @@ INTEL CORPORATION PROPRIETARY INFORMATION
 This software is supplied under the terms of a license agreement or nondisclosure
 agreement with Intel Corporation and may not be copied or disclosed except in
 accordance with the terms of that agreement
-Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
+Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
@@ -43,6 +43,10 @@ static mfxU32 ConvertVAFourccToMfxFormat(unsigned int fourcc)
     {
         case VA_FOURCC_NV12:
             return MFX_FOURCC_NV12;
+        case VA_FOURCC_RGBA:
+        case VA_FOURCC_BGRA:
+        case VA_FOURCC_RGBX:
+            return MFX_FOURCC_RGB4;
         default:
             return 0;
     }
@@ -55,6 +59,27 @@ static unsigned int ConvertGrallocFourccToVAFormat(int fourcc)
         case HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL:
         case HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL:
             return VA_FOURCC_NV12;
+        case HAL_PIXEL_FORMAT_RGBA_8888:
+            return VA_FOURCC_RGBA;
+        default:
+            return 0;
+    }
+}
+
+
+static mfxU32 ConvertVAFourccToVARTFormat(mfxU32 va_fourcc)
+{
+    switch (va_fourcc)
+    {
+        case VA_FOURCC_NV12:
+        case VA_FOURCC_YV12:
+            return VA_RT_FORMAT_YUV420;
+        case VA_FOURCC_RGBA:
+        case VA_FOURCC_BGRA:
+        case VA_FOURCC_RGBX:
+            return VA_RT_FORMAT_RGB32;
+        case VA_FOURCC_P010:
+            return VA_RT_FORMAT_YUV420_10BPP;
         default:
             return 0;
     }
@@ -346,13 +371,28 @@ mfxStatus MfxVaFrameAllocator::ConvertGrallocToVa(buffer_handle_t gralloc_buffer
     VASurfaceID surface { VA_INVALID_ID };
 
     do {
+        if (!gralloc_allocator_) {
+            c2_status_t sts = MfxGrallocAllocator::Create(&gralloc_allocator_);
+            if(C2_OK != sts) {
+                mfx_res = MFX_ERR_MEMORY_ALLOC;
+                break;
+            }
+        }
 
         if (!gralloc_buffer) {
             mfx_res = MFX_ERR_INVALID_HANDLE;
             break;
         }
 
-        auto found = mapped_va_surfaces_.find(gralloc_buffer);
+
+        uint64_t id;
+        c2_status_t sts = gralloc_allocator_->GetBackingStore(gralloc_buffer, &id);
+        if(C2_OK != sts) {
+            mfx_res = MFX_ERR_INVALID_HANDLE;
+            break;
+        }
+
+        auto found = mapped_va_surfaces_.find(id);
         if (found != mapped_va_surfaces_.end()) {
             *mem_id = found->second.get();
         } else {
@@ -385,7 +425,7 @@ mfxStatus MfxVaFrameAllocator::ConvertGrallocToVa(buffer_handle_t gralloc_buffer
 
             *mem_id = mem_id_alloc.get();
 
-            mapped_va_surfaces_.emplace(gralloc_buffer, std::move(mem_id_alloc));
+            mapped_va_surfaces_.emplace(id, std::move(mem_id_alloc));
 
             MFX_DEBUG_TRACE_STREAM(NAMED(this) << NAMED(gralloc_buffer) << NAMED(*mem_id) << NAMED(mapped_va_surfaces_.size()));
         }
@@ -393,14 +433,6 @@ mfxStatus MfxVaFrameAllocator::ConvertGrallocToVa(buffer_handle_t gralloc_buffer
 
     MFX_DEBUG_TRACE_I32(mfx_res);
     return mfx_res;
-}
-
-void MfxVaFrameAllocator::FreeGrallocToVaMapping(buffer_handle_t gralloc_buffer)
-{
-    MFX_DEBUG_TRACE_FUNC;
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    mapped_va_surfaces_.erase(gralloc_buffer);
 }
 
 void MfxVaFrameAllocator::FreeGrallocToVaMapping(mfxMemId mem_id)
@@ -426,7 +458,7 @@ void MfxVaFrameAllocator::FreeAllMappings()
     mapped_va_surfaces_.clear();
 }
 
-mfxStatus MfxVaFrameAllocator::CreateNV12SurfaceFromGralloc(const MfxGrallocModule::BufferDetails& buffer_details,
+mfxStatus MfxVaFrameAllocator::CreateSurfaceFromGralloc(const MfxGrallocModule::BufferDetails& buffer_details,
     bool decode_target,
     VASurfaceID* surface)
 {
@@ -450,13 +482,16 @@ mfxStatus MfxVaFrameAllocator::CreateNV12SurfaceFromGralloc(const MfxGrallocModu
     mfxU32 width = decode_target ? info.allocWidth : info.width;
     mfxU32 height = decode_target ? info.allocHeight : info.height;
 
+    mfxU32 va_fourcc = ConvertGrallocFourccToVAFormat(info.format);
+    mfxU32 rt_format = ConvertVAFourccToVARTFormat(va_fourcc);
+
     VASurfaceAttrib attribs[2];
     MFX_ZERO_MEMORY(attribs);
 
     VASurfaceAttribExternalBuffers surfExtBuf;
     MFX_ZERO_MEMORY(surfExtBuf);
 
-    surfExtBuf.pixel_format = ConvertGrallocFourccToVAFormat(info.format);
+    surfExtBuf.pixel_format = va_fourcc;
     surfExtBuf.width = width;
     surfExtBuf.height = height;
     surfExtBuf.pitches[0] = info.pitches[0];
@@ -492,7 +527,7 @@ mfxStatus MfxVaFrameAllocator::CreateNV12SurfaceFromGralloc(const MfxGrallocModu
     attribs[1].value.type = VAGenericValueTypePointer;
     attribs[1].value.value.p = (void *)&surfExtBuf;
 
-    VAStatus va_res = vaCreateSurfaces(dpy_, VA_RT_FORMAT_YUV420,
+    VAStatus va_res = vaCreateSurfaces(dpy_, rt_format,
         width, height,
         surface, 1,
         attribs, MFX_GET_ARRAY_SIZE(attribs));
@@ -532,12 +567,13 @@ mfxStatus MfxVaFrameAllocator::MapGrallocBufferToSurface(buffer_handle_t gralloc
         MFX_DEBUG_TRACE_STREAM(buffer_details.format);
 
         if (buffer_details.format == HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL ||
-            buffer_details.format == HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL) {
+            buffer_details.format == HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL ||
+            buffer_details.format == HAL_PIXEL_FORMAT_RGBA_8888) {
 
             // on Android Q HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL works the same way
             // some other driveers might demand creation of separate VASurface and copy contents there.
             // see format difference in include/ufo/graphics.h
-            mfx_res = CreateNV12SurfaceFromGralloc(buffer_details, decode_target, surface);
+            mfx_res = CreateSurfaceFromGralloc(buffer_details, decode_target, surface);
             *fourcc = ConvertVAFourccToMfxFormat(ConvertGrallocFourccToVAFormat(buffer_details.format));
         } else {
             // Other formats are unsupported for now,

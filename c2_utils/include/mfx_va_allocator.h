@@ -4,7 +4,7 @@ INTEL CORPORATION PROPRIETARY INFORMATION
 This software is supplied under the terms of a license agreement or nondisclosure
 agreement with Intel Corporation and may not be copied or disclosed except in
 accordance with the terms of that agreement
-Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
+Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
@@ -46,7 +46,6 @@ private: // MfxFrameAllocator
 protected: // MfxFrameConverter
     virtual mfxStatus ConvertGrallocToVa(buffer_handle_t gralloc_buffer_, bool decode_target,
         mfxMemId* mem_id) override;
-    virtual void FreeGrallocToVaMapping(buffer_handle_t gralloc_buffer) override;
     virtual void FreeGrallocToVaMapping(mfxMemId mem_id) override;
     virtual void FreeAllMappings() override;
 
@@ -54,7 +53,7 @@ private:
     mfxStatus MapGrallocBufferToSurface(buffer_handle_t gralloc_buffer, bool decode_target,
         mfxU32* fourcc, VASurfaceID* surface);
 
-    mfxStatus CreateNV12SurfaceFromGralloc(const MfxGrallocModule::BufferDetails& buffer_details,
+    mfxStatus CreateSurfaceFromGralloc(const MfxGrallocModule::BufferDetails& buffer_details,
         bool decode_target,
         VASurfaceID* surface);
 
@@ -76,7 +75,9 @@ private:
 
     std::unique_ptr<MfxGrallocModule> gralloc_module_; // lazy init
 
-    std::map<buffer_handle_t, std::unique_ptr<VaMemIdAllocated, VaMemIdDeleter>>
+    std::unique_ptr<MfxGrallocAllocator> gralloc_allocator_;
+
+    std::map<uint64_t, std::unique_ptr<VaMemIdAllocated, VaMemIdDeleter>>
         mapped_va_surfaces_;
 
     MFX_CLASS_NO_COPY(MfxVaFrameAllocator)
