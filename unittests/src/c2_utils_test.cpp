@@ -1140,7 +1140,7 @@ TEST(MfxFrameConverter, NoLeaks)
     auto free_by_handles = [&] (MfxGrallocAllocator*, MfxFrameAllocator*,
         MfxFrameConverter* converter) {
 
-        converter->FreeGrallocToVaMapping(handle);
+        //converter->FreeGrallocToVaMapping(handle);
     };
 
     MfxFrameConverterTest( { alloc_and_map, free_by_handles, gr_free }, REPEAT_COUNT );

@@ -4,7 +4,7 @@ INTEL CORPORATION PROPRIETARY INFORMATION
 This software is supplied under the terms of a license agreement or nondisclosure
 agreement with Intel Corporation and may not be copied or disclosed except in
 accordance with the terms of that agreement
-Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
+Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
@@ -13,6 +13,8 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_defs.h"
 #include "mfx_c2_utils.h"
 #include "mfx_c2_debug.h"
+
+#include <C2AllocatorGralloc.h>
 
 using namespace android;
 
@@ -58,9 +60,9 @@ c2_status_t MfxC2FrameIn::Create(std::shared_ptr<MfxFrameConverter> frame_conver
 
             mfxMemId mem_id = nullptr;
             bool decode_target = false;
+            native_handle_t *grallocHandle = android::UnwrapNativeCodec2GrallocHandle(c_graph_block->handle());
 
-            mfxStatus mfx_sts = frame_converter->ConvertGrallocToVa(c_graph_block->handle(),
-                decode_target, &mem_id);
+            mfxStatus mfx_sts = frame_converter->ConvertGrallocToVa(grallocHandle, decode_target, &mem_id);
             if (MFX_ERR_NONE != mfx_sts) {
                 res = MfxStatusToC2(mfx_sts);
                 break;

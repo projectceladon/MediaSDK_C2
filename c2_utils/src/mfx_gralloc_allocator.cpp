@@ -4,7 +4,7 @@ INTEL CORPORATION PROPRIETARY INFORMATION
 This software is supplied under the terms of a license agreement or nondisclosure
 agreement with Intel Corporation and may not be copied or disclosed except in
 accordance with the terms of that agreement
-Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
+Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
@@ -169,7 +169,9 @@ c2_status_t MfxGrallocAllocator::Init()
             gr_set_producer_usage_.Acquire(gralloc1_dev_) &&
             gr_set_dimensions_.Acquire(gralloc1_dev_) &&
             gr_set_format_.Acquire(gralloc1_dev_) &&
-            gr_destroy_descriptor_.Acquire(gralloc1_dev_);
+            gr_destroy_descriptor_.Acquire(gralloc1_dev_) &&
+            gr_import_buffer_.Acquire(gralloc1_dev_) &&
+            gr_get_backing_store_.Acquire(gralloc1_dev_);
 
         if (!functions_acquired) {
             res = C2_CORRUPTED;
@@ -306,6 +308,35 @@ c2_status_t MfxGrallocAllocator::UnlockFrame(buffer_handle_t handle)
         MFX_DEBUG_TRACE_I32(gr1_res);
         res = C2_BAD_STATE;
     }
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
+    return res;
+}
+
+c2_status_t MfxGrallocAllocator::ImportBuffer(const buffer_handle_t rawHandle, buffer_handle_t *outBuffer)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    c2_status_t res = C2_OK;
+    int32_t gr1_res = (*gr_import_buffer_)(gralloc1_dev_, rawHandle, outBuffer);
+
+    if (GRALLOC1_ERROR_NONE != gr1_res) {
+        MFX_DEBUG_TRACE_I32(gr1_res);
+        res = C2_BAD_STATE;
+    }
+
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
+    return res;
+}
+
+c2_status_t MfxGrallocAllocator::GetBackingStore(const buffer_handle_t rawHandle, uint64_t *id)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    c2_status_t res = C2_OK;
+    int32_t gr1_res = (*gr_get_backing_store_)(gralloc1_dev_, rawHandle, id);
+    if (GRALLOC1_ERROR_NONE != gr1_res) {
+        MFX_DEBUG_TRACE_I32(gr1_res);
+        res = C2_BAD_STATE;
+    }
+
     MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
