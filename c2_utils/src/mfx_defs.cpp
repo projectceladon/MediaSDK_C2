@@ -4,7 +4,7 @@ INTEL CORPORATION PROPRIETARY INFORMATION
 This software is supplied under the terms of a license agreement or nondisclosure
 agreement with Intel Corporation and may not be copied or disclosed except in
 accordance with the terms of that agreement
-Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
+Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
@@ -14,9 +14,9 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 mfxVersion g_required_mfx_version = { {MFX_VERSION_MINOR, MFX_VERSION_MAJOR} };
 
-static void InitMfxNV12FrameHeader(
+static void InitMfxFrameHeader(
     uint64_t timestamp, uint64_t frame_index,
-    uint32_t width, uint32_t height, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
+    uint32_t width, uint32_t height, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -27,6 +27,7 @@ static void InitMfxNV12FrameHeader(
     mfx_frame->Info.CropY = 0;
     mfx_frame->Info.CropW = width;
     mfx_frame->Info.CropH = height;
+    mfx_frame->Info.FourCC = fourcc;
 
     mfx_frame->Data.TimeStamp = TimestampC2ToMfx(timestamp);
 
@@ -36,11 +37,11 @@ static void InitMfxNV12FrameHeader(
 void InitMfxNV12FrameSW(
     uint64_t timestamp, uint64_t frame_index,
     const uint8_t *const *data,
-    uint32_t width, uint32_t height, uint32_t stride, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
+    uint32_t width, uint32_t height, uint32_t stride, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    InitMfxNV12FrameHeader(timestamp, frame_index, width, height, info, mfx_frame);
+    InitMfxFrameHeader(timestamp, frame_index, width, height, fourcc, info, mfx_frame);
 
     mfx_frame->Data.MemType = MFX_MEMTYPE_SYSTEM_MEMORY;
 
@@ -52,14 +53,14 @@ void InitMfxNV12FrameSW(
     mfx_frame->Data.V = const_cast<uint8_t*>(data[2]);
 }
 
-void InitMfxNV12FrameHW(
+void InitMfxFrameHW(
     uint64_t timestamp, uint64_t frame_index,
     mfxMemId mem_id,
-    uint32_t width, uint32_t height, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
+    uint32_t width, uint32_t height, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    InitMfxNV12FrameHeader(timestamp, frame_index, width, height, info, mfx_frame);
+    InitMfxFrameHeader(timestamp, frame_index, width, height, fourcc, info, mfx_frame);
 
     mfx_frame->Data.MemType = MFX_MEMTYPE_EXTERNAL_FRAME;
     mfx_frame->Data.MemId = mem_id;

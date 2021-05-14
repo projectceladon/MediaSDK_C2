@@ -4,7 +4,7 @@ INTEL CORPORATION PROPRIETARY INFORMATION
 This software is supplied under the terms of a license agreement or nondisclosure
 agreement with Intel Corporation and may not be copied or disclosed except in
 accordance with the terms of that agreement
-Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
+Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
@@ -628,7 +628,7 @@ std::shared_ptr<IMfxC2FrameConstructor> MfxC2FrameConstructorFactory::CreateFram
         fc = std::make_shared<MfxC2HEVCFrameConstructor>();
         return fc;
 
-    } else if (MfxC2FC_VP9 == fc_type) {
+    } else if (MfxC2FC_VP8 == fc_type || MfxC2FC_VP9 == fc_type) {
         fc = std::make_shared<MfxC2FrameConstructor>();
         return fc;
 

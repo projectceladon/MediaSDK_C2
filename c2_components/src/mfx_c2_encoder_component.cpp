@@ -18,11 +18,13 @@ Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_params.h"
 #include "mfx_defaults.h"
 #include "C2PlatformSupport.h"
+#include "mfx_gralloc_allocator.h"
 
 #include <limits>
 #include <thread>
 #include <chrono>
 #include <iomanip>
+#include <C2AllocatorGralloc.h>
 
 using namespace android;
 
@@ -58,7 +60,8 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
     std::shared_ptr<MfxC2ParamReflector> reflector, EncoderType encoder_type) :
         MfxC2Component(name, config, std::move(reflector)),
         encoder_type_(encoder_type),
-        synced_points_count_(0)
+        synced_points_count_(0),
+        vpp_determined_(false)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -142,6 +145,7 @@ MfxC2EncoderComponent::~MfxC2EncoderComponent()
 {
     MFX_DEBUG_TRACE_FUNC;
 
+    vpp_.Close();
     Release();
 }
 
@@ -380,6 +384,51 @@ mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
             FreeEncoder();
         }
     }
+
+    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+    return mfx_res;
+}
+
+mfxStatus MfxC2EncoderComponent::InitVPP(C2FrameData& buf_pack)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxStatus mfx_res = MFX_ERR_NONE;
+    c2_status_t res;
+    const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
+
+    std::unique_ptr<C2ConstGraphicBlock> c_graph_block;
+    std::unique_ptr<const C2GraphicView> c2_graphic_view_;
+    res = GetC2ConstGraphicBlock(buf_pack, &c_graph_block);
+        if(C2_OK != res) return MFX_ERR_NONE;
+
+    res = MapConstGraphicBlock(*c_graph_block, TIMEOUT_NS, &c2_graphic_view_);
+
+    if(c2_graphic_view_->layout().type == C2PlanarLayout::TYPE_RGB) {
+        // need color convert to YUV
+        MfxC2VppWrappParam param;
+
+        param.session = &session_;
+        param.frame_info = &video_params_config_.mfx.FrameInfo;
+        param.frame_info->Width = c_graph_block->width();
+        param.frame_info->Height = c_graph_block->height();
+        param.frame_info->CropX = 0;
+        param.frame_info->CropY = 0;
+        param.frame_info->CropW = c_graph_block->width();
+        param.frame_info->CropH = c_graph_block->height();
+        param.frame_info->FourCC = MFX_FOURCC_RGB4;
+        param.allocator = device_->GetFrameAllocator();
+        param.conversion = ARGB_TO_NV12;
+
+        mfx_res = vpp_.Init(&param);
+        input_vpp_type_ = param.conversion;
+    }
+    else
+    {
+        input_vpp_type_ = CONVERT_NONE;
+    }
+
+    if (MFX_ERR_NONE == mfx_res) vpp_determined_ = true;
+
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }
@@ -548,7 +597,45 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
         MfxC2FrameIn mfx_frame;
 
-        res = MfxC2FrameIn::Create(frame_converter, input, video_params_config_.mfx.FrameInfo, TIMEOUT_NS, &mfx_frame);
+        if (!vpp_determined_) {
+            mfxStatus mfx_sts = InitVPP(input);
+            if(MFX_ERR_NONE != mfx_sts) {
+                MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
+                res = MfxStatusToC2(mfx_sts);
+                break;
+            }
+        }
+
+        if (CONVERT_NONE != input_vpp_type_) {
+            std::unique_ptr<mfxFrameSurface1> unique_mfx_frame =
+                    std::make_unique<mfxFrameSurface1>();
+            mfxFrameSurface1* pSurfaceToEncode;
+            std::unique_ptr<const C2GraphicView> c_graph_view;
+
+            std::unique_ptr<C2ConstGraphicBlock> c_graph_block;
+            res = GetC2ConstGraphicBlock(input, &c_graph_block);
+            MapConstGraphicBlock(*c_graph_block, TIMEOUT_NS, &c_graph_view);
+
+            mfxMemId mem_id = nullptr;
+            bool decode_target = false;
+            native_handle_t *grallocHandle = android::UnwrapNativeCodec2GrallocHandle(c_graph_block->handle());
+
+            mfxStatus mfx_sts = frame_converter->ConvertGrallocToVa(grallocHandle,
+                                         decode_target, &mem_id);
+            if (MFX_ERR_NONE != mfx_sts) {
+                res = MfxStatusToC2(mfx_sts);
+                break;
+            }
+
+            InitMfxFrameHW(input.ordinal.timestamp.peeku(), input.ordinal.frameIndex.peeku(),
+                mem_id, c_graph_block->width(), c_graph_block->height(), MFX_FOURCC_RGB4, video_params_config_.mfx.FrameInfo,
+                unique_mfx_frame.get());
+
+            vpp_.ProcessFrameVpp(unique_mfx_frame.get(), &pSurfaceToEncode);
+            res = MfxC2FrameIn::Create(frame_converter, std::move(c_graph_view), input, pSurfaceToEncode, &mfx_frame);
+        } else {
+            res = MfxC2FrameIn::Create(frame_converter, input, video_params_config_.mfx.FrameInfo, TIMEOUT_NS, &mfx_frame);
+        }
         if(C2_OK != res) break;
 
         if(nullptr == encoder_) {

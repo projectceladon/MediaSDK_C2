@@ -4,7 +4,7 @@ INTEL CORPORATION PROPRIETARY INFORMATION
 This software is supplied under the terms of a license agreement or nondisclosure
 agreement with Intel Corporation and may not be copied or disclosed except in
 accordance with the terms of that agreement
-Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
+Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
@@ -17,6 +17,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_frame_in.h"
 #include "mfx_c2_bitstream_out.h"
 #include "mfx_c2_utils.h"
+#include "mfx_c2_vpp_wrapp.h"
 
 // Assumes all calls are done from one (working) thread, no sync is needed.
 // ctrl_once_ accumulates subsequent changes for one next frame.
@@ -92,6 +93,7 @@ private:
     mfxStatus ResetSettings();
 
     mfxStatus InitEncoder(const mfxFrameInfo& frame_info);
+    mfxStatus InitVPP(C2FrameData& buf_pack);
 
     void FreeEncoder();
 
@@ -168,4 +170,9 @@ private:
     std::unique_ptr<BinaryWriter> output_writer_;
 
     bool header_sent_{false};
+
+    // VPP used to convert color format which MSDK accepted.
+    bool vpp_determined_;
+    MfxC2VppWrapp vpp_;
+    MfxC2Conversion input_vpp_type_;
 };

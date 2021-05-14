@@ -30,6 +30,17 @@ MfxC2FrameIn::~MfxC2FrameIn()
     }
 }
 
+c2_status_t MfxC2FrameIn::Create(std::shared_ptr<MfxFrameConverter> frame_converter,  std::unique_ptr<const C2GraphicView> c_graph_view,
+        C2FrameData& buf_pack, mfxFrameSurface1 *mfx_frame, MfxC2FrameIn* wrapper)
+{
+    wrapper->c2_graphic_view_ = std::move(c_graph_view);
+    wrapper->frame_converter_ = frame_converter;
+    wrapper->mfx_frame_ = mfx_frame;
+    wrapper->c2_buffer_ = std::move(buf_pack.buffers.front());
+
+    return C2_OK;
+}
+
 c2_status_t MfxC2FrameIn::Create(std::shared_ptr<MfxFrameConverter> frame_converter,
     C2FrameData& buf_pack, const mfxFrameInfo& info, c2_nsecs_t timeout, MfxC2FrameIn* wrapper)
 {
@@ -53,8 +64,7 @@ c2_status_t MfxC2FrameIn::Create(std::shared_ptr<MfxFrameConverter> frame_conver
             break;
         }
 
-        std::unique_ptr<mfxFrameSurface1> unique_mfx_frame =
-            std::make_unique<mfxFrameSurface1>();
+        mfxFrameSurface1 *mfx_frame = new mfxFrameSurface1;
 
         if (nullptr != frame_converter) {
 
@@ -68,21 +78,21 @@ c2_status_t MfxC2FrameIn::Create(std::shared_ptr<MfxFrameConverter> frame_conver
                 break;
             }
 
-            InitMfxNV12FrameHW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
-                mem_id, c_graph_block->width(), c_graph_block->height(), info,
-                unique_mfx_frame.get());
+            InitMfxFrameHW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
+                mem_id, c_graph_block->width(), c_graph_block->height(), MFX_FOURCC_NV12, info,
+                mfx_frame);
         } else {
             res = MapConstGraphicBlock(*c_graph_block, timeout, &wrapper->c2_graphic_view_);
             if(C2_OK != res) break;
 
             const uint32_t stride = wrapper->c2_graphic_view_->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
             InitMfxNV12FrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
-                wrapper->c2_graphic_view_->data(), c_graph_block->width(), c_graph_block->height(), stride, info,
-                unique_mfx_frame.get());
+                wrapper->c2_graphic_view_->data(), c_graph_block->width(), c_graph_block->height(), stride, MFX_FOURCC_NV12, info,
+                mfx_frame);
         }
 
         wrapper->frame_converter_ = frame_converter;
-        wrapper->mfx_frame_ = std::move(unique_mfx_frame);
+        wrapper->mfx_frame_ = mfx_frame;
         wrapper->c2_buffer_ = std::move(buf_pack.buffers.front());
 
     } while(false);

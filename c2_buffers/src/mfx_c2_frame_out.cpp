@@ -4,7 +4,7 @@ INTEL CORPORATION PROPRIETARY INFORMATION
 This software is supplied under the terms of a license agreement or nondisclosure
 agreement with Intel Corporation and may not be copied or disclosed except in
 accordance with the terms of that agreement
-Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
+Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
@@ -63,8 +63,8 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
                 break;
             }
 
-            InitMfxNV12FrameHW(timestamp, frame_index,
-                mem_id, block->width(), block->height(), info,
+            InitMfxFrameHW(timestamp, frame_index,
+                mem_id, block->width(), block->height(), MFX_FOURCC_NV12, info,
                 mfx_frame.get());
         } else {
             std::unique_ptr<C2GraphicView> view;
@@ -76,7 +76,7 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
             const uint32_t stride = wrapper->c2_graphic_view_->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
             InitMfxNV12FrameSW(timestamp, frame_index,
                 wrapper->c2_graphic_view_->data(),
-                block->width(), block->height(), stride, info,
+                block->width(), block->height(), stride, MFX_FOURCC_NV12, info,
                 mfx_frame.get());
         }
 
