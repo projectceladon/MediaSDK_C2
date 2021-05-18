@@ -4,7 +4,7 @@ INTEL CORPORATION PROPRIETARY INFORMATION
 This software is supplied under the terms of a license agreement or nondisclosure
 agreement with Intel Corporation and may not be copied or disclosed except in
 accordance with the terms of that agreement
-Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
+Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
@@ -19,6 +19,9 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_allocator_id.h"
 #include "mfx_c2_buffer_queue.h"
 #include "C2PlatformSupport.h"
+#include "mfx_gralloc_allocator.h"
+
+#include <C2AllocatorGralloc.h>
 
 using namespace android;
 
@@ -666,7 +669,11 @@ c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
                     std::unique_ptr<C2PortAllocatorsTuning::output> outAlloc =
                         C2PortAllocatorsTuning::output::AllocUnique(1);
                     if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
+#ifdef MFX_BUFFER_QUEUE
                         outAlloc->m.values[0] = MFX_BUFFERQUEUE;
+#else
+                        outAlloc->m.values[0] = C2PlatformAllocatorStore::GRALLOC;
+#endif
                     else
                         outAlloc->m.values[0] = C2PlatformAllocatorStore::GRALLOC;
                     MFX_DEBUG_TRACE_PRINTF("Set output port alloctor to: %d", outAlloc->m.values[0]);
@@ -1013,9 +1020,10 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
                                                HAL_PIXEL_FORMAT_NV12_TILED_INTEL, mem_usage, out_block);
         if (res == C2_OK && video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
         {
-            buffer_handle_t hndl;
-            std::static_pointer_cast<MfxC2BufferQueueBlockPool>(c2_allocator_)->ImportHandle(*out_block, &hndl);
-            if (!allocator_->InCache(hndl))
+            buffer_handle_t hndl = android::UnwrapNativeCodec2GrallocHandle((*out_block)->handle());
+            uint64_t id;
+            c2_status_t sts = gralloc_allocator_->GetBackingStore(hndl, &id);
+            if (!allocator_->InCache(id))
             {
                 //temporary solution: lock this buffer, and get others, need refine it in furture.
                 locked_block_.push_back(std::move(*out_block));
@@ -1058,20 +1066,21 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
         }
         if (C2_OK != res) break;
 
+        buffer_handle_t hndl = android::UnwrapNativeCodec2GrallocHandle(out_block->handle());
         auto it = surfaces_.end();
         if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
         {
-            buffer_handle_t hndl;
-            std::static_pointer_cast<MfxC2BufferQueueBlockPool>(c2_allocator_)->ImportHandle(out_block, &hndl);
+            uint64_t id;
+            c2_status_t sts = gralloc_allocator_->GetBackingStore(hndl, &id);
 
-            it = surfaces_.find(hndl);
+            it = surfaces_.find(id);
             if (it == surfaces_.end()){
                 // haven't been used for decoding yet
                 res = MfxC2FrameOut::Create(converter, out_block, video_params_.mfx.FrameInfo, TIMEOUT_NS, frame_out, hndl);
                 if (C2_OK != res)
                     break;
 
-                surfaces_.emplace(hndl, frame_out->GetMfxFrameSurface());
+                surfaces_.emplace(id, frame_out->GetMfxFrameSurface());
             } else {
                 if (it->second->Data.Locked) {
                     /* Buffer locked, try next block. */
@@ -1082,7 +1091,7 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
                     *frame_out = MfxC2FrameOut(std::move(out_block), it->second);
             }
         } else {
-            res = MfxC2FrameOut::Create(converter, out_block, video_params_.mfx.FrameInfo, TIMEOUT_NS, frame_out, out_block->handle());
+            res = MfxC2FrameOut::Create(converter, out_block, video_params_.mfx.FrameInfo, TIMEOUT_NS, frame_out, hndl);
             if (C2_OK != res)
             break;
         }
@@ -1127,9 +1136,10 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             res = GetCodec2BlockPool(output_pool_id_,
                 shared_from_this(), &c2_allocator_);
             if (res != C2_OK) break;
-
+#ifdef MFX_BUFFER_QUEUE
             bool hasSurface = std::static_pointer_cast<MfxC2BufferQueueBlockPool>(c2_allocator_)->outputSurfaceSet();
             video_params_.IOPattern = hasSurface ? MFX_IOPATTERN_OUT_VIDEO_MEMORY : MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
+#endif
             if (video_params_.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
                 allocator_ = nullptr;
                 mfx_sts = session_.SetFrameAllocator(nullptr);
@@ -1137,6 +1147,13 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 ALOGI("System memory is being used for decoding!");
 
                 if (MFX_ERR_NONE != mfx_sts) break;
+            }
+        }
+
+        if (!gralloc_allocator_) {
+            res = MfxGrallocAllocator::Create(&gralloc_allocator_);
+            if(C2_OK != res) {
+                break;
             }
         }
 

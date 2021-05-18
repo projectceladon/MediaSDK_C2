@@ -4,7 +4,7 @@ INTEL CORPORATION PROPRIETARY INFORMATION
 This software is supplied under the terms of a license agreement or nondisclosure
 agreement with Intel Corporation and may not be copied or disclosed except in
 accordance with the terms of that agreement
-Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
+Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
@@ -17,6 +17,7 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 #include "mfx_c2_frame_out.h"
 #include "mfx_c2_bitstream_in.h"
 #include "mfx_frame_pool_allocator.h"
+#include "mfx_gralloc_allocator.h"
 
 class MfxC2DecoderComponent : public MfxC2Component
 {
@@ -162,7 +163,7 @@ private:
 
     std::unique_ptr<MfxC2BitstreamIn> c2_bitstream_;
     // Store raw pointers there as don't want to keep objects by shared_ptr
-    std::map<buffer_handle_t, std::shared_ptr<mfxFrameSurface1>> surfaces_; // all ever send to Decoder
+    std::map<uint64_t, std::shared_ptr<mfxFrameSurface1>> surfaces_; // all ever send to Decoder
 
     std::mutex locked_surfaces_mutex_;
     std::list<MfxC2FrameOut> locked_surfaces_; // allocated, but cannot be re-used as Locked by Decoder
@@ -175,6 +176,7 @@ private:
     // for pre-allocation when Video memory is chosen and always when System memory output
     std::shared_ptr<C2BlockPool> c2_allocator_;
     C2BlockPool::local_id_t output_pool_id_ = C2BlockPool::BASIC_GRAPHIC;
+    std::unique_ptr<MfxGrallocAllocator> gralloc_allocator_;
     std::atomic<bool> flushing_{false};
 
     std::list<std::unique_ptr<C2Work>> flushed_works_;

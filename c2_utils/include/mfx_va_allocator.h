@@ -49,6 +49,7 @@ protected: // MfxFrameConverter
     virtual void FreeGrallocToVaMapping(mfxMemId mem_id) override;
     virtual void FreeAllMappings() override;
 
+    std::unique_ptr<MfxGrallocAllocator> gralloc_allocator_;
 private:
     mfxStatus MapGrallocBufferToSurface(buffer_handle_t gralloc_buffer, bool decode_target,
         mfxU32* fourcc, VASurfaceID* surface);
@@ -74,8 +75,6 @@ private:
     std::mutex mutex_;
 
     std::unique_ptr<MfxGrallocModule> gralloc_module_; // lazy init
-
-    std::unique_ptr<MfxGrallocAllocator> gralloc_allocator_;
 
     std::map<uint64_t, std::unique_ptr<VaMemIdAllocated, VaMemIdDeleter>>
         mapped_va_surfaces_;

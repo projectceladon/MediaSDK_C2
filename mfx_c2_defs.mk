@@ -67,6 +67,11 @@ else
   $(error "Required GRALLOC1 support")
 endif
 
+# MFX_BUFFER_QUEUE := true
+ifeq ($(MFX_BUFFER_QUEUE),true)
+    MFX_C2_CFLAGS += -DMFX_BUFFER_QUEUE
+endif
+
 #  Security
 MFX_C2_CFLAGS += \
   -fstack-protector-strong \

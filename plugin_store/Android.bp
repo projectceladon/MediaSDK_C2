@@ -1,5 +1,5 @@
 cc_library_shared {
-    name: "libc2plugin_store",
+    name: "libc2plugin_store_celadon",
     vendor: true,
 
     defaults: [
