@@ -4,7 +4,7 @@ INTEL CORPORATION PROPRIETARY INFORMATION
 This software is supplied under the terms of a license agreement or nondisclosure
 agreement with Intel Corporation and may not be copied or disclosed except in
 accordance with the terms of that agreement
-Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
+Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 
 *********************************************************************************/
 
@@ -56,9 +56,9 @@ private:
     {
         suggest_buffer_cnt_ = cnt;
     }
-    bool InCache(buffer_handle_t hdl) {
-        auto it = cached_buffer_handle_.find(hdl);
-        if (it == cached_buffer_handle_.end()){
+    bool InCache(uint64_t id) {
+        auto it = cached_buffer_id_.find(id);
+        if (it == cached_buffer_id_.end()){
             return false;
         }
 
@@ -76,7 +76,7 @@ private:
 
     std::unique_ptr<MfxPool<C2GraphicBlock>> pool_;
 
-    std::map<buffer_handle_t, int> cached_buffer_handle_;
+    std::map<uint64_t, int> cached_buffer_id_;
 
     unsigned int suggest_buffer_cnt_=0;
 
