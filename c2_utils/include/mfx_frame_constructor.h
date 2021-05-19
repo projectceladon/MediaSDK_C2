@@ -12,6 +12,8 @@ Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
 
 #include "mfx_defs.h"
 #include <memory>
+#include <vector>
+#include <map>
 
 enum MfxC2FrameConstructorType
 {
@@ -53,6 +55,7 @@ public:
     virtual void SetEosMode(bool eos) = 0;
     // returns EOS status
     virtual bool WasEosReached() = 0;
+    virtual mfxPayload* GetSEI(mfxU32 /*type*/) = 0;
     // save current SPS/PPS
     virtual mfxStatus SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset) = 0;
 
@@ -86,6 +89,8 @@ public:
     virtual void SetEosMode(bool eos) { eos_ = eos; }
     // returns EOS status
     virtual bool WasEosReached() { return eos_; }
+    // get saved SEI (right now only for HEVC 10 bit SeiHDRStaticInfo)
+    virtual mfxPayload* GetSEI(mfxU32 /*type*/) {return nullptr;}
     // save current SPS/PPS
     virtual mfxStatus SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset)
     {
@@ -141,17 +146,24 @@ public:
     MfxC2AVCFrameConstructor();
     virtual ~MfxC2AVCFrameConstructor();
 
+    // get saved SEI (right now only for HEVC 10 bit SeiHDRStaticInfo)
+    virtual mfxPayload* GetSEI(mfxU32 /*type*/) {return nullptr;}
+
     // save current SPS/PPS
     virtual mfxStatus SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset);
 
 protected: // functions
     virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
     virtual mfxStatus LoadHeader(const mfxU8* data, mfxU32 size, bool header);
+    // save current SEI
+    virtual mfxStatus SaveSEI(mfxBitstream * /*pSEI*/) {return MFX_ERR_NONE;}
 
-    virtual mfxStatus FindHeaders(const mfxU8* data, mfxU32 size, bool &found_sps, bool &found_pps);
+    virtual mfxStatus FindHeaders(const mfxU8* data, mfxU32 size, bool &found_sps, bool &found_pps, bool &found_sei);
     virtual StartCode ReadStartCode(const mfxU8** position, mfxU32* size_left);
     virtual bool      isSPS(mfxI32 code) { return NAL_UT_AVC_SPS == code; }
     virtual bool      isPPS(mfxI32 code) { return NAL_UT_AVC_PPS == code; }
+    virtual bool      isSEI(mfxI32 /*code*/) {return false;}
+    virtual bool      needWaitSEI(mfxI32 /*code*/) {return false;}
 
 protected: // data
     const static mfxU32 NAL_UT_AVC_SPS = 7;
@@ -170,14 +182,28 @@ public:
     MfxC2HEVCFrameConstructor();
     virtual ~MfxC2HEVCFrameConstructor();
 
+    // get saved SEI (right now only for HEVC 10 bit SeiHDRStaticInfo)
+    virtual mfxPayload* GetSEI(mfxU32 type);
+
+    const static mfxU32 SEI_MASTERING_DISPLAY_COLOUR_VOLUME = 137;
+    const static mfxU32 SEI_CONTENT_LIGHT_LEVEL_INFO = 144;
+
 protected: // functions
     virtual StartCode ReadStartCode(const mfxU8** position, mfxU32* size_left);
     virtual bool      isSPS(mfxI32 code) { return NAL_UT_HEVC_SPS == code; }
     virtual bool      isPPS(mfxI32 code) { return NAL_UT_HEVC_PPS == code; }
+    // save current SEI
+    virtual mfxStatus SaveSEI(mfxBitstream *pSEI);
+    virtual bool   isSEI(mfxI32 code) {return NAL_UT_HEVC_SEI == code;}
+    virtual bool   needWaitSEI(mfxI32 code) { return NAL_UT_CODED_SLICEs.end() == std::find(NAL_UT_CODED_SLICEs.begin(), NAL_UT_CODED_SLICEs.end(), code);}
 
 protected: // data
     const static mfxU32 NAL_UT_HEVC_SPS = 33;
     const static mfxU32 NAL_UT_HEVC_PPS = 34;
+    const static mfxU32 NAL_UT_HEVC_SEI = 39;
+    const static std::vector<mfxU32> NAL_UT_CODED_SLICEs;
+
+    std::map<mfxU32, mfxPayload> SEIMap;
 
 private:
     MFX_CLASS_NO_COPY(MfxC2HEVCFrameConstructor)

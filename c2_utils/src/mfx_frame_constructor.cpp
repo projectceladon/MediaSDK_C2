@@ -11,9 +11,13 @@ Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
 #include "mfx_frame_constructor.h"
 #include "mfx_debug.h"
 #include "mfx_msdk_debug.h"
+#include "mfx_c2_bs_utils.h"
+#include "mfx_c2_hevc_bitstream.h"
 
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_frame_constructor"
+
+const std::vector<mfxU32> MfxC2HEVCFrameConstructor::NAL_UT_CODED_SLICEs = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 16, 17, 18, 19, 20, 21 };
 
 MfxC2FrameConstructor::MfxC2FrameConstructor():
     bs_state_(MfxC2BS_HeaderAwaiting),
@@ -372,13 +376,14 @@ mfxStatus MfxC2AVCFrameConstructor::SaveHeaders(std::shared_ptr<mfxBitstream> sp
     return MFX_ERR_NONE;
 }
 
-mfxStatus MfxC2AVCFrameConstructor::FindHeaders(const mfxU8* data, mfxU32 size, bool &found_sps, bool &found_pps)
+mfxStatus MfxC2AVCFrameConstructor::FindHeaders(const mfxU8* data, mfxU32 size, bool &found_sps, bool &found_pps, bool &found_sei)
 {
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
 
     found_sps = false;
     found_pps = false;
+    found_sei = false;
 
     if (data && size) {
         StartCode start_code;
@@ -415,6 +420,22 @@ mfxStatus MfxC2AVCFrameConstructor::FindHeaders(const mfxU8* data, mfxU32 size, 
                 if (MFX_ERR_NONE != mfx_res) return mfx_res;
                 found_pps = true;
             }
+            while (isSEI(start_code.type))
+            {
+                mfxBitstream sei = {};
+                MFX_ZERO_MEMORY(sei);
+                sei.Data = (mfxU8*)data - start_code.size;
+                sei.DataLength = size + start_code.size;
+                start_code = ReadStartCode(&data, &size);
+                if (-1 != start_code.type)
+                    sei.DataLength -= size + start_code.size;
+                 MFX_DEBUG_TRACE_STREAM("Found SEI size %d" << sei.DataLength);
+                 mfx_res = SaveSEI(&sei);
+                 if (MFX_ERR_NONE != mfx_res) return mfx_res;
+                 found_sei = true;
+             }
+            // start code == coded slice, so no need wait SEI
+            if (!needWaitSEI(start_code.type)) found_sei = true;
             if (-1 == start_code.type) break;
         }
     }
@@ -430,16 +451,17 @@ mfxStatus MfxC2AVCFrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, b
 
     bool bFoundSps = false;
     bool bFoundPps = false;
+    bool bFoundSei = false;
 
     if (header && data && size) {
         if (MfxC2BS_HeaderAwaiting == bs_state_) bs_state_ = MfxC2BS_HeaderCollecting;
 
-        mfx_res = FindHeaders(data, size, bFoundSps, bFoundPps);
+        mfx_res = FindHeaders(data, size, bFoundSps, bFoundPps, bFoundSei);
         if (MFX_ERR_NONE == mfx_res && bFoundSps && bFoundPps)
             bs_state_ = MfxC2BS_HeaderObtained;
 
     } else if (MfxC2BS_Resetting == bs_state_) {
-        mfx_res = FindHeaders(data, size, bFoundSps, bFoundPps);
+        mfx_res = FindHeaders(data, size, bFoundSps, bFoundPps, bFoundSei);
         if (MFX_ERR_NONE == mfx_res) {
             if (!bFoundSps || !bFoundPps) {
                 // In case we are in Resetting state (i.e. seek mode)
@@ -615,6 +637,74 @@ IMfxC2FrameConstructor::StartCode MfxC2HEVCFrameConstructor::ReadStartCode(const
     return start_code;
 }
 
+mfxStatus MfxC2HEVCFrameConstructor::SaveSEI(mfxBitstream *pSEI)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxStatus mfx_res = MFX_ERR_NONE;
+
+    if (nullptr != pSEI && nullptr != pSEI->Data)
+    {
+        std::vector<mfxU8> swappingMemory;
+        mfxU32 swappingMemorySize = pSEI->DataLength - 5;
+        swappingMemory.resize(swappingMemorySize + 8);
+
+        std::vector<mfxU32> SEINames = {SEI_MASTERING_DISPLAY_COLOUR_VOLUME, SEI_CONTENT_LIGHT_LEVEL_INFO};
+        for (auto const& sei_name : SEINames) // look for sei
+        {
+            mfxPayload sei = {};
+            sei.BufSize = pSEI->DataLength;
+            sei.Data = (mfxU8*)realloc(sei.Data, pSEI->DataLength);
+            if (nullptr == sei.Data)
+            {
+                MFX_DEBUG_TRACE_MSG("ERROR: SEI was not alloacated");
+                return MFX_ERR_MEMORY_ALLOC;
+            }
+
+            MFX_DEBUG_TRACE_MSG("Calling ByteSwapper::SwapMemory()");
+
+            BytesSwapper::SwapMemory(&(swappingMemory[0]), swappingMemorySize, (pSEI->Data + 5), swappingMemorySize);
+
+            MFX_DEBUG_TRACE_MSG("Calling HEVCHeadersBitstream.Reset()");
+            MFX_DEBUG_TRACE_U32(swappingMemorySize);
+
+            HEVCParser::HEVCHeadersBitstream bitStream;
+            bitStream.Reset(&(swappingMemory[0]), swappingMemorySize);
+
+            MFX_DEBUG_TRACE_MSG("Calling HEVCHeadersBitstream.GetSEI() for SEI");
+            MFX_DEBUG_TRACE_U32(sei_name);
+
+            MFX_TRY_AND_CATCH(
+                bitStream.GetSEI(&sei, sei_name),
+                sei.NumBit = 0);
+            if (sei.Type == sei_name && sei.NumBit > 0)
+            {
+                // replace sei
+                auto old_sei = SEIMap.find(sei_name);
+                if (old_sei != SEIMap.end())
+                {
+                    MFX_FREE(old_sei->second.Data);
+                    SEIMap.erase(old_sei);
+                }
+                SEIMap.insert(std::pair<mfxU32, mfxPayload>(sei_name, sei));
+            }
+            else
+                MFX_FREE(sei.Data);
+        }
+    }
+
+    MFX_DEBUG_TRACE_I32(mfx_res);
+    return mfx_res;
+}
+
+mfxPayload* MfxC2HEVCFrameConstructor::GetSEI(mfxU32 type)
+{
+    auto sei = SEIMap.find(type);
+    if (sei != SEIMap.end())
+        return &(sei->second);
+
+    return nullptr;
+}
+
 std::shared_ptr<IMfxC2FrameConstructor> MfxC2FrameConstructorFactory::CreateFrameConstructor(MfxC2FrameConstructorType fc_type)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -626,10 +716,6 @@ std::shared_ptr<IMfxC2FrameConstructor> MfxC2FrameConstructorFactory::CreateFram
 
     } else if (MfxC2FC_HEVC == fc_type) {
         fc = std::make_shared<MfxC2HEVCFrameConstructor>();
-        return fc;
-
-    } else if (MfxC2FC_VP8 == fc_type || MfxC2FC_VP9 == fc_type) {
-        fc = std::make_shared<MfxC2FrameConstructor>();
         return fc;
 
     } else {

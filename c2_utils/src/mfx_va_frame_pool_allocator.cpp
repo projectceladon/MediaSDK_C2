@@ -54,7 +54,8 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                 mfx_res = MFX_ERR_NOT_INITIALIZED;
                 break;
             }
-            if (request->Info.FourCC != MFX_FOURCC_NV12) {
+            if (request->Info.FourCC != MFX_FOURCC_NV12 &&
+                request->Info.FourCC != MFX_FOURCC_P010) {
                 mfx_res = MFX_ERR_UNSUPPORTED;
                 break;
             }
@@ -63,6 +64,7 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                 mfx_res = MFX_ERR_MEMORY_ALLOC;
                 break;
             }
+
 #ifdef MFX_BUFFER_QUEUE
             res = std::static_pointer_cast<MfxC2BufferQueueBlockPool>(c2_allocator_)->requestNewBufferSet(max_buffers);
             if(res != C2_OK) {
