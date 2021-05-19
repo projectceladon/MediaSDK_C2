@@ -494,6 +494,8 @@ int MfxFourCCToGralloc(mfxU32 fourcc)
     {
         case MFX_FOURCC_NV12:
             return HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL;
+        case MFX_FOURCC_P010:
+            return HAL_PIXEL_FORMAT_P010_INTEL;
         default:
             return 0;
     }

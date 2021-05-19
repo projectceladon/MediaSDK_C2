@@ -31,11 +31,11 @@ using namespace android;
 const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
 enum VP8_PROFILE {
-	PROFILE_VP8_0 = C2_PROFILE_LEVEL_VENDOR_START,
+    PROFILE_VP8_0 = C2_PROFILE_LEVEL_VENDOR_START,
 };
 
 enum VP8_LEVEL {
-	LEVEL_VP8_Version0 = C2_PROFILE_LEVEL_VENDOR_START,
+    LEVEL_VP8_Version0 = C2_PROFILE_LEVEL_VENDOR_START,
 };
 
 MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateConfig& config,
@@ -43,7 +43,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         MfxC2Component(name, config, std::move(reflector)),
         decoder_type_(decoder_type),
         initialized_(false),
-        synced_points_count_(0)
+        synced_points_count_(0),
+        set_hdr_sei_(false)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -267,6 +268,39 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::primaries, PRIMARIES_UNSPECIFIED, PRIMARIES_OTHER);
     pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::transfer, TRANSFER_UNSPECIFIED, TRANSFER_OTHER);
     pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::matrix, MATRIX_UNSPECIFIED, MATRIX_OTHER);
+
+    // HDR static
+    hdr_static_info_.mastering = {
+        .red   = { .x = 0.708,  .y = 0.292 },
+        .green = { .x = 0.170,  .y = 0.797 },
+        .blue  = { .x = 0.131,  .y = 0.046 },
+        .white = { .x = 0.3127, .y = 0.3290 },
+        .maxLuminance = 0,
+        .minLuminance = 0,
+    };
+    hdr_static_info_.maxCll = 0;
+    hdr_static_info_.maxFall = 0;
+
+    pr.AddStreamInfo<C2StreamHdrStaticInfo::output>(
+        C2_PARAMKEY_HDR_STATIC_INFO, SINGLE_STREAM_ID,
+        [this] (C2StreamHdrStaticInfo::output* dst)->bool {
+            MFX_DEBUG_TRACE("GetHdrStaticInfo");
+            dst->mastering.red.x = hdr_static_info_.mastering.red.x;
+            dst->mastering.red.y = hdr_static_info_.mastering.red.y;
+            dst->mastering.green.x = hdr_static_info_.mastering.green.x;
+            dst->mastering.green.y = hdr_static_info_.mastering.green.y;
+            dst->mastering.blue.x = hdr_static_info_.mastering.blue.x;
+            dst->mastering.blue.y = hdr_static_info_.mastering.blue.y;
+            dst->maxCll = hdr_static_info_.maxCll;
+            dst->maxFall = hdr_static_info_.maxFall;
+            return true;
+        },
+        [this] (const C2StreamHdrStaticInfo::output& src)->bool {
+            MFX_DEBUG_TRACE("SetHdrStaticInfo");
+            hdr_static_info_ = src;
+            return true;
+        }
+    );
 
     param_storage_.DumpParams();
 }
@@ -577,6 +611,10 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         }
     }
     if (MFX_ERR_NONE == mfx_res) {
+        MFX_DEBUG_TRACE("InitDecoder: UpdateHdrStaticInfo");
+
+        UpdateHdrStaticInfo();
+
         MFX_DEBUG_TRACE("InitDecoder: GetAsyncDepth");
 
         video_params_.AsyncDepth = GetAsyncDepth();
@@ -1000,7 +1038,7 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
     return mfx_sts;
 }
 
-c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t height, std::shared_ptr<C2GraphicBlock>* out_block)
+c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t height, uint32_t fourcc, std::shared_ptr<C2GraphicBlock>* out_block)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -1017,7 +1055,7 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
         C2MemoryUsage mem_usage = {C2AndroidMemoryUsage::CPU_READ|C2AndroidMemoryUsage::HW_COMPOSER_READ,
                                             C2AndroidMemoryUsage::HW_CODEC_WRITE};
         res = c2_allocator_->fetchGraphicBlock(width, height,
-                                               HAL_PIXEL_FORMAT_NV12_TILED_INTEL, mem_usage, out_block);
+                                               MfxFourCCToGralloc(fourcc), mem_usage, out_block);
         if (res == C2_OK && video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
         {
             buffer_handle_t hndl = android::UnwrapNativeCodec2GrallocHandle((*out_block)->handle());
@@ -1059,7 +1097,8 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
         }
 
         std::shared_ptr<C2GraphicBlock> out_block;
-        res = AllocateC2Block(video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height, &out_block);
+        res = AllocateC2Block(video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height,
+                              video_params_.mfx.FrameInfo.FourCC, &out_block);
         if (C2_TIMED_OUT == res)
         {
             continue;
@@ -1175,6 +1214,10 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                     MFX_DEBUG_TRACE_MSG("Cannot initialize mfx decoder");
                     res = C2_BAD_VALUE;
                     break;
+                }
+                if (set_hdr_sei_) {
+                    MFX_DEBUG_TRACE_MSG("Set HDR static info");
+                    work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(hdr_static_info_));
                 }
             }
 
@@ -1592,4 +1635,45 @@ c2_status_t MfxC2DecoderComponent::Flush(std::list<std::unique_ptr<C2Work>>* con
     *flushedWork = std::move(flushed_works_);
 
     return C2_OK;
+}
+
+void MfxC2DecoderComponent::UpdateHdrStaticInfo()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    mfxPayload* pHdrSeiPayload = c2_bitstream_->GetFrameConstructor()->GetSEI(MfxC2HEVCFrameConstructor::SEI_MASTERING_DISPLAY_COLOUR_VOLUME);
+
+    const mfxU32 SEI_MASTERING_DISPLAY_COLOUR_VOLUME_SIZE = 24*8; // required size of data in bits
+
+    if (nullptr != pHdrSeiPayload && pHdrSeiPayload->NumBit >= SEI_MASTERING_DISPLAY_COLOUR_VOLUME_SIZE && nullptr != pHdrSeiPayload->Data)
+    {
+        MFX_DEBUG_TRACE_MSG("Set HDR static info: SEI_MASTERING_DISPLAY_COLOUR_VOLUME");
+
+        set_hdr_sei_ = true;
+        hdr_static_info_.mastering.red.x = pHdrSeiPayload->Data[1] | (pHdrSeiPayload->Data[0] << 8);
+        hdr_static_info_.mastering.red.y = pHdrSeiPayload->Data[3] | (pHdrSeiPayload->Data[2] << 8);
+        hdr_static_info_.mastering.green.x = pHdrSeiPayload->Data[5] | (pHdrSeiPayload->Data[4] << 8);
+        hdr_static_info_.mastering.green.y = pHdrSeiPayload->Data[7] | (pHdrSeiPayload->Data[6] << 8);
+        hdr_static_info_.mastering.blue.x = pHdrSeiPayload->Data[9] | (pHdrSeiPayload->Data[8] << 8);
+        hdr_static_info_.mastering.blue.y = pHdrSeiPayload->Data[11] | (pHdrSeiPayload->Data[10] << 8);
+        hdr_static_info_.mastering.white.x = pHdrSeiPayload->Data[13] | (pHdrSeiPayload->Data[12] << 8);
+        hdr_static_info_.mastering.white.y = pHdrSeiPayload->Data[15] | (pHdrSeiPayload->Data[14] << 8);
+
+        mfxU32 mMaxDisplayLuminanceX10000 = pHdrSeiPayload->Data[19] | (pHdrSeiPayload->Data[18] << 8) | (pHdrSeiPayload->Data[17] << 16) | (pHdrSeiPayload->Data[16] << 24);
+        hdr_static_info_.mastering.maxLuminance = (mfxU16)(mMaxDisplayLuminanceX10000 / 10000);
+
+        mfxU32 mMinDisplayLuminanceX10000 = pHdrSeiPayload->Data[23] | (pHdrSeiPayload->Data[22] << 8) | (pHdrSeiPayload->Data[21] << 16) | (pHdrSeiPayload->Data[20] << 24);
+        hdr_static_info_.mastering.minLuminance = (mfxU16)(mMinDisplayLuminanceX10000 / 10000);
+    }
+    pHdrSeiPayload = c2_bitstream_->GetFrameConstructor()->GetSEI(MfxC2HEVCFrameConstructor::SEI_CONTENT_LIGHT_LEVEL_INFO);
+
+    const mfxU32 SEI_CONTENT_LIGHT_LEVEL_INFO_SIZE = 4*8; // required size of data in bits
+
+    if (nullptr != pHdrSeiPayload && pHdrSeiPayload->NumBit >= SEI_CONTENT_LIGHT_LEVEL_INFO_SIZE && nullptr != pHdrSeiPayload->Data)
+    {
+        MFX_DEBUG_TRACE_MSG("Set HDR static info: SEI_CONTENT_LIGHT_LEVEL_INFO");
+
+        hdr_static_info_.maxCll = pHdrSeiPayload->Data[1] | (pHdrSeiPayload->Data[0] << 8);
+        hdr_static_info_.maxFall = pHdrSeiPayload->Data[3] | (pHdrSeiPayload->Data[2] << 8);
+    }
 }

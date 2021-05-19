@@ -109,7 +109,7 @@ private:
     mfxStatus DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& frame_out,
         bool* flushing, bool* expect_output);
 
-    c2_status_t AllocateC2Block(uint32_t width, uint32_t height, std::shared_ptr<C2GraphicBlock>* out_block);
+    c2_status_t AllocateC2Block(uint32_t width, uint32_t height, uint32_t fourcc, std::shared_ptr<C2GraphicBlock>* out_block);
 
     c2_status_t AllocateFrame(MfxC2FrameOut* frame_out);
 
@@ -125,6 +125,8 @@ private:
     void WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint sync_point);
 
     void PushPending(std::unique_ptr<C2Work>&& work);
+
+    void UpdateHdrStaticInfo();
 
 private:
     DecoderType decoder_type_;
@@ -180,6 +182,9 @@ private:
     std::atomic<bool> flushing_{false};
 
     std::list<std::unique_ptr<C2Work>> flushed_works_;
+
+    C2StreamHdrStaticInfo::output hdr_static_info_;
+    bool set_hdr_sei_;
 
     unsigned int output_delay_ = 8u;
     unsigned int input_delay_ = 1u;

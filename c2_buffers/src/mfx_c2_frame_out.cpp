@@ -64,7 +64,7 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
             }
 
             InitMfxFrameHW(timestamp, frame_index,
-                mem_id, block->width(), block->height(), MFX_FOURCC_NV12, info,
+                mem_id, block->width(), block->height(), info.FourCC, info,
                 mfx_frame.get());
         } else {
             std::unique_ptr<C2GraphicView> view;
@@ -76,7 +76,7 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
             const uint32_t stride = wrapper->c2_graphic_view_->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
             InitMfxNV12FrameSW(timestamp, frame_index,
                 wrapper->c2_graphic_view_->data(),
-                block->width(), block->height(), stride, MFX_FOURCC_NV12, info,
+                block->width(), block->height(), stride, info.FourCC, info,
                 mfx_frame.get());
         }
 

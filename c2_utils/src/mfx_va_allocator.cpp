@@ -30,6 +30,8 @@ static unsigned int ConvertMfxFourccToVAFormat(mfxU32 fourcc)
     switch (fourcc) {
         case MFX_FOURCC_NV12:
             return VA_FOURCC_NV12;
+        case MFX_FOURCC_P010:
+            return VA_FOURCC_P010;
         case MFX_FOURCC_P8:
             return VA_FOURCC_P208;
         default:
@@ -43,6 +45,8 @@ static mfxU32 ConvertVAFourccToMfxFormat(unsigned int fourcc)
     {
         case VA_FOURCC_NV12:
             return MFX_FOURCC_NV12;
+        case VA_FOURCC_P010:
+            return MFX_FOURCC_P010;
         case VA_FOURCC_RGBA:
         case VA_FOURCC_BGRA:
         case VA_FOURCC_RGBX:
@@ -59,6 +63,8 @@ static unsigned int ConvertGrallocFourccToVAFormat(int fourcc)
         case HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL:
         case HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL:
             return VA_FOURCC_NV12;
+        case HAL_PIXEL_FORMAT_P010_INTEL:
+            return VA_FOURCC_P010;
         case HAL_PIXEL_FORMAT_RGBA_8888:
             return VA_FOURCC_RGBA;
         default:
@@ -79,7 +85,7 @@ static mfxU32 ConvertVAFourccToVARTFormat(mfxU32 va_fourcc)
         case VA_FOURCC_RGBX:
             return VA_RT_FORMAT_RGB32;
         case VA_FOURCC_P010:
-            return VA_RT_FORMAT_YUV420_10BPP;
+            return VA_RT_FORMAT_YUV420_10;
         default:
             return 0;
     }
@@ -568,6 +574,7 @@ mfxStatus MfxVaFrameAllocator::MapGrallocBufferToSurface(buffer_handle_t gralloc
 
         if (buffer_details.format == HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL ||
             buffer_details.format == HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL ||
+            buffer_details.format == HAL_PIXEL_FORMAT_P010_INTEL ||
             buffer_details.format == HAL_PIXEL_FORMAT_RGBA_8888) {
 
             // on Android Q HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL works the same way

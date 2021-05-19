@@ -66,6 +66,9 @@ extern mfxVersion g_required_mfx_version;
 
 #define MFX_MIN(A, B) (((A) < (B)) ? (A) : (B))
 
+#define MFX_TRY_AND_CATCH(_try, _catch) \
+    { try { _try; } catch(...) { _catch; } }
+
 #define EXPORT __attribute__((visibility("default")))
 
 #define MFX_HIDE __attribute__((visibility("hidden")))
