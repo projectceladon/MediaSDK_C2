@@ -20,7 +20,7 @@ define build_components
   LOCAL_LDFLAGS := $$(MFX_C2_LDFLAGS)
 
   LOCAL_SHARED_LIBRARIES := \
-    libhardware libdl liblog \
+    libhardware libdl liblog libcutils\
     $(MFX_C2_SHARED_LIBS) \
         libexpat \
         libgralloctypes \

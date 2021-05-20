@@ -46,6 +46,18 @@ extern mfxVersion g_required_mfx_version;
 
 #define MFX_MAX_PATH 260
 
+#define WIDTH_16K 16384
+#define HEIGHT_16K 16384
+
+#define WIDTH_8K 8192
+#define HEIGHT_8K 8192
+
+#define WIDTH_4K 4096
+#define HEIGHT_4K 4096
+
+#define WIDTH_2K 2048
+#define HEIGHT_2K 2048
+
 #define MFX_TIMEOUT_INFINITE 0xEFFFFFFF
 
 #define MFX_MEM_ALIGN(X, N) ((X) & ((N)-1)) ? (((X)+(N)-1) & (~((N)-1))): (X)
