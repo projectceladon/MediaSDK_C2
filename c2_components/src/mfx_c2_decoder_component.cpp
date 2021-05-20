@@ -101,10 +101,10 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         [this] (C2StreamCropRectInfo::output* dst)->bool {
             MFX_DEBUG_TRACE("GetCropRect");
             // Called from Query, video_params_ is already protected there with lock on init_decoder_mutex_
-            dst->width = video_params_.mfx.FrameInfo.CropW;
-            dst->height = video_params_.mfx.FrameInfo.CropH;
-            dst->left = video_params_.mfx.FrameInfo.CropX;
-            dst->top = video_params_.mfx.FrameInfo.CropY;
+            dst->width = video_params_.mfx.FrameInfo.CropW = 640; // default width
+            dst->height = video_params_.mfx.FrameInfo.CropH = 480; // default height
+            dst->left = video_params_.mfx.FrameInfo.CropX = 0;
+            dst->top = video_params_.mfx.FrameInfo.CropY = 0;
             MFX_DEBUG_TRACE_STREAM(NAMED(dst->left) << NAMED(dst->top) <<
                 NAMED(dst->width) << NAMED(dst->height));
             return true;
@@ -144,6 +144,12 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 LEVEL_AVC_5, LEVEL_AVC_5_1, LEVEL_AVC_5_2,
             };
 
+            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
+                std::make_unique<C2StreamProfileLevelInfo::input>(0u, PROFILE_AVC_CONSTRAINED_BASELINE, LEVEL_AVC_5_2));
+
+            pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
+                std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_4K, HEIGHT_4K));
+
             output_delay_ = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
@@ -166,6 +172,12 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
             };
 
+            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
+                std::make_unique<C2StreamProfileLevelInfo::input>(0u, PROFILE_HEVC_MAIN, LEVEL_HEVC_MAIN_5_1));
+
+            pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
+                std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_8K, HEIGHT_8K));
+
             output_delay_ = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
@@ -184,6 +196,12 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 LEVEL_VP9_5,
             };
 
+            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
+                std::make_unique<C2StreamProfileLevelInfo::input>(0u, PROFILE_VP9_0, LEVEL_VP9_5));
+
+            pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
+                std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_8K, HEIGHT_8K));
+
             output_delay_ = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
@@ -196,6 +214,12 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             supported_levels = {
                 (C2Config::level_t)LEVEL_VP8_Version0,
             };
+
+            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
+                std::make_unique<C2StreamProfileLevelInfo::input>(0u, (C2Config::profile_t)PROFILE_VP8_0, (C2Config::level_t)LEVEL_VP8_Version0));
+
+            pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
+                std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_4K, HEIGHT_4K));
 
             output_delay_ = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
@@ -211,6 +235,12 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                LEVEL_MP2V_LOW, LEVEL_MP2V_MAIN,
                LEVEL_MP2V_HIGH_1440,
             };
+
+            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
+                std::make_unique<C2StreamProfileLevelInfo::input>(0u, PROFILE_MP2V_MAIN, LEVEL_MP2V_MAIN));
+
+            pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
+                std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_2K, HEIGHT_2K));
 
             output_delay_ = /*max_dpb_size*/4 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
@@ -228,6 +258,12 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 LEVEL_AV1_3, LEVEL_AV1_3_1,
                 LEVEL_AV1_3_2,
             };
+
+            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
+                std::make_unique<C2StreamProfileLevelInfo::input>(0u, PROFILE_AV1_0, LEVEL_AV1_2_1));
+
+            pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
+                std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_8K, HEIGHT_8K));
 
             output_delay_ = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
@@ -251,7 +287,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     // pipelineDelayValue is 0, and kSmoothnessFactor is 4, for 4k video the first frame need 6 input
     pr.AddValue(C2_PARAMKEY_INPUT_DELAY, std::make_unique<C2PortDelayTuning::input>(input_delay_));
 
-    pr.RegisterParam<C2StreamProfileLevelInfo::input>(C2_PARAMKEY_PROFILE_LEVEL);
+    // List all the supported profiles and levels
     pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::profile, supported_profiles);
     pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::level, supported_levels);
 
@@ -481,7 +517,7 @@ void MfxC2DecoderComponent::InitFrameConstructor()
     case DECODER_VP9:
         fc_type = MfxC2FC_VP9;
         break;
-	case DECODER_VP8:
+    case DECODER_VP8:
         fc_type = MfxC2FC_VP8;
         break;
     case DECODER_MPEG2:
@@ -601,7 +637,7 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
     std::lock_guard<std::mutex> lock(init_decoder_mutex_);
 
     {
-        MFX_DEBUG_TRACE("InitDecoder: DecodeHeader");
+        MFX_DEBUG_TRACE_MSG("InitDecoder: DecodeHeader");
 
         if (nullptr == decoder_) {
             decoder_.reset(MFX_NEW_NO_THROW(MFXVideoDECODE(session_)));
@@ -621,16 +657,16 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         }
     }
     if (MFX_ERR_NONE == mfx_res) {
-        MFX_DEBUG_TRACE("InitDecoder: UpdateHdrStaticInfo");
+        MFX_DEBUG_TRACE_MSG("InitDecoder: UpdateHdrStaticInfo");
 
         UpdateHdrStaticInfo();
 
-        MFX_DEBUG_TRACE("InitDecoder: GetAsyncDepth");
+        MFX_DEBUG_TRACE_MSG("InitDecoder: GetAsyncDepth");
 
         video_params_.AsyncDepth = GetAsyncDepth();
     }
     if (MFX_ERR_NONE == mfx_res) {
-        MFX_DEBUG_TRACE("InitDecoder: Init");
+        MFX_DEBUG_TRACE_MSG("InitDecoder: Init");
 
         MFX_DEBUG_TRACE__mfxVideoParam_dec(video_params_);
 
