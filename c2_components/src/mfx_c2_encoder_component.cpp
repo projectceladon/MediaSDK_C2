@@ -155,7 +155,6 @@ MfxC2EncoderComponent::~MfxC2EncoderComponent()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    vpp_.Close();
     Release();
 }
 
@@ -282,6 +281,8 @@ c2_status_t MfxC2EncoderComponent::Release()
 
     c2_status_t res = C2_OK;
 
+    locked_frames_.clear();
+    vpp_.Close();
     mfxStatus sts = session_.Close();
     if (MFX_ERR_NONE != sts) res = MfxStatusToC2(sts);
 
@@ -642,7 +643,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 unique_mfx_frame.get());
 
             vpp_.ProcessFrameVpp(unique_mfx_frame.get(), &pSurfaceToEncode);
-            res = MfxC2FrameIn::Create(frame_converter, std::move(c_graph_view), input, pSurfaceToEncode, &mfx_frame);
+            res = MfxC2FrameIn::Create(NULL, std::move(c_graph_view), input, pSurfaceToEncode, &mfx_frame);
         } else {
             res = MfxC2FrameIn::Create(frame_converter, input, video_params_config_.mfx.FrameInfo, TIMEOUT_NS, &mfx_frame);
         }
