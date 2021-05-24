@@ -72,6 +72,7 @@ void InitMfxFrameHW(
 
     InitMfxFrameHeader(timestamp, frame_index, width, height, fourcc, info, mfx_frame);
 
+    MFX_ZERO_MEMORY(mfx_frame->Data);
     mfx_frame->Data.MemType = MFX_MEMTYPE_EXTERNAL_FRAME;
     mfx_frame->Data.MemId = mem_id;
 }

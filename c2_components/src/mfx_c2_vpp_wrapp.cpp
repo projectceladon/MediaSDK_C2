@@ -100,6 +100,7 @@ mfxStatus MfxC2VppWrapp::Close(void)
     MFX_ZERO_MEMORY(vpp_srf_);
     num_vpp_surfaces_ = 0;
     session_ = NULL;
+    allocator_.reset();
 
     MFX_DEBUG_TRACE_I32(sts);
     return sts;

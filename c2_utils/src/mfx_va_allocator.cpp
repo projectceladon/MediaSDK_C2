@@ -1,12 +1,22 @@
-/********************************************************************************
-
-INTEL CORPORATION PROPRIETARY INFORMATION
-This software is supplied under the terms of a license agreement or nondisclosure
-agreement with Intel Corporation and may not be copied or disclosed except in
-accordance with the terms of that agreement
-Copyright(c) 2017-2021 Intel Corporation. All Rights Reserved.
-
-*********************************************************************************/
+// Copyright (c) 2017-2021 Intel Corporation
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 #if defined(LIBVA_SUPPORT)
 
@@ -67,6 +77,10 @@ static unsigned int ConvertGrallocFourccToVAFormat(int fourcc)
             return VA_FOURCC_P010;
         case HAL_PIXEL_FORMAT_RGBA_8888:
             return VA_FOURCC_RGBA;
+        case HAL_PIXEL_FORMAT_RGBX_8888:
+            return VA_FOURCC_RGBX;
+        case HAL_PIXEL_FORMAT_BGRA_8888:
+            return VA_FOURCC_BGRA;
         default:
             return 0;
     }
@@ -212,10 +226,6 @@ mfxStatus MfxVaFrameAllocator::FreeFrames(mfxFrameAllocResponse *response)
             VaMemId* va_mids = (VaMemId*)(response->mids[0]);
             VASurfaceID* surfaces = va_mids->surface_;
 
-            delete[] va_mids;
-            delete[] response->mids;
-            response->mids = NULL;
-
             if (MFX_FOURCC_P8 != va_mids->fourcc_) {
                 vaDestroySurfaces(dpy_, surfaces, response->NumFrameActual);
             } else {
@@ -224,6 +234,9 @@ mfxStatus MfxVaFrameAllocator::FreeFrames(mfxFrameAllocResponse *response)
                 }
             }
             delete[] surfaces;
+            delete[] va_mids;
+            delete[] response->mids;
+            response->mids = NULL;
         }
 
         response->NumFrameActual = 0;
@@ -575,7 +588,9 @@ mfxStatus MfxVaFrameAllocator::MapGrallocBufferToSurface(buffer_handle_t gralloc
         if (buffer_details.format == HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL ||
             buffer_details.format == HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL ||
             buffer_details.format == HAL_PIXEL_FORMAT_P010_INTEL ||
-            buffer_details.format == HAL_PIXEL_FORMAT_RGBA_8888) {
+            buffer_details.format == HAL_PIXEL_FORMAT_RGBA_8888 ||
+            buffer_details.format == HAL_PIXEL_FORMAT_RGBX_8888 ||
+            buffer_details.format == HAL_PIXEL_FORMAT_BGRA_8888) {
 
             // on Android Q HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL works the same way
             // some other driveers might demand creation of separate VASurface and copy contents there.
