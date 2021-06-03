@@ -715,6 +715,7 @@ void MfxC2DecoderComponent::FreeDecoder()
     initialized_ = false;
 
     locked_surfaces_.clear();
+    locked_block_.clear();
 
     if(nullptr != decoder_) {
         decoder_->Close();
@@ -1308,17 +1309,6 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 mfxStatus decode_header_sts = decoder_->DecodeHeader(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(), &video_params_);
                 MFX_DEBUG_TRACE__mfxStatus(decode_header_sts);
                 mfx_sts = decode_header_sts;
-                if (MFX_ERR_NONE == mfx_sts) {
-                    if (video_params_.mfx.FrameInfo.Width <= max_width_ &&
-                        video_params_.mfx.FrameInfo.Height <= max_height_) {
-
-                        mfxStatus reset_sts = decoder_->Reset(&video_params_);
-                        MFX_DEBUG_TRACE__mfxStatus(reset_sts);
-                        if (MFX_ERR_NONE == reset_sts) {
-                            resolution_change_done = true;
-                        }
-                    }
-                }
 
                 if (!resolution_change_done) {
                     FreeDecoder();

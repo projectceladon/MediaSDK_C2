@@ -82,7 +82,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
             MfxC2ParamStorage& pr = param_storage_;
 
             pr.RegisterParam<C2RateControlSetting>("RateControl");
-            pr.RegisterParam<C2FrameRateSetting::output>("FrameRate");
+            pr.RegisterParam<C2StreamFrameRateInfo::output>(C2_PARAMKEY_FRAME_RATE);
             pr.RegisterParam<C2StreamBitrateInfo::output>(C2_PARAMKEY_BITRATE);
             pr.RegisterParam<C2BitrateTuning::output>(MFX_C2_PARAMKEY_BITRATE_TUNING);
 
@@ -983,9 +983,9 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
             }
             case kParamIndexFrameRate: {
                 if (nullptr == *dst) {
-                    *dst = new C2FrameRateSetting::output();
+                    *dst = new C2StreamFrameRateInfo::output();
                 }
-                C2FrameRateSetting* framerate = (C2FrameRateSetting*)*dst;
+                C2StreamFrameRateInfo* framerate = (C2StreamFrameRateInfo*)*dst;
                 framerate->value = (float)src->mfx.FrameInfo.FrameRateExtN / src->mfx.FrameInfo.FrameRateExtD;
                 break;
             }
@@ -1228,7 +1228,7 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 break;
             }
             case kParamIndexFrameRate: {
-                float framerate_value = static_cast<const C2FrameRateSetting*>(param)->value;
+                float framerate_value = static_cast<const C2StreamFrameRateInfo*>(param)->value;
                 video_params_config_.mfx.FrameInfo.FrameRateExtN = uint64_t(framerate_value * 1000); // keep 3 sign after dot
                 video_params_config_.mfx.FrameInfo.FrameRateExtD = 1000;
                 break;

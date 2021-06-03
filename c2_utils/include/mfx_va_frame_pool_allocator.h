@@ -61,6 +61,7 @@ private:
     virtual void Reset() override
     {
         pool_ = std::make_unique<MfxPool<C2GraphicBlock>>();
+        cached_buffer_id_.clear();
     }
     virtual void SetBufferCount(unsigned int cnt) override
     {

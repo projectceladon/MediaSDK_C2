@@ -37,6 +37,8 @@ MfxC2FrameIn::~MfxC2FrameIn()
 
     if (frame_converter_ && mfx_frame_ && mfx_frame_->Data.MemId) {
         frame_converter_->FreeGrallocToVaMapping(mfx_frame_->Data.MemId);
+        free(mfx_frame_);
+        mfx_frame_ = NULL;
     }
 }
 

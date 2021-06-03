@@ -42,7 +42,8 @@ cc_library_static {
 
     cflags: [
         "-DLIBVA_SUPPORT",
-        "-DLIBVA_ANDROID_SUPPORT"
+        "-DLIBVA_ANDROID_SUPPORT",
+        //"-DMFX_BUFFER_QUEUE"
     ],
 
     header_libs: [

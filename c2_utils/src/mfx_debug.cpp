@@ -26,6 +26,8 @@
 #include "mfx_defs.h"
 
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 #ifdef ANDROID
     #include <android/log.h>
@@ -69,13 +71,16 @@ mfxDebugTrace::mfxDebugTrace(const char* _modulename, const char* _function, con
 
     if (!is_matched(function)) return;
 
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+
 #if !defined(ANDROID) || (MFX_DEBUG_FILE == MFX_DEBUG_YES)
     if (GetDbgFile())
     {
         if (taskname)
-            fprintf(GetDbgFile(), "%s: %s: %s: +\n", modulename, taskname, function);
+            fprintf(GetDbgFile(), "%ld.%ld %s: %s: %s: +\n",ts.tv_sec, ts.tv_nsec, modulename, taskname, function);
         else
-            fprintf(GetDbgFile(), "%s: %s: +\n", modulename, function);
+            fprintf(GetDbgFile(), "%ld.%ld %d %s: %s: +\n", ts.tv_sec, ts.tv_nsec, (int)gettid(), modulename, function);
         fflush(GetDbgFile());
     }
 #else
@@ -92,13 +97,16 @@ mfxDebugTrace::~mfxDebugTrace(void)
 {
     if (!is_matched(function)) return;
 
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+
 #if !defined(ANDROID) || (MFX_DEBUG_FILE == MFX_DEBUG_YES)
     if (GetDbgFile())
     {
         if (taskname)
-            fprintf(GetDbgFile(), "%s: %s: %s: -\n", modulename, taskname, function);
+            fprintf(GetDbgFile(), "%ld.%ld %s: %s: %s: -\n",ts.tv_sec, ts.tv_nsec, modulename, taskname, function);
         else
-            fprintf(GetDbgFile(), "%s: %s: -\n", modulename, function);
+            fprintf(GetDbgFile(), "%ld.%ld %d %s: %s: -\n", ts.tv_sec, ts.tv_nsec, (int)gettid(), modulename, function);
         fflush(GetDbgFile());
     }
 #else
@@ -115,13 +123,16 @@ void mfxDebugTrace::printf_msg(const char* msg)
 {
     if (!is_matched(function)) return;
 
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+
 #if !defined(ANDROID) || (MFX_DEBUG_FILE == MFX_DEBUG_YES)
     if (GetDbgFile())
     {
         if (taskname)
-            fprintf(GetDbgFile(), "%s: %s: %s: %s\n", modulename, taskname, function, msg);
+            fprintf(GetDbgFile(), "%ld.%ld %s: %s: %s: %s\n", ts.tv_sec, ts.tv_nsec, modulename, taskname, function, msg);
         else
-            fprintf(GetDbgFile(), "%s: %s: %s\n", modulename, function, msg);
+            fprintf(GetDbgFile(), "%ld.%ld %d %s: %s: %s\n", ts.tv_sec, ts.tv_nsec, (int)gettid(), modulename, function, msg);
         fflush(GetDbgFile());
     }
 #else

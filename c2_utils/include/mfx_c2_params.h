@@ -65,8 +65,6 @@ typedef C2PortParam<C2Setting, C2Uint32Value, kParamIndexProfile>::output C2Prof
 
 typedef C2PortParam<C2Setting, C2Uint32Value, kParamIndexLevel>::output C2LevelSetting;
 
-typedef C2StreamParam<C2Setting, C2FloatValue, kParamIndexFrameRate> C2FrameRateSetting;
-
 typedef C2PortParam<C2Info, C2SimpleArrayStruct<C2ProfileLevelStruct>, kParamIndexProfileLevel> C2ProfileLevelInfo;
 
 C2ENUM(C2MemoryType, int32_t,

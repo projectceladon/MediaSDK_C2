@@ -54,7 +54,7 @@ std::vector<C2ParamDescriptor> DefaultC2Params()
     std::vector<C2ParamDescriptor> param =
     {
         { false, "RateControl", C2RateControlSetting::PARAM_TYPE },
-        { false, "FrameRate", C2FrameRateSetting::output::PARAM_TYPE },
+        { false, "FrameRate", C2StreamFrameRateInfo::output::PARAM_TYPE },
         { false, C2_PARAMKEY_BITRATE, C2StreamBitrateInfo::output::PARAM_TYPE },
         { false, MFX_C2_PARAMKEY_BITRATE_TUNING, C2BitrateTuning::output::PARAM_TYPE },
         { false, "FrameQP", C2FrameQPSetting::PARAM_TYPE },
@@ -143,7 +143,7 @@ static C2ParamValues GetDefaultValues(const char * component_name)
     mfx_set_defaults_mfxVideoParam_enc(&video_params);
 
     default_values.Append(new C2RateControlSetting(MfxRateControlToC2(video_params.mfx.RateControlMethod)));
-    default_values.Append(new C2FrameRateSetting::output(0/*stream*/, C2FloatValue((float)video_params.mfx.FrameInfo.FrameRateExtN / video_params.mfx.FrameInfo.FrameRateExtD)));
+    default_values.Append(new C2StreamFrameRateInfo::output(0/*stream*/, C2FloatValue((float)video_params.mfx.FrameInfo.FrameRateExtN / video_params.mfx.FrameInfo.FrameRateExtD)));
     default_values.Append(new C2StreamBitrateInfo::output(0/*stream*/, video_params.mfx.TargetKbps * 1000)); // Convert from Kbsp to bps
     default_values.Append(Invalidate(new C2FrameQPSetting()));
     return default_values;
@@ -739,7 +739,7 @@ TEST_P(Encoder, StaticBitrate)
         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
         C2RateControlSetting param_rate_control;
-        C2FrameRateSetting::output param_framerate;
+        C2StreamFrameRateInfo::output param_framerate;
         C2StreamBitrateInfo::output param_bitrate;
 
         param_rate_control.value = C2RateControlCBR;
@@ -1158,7 +1158,7 @@ TEST_P(Encoder, DynamicBitrate)
         (void)comp;
 
         C2RateControlSetting param_rate_control;
-        C2FrameRateSetting::output param_framerate;
+        C2StreamFrameRateInfo::output param_framerate;
 
         param_rate_control.value = C2RateControlVBR;
         param_framerate.value = FRAME_RATE;
@@ -1422,7 +1422,7 @@ TEST_P(Encoder, FrameRate)
             StripeGenerator stripe_generator;
             NoiseGenerator noise_generator;
 
-            C2FrameRateSetting::output param_framerate;
+            C2StreamFrameRateInfo::output param_framerate;
             param_framerate.value = test_run.expected_framerate;
             std::vector<C2Param*> dynamic_params = { &param_framerate };
 
@@ -1434,7 +1434,7 @@ TEST_P(Encoder, FrameRate)
             EXPECT_EQ(failures.size(), 0ul);
 
             C2ParamValues query_expected;
-            query_expected.Append(new C2FrameRateSetting::output(0/*stream*/, C2FloatValue(test_run.expected_framerate)));
+            query_expected.Append(new C2StreamFrameRateInfo::output(0/*stream*/, C2FloatValue(test_run.expected_framerate)));
 
             sts = comp_intf->query_vb(query_expected.GetStackPointers(),
                 {}, may_block, nullptr);
