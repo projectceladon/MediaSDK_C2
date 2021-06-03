@@ -85,16 +85,28 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
 
             response->NumFrameActual = 0;
 
+#define RETRY_TIMES 5
             for (int i = 0; i < max_buffers; ++i) {
 
                 std::shared_ptr<C2GraphicBlock> new_block;
+                int retry_time_left = RETRY_TIMES;
                 do{
                     res = c2_allocator_->fetchGraphicBlock(
                         request->Info.Width, request->Info.Height,
                         MfxFourCCToGralloc(request->Info.FourCC),
                         { C2AndroidMemoryUsage::CPU_READ|C2AndroidMemoryUsage::HW_COMPOSER_READ, C2AndroidMemoryUsage::HW_CODEC_WRITE },
                         &new_block);
+                    if (!retry_time_left--) {
+                        if (request->NumFrameMin <= i) {
+                            res = C2_TIMED_OUT;
+                            break;
+                        } else {
+                            // Retry to get minimum request buffers.
+                            retry_time_left = RETRY_TIMES;
+                        }
+                    }
                 } while(res == C2_BLOCKING);
+                if (res != C2_OK) break;
 
                 uint64_t id;
                 buffer_handle_t hndl = android::UnwrapNativeCodec2GrallocHandle(new_block->handle());
