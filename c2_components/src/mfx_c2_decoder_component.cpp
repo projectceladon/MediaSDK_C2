@@ -665,6 +665,36 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
 
         video_params_.AsyncDepth = GetAsyncDepth();
     }
+
+    //We need check whether the BQ allocator has a surface, if No we cannot use MFX_IOPATTERN_OUT_VIDEO_MEMORY mode.
+    if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
+        std::shared_ptr<C2GraphicBlock> out_block;
+        c2_status_t res = C2_OK;
+        C2MemoryUsage mem_usage = {C2AndroidMemoryUsage::CPU_READ|C2AndroidMemoryUsage::HW_COMPOSER_READ,
+                                     C2AndroidMemoryUsage::HW_CODEC_WRITE};
+
+        res = c2_allocator_->fetchGraphicBlock(1280
+                                    ,720
+                                    ,HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL
+                                    , mem_usage, &out_block);
+
+        if (res == C2_OK) {
+            uint32_t width, height, format, stride, igbp_slot, generation;
+            uint64_t usage, igbp_id;
+            android::_UnwrapNativeCodec2GrallocMetadata( out_block->handle(), &width, &height, &format, &usage,
+                                                    &stride, &generation, &igbp_id, &igbp_slot);
+            if (!igbp_id && !igbp_slot) {
+                //No surface & BQ
+                video_params_.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
+                allocator_ = nullptr;
+                mfx_res= session_.SetFrameAllocator(nullptr);
+                allocator_set_ = false;
+                ALOGI("System memory is being used for decoding!");
+                if (MFX_ERR_NONE != mfx_res) MFX_DEBUG_TRACE_MSG("SetFrameAllocator failed");
+            }
+        }
+    }
+
     if (MFX_ERR_NONE == mfx_res) {
         MFX_DEBUG_TRACE_MSG("InitDecoder: Init");
 
@@ -1108,12 +1138,12 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
             buffer_handle_t hndl = android::UnwrapNativeCodec2GrallocHandle((*out_block)->handle());
             uint64_t id;
             c2_status_t sts = gralloc_allocator_->GetBackingStore(hndl, &id);
-            if (!allocator_->InCache(id))
+            if (allocator_ && !allocator_->InCache(id))
             {
-                //temporary solution: lock this buffer, and get others, need refine it in furture.
-                locked_block_.push_back(std::move(*out_block));
                 res = C2_BLOCKING;
+                usleep(1000);
                 MFX_DEBUG_TRACE_PRINTF("fetchGraphicBlock: BLOCKING");
+                ALOGE("fetchGraphicBlock a nocached block, please retune output blocks.");
             }
         }
     } while (res == C2_BLOCKING);
@@ -1264,7 +1294,14 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 }
                 if (set_hdr_sei_) {
                     MFX_DEBUG_TRACE_MSG("Set HDR static info");
-                    work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(hdr_static_info_));
+                    std::lock_guard<std::mutex> lock(pending_works_mutex_);
+                    auto it = pending_works_.find(incoming_frame_index);
+                    if (it != pending_works_.end()) {
+                        it->second->worklets.front()->output.configUpdate.push_back(C2Param::Copy(hdr_static_info_));
+                    } else {
+                        MFX_DEBUG_TRACE_MSG("Cannot find the Work in Pending works");
+                    }
+                    set_hdr_sei_ = false;
                 }
             }
 
