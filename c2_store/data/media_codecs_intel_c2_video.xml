@@ -38,6 +38,7 @@ and updated to vendor media codecs.
             <Limit name="block-count" range="1-32768" /> <!-- max 4096x2048 equivalent -->
             <Limit name="blocks-per-second" range="1-1966080" />
             <Limit name="bitrate" range="1-48000000" />
+            <Limit name="performance-point-3840x2160" value="30" />
             <Feature name="adaptive-playback" />
         </MediaCodec>
         <MediaCodec name="c2.intel.hevc.decoder" type="video/hevc">
@@ -48,6 +49,7 @@ and updated to vendor media codecs.
             <Limit name="block-count" range="1-196608" /> <!-- max 4096x3072 -->
             <Limit name="blocks-per-second" range="1-2000000" />
             <Limit name="bitrate" range="1-10000000" />
+            <Limit name="performance-point-3840x2160" value="30" />
             <Feature name="adaptive-playback" />
         </MediaCodec>
         <MediaCodec name="c2.intel.vp9.decoder" type="video/x-vnd.on2.vp9">
@@ -57,6 +59,7 @@ and updated to vendor media codecs.
             <Limit name="block-count" range="1-16384" />
             <Limit name="blocks-per-second" range="1-500000" />
             <Limit name="bitrate" range="1-40000000" />
+            <Limit name="performance-point-3840x2160" value="30" />
             <Feature name="adaptive-playback" />
         </MediaCodec>
         <MediaCodec name="c2.intel.vp8.decoder" type="video/x-vnd.on2.vp8">
@@ -66,6 +69,7 @@ and updated to vendor media codecs.
             <Limit name="block-count" range="1-16384" />
             <Limit name="blocks-per-second" range="1-500000" />
             <Limit name="bitrate" range="1-40000000" />
+            <Limit name="performance-point-3840x2160" value="30" />
             <Feature name="adaptive-playback" />
         </MediaCodec>
         <MediaCodec name="c2.intel.mp2.decoder" type="video/mpeg2">
@@ -75,6 +79,7 @@ and updated to vendor media codecs.
             <Limit name="block-count" range="1-16384" />
             <Limit name="blocks-per-second" range="1-500000" />
             <Limit name="bitrate" range="1-40000000" />
+            <Limit name="performance-point-1920x1080" value="30" />
             <Feature name="adaptive-playback" />
         </MediaCodec>
         <MediaCodec name="c2.intel.av1.decoder" type="video/av01">
@@ -84,6 +89,7 @@ and updated to vendor media codecs.
             <Limit name="block-count" range="1-16384" />
             <Limit name="blocks-per-second" range="1-500000" />
             <Limit name="bitrate" range="1-40000000" />
+            <Limit name="performance-point-3840x2160" value="30" />
             <Feature name="adaptive-playback" />
         </MediaCodec>
     </Decoders>
@@ -97,6 +103,7 @@ and updated to vendor media codecs.
             <Limit name="block-count" range="1-8192" /> <!-- max 2048x1024 -->
             <Limit name="blocks-per-second" range="1-245760" />
             <Limit name="bitrate" range="1-12000000" />
+            <Limit name="performance-point-3840x2160" value="30" />
             <Feature name="intra-refresh" />
             <Diagnostics dumpOutput="false" />
         </MediaCodec>
@@ -106,6 +113,7 @@ and updated to vendor media codecs.
             <Limit name="block-size" value="16x16" />
             <Limit name="blocks-per-second" range="1-972000" />
             <Limit name="bitrate" range="1-40000000" />
+            <Limit name="performance-point-3840x2160" value="30" />
         </MediaCodec>
     </Encoders>
 </Included>
