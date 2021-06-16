@@ -246,6 +246,8 @@ c2_status_t MfxC2Component::flush_sm(flush_mode_t mode, std::list<std::unique_pt
     } else {
         res = C2_BAD_STATE;
     }
+
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 

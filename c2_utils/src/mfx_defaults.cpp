@@ -60,8 +60,7 @@ void mfx_set_defaults_mfxVideoParam_dec(mfxVideoParam* params)
 
     mfx_set_defaults_mfxFrameInfo(&params->mfx.FrameInfo);
 
-    memset(params, 0, sizeof(mfxVideoParam));
-    params->AsyncDepth = 0;
+    params->AsyncDepth = 1;
     params->mfx.CodecId = CodecId;
     params->mfx.NumThread = 0;
 

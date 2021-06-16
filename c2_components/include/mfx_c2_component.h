@@ -109,7 +109,7 @@ private: // Non-virtual interface methods optionally overridden in descendants
 
     virtual c2_status_t Queue(std::list<std::unique_ptr<C2Work>>* const /*items*/) { return C2_OMITTED; }
 
-    virtual c2_status_t Flush(std::list<std::unique_ptr<C2Work>>* const /*flushedWork*/) { return C2_OMITTED; }
+    virtual c2_status_t Flush(std::list<std::unique_ptr<C2Work>>* const /*flushedWork*/) { return C2_OK; }
 
 protected: // C2ComponentInterface overrides
     C2String getName() const override;

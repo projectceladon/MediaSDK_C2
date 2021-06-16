@@ -78,9 +78,9 @@ mfxDebugTrace::mfxDebugTrace(const char* _modulename, const char* _function, con
     if (GetDbgFile())
     {
         if (taskname)
-            fprintf(GetDbgFile(), "%ld.%ld %s: %s: %s: +\n",ts.tv_sec, ts.tv_nsec, modulename, taskname, function);
+            fprintf(GetDbgFile(), "%ld.%09ld %s: %s: %s: +\n",ts.tv_sec, ts.tv_nsec, modulename, taskname, function);
         else
-            fprintf(GetDbgFile(), "%ld.%ld %d %s: %s: +\n", ts.tv_sec, ts.tv_nsec, (int)gettid(), modulename, function);
+            fprintf(GetDbgFile(), "%ld.%09ld %d %s: %s: +\n", ts.tv_sec, ts.tv_nsec, (int)gettid(), modulename, function);
         fflush(GetDbgFile());
     }
 #else
@@ -104,9 +104,9 @@ mfxDebugTrace::~mfxDebugTrace(void)
     if (GetDbgFile())
     {
         if (taskname)
-            fprintf(GetDbgFile(), "%ld.%ld %s: %s: %s: -\n",ts.tv_sec, ts.tv_nsec, modulename, taskname, function);
+            fprintf(GetDbgFile(), "%ld.%09ld %s: %s: %s: -\n",ts.tv_sec, ts.tv_nsec, modulename, taskname, function);
         else
-            fprintf(GetDbgFile(), "%ld.%ld %d %s: %s: -\n", ts.tv_sec, ts.tv_nsec, (int)gettid(), modulename, function);
+            fprintf(GetDbgFile(), "%ld.%09ld %d %s: %s: -\n", ts.tv_sec, ts.tv_nsec, (int)gettid(), modulename, function);
         fflush(GetDbgFile());
     }
 #else
@@ -130,9 +130,9 @@ void mfxDebugTrace::printf_msg(const char* msg)
     if (GetDbgFile())
     {
         if (taskname)
-            fprintf(GetDbgFile(), "%ld.%ld %s: %s: %s: %s\n", ts.tv_sec, ts.tv_nsec, modulename, taskname, function, msg);
+            fprintf(GetDbgFile(), "%ld.%09ld %s: %s: %s: %s\n", ts.tv_sec, ts.tv_nsec, modulename, taskname, function, msg);
         else
-            fprintf(GetDbgFile(), "%ld.%ld %d %s: %s: %s\n", ts.tv_sec, ts.tv_nsec, (int)gettid(), modulename, function, msg);
+            fprintf(GetDbgFile(), "%ld.%09ld %d %s: %s: %s\n", ts.tv_sec, ts.tv_nsec, (int)gettid(), modulename, function, msg);
         fflush(GetDbgFile());
     }
 #else
