@@ -566,6 +566,7 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
     MFX_DEBUG_TRACE_FUNC;
 
     mfxStatus res = MFX_ERR_NONE;
+    memset(&video_params_, 0, sizeof(mfxVideoParam));
 
     switch (decoder_type_)
     {

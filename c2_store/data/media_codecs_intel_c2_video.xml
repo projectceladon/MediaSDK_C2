@@ -1,14 +1,4 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<!--
-
-INTEL CORPORATION PROPRIETARY INFORMATION
-This software is supplied under the terms of a license agreement or nondisclosure
-agreement with Intel Corporation and may not be copied or disclosed except in
-accordance with the terms of that agreement
-Copyright(c) 2017-2019 Intel Corporation. All Rights Reserved.
-
--->
-
 <!-- Copyright (C) 2014 The Android Open Source Project
 
      Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,7 +22,7 @@ and updated to vendor media codecs.
     <Decoders>
         <MediaCodec name="c2.intel.avc.decoder" type="video/avc">
             <!-- profiles and levels:  ProfileHigh : Level52 -->
-            <Limit name="size" min="2x2" max="4096x4096" />
+            <Limit name="size" min="64x64" max="4096x4096" />
             <Limit name="alignment" value="2x2" />
             <Limit name="block-size" value="16x16" />
             <Limit name="block-count" range="1-32768" /> <!-- max 4096x2048 equivalent -->
@@ -43,7 +33,7 @@ and updated to vendor media codecs.
         </MediaCodec>
         <MediaCodec name="c2.intel.hevc.decoder" type="video/hevc">
             <!-- profiles and levels:  ProfileMain : MainTierLevel51 -->
-            <Limit name="size" min="2x2" max="4096x4096" />
+            <Limit name="size" min="64x64" max="4096x4096" />
             <Limit name="alignment" value="2x2" />
             <Limit name="block-size" value="8x8" />
             <Limit name="block-count" range="1-196608" /> <!-- max 4096x3072 -->
@@ -53,7 +43,7 @@ and updated to vendor media codecs.
             <Feature name="adaptive-playback" />
         </MediaCodec>
         <MediaCodec name="c2.intel.vp9.decoder" type="video/x-vnd.on2.vp9">
-            <Limit name="size" min="2x2" max="4096x4096" />
+            <Limit name="size" min="64x64" max="4096x4096" />
             <Limit name="alignment" value="2x2" />
             <Limit name="block-size" value="16x16" />
             <Limit name="block-count" range="1-16384" />
@@ -63,7 +53,7 @@ and updated to vendor media codecs.
             <Feature name="adaptive-playback" />
         </MediaCodec>
         <MediaCodec name="c2.intel.vp8.decoder" type="video/x-vnd.on2.vp8">
-            <Limit name="size" min="2x2" max="4096x4096" />
+            <Limit name="size" min="64x64" max="4096x4096" />
             <Limit name="alignment" value="2x2" />
             <Limit name="block-size" value="16x16" />
             <Limit name="block-count" range="1-16384" />
@@ -73,7 +63,7 @@ and updated to vendor media codecs.
             <Feature name="adaptive-playback" />
         </MediaCodec>
         <MediaCodec name="c2.intel.mp2.decoder" type="video/mpeg2">
-            <Limit name="size" min="2x2" max="2048x2048" />
+            <Limit name="size" min="64x64" max="2048x2048" />
             <Limit name="alignment" value="2x2" />
             <Limit name="block-size" value="16x16" />
             <Limit name="block-count" range="1-16384" />
@@ -83,7 +73,7 @@ and updated to vendor media codecs.
             <Feature name="adaptive-playback" />
         </MediaCodec>
         <MediaCodec name="c2.intel.av1.decoder" type="video/av01">
-            <Limit name="size" min="2x2" max="4096x4096" />
+            <Limit name="size" min="64x64" max="4096x4096" />
             <Limit name="alignment" value="2x2" />
             <Limit name="block-size" value="16x16" />
             <Limit name="block-count" range="1-16384" />
@@ -97,7 +87,7 @@ and updated to vendor media codecs.
     <Encoders>
         <MediaCodec name="c2.intel.avc.encoder" type="video/avc">
             <!-- profiles and levels:  ProfileBaseline : Level41 -->
-            <Limit name="size" min="16x16" max="2048x2048" />
+            <Limit name="size" min="176x144" max="2048x2048" />
             <Limit name="alignment" value="2x2" />
             <Limit name="block-size" value="16x16" />
             <Limit name="block-count" range="1-8192" /> <!-- max 2048x1024 -->
