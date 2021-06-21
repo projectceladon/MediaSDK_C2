@@ -44,6 +44,8 @@ static unsigned int ConvertMfxFourccToVAFormat(mfxU32 fourcc)
             return VA_FOURCC_P010;
         case MFX_FOURCC_P8:
             return VA_FOURCC_P208;
+        case MFX_FOURCC_YV12:
+            return VA_FOURCC_YV12;
         default:
             return 0;
     }
@@ -61,6 +63,8 @@ static mfxU32 ConvertVAFourccToMfxFormat(unsigned int fourcc)
         case VA_FOURCC_BGRA:
         case VA_FOURCC_RGBX:
             return MFX_FOURCC_RGB4;
+        case VA_FOURCC_YV12:
+            return MFX_FOURCC_YV12;
         default:
             return 0;
     }
@@ -81,6 +85,8 @@ static unsigned int ConvertGrallocFourccToVAFormat(int fourcc)
             return VA_FOURCC_RGBX;
         case HAL_PIXEL_FORMAT_BGRA_8888:
             return VA_FOURCC_BGRA;
+        case HAL_PIXEL_FORMAT_YV12:
+            return VA_FOURCC_YV12;
         default:
             return 0;
     }
@@ -590,7 +596,8 @@ mfxStatus MfxVaFrameAllocator::MapGrallocBufferToSurface(buffer_handle_t gralloc
             buffer_details.format == HAL_PIXEL_FORMAT_P010_INTEL ||
             buffer_details.format == HAL_PIXEL_FORMAT_RGBA_8888 ||
             buffer_details.format == HAL_PIXEL_FORMAT_RGBX_8888 ||
-            buffer_details.format == HAL_PIXEL_FORMAT_BGRA_8888) {
+            buffer_details.format == HAL_PIXEL_FORMAT_BGRA_8888 ||
+            buffer_details.format == HAL_PIXEL_FORMAT_YV12) {
 
             // on Android Q HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL works the same way
             // some other driveers might demand creation of separate VASurface and copy contents there.

@@ -653,6 +653,9 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         if (MFX_ERR_NULL_PTR == mfx_res) {
             mfx_res = MFX_ERR_MORE_DATA;
         }
+
+        video_params_.mfx.FrameInfo.Width = MFX_MEM_ALIGN(video_params_.mfx.FrameInfo.Width, 16);
+        video_params_.mfx.FrameInfo.Height = MFX_MEM_ALIGN(video_params_.mfx.FrameInfo.Height, 16);
         if (MFX_ERR_NONE == mfx_res) {
             mfx_res = c2_bitstream_->GetFrameConstructor()->Init(video_params_.mfx.CodecProfile, video_params_.mfx.FrameInfo);
         }
@@ -668,7 +671,7 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
     }
 
     //We need check whether the BQ allocator has a surface, if No we cannot use MFX_IOPATTERN_OUT_VIDEO_MEMORY mode.
-    if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
+    if (MFX_ERR_NONE == mfx_res && video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
         std::shared_ptr<C2GraphicBlock> out_block;
         c2_status_t res = C2_OK;
         C2MemoryUsage mem_usage = {C2AndroidMemoryUsage::CPU_READ|C2AndroidMemoryUsage::HW_COMPOSER_READ,
@@ -1707,6 +1710,7 @@ c2_status_t MfxC2DecoderComponent::Flush(std::list<std::unique_ptr<C2Work>>* con
     }
 
     *flushedWork = std::move(flushed_works_);
+    eos_received_ = false;
 
     return C2_OK;
 }
