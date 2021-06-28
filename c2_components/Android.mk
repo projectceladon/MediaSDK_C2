@@ -13,7 +13,9 @@ define build_components
       $$(MFX_C2_INCLUDES) \
       $$(MFX_C2_HOME)/c2_utils/include \
       $$(MFX_C2_HOME)/c2_buffers/include \
-      $$(MFX_C2_HOME)/plugin_store/include
+      $$(MFX_C2_HOME)/plugin_store/include \
+      frameworks/native/libs/ui/include \
+      frameworks/av/media/codec2/sfplugin/utils
 
   LOCAL_CFLAGS := $$(MFX_C2_CFLAGS)
 
@@ -27,7 +29,8 @@ define build_components
         libstagefright_foundation \
         android.hardware.media.bufferpool@2.0 \
         android.hardware.graphics.bufferqueue@2.0 \
-        android.hardware.graphics.common@1.2
+        android.hardware.graphics.common@1.2 \
+        libsfplugin_ccodec_utils
 
   LOCAL_STATIC_LIBRARIES := \
     libmfx_c2_buffers
