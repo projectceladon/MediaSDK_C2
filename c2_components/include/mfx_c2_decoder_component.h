@@ -28,6 +28,7 @@
 #include "mfx_c2_bitstream_in.h"
 #include "mfx_frame_pool_allocator.h"
 #include "mfx_gralloc_allocator.h"
+#include "mfx_c2_color_aspects_wrapper.h"
 
 class MfxC2DecoderComponent : public MfxC2Component
 {
@@ -138,6 +139,8 @@ private:
 
     void UpdateHdrStaticInfo();
 
+    std::shared_ptr<C2StreamColorAspectsInfo::output> getColorAspects_l();
+
 private:
     DecoderType decoder_type_;
 
@@ -156,6 +159,9 @@ private:
     MFX_TRACEABLE(waiting_queue_);
 
     mfxVideoParam video_params_ {};
+    std::vector<mfxExtBuffer*> ext_buffers_;
+    mfxExtVideoSignalInfo signal_info_;
+
     // Protects decoder initialization and video_params_
     mutable std::mutex init_decoder_mutex_;
     // Width and height of decoding surfaces and respectively maximum frame size supported
@@ -195,6 +201,8 @@ private:
 
     C2StreamHdrStaticInfo::output hdr_static_info_;
     bool set_hdr_sei_;
+
+    MfxC2ColorAspectsWrapper color_aspects_;
 
     unsigned int output_delay_ = 8u;
     unsigned int input_delay_ = 1u;

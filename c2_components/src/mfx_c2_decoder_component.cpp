@@ -32,6 +32,7 @@
 #include "mfx_gralloc_allocator.h"
 
 #include <C2AllocatorGralloc.h>
+#include <Codec2Mapper.h>
 
 using namespace android;
 
@@ -54,7 +55,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         decoder_type_(decoder_type),
         initialized_(false),
         synced_points_count_(0),
-        set_hdr_sei_(false)
+        set_hdr_sei_(false),
+        ext_buffers_{}
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -568,6 +570,10 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
     mfxStatus res = MFX_ERR_NONE;
     memset(&video_params_, 0, sizeof(mfxVideoParam));
 
+    memset(&signal_info_, 0, sizeof(mfxExtVideoSignalInfo));
+    signal_info_.Header.BufferId = MFX_EXTBUFF_VIDEO_SIGNAL_INFO;
+    signal_info_.Header.BufferSz = sizeof(mfxExtVideoSignalInfo);
+
     switch (decoder_type_)
     {
     case DECODER_H264:
@@ -592,6 +598,8 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
         break;
     }
+
+    color_aspects_.SetCodecID(video_params_.mfx.CodecId);
 
     mfx_set_defaults_mfxVideoParam_dec(&video_params_);
 
@@ -648,7 +656,19 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         }
 
         if (MFX_ERR_NONE == mfx_res) {
+            // saving parameters
+            mfxVideoParam oldParams = video_params_;
+
+            ext_buffers_.push_back(reinterpret_cast<mfxExtBuffer*>(&signal_info_));
+            video_params_.NumExtParam = ext_buffers_.size();
+            video_params_.ExtParam = &ext_buffers_.front();
+
+            // decoding header
             mfx_res = decoder_->DecodeHeader(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(), &video_params_);
+
+            ext_buffers_.pop_back();
+            video_params_.NumExtParam = oldParams.NumExtParam;
+            video_params_.ExtParam = oldParams.ExtParam;
         }
         if (MFX_ERR_NULL_PTR == mfx_res) {
             mfx_res = MFX_ERR_MORE_DATA;
@@ -661,12 +681,13 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         }
     }
     if (MFX_ERR_NONE == mfx_res) {
-        MFX_DEBUG_TRACE_MSG("InitDecoder: UpdateHdrStaticInfo");
+        MFX_DEBUG_TRACE_MSG("InitDecoder: UpdateBitsreamColorAspects");
+        color_aspects_.UpdateBitsreamColorAspects(signal_info_);
 
+        MFX_DEBUG_TRACE_MSG("InitDecoder: UpdateHdrStaticInfo");
         UpdateHdrStaticInfo();
 
         MFX_DEBUG_TRACE_MSG("InitDecoder: GetAsyncDepth");
-
         video_params_.AsyncDepth = GetAsyncDepth();
     }
 
@@ -1542,6 +1563,11 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             C2ConstGraphicBlock const_graphic = block->share(rect, C2Fence()/*event.fence()*/);
             C2Buffer out_buffer = MakeC2Buffer( { const_graphic } );
 
+            if (color_aspects_.IsColorAspectsChanged()) {
+                out_buffer.setInfo(getColorAspects_l());
+                color_aspects_.SignalChangedColorAspectsIsSent();
+            }
+
             std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
             // Pass end of stream flag only.
             worklet->output.flags = (C2FrameData::flags_t)(work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
@@ -1755,3 +1781,26 @@ void MfxC2DecoderComponent::UpdateHdrStaticInfo()
         hdr_static_info_.maxFall = pHdrSeiPayload->Data[3] | (pHdrSeiPayload->Data[2] << 8);
     }
 }
+
+std::shared_ptr<C2StreamColorAspectsInfo::output> MfxC2DecoderComponent::getColorAspects_l(){
+    android::ColorAspects sfAspects;
+    std::shared_ptr<C2StreamColorAspectsInfo::output> codedAspects = std::make_shared<C2StreamColorAspectsInfo::output>(0u);
+
+    color_aspects_.GetOutputColorAspects(sfAspects);
+
+    if (!C2Mapper::map(sfAspects.mPrimaries, &codedAspects->primaries)) {
+            codedAspects->primaries = C2Color::PRIMARIES_UNSPECIFIED;
+    }
+    if (!C2Mapper::map(sfAspects.mRange, &codedAspects->range)) {
+        codedAspects->range = C2Color::RANGE_UNSPECIFIED;
+    }
+    if (!C2Mapper::map(sfAspects.mMatrixCoeffs, &codedAspects->matrix)) {
+        codedAspects->matrix = C2Color::MATRIX_UNSPECIFIED;
+    }
+    if (!C2Mapper::map(sfAspects.mTransfer, &codedAspects->transfer)) {
+        codedAspects->transfer = C2Color::TRANSFER_UNSPECIFIED;
+    }
+
+    return codedAspects;
+}
+

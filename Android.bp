@@ -30,6 +30,9 @@ mfx_cc_defaults {
 
     include_dirs: [
         "hardware/intel/external/minigbm-intel/cros_gralloc", // remove then minigbm gets Android.bp
+        "frameworks/av/media/libstagefright/foundation/include",
+        "frameworks/av/media/codec2/sfplugin/utils",
+        "frameworks/native/include",
     ],
 
     header_libs: [
