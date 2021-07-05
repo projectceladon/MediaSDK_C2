@@ -113,6 +113,7 @@ c2_status_t MfxC2ParamStorage::ConfigParam(const C2Param& param, bool component_
         // check whether plugin supports this parameter
         std::unique_ptr<C2SettingResult> find_res = FindParam(&param);
         if(nullptr != find_res) {
+            MFX_DEBUG_TRACE_PRINTF("cannot find %d param", param.index());
             failures->push_back(std::move(find_res));
             break;
         }
@@ -121,6 +122,7 @@ c2_status_t MfxC2ParamStorage::ConfigParam(const C2Param& param, bool component_
             component_stopped; /* all kinds, even INFO might be set by stagefright */
 
         if (!modifiable) {
+            MFX_DEBUG_TRACE_PRINTF("modify %d param failed", param.index());
             failures->push_back(MakeC2SettingResult(C2ParamField(&param), C2SettingResult::READ_ONLY));
             break;
         }
@@ -134,7 +136,8 @@ c2_status_t MfxC2ParamStorage::ConfigParam(const C2Param& param, bool component_
         {
             std::lock_guard<std::mutex> lock(values_mutex_);
             auto value_found = values_.find(index);
-            if (value_found != values_.end()) {
+            if (value_found == values_.end()) {
+                MFX_DEBUG_TRACE_MSG("found nothing.");
                 failures->push_back(MakeC2SettingResult(C2ParamField(&param), C2SettingResult::READ_ONLY));
                 break;
             }
