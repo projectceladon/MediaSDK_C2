@@ -152,6 +152,9 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
                 std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_4K, HEIGHT_4K));
 
+            pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
+                    AllocUniqueString<C2PortMediaTypeSetting::input>("video/avc"));
+
             output_delay_ = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
@@ -179,6 +182,9 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
 
             pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
                 std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_8K, HEIGHT_8K));
+
+            pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
+                    AllocUniqueString<C2PortMediaTypeSetting::input>("video/hevc"));
 
             output_delay_ = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
@@ -681,8 +687,8 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         }
     }
     if (MFX_ERR_NONE == mfx_res) {
-        MFX_DEBUG_TRACE_MSG("InitDecoder: UpdateBitsreamColorAspects");
-        color_aspects_.UpdateBitsreamColorAspects(signal_info_);
+        MFX_DEBUG_TRACE_MSG("InitDecoder: UpdateBitstreamColorAspects");
+        color_aspects_.UpdateBitstreamColorAspects(signal_info_);
 
         MFX_DEBUG_TRACE_MSG("InitDecoder: UpdateHdrStaticInfo");
         UpdateHdrStaticInfo();
@@ -912,6 +918,7 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
         // check whether plugin supports this parameter
         std::unique_ptr<C2SettingResult> find_res = param_storage_.FindParam(param);
         if(nullptr != find_res) {
+            ALOGE("cann't found param: %X02", param->index());
             failures->push_back(std::move(find_res));
             continue;
         }
@@ -921,6 +928,7 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
 
         if (!modifiable) {
             failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::READ_ONLY));
+            ALOGE("cann't modify param: %X02", param->index());
             continue;
         }
 
@@ -952,7 +960,33 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 }
                 break;
             }
+            case kParamIndexColorAspects: {
+                const C2StreamColorAspectsTuning* settings = static_cast<const C2StreamColorAspectsTuning*>(param);
+                android::ColorAspects ca;
+                MFX_DEBUG_TRACE_U32(settings->range);
+                MFX_DEBUG_TRACE_U32(settings->primaries);
+                MFX_DEBUG_TRACE_U32(settings->transfer);
+                MFX_DEBUG_TRACE_U32(settings->matrix);
+
+                ca.mRange = (android::ColorAspects::Range)settings->range;
+                ca.mTransfer = (android::ColorAspects::Transfer)settings->transfer;
+                ca.mMatrixCoeffs = (android::ColorAspects::MatrixCoeffs)settings->matrix;
+                ca.mPrimaries = (android::ColorAspects::Primaries)settings->primaries;
+
+                mfxExtVideoSignalInfo signal_info;
+                signal_info.VideoFullRange = settings->range;
+                signal_info.ColourPrimaries = settings->primaries;
+                signal_info.TransferCharacteristics = settings->transfer;
+                signal_info.MatrixCoefficients = settings->matrix;
+
+                color_aspects_.UpdateBitstreamColorAspects(signal_info);
+                color_aspects_.SetFrameworkColorAspects(ca);
+                //param_storage_.UpdateValue(param->index(), std::make_unique<C2StreamColorAspectsInfo::output>(0u, settings->range, settings->primaries,settings->transfer, settings->matrix));
+                break;
+            }
+
             default:
+                ALOGE("applying default parameter: %X02", param->index());
                 param_storage_.ConfigParam(*param, state_ == State::STOPPED, failures);
                 break;
         }
@@ -1783,6 +1817,7 @@ void MfxC2DecoderComponent::UpdateHdrStaticInfo()
 }
 
 std::shared_ptr<C2StreamColorAspectsInfo::output> MfxC2DecoderComponent::getColorAspects_l(){
+    MFX_DEBUG_TRACE_FUNC;
     android::ColorAspects sfAspects;
     std::shared_ptr<C2StreamColorAspectsInfo::output> codedAspects = std::make_shared<C2StreamColorAspectsInfo::output>(0u);
 
@@ -1800,6 +1835,11 @@ std::shared_ptr<C2StreamColorAspectsInfo::output> MfxC2DecoderComponent::getColo
     if (!C2Mapper::map(sfAspects.mTransfer, &codedAspects->transfer)) {
         codedAspects->transfer = C2Color::TRANSFER_UNSPECIFIED;
     }
+
+    MFX_DEBUG_TRACE_I32(codedAspects->primaries);
+    MFX_DEBUG_TRACE_I32(codedAspects->range);
+    MFX_DEBUG_TRACE_I32(codedAspects->matrix);
+    MFX_DEBUG_TRACE_I32(codedAspects->transfer);
 
     return codedAspects;
 }

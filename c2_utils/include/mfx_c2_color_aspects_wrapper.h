@@ -32,7 +32,7 @@ public:
     ~MfxC2ColorAspectsWrapper();
 
     void SetFrameworkColorAspects(const android::ColorAspects &colorAspects);
-    void UpdateBitsreamColorAspects(const mfxExtVideoSignalInfo &signalInfo);
+    void UpdateBitstreamColorAspects(const mfxExtVideoSignalInfo &signalInfo);
     void GetOutputColorAspects(android::ColorAspects &outColorAspects);
     void GetColorAspectsFromVideoSignal(const mfxExtVideoSignalInfo &signalInfo, android::ColorAspects &outColorAspects);
 

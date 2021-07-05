@@ -57,7 +57,7 @@ void MfxC2ColorAspectsWrapper::SetFrameworkColorAspects(const android::ColorAspe
     MFX_DEBUG_TRACE_I32(framework_color_aspects_.mMatrixCoeffs);
 }
 
-void MfxC2ColorAspectsWrapper::UpdateBitsreamColorAspects(const mfxExtVideoSignalInfo &signalInfo)
+void MfxC2ColorAspectsWrapper::UpdateBitstreamColorAspects(const mfxExtVideoSignalInfo &signalInfo)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -115,6 +115,11 @@ void MfxC2ColorAspectsWrapper::GetOutputColorAspects(android::ColorAspects &outC
     // by replacing Unspecified coded values with the default values
     // (default values == sent from framework)
 
+    MFX_DEBUG_TRACE_I32(bitstream_color_aspects_.mRange);
+    MFX_DEBUG_TRACE_I32(bitstream_color_aspects_.mPrimaries);
+    MFX_DEBUG_TRACE_I32(bitstream_color_aspects_.mTransfer);
+    MFX_DEBUG_TRACE_I32(bitstream_color_aspects_.mMatrixCoeffs);
+
     if (bitstream_color_aspects_.mRange != android::ColorAspects::RangeUnspecified)
         outColorAspects.mRange = bitstream_color_aspects_.mRange;
     else
@@ -143,6 +148,7 @@ void MfxC2ColorAspectsWrapper::GetOutputColorAspects(android::ColorAspects &outC
 
 void MfxC2ColorAspectsWrapper::GetColorAspectsFromVideoSignal(const mfxExtVideoSignalInfo &signalInfo, android::ColorAspects &outColorAspects)
 {
+    MFX_DEBUG_TRACE_FUNC;
     bool video_signal_type_present_flag = signalInfo.VideoFormat != 5 ||
                                             signalInfo.VideoFullRange != 0 ||
                                             signalInfo.ColourDescriptionPresent != 0;
@@ -168,10 +174,10 @@ void MfxC2ColorAspectsWrapper::GetColorAspectsFromVideoSignal(const mfxExtVideoS
         outColorAspects.mMatrixCoeffs = android::ColorAspects::MatrixUnspecified;
     }
 
-    //MFX_DEBUG_TRACE_I32(outColorAspects.mRange);
-    //MFX_DEBUG_TRACE_I32(outColorAspects.mPrimaries);
-    //MFX_DEBUG_TRACE_I32(outColorAspects.mTransfer);
-    //MFX_DEBUG_TRACE_I32(outColorAspects.mMatrixCoeffs);
+    MFX_DEBUG_TRACE_I32(outColorAspects.mRange);
+    MFX_DEBUG_TRACE_I32(outColorAspects.mPrimaries);
+    MFX_DEBUG_TRACE_I32(outColorAspects.mTransfer);
+    MFX_DEBUG_TRACE_I32(outColorAspects.mMatrixCoeffs);
 }
 
 bool MfxC2ColorAspectsWrapper::IsColorAspectsChanged()
