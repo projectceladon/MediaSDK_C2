@@ -918,7 +918,7 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
         // check whether plugin supports this parameter
         std::unique_ptr<C2SettingResult> find_res = param_storage_.FindParam(param);
         if(nullptr != find_res) {
-            ALOGE("cann't found param: %X02", param->index());
+            MFX_DEBUG_TRACE_PRINTF("cannot found param: %X02", param->index());
             failures->push_back(std::move(find_res));
             continue;
         }
@@ -927,8 +927,8 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
             state_ == State::STOPPED; /* all kinds, even INFO might be set by stagefright */
 
         if (!modifiable) {
+            MFX_DEBUG_TRACE_PRINTF("cannot modify param: %X02", param->index());
             failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::READ_ONLY));
-            ALOGE("cann't modify param: %X02", param->index());
             continue;
         }
 
@@ -981,12 +981,11 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
 
                 color_aspects_.UpdateBitstreamColorAspects(signal_info);
                 color_aspects_.SetFrameworkColorAspects(ca);
-                //param_storage_.UpdateValue(param->index(), std::make_unique<C2StreamColorAspectsInfo::output>(0u, settings->range, settings->primaries,settings->transfer, settings->matrix));
                 break;
             }
 
             default:
-                ALOGE("applying default parameter: %X02", param->index());
+                MFX_DEBUG_TRACE_PRINTF("applying default parameter: %X02", param->index());
                 param_storage_.ConfigParam(*param, state_ == State::STOPPED, failures);
                 break;
         }
