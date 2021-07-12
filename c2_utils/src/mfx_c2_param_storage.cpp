@@ -136,8 +136,7 @@ c2_status_t MfxC2ParamStorage::ConfigParam(const C2Param& param, bool component_
         {
             std::lock_guard<std::mutex> lock(values_mutex_);
             auto value_found = values_.find(index);
-            if (value_found == values_.end()) {
-                MFX_DEBUG_TRACE_MSG("found nothing.");
+            if (value_found != values_.end()) {
                 failures->push_back(MakeC2SettingResult(C2ParamField(&param), C2SettingResult::READ_ONLY));
                 break;
             }
