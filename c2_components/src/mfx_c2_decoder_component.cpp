@@ -55,8 +55,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         decoder_type_(decoder_type),
         initialized_(false),
         synced_points_count_(0),
-        set_hdr_sei_(false),
-        ext_buffers_{}
+        set_hdr_sei_(false)
 {
     MFX_DEBUG_TRACE_FUNC;
 
