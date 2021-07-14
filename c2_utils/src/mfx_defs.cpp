@@ -35,8 +35,6 @@ static void InitMfxFrameHeader(
     mfx_frame->Info.Height = height;
     mfx_frame->Info.CropX = 0;
     mfx_frame->Info.CropY = 0;
-    mfx_frame->Info.CropW = width;
-    mfx_frame->Info.CropH = height;
     mfx_frame->Info.FourCC = fourcc;
 
     mfx_frame->Data.TimeStamp = TimestampC2ToMfx(timestamp);
