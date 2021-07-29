@@ -107,7 +107,15 @@ bool C2MemoryTypeToMfxIOPattern(bool input, C2MemoryType memory_type, mfxU16* io
 
 bool MfxIOPatternToC2MemoryType(bool input, mfxU16 io_pattern, C2MemoryType* memory_type);
 
-int MfxFourCCToGralloc(mfxU32 fourcc);
+int MfxFourCCToGralloc(mfxU32 fourcc, bool using_video_memory = true);
+
+bool IsYUV420(const C2GraphicView &view);
+
+bool IsNV12(const C2GraphicView &view);
+
+bool IsI420(const C2GraphicView &view);
+
+bool IsYV12(const C2GraphicView &view);
 
 // Gives access to prorected constructors of C2Buffer.
 class C2BufferAccessor : public C2Buffer

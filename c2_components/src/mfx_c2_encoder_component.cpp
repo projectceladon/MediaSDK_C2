@@ -71,7 +71,8 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
         MfxC2Component(name, config, std::move(reflector)),
         encoder_type_(encoder_type),
         synced_points_count_(0),
-        vpp_determined_(false)
+        vpp_determined_(false),
+        input_vpp_type_(CONVERT_NONE)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -432,9 +433,18 @@ mfxStatus MfxC2EncoderComponent::InitVPP(C2FrameData& buf_pack)
 
         mfx_res = vpp_.Init(&param);
         input_vpp_type_ = param.conversion;
-    }
-    else
-    {
+    } else {
+
+        uint32_t width, height, format, stride, igbp_slot, generation;
+        uint64_t usage, igbp_id;
+        android::_UnwrapNativeCodec2GrallocMetadata(c_graph_block->handle(), &width, &height, &format, &usage,
+                                                &stride, &generation, &igbp_id, &igbp_slot);
+        if (!igbp_id && !igbp_slot) {
+            //No surface & BQ
+            video_params_config_.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY;
+            ALOGI("%s, format = 0x%x. System memory is being used for encoding!", __func__, format);
+        }
+
         input_vpp_type_ = CONVERT_NONE;
     }
 
@@ -600,12 +610,6 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         }
 
         C2FrameData& input = work->input;
-
-        std::shared_ptr<MfxFrameConverter> frame_converter;
-        if (video_params_config_.IOPattern == MFX_IOPATTERN_IN_VIDEO_MEMORY) {
-            frame_converter = device_->GetFrameConverter();
-        }
-
         MfxC2FrameIn mfx_frame;
 
         if (!vpp_determined_) {
@@ -615,6 +619,11 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 res = MfxStatusToC2(mfx_sts);
                 break;
             }
+        }
+
+        std::shared_ptr<MfxFrameConverter> frame_converter;
+        if (video_params_config_.IOPattern == MFX_IOPATTERN_IN_VIDEO_MEMORY) {
+            frame_converter = device_->GetFrameConverter();
         }
 
         if (CONVERT_NONE != input_vpp_type_) {

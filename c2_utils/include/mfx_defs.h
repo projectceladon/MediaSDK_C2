@@ -62,6 +62,8 @@ extern mfxVersion g_required_mfx_version;
 
 #define MFX_MEM_ALIGN(X, N) ((X) & ((N)-1)) ? (((X)+(N)-1) & (~((N)-1))): (X)
 
+#define MFX_ALIGN_32(X) (((mfxU32)((X)+31)) & (~ (mfxU32)31))
+
 #define MFX_GET_ARRAY_SIZE(_array) \
     (sizeof(_array) / sizeof(_array[0]))
 
@@ -160,9 +162,14 @@ std::vector<T> MakeVector(T&& item)
     return res;
 }
 
-void InitMfxNV12FrameSW(
+void InitMfxFrameSW(
     uint64_t timestamp, uint64_t frame_index,
     const uint8_t *const *data,
+    uint32_t width, uint32_t height, uint32_t stride, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame);
+
+void InitMfxFrameSW(
+    uint64_t timestamp, uint64_t frame_index,
+    uint8_t *data,
     uint32_t width, uint32_t height, uint32_t stride, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame);
 
 void InitMfxFrameHW(

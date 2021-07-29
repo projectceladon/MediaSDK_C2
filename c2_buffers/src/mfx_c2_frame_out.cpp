@@ -84,7 +84,7 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
             wrapper->c2_graphic_view_ = std::shared_ptr<C2GraphicView>(std::move(view));
 
             const uint32_t stride = wrapper->c2_graphic_view_->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
-            InitMfxNV12FrameSW(timestamp, frame_index,
+            InitMfxFrameSW(timestamp, frame_index,
                 wrapper->c2_graphic_view_->data(),
                 block->width(), block->height(), stride, info.FourCC, info,
                 mfx_frame.get());

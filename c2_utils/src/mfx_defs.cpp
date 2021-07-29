@@ -42,7 +42,7 @@ static void InitMfxFrameHeader(
     mfx_frame->Data.FrameOrder = frame_index;
 }
 
-void InitMfxNV12FrameSW(
+void InitMfxFrameSW(
     uint64_t timestamp, uint64_t frame_index,
     const uint8_t *const *data,
     uint32_t width, uint32_t height, uint32_t stride, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
@@ -53,12 +53,34 @@ void InitMfxNV12FrameSW(
 
     mfx_frame->Data.MemType = MFX_MEMTYPE_SYSTEM_MEMORY;
 
-    mfx_frame->Data.PitchHigh = stride / (std::numeric_limits<mfxU16>::max() + 1ul);
-    mfx_frame->Data.PitchLow = stride % (std::numeric_limits<mfxU16>::max() + 1ul);
+    mfx_frame->Data.PitchHigh = 0;
+    mfx_frame->Data.PitchLow = MFX_ALIGN_32(stride);
     // TODO: 16-byte align requirement is not fulfilled - copy might be needed
+    // MFX_FOURCC_NV12
     mfx_frame->Data.Y = const_cast<uint8_t*>(data[0]);
     mfx_frame->Data.UV = const_cast<uint8_t*>(data[1]);
     mfx_frame->Data.V = const_cast<uint8_t*>(data[2]);
+}
+
+void InitMfxFrameSW(
+    uint64_t timestamp, uint64_t frame_index,
+    uint8_t *data,
+    uint32_t width, uint32_t height, uint32_t stride, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    InitMfxFrameHeader(timestamp, frame_index, width, height, fourcc, info, mfx_frame);
+
+    mfx_frame->Data.MemType = MFX_MEMTYPE_SYSTEM_MEMORY;
+
+    mfx_frame->Data.PitchHigh = 0;
+    mfx_frame->Data.PitchLow = MFX_ALIGN_32(stride);
+    // TODO: 16-byte align requirement is not fulfilled - copy might be needed
+    uint32_t y_plane_size = stride * height;
+    // MFX_FOURCC_NV12
+    mfx_frame->Data.Y = data;
+    mfx_frame->Data.U = data + y_plane_size;
+    mfx_frame->Data.V = mfx_frame->Data.U + 1;
 }
 
 void InitMfxFrameHW(
