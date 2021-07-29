@@ -499,12 +499,12 @@ bool MfxIOPatternToC2MemoryType(bool input, mfxU16 io_pattern, C2MemoryType* mem
         io_pattern, memory_type);
 }
 
-int MfxFourCCToGralloc(mfxU32 fourcc)
+int MfxFourCCToGralloc(mfxU32 fourcc, bool using_video_memory)
 {
     switch (fourcc)
     {
         case MFX_FOURCC_NV12:
-            return HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL;
+            return using_video_memory ? HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL : HAL_PIXEL_FORMAT_NV12;
         case MFX_FOURCC_P010:
             return HAL_PIXEL_FORMAT_P010_INTEL;
         default:
@@ -638,4 +638,70 @@ BinaryWriter::BinaryWriter(const std::string& dir,
 
     full_name << name;
     stream_.open(full_name.str().c_str(), std::fstream::trunc | std::fstream::binary);
+}
+
+bool IsYUV420(const C2GraphicView &view) {
+    const C2PlanarLayout &layout = view.layout();
+    return (layout.numPlanes == 3
+            && layout.type == C2PlanarLayout::TYPE_YUV
+            && layout.planes[layout.PLANE_Y].channel == C2PlaneInfo::CHANNEL_Y
+            && layout.planes[layout.PLANE_Y].allocatedDepth == 8
+            && layout.planes[layout.PLANE_Y].bitDepth == 8
+            && layout.planes[layout.PLANE_Y].rightShift == 0
+            && layout.planes[layout.PLANE_Y].colSampling == 1
+            && layout.planes[layout.PLANE_Y].rowSampling == 1
+            && layout.planes[layout.PLANE_U].channel == C2PlaneInfo::CHANNEL_CB
+            && layout.planes[layout.PLANE_U].allocatedDepth == 8
+            && layout.planes[layout.PLANE_U].bitDepth == 8
+            && layout.planes[layout.PLANE_U].rightShift == 0
+            && layout.planes[layout.PLANE_U].colSampling == 2
+            && layout.planes[layout.PLANE_U].rowSampling == 2
+            && layout.planes[layout.PLANE_V].channel == C2PlaneInfo::CHANNEL_CR
+            && layout.planes[layout.PLANE_V].allocatedDepth == 8
+            && layout.planes[layout.PLANE_V].bitDepth == 8
+            && layout.planes[layout.PLANE_V].rightShift == 0
+            && layout.planes[layout.PLANE_V].colSampling == 2
+            && layout.planes[layout.PLANE_V].rowSampling == 2);
+}
+
+bool IsNV12(const C2GraphicView &view) {
+    if (!IsYUV420(view)) {
+        return false;
+    }
+    const C2PlanarLayout &layout = view.layout();
+    return (layout.rootPlanes == 2
+            && layout.planes[layout.PLANE_U].colInc == 2
+            && layout.planes[layout.PLANE_U].rootIx == layout.PLANE_U
+            && layout.planes[layout.PLANE_U].offset == 0
+            && layout.planes[layout.PLANE_V].colInc == 2
+            && layout.planes[layout.PLANE_V].rootIx == layout.PLANE_U
+            && layout.planes[layout.PLANE_V].offset == 1);
+}
+
+bool IsI420(const C2GraphicView &view) {
+    if (!IsYUV420(view)) {
+        return false;
+    }
+    const C2PlanarLayout &layout = view.layout();
+    return (layout.rootPlanes == 3
+            && layout.planes[layout.PLANE_U].colInc == 1
+            && layout.planes[layout.PLANE_U].rootIx == layout.PLANE_U
+            && layout.planes[layout.PLANE_U].offset == 0
+            && layout.planes[layout.PLANE_V].colInc == 1
+            && layout.planes[layout.PLANE_V].rootIx == layout.PLANE_V
+            && layout.planes[layout.PLANE_V].offset == 0);
+}
+
+bool IsYV12(const C2GraphicView &view) {
+    if (!IsYUV420(view)) {
+        return false;
+    }
+    const C2PlanarLayout &layout = view.layout();
+    return (layout.rootPlanes == 3
+            && layout.planes[layout.PLANE_U].colInc == 1
+            && layout.planes[layout.PLANE_U].rootIx == layout.PLANE_V
+            && layout.planes[layout.PLANE_U].offset == 0
+            && layout.planes[layout.PLANE_V].colInc == 1
+            && layout.planes[layout.PLANE_V].rootIx == layout.PLANE_U
+            && layout.planes[layout.PLANE_V].offset == 0);
 }

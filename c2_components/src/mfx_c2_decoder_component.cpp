@@ -71,6 +71,9 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     pr.AddValue(C2_PARAMKEY_COMPONENT_KIND,
         std::make_unique<C2ComponentKindSetting>(C2Component::KIND_DECODER));
 
+    pr.AddValue(C2_PARAMKEY_COMPONENT_NAME,
+        AllocUniqueString<C2ComponentNameSetting>(name.c_str()));
+
     const unsigned int SINGLE_STREAM_ID = 0u;
     pr.AddValue(C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE,
         std::make_unique<C2StreamBufferTypeSetting::input>(SINGLE_STREAM_ID, C2BufferData::LINEAR));
@@ -209,6 +212,9 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
                 std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_8K, HEIGHT_8K));
 
+            pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
+                    AllocUniqueString<C2PortMediaTypeSetting::input>("video/x-vnd.on2.vp9"));
+
             output_delay_ = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
@@ -227,6 +233,9 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
 
             pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
                 std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_4K, HEIGHT_4K));
+
+            pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
+                    AllocUniqueString<C2PortMediaTypeSetting::input>("video/x-vnd.on2.vp8"));
 
             output_delay_ = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
@@ -248,6 +257,9 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
 
             pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
                 std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_2K, HEIGHT_2K));
+
+            pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
+                    AllocUniqueString<C2PortMediaTypeSetting::input>("video/mpeg2"));
 
             output_delay_ = /*max_dpb_size*/4 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
@@ -271,6 +283,9 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
 
             pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
                 std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_8K, HEIGHT_8K));
+
+            pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
+                    AllocUniqueString<C2PortMediaTypeSetting::input>("video/av01"));
 
             output_delay_ = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
@@ -703,10 +718,10 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         C2MemoryUsage mem_usage = {C2AndroidMemoryUsage::CPU_READ|C2AndroidMemoryUsage::HW_COMPOSER_READ,
                                      C2AndroidMemoryUsage::HW_CODEC_WRITE};
 
-        res = c2_allocator_->fetchGraphicBlock(1280
-                                    ,720
-                                    ,HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL
-                                    , mem_usage, &out_block);
+        res = c2_allocator_->fetchGraphicBlock(video_params_.mfx.FrameInfo.Width,
+                                           video_params_.mfx.FrameInfo.Height,
+                                           MfxFourCCToGralloc(video_params_.mfx.FrameInfo.FourCC),
+                                           mem_usage, &out_block);
 
         if (res == C2_OK) {
             uint32_t width, height, format, stride, igbp_slot, generation;
@@ -719,7 +734,7 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
                 allocator_ = nullptr;
                 mfx_res= session_.SetFrameAllocator(nullptr);
                 allocator_set_ = false;
-                ALOGI("System memory is being used for decoding!");
+                ALOGI("Format = 0x%x. System memory is being used for decoding!", format);
                 if (MFX_ERR_NONE != mfx_res) MFX_DEBUG_TRACE_MSG("SetFrameAllocator failed");
             }
         }
@@ -1178,31 +1193,37 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
 
     c2_status_t res = C2_OK;
 
-    do
-    {
-        if (!c2_allocator_)
-        {
+    do {
+
+        if (!c2_allocator_) {
             res = C2_NOT_FOUND;
             break;
         }
 
-        C2MemoryUsage mem_usage = {C2AndroidMemoryUsage::CPU_READ|C2AndroidMemoryUsage::HW_COMPOSER_READ,
+        if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
+
+            C2MemoryUsage mem_usage = {C2AndroidMemoryUsage::CPU_READ|C2AndroidMemoryUsage::HW_COMPOSER_READ,
                                             C2AndroidMemoryUsage::HW_CODEC_WRITE};
-        res = c2_allocator_->fetchGraphicBlock(width, height,
+            res = c2_allocator_->fetchGraphicBlock(width, height,
                                                MfxFourCCToGralloc(fourcc), mem_usage, out_block);
-        if (res == C2_OK && video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
-        {
-            buffer_handle_t hndl = android::UnwrapNativeCodec2GrallocHandle((*out_block)->handle());
-            uint64_t id;
-            c2_status_t sts = gralloc_allocator_->GetBackingStore(hndl, &id);
-            if (allocator_ && !allocator_->InCache(id))
-            {
-                res = C2_BLOCKING;
-                usleep(1000);
-                MFX_DEBUG_TRACE_PRINTF("fetchGraphicBlock: BLOCKING");
-                ALOGE("fetchGraphicBlock a nocached block, please retune output blocks.");
+            if (res == C2_OK) {
+                buffer_handle_t hndl = android::UnwrapNativeCodec2GrallocHandle((*out_block)->handle());
+                uint64_t id;
+                c2_status_t sts = gralloc_allocator_->GetBackingStore(hndl, &id);
+                if (allocator_ && !allocator_->InCache(id)) {
+                    res = C2_BLOCKING;
+                    usleep(1000);
+                    MFX_DEBUG_TRACE_PRINTF("fetchGraphicBlock: BLOCKING");
+                    ALOGE("fetchGraphicBlock a nocached block, please retune output blocks.");
+                }
             }
-        }
+        } else if (video_params_.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
+
+            C2MemoryUsage mem_usage = {C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE};
+
+            res = c2_allocator_->fetchGraphicBlock(width, height,
+                                               MfxFourCCToGralloc(fourcc, false), mem_usage, out_block);
+       }
     } while (res == C2_BLOCKING);
 
     MFX_DEBUG_TRACE_I32(res);

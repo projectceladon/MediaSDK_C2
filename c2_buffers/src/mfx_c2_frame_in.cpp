@@ -23,7 +23,7 @@
 #include "mfx_c2_defs.h"
 #include "mfx_c2_utils.h"
 #include "mfx_c2_debug.h"
-
+#include <string.h>
 #include <C2AllocatorGralloc.h>
 
 using namespace android;
@@ -97,10 +97,43 @@ c2_status_t MfxC2FrameIn::Create(std::shared_ptr<MfxFrameConverter> frame_conver
             res = MapConstGraphicBlock(*c_graph_block, timeout, &wrapper->c2_graphic_view_);
             if(C2_OK != res) break;
 
-            const uint32_t stride = wrapper->c2_graphic_view_->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
-            InitMfxNV12FrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
-                wrapper->c2_graphic_view_->data(), c_graph_block->width(), c_graph_block->height(), stride, MFX_FOURCC_NV12, info,
-                mfx_frame);
+            const uint8_t *pY = wrapper->c2_graphic_view_->data()[C2PlanarLayout::PLANE_Y];
+            const uint8_t *pU = wrapper->c2_graphic_view_->data()[C2PlanarLayout::PLANE_U];
+            const uint8_t *pV = wrapper->c2_graphic_view_->data()[C2PlanarLayout::PLANE_V];
+
+            uint32_t width = c_graph_block->width();
+            uint32_t height = c_graph_block->height();
+            uint32_t stride = wrapper->c2_graphic_view_->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
+            uint32_t y_plane_size = stride * height;
+            if (IsNV12(*wrapper->c2_graphic_view_)) {
+
+                InitMfxFrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
+                    wrapper->c2_graphic_view_->data(),
+                    width, height, stride, MFX_FOURCC_NV12, info,
+                    mfx_frame);
+            } else if (IsI420(*wrapper->c2_graphic_view_) || IsYV12(*wrapper->c2_graphic_view_)) {
+                static uint8_t yuv_data[WIDTH_4K * HEIGHT_4K * 3 / 2];
+
+                //IYUV or YV12 to NV12 conversion
+                memcpy(yuv_data, pY, y_plane_size);
+
+                uint32_t i = 0, j = 0;
+                for (j = 0; j < height / 2; j++) {
+                    uint8_t *ptr = &yuv_data[y_plane_size + j * stride];
+                    for (i = 0; i < stride / 2; i++) {
+                        memcpy(&ptr[i * 2], &pU[i], 1);
+                        memcpy(&ptr[i * 2 + 1], &pV[i], 1);
+                    }
+                }
+
+                InitMfxFrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
+                    yuv_data, width, height, stride, MFX_FOURCC_NV12, info,
+                    mfx_frame);
+           } else {
+               ALOGE("%s, unsupported format", __func__);
+               res = C2_BAD_VALUE;
+               break;
+           }
         }
 
         wrapper->frame_converter_ = frame_converter;
