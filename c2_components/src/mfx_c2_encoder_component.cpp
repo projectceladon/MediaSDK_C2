@@ -35,6 +35,7 @@
 #include <chrono>
 #include <iomanip>
 #include <C2AllocatorGralloc.h>
+#include <C2Config.h>
 
 using namespace android;
 
@@ -75,79 +76,125 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
         input_vpp_type_(CONVERT_NONE)
 {
     MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_U32(input_vpp_type_);
+
+    std::vector<C2Config::profile_t> supported_profiles = {};
+    std::vector<C2Config::level_t> supported_levels = {};
+
+    MfxC2ParamStorage& pr = param_storage_;
+
+    pr.RegisterParam<C2RateControlSetting>("RateControl");
+    pr.RegisterParam<C2StreamFrameRateInfo::output>(C2_PARAMKEY_FRAME_RATE);
+    pr.RegisterParam<C2StreamBitrateInfo::output>(C2_PARAMKEY_BITRATE);
+    pr.RegisterParam<C2BitrateTuning::output>(MFX_C2_PARAMKEY_BITRATE_TUNING);
+
+    pr.RegisterParam<C2FrameQPSetting>("FrameQP");
+    const uint32_t MIN_QP = 1;
+    const uint32_t MAX_QP = 51;
+    pr.RegisterSupportedRange<C2FrameQPSetting>(&C2FrameQPSetting::qp_i, MIN_QP, MAX_QP);
+    pr.RegisterSupportedRange<C2FrameQPSetting>(&C2FrameQPSetting::qp_p, MIN_QP, MAX_QP);
+    pr.RegisterSupportedRange<C2FrameQPSetting>(&C2FrameQPSetting::qp_b, MIN_QP, MAX_QP);
+
+    pr.RegisterParam<C2IntraRefreshTuning>("IntraRefresh");
+    pr.RegisterSupportedRange<C2IntraRefreshTuning>(&C2IntraRefreshTuning::value, (int)false, (int)true);
+
+    pr.RegisterParam<C2ProfileSetting>("Profile");
+    pr.RegisterParam<C2LevelSetting>("Level");
+    pr.RegisterParam<C2ProfileLevelInfo::output>("SupportedProfilesLevels");
+
+    pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
 
     switch(encoder_type_) {
-        case ENCODER_H264:
-        case ENCODER_H265:
+        case ENCODER_H264: {
+            supported_profiles = {
+                PROFILE_AVC_CONSTRAINED_BASELINE,
+                PROFILE_AVC_BASELINE,
+                PROFILE_AVC_MAIN,
+                PROFILE_AVC_CONSTRAINED_HIGH,
+                PROFILE_AVC_PROGRESSIVE_HIGH,
+                PROFILE_AVC_HIGH,
+            };
+            supported_levels = {
+                LEVEL_AVC_1, LEVEL_AVC_1B, LEVEL_AVC_1_1,
+                LEVEL_AVC_1_2, LEVEL_AVC_1_3,
+                LEVEL_AVC_2, LEVEL_AVC_2_1, LEVEL_AVC_2_2,
+                LEVEL_AVC_3, LEVEL_AVC_3_1, LEVEL_AVC_3_2,
+                LEVEL_AVC_4, LEVEL_AVC_4_1, LEVEL_AVC_4_2,
+                LEVEL_AVC_5, LEVEL_AVC_5_1, LEVEL_AVC_5_2,
+            };
+            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
+                std::make_unique<C2StreamProfileLevelInfo::output>(0u, PROFILE_AVC_CONSTRAINED_BASELINE, LEVEL_AVC_5_2));
+            break;
+        }
+        case ENCODER_H265: {
+            supported_profiles = {
+                PROFILE_HEVC_MAIN,
+                PROFILE_HEVC_MAIN_STILL,
+                PROFILE_HEVC_MAIN_10,
+            };
 
-            MfxC2ParamStorage& pr = param_storage_;
-
-            pr.RegisterParam<C2RateControlSetting>("RateControl");
-            pr.RegisterParam<C2StreamFrameRateInfo::output>(C2_PARAMKEY_FRAME_RATE);
-            pr.RegisterParam<C2StreamBitrateInfo::output>(C2_PARAMKEY_BITRATE);
-            pr.RegisterParam<C2BitrateTuning::output>(MFX_C2_PARAMKEY_BITRATE_TUNING);
-
-            pr.RegisterParam<C2FrameQPSetting>("FrameQP");
-            const uint32_t MIN_QP = 1;
-            const uint32_t MAX_QP = 51;
-            pr.RegisterSupportedRange<C2FrameQPSetting>(&C2FrameQPSetting::qp_i, MIN_QP, MAX_QP);
-            pr.RegisterSupportedRange<C2FrameQPSetting>(&C2FrameQPSetting::qp_p, MIN_QP, MAX_QP);
-            pr.RegisterSupportedRange<C2FrameQPSetting>(&C2FrameQPSetting::qp_b, MIN_QP, MAX_QP);
-
-            pr.RegisterParam<C2IntraRefreshTuning>("IntraRefresh");
-            pr.RegisterSupportedRange<C2IntraRefreshTuning>(&C2IntraRefreshTuning::value, (int)false, (int)true);
-
-            pr.RegisterParam<C2ProfileSetting>("Profile");
-            pr.RegisterParam<C2LevelSetting>("Level");
-            pr.RegisterParam<C2ProfileLevelInfo::output>("SupportedProfilesLevels");
-
-            pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
-
-            pr.AddValue(C2_PARAMKEY_COMPONENT_DOMAIN,
-                std::make_unique<C2ComponentDomainSetting>(C2Component::DOMAIN_VIDEO));
-
-            pr.AddValue(C2_PARAMKEY_COMPONENT_KIND,
-                std::make_unique<C2ComponentKindSetting>(C2Component::KIND_ENCODER));
-
-            const unsigned int SINGLE_STREAM_ID = 0u;
-            pr.AddValue(C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE,
-                std::make_unique<C2StreamBufferTypeSetting::input>(SINGLE_STREAM_ID, C2BufferData::GRAPHIC));
-            pr.AddValue(C2_PARAMKEY_OUTPUT_STREAM_BUFFER_TYPE,
-                std::make_unique<C2StreamBufferTypeSetting::output>(SINGLE_STREAM_ID, C2BufferData::LINEAR));
-
-            pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
-                AllocUniqueString<C2PortMediaTypeSetting::input>("video/raw"));
-
-            if (encoder_type_ == ENCODER_H264) {
-                pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
-                    AllocUniqueString<C2PortMediaTypeSetting::output>("video/avc"));
-            } else {
-                pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
-                    AllocUniqueString<C2PortMediaTypeSetting::output>("video/hevc"));
-            }
-
-            pr.AddStreamInfo<C2StreamPictureSizeInfo::input>(
-                C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
-                [this] (C2StreamPictureSizeInfo::input* dst)->bool {
-                    MFX_DEBUG_TRACE("GetPictureSize");
-                    dst->width = video_params_config_.mfx.FrameInfo.Width;
-                    dst->height = video_params_config_.mfx.FrameInfo.Height;
-                    MFX_DEBUG_TRACE_STREAM(NAMED(dst->width) << NAMED(dst->height));
-                    return true;
-                },
-                [this] (const C2StreamPictureSizeInfo::input& src)->bool {
-                    MFX_DEBUG_TRACE("SetPictureSize");
-                    video_params_config_.mfx.FrameInfo.Width = MFX_MEM_ALIGN(src.width, 16);
-                    video_params_config_.mfx.FrameInfo.Height = MFX_MEM_ALIGN(src.height, 16);
-                    video_params_config_.mfx.FrameInfo.CropW = MFX_MEM_ALIGN(src.width, 16);
-                    video_params_config_.mfx.FrameInfo.CropH = MFX_MEM_ALIGN(src.height, 16);
-                    MFX_DEBUG_TRACE_STREAM(NAMED(src.width) << NAMED(src.height));
-                    return true;
-                }
-            );
-
-        break;
+            supported_levels = {
+                LEVEL_HEVC_MAIN_1,
+                LEVEL_HEVC_MAIN_2, LEVEL_HEVC_MAIN_2_1,
+                LEVEL_HEVC_MAIN_3, LEVEL_HEVC_MAIN_3_1,
+                LEVEL_HEVC_MAIN_4, LEVEL_HEVC_MAIN_4_1,
+                LEVEL_HEVC_MAIN_5, LEVEL_HEVC_MAIN_5_1,
+                LEVEL_HEVC_MAIN_5_2, LEVEL_HEVC_HIGH_4,
+                LEVEL_HEVC_HIGH_4_1, LEVEL_HEVC_HIGH_5,
+                LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
+            };
+            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
+                std::make_unique<C2StreamProfileLevelInfo::output>(0u, PROFILE_HEVC_MAIN, LEVEL_HEVC_MAIN_5_1));
+            break;
+        }
     }
+
+    pr.AddValue(C2_PARAMKEY_COMPONENT_DOMAIN,
+        std::make_unique<C2ComponentDomainSetting>(C2Component::DOMAIN_VIDEO));
+
+    pr.AddValue(C2_PARAMKEY_COMPONENT_KIND,
+        std::make_unique<C2ComponentKindSetting>(C2Component::KIND_ENCODER));
+
+    const unsigned int SINGLE_STREAM_ID = 0u;
+    pr.AddValue(C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE,
+        std::make_unique<C2StreamBufferTypeSetting::input>(SINGLE_STREAM_ID, C2BufferData::GRAPHIC));
+    pr.AddValue(C2_PARAMKEY_OUTPUT_STREAM_BUFFER_TYPE,
+        std::make_unique<C2StreamBufferTypeSetting::output>(SINGLE_STREAM_ID, C2BufferData::LINEAR));
+
+    pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
+        AllocUniqueString<C2PortMediaTypeSetting::input>("video/raw"));
+
+    if (encoder_type_ == ENCODER_H264) {
+        pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
+            AllocUniqueString<C2PortMediaTypeSetting::output>("video/avc"));
+    } else {
+        pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
+            AllocUniqueString<C2PortMediaTypeSetting::output>("video/hevc"));
+    }
+
+    pr.AddStreamInfo<C2StreamPictureSizeInfo::input>(
+        C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
+        [this] (C2StreamPictureSizeInfo::input* dst)->bool {
+            MFX_DEBUG_TRACE("GetPictureSize");
+            dst->width = video_params_config_.mfx.FrameInfo.Width;
+            dst->height = video_params_config_.mfx.FrameInfo.Height;
+            MFX_DEBUG_TRACE_STREAM(NAMED(dst->width) << NAMED(dst->height));
+            return true;
+        },
+        [this] (const C2StreamPictureSizeInfo::input& src)->bool {
+            MFX_DEBUG_TRACE("SetPictureSize");
+            video_params_config_.mfx.FrameInfo.Width = MFX_MEM_ALIGN(src.width, 16);
+            video_params_config_.mfx.FrameInfo.Height = MFX_MEM_ALIGN(src.height, 16);
+            video_params_config_.mfx.FrameInfo.CropW = MFX_MEM_ALIGN(src.width, 16);
+            video_params_config_.mfx.FrameInfo.CropH = MFX_MEM_ALIGN(src.height, 16);
+            MFX_DEBUG_TRACE_STREAM(NAMED(src.width) << NAMED(src.height));
+            return true;
+        }
+    );
+
+    // List all the supported profiles and levels
+    pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::profile, supported_profiles);
+    pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::level, supported_levels);
 
     param_storage_.DumpParams();
 }
@@ -1362,6 +1409,16 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 if (!set_res) {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
                 }
+                break;
+            }
+            case kParamIndexProfileLevel: {
+                const C2StreamProfileLevelInfo* info = static_cast<const C2StreamProfileLevelInfo*>(param);
+                if(info == nullptr) {
+                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::MISMATCH));
+                    break;
+                }
+                video_params_config_.mfx.CodecProfile = info->profile;
+                video_params_config_.mfx.CodecLevel = info->level;
                 break;
             }
             case kParamIndexMemoryType: {
