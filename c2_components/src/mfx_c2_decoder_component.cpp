@@ -1551,6 +1551,13 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
     MFX_DEBUG_TRACE_I32(mfx_surface->Data.Locked);
     MFX_DEBUG_TRACE_I64(mfx_surface->Data.TimeStamp);
 
+#if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
+    static int frameIndex = 0;
+    uint8_t stride = frame_out.GetC2GraphicView()->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
+    static YUVWriter writer("/data/local/tmp",std::vector<std::string>({}),"decoder_frame.log");
+    writer.Write(mfx_surface->Data.Y, stride, frame_out.GetC2GraphicBlock()->height(), frameIndex++);
+#endif
+
     decltype(C2WorkOrdinalStruct::timestamp) ready_timestamp{mfx_surface->Data.TimeStamp};
 
     std::unique_ptr<C2Work> work;
