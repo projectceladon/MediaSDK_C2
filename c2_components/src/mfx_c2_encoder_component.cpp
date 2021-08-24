@@ -657,7 +657,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         }
 
         C2FrameData& input = work->input;
-        MfxC2FrameIn mfx_frame;
+        MfxC2FrameIn mfx_frame_in;
 
         if (!vpp_determined_) {
             mfxStatus mfx_sts = InitVPP(input);
@@ -699,16 +699,16 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 unique_mfx_frame.get());
 
             vpp_.ProcessFrameVpp(unique_mfx_frame.get(), &pSurfaceToEncode);
-            res = MfxC2FrameIn::Create(NULL, std::move(c_graph_view), input, pSurfaceToEncode, &mfx_frame);
+            res = mfx_frame_in.init(NULL, std::move(c_graph_view), input, pSurfaceToEncode);
         } else {
-            res = MfxC2FrameIn::Create(frame_converter, input, video_params_config_.mfx.FrameInfo, TIMEOUT_NS, &mfx_frame);
+            res = mfx_frame_in.init(frame_converter, input, video_params_config_.mfx.FrameInfo, TIMEOUT_NS);
         }
         if(C2_OK != res) break;
 
         if(nullptr == encoder_) {
             // get frame format and size for encoder init from the first frame
             // should be got from slot descriptor
-            mfxStatus mfx_sts = InitEncoder(mfx_frame.GetMfxFrameSurface()->Info);
+            mfxStatus mfx_sts = InitEncoder(mfx_frame_in.GetMfxFrameSurface()->Info);
             if(MFX_ERR_NONE != mfx_sts) {
                 MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
                 res = MfxStatusToC2(mfx_sts);
@@ -728,7 +728,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         std::unique_ptr<mfxEncodeCtrl> encode_ctrl = encoder_control_.AcquireEncodeCtrl();
 
         mfxStatus mfx_sts = EncodeFrameAsync(encode_ctrl.get(),
-            mfx_frame.GetMfxFrameSurface(), mfx_bitstream.GetMfxBitstream(), &sync_point);
+            mfx_frame_in.GetMfxFrameSurface(), mfx_bitstream.GetMfxBitstream(), &sync_point);
 
         if (MFX_WRN_INCOMPATIBLE_VIDEO_PARAM == mfx_sts) mfx_sts = MFX_ERR_NONE;
 
@@ -738,7 +738,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             break;
         }
 
-        waiting_queue_.Push( [ mfx_frame = std::move(mfx_frame), this ] () mutable {
+        waiting_queue_.Push( [ mfx_frame = std::move(mfx_frame_in), this ] () mutable {
             RetainLockedFrame(std::move(mfx_frame));
         } );
 

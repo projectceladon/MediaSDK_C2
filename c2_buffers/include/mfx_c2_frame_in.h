@@ -34,19 +34,20 @@ public:
     MfxC2FrameIn(MfxC2FrameIn&& other) = default;
     ~MfxC2FrameIn();
 
-    static c2_status_t Create(std::shared_ptr<MfxFrameConverter> frame_converter,  std::unique_ptr<const C2GraphicView> c_graph_view,
-        C2FrameData& buf_pack, mfxFrameSurface1 *mfx_frame, MfxC2FrameIn* wrapper);
+    c2_status_t init(std::shared_ptr<MfxFrameConverter> frame_converter,  std::unique_ptr<const C2GraphicView> c_graph_view,
+        C2FrameData& buf_pack, mfxFrameSurface1 *mfx_frame);
 
-    static c2_status_t Create(std::shared_ptr<MfxFrameConverter> frame_converter,
-        C2FrameData& buf_pack, const mfxFrameInfo& info, c2_nsecs_t timeout, MfxC2FrameIn* wrapper);
+    c2_status_t init(std::shared_ptr<MfxFrameConverter> frame_converter,
+        C2FrameData& buf_pack, const mfxFrameInfo& info, c2_nsecs_t timeout);
 
     mfxFrameSurface1* GetMfxFrameSurface() const
     {
-        return mfx_frame_;
+        return mfx_frame_surface_;
     }
 private:
     std::shared_ptr<C2Buffer> c2_buffer_;
     std::unique_ptr<const C2GraphicView> c2_graphic_view_;
-    mfxFrameSurface1 *mfx_frame_;
+    mfxFrameSurface1 *mfx_frame_surface_;
+    std::shared_ptr<uint8_t> yuv_data_; //only for sw frame
     std::shared_ptr<MfxFrameConverter> frame_converter_;
 };

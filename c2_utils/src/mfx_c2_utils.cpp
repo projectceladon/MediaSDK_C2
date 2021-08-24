@@ -640,6 +640,57 @@ BinaryWriter::BinaryWriter(const std::string& dir,
     stream_.open(full_name.str().c_str(), std::fstream::trunc | std::fstream::binary);
 }
 
+YUVWriter::YUVWriter(const std::string& dir,
+    const std::vector<std::string>& sub_dirs, const std::string& name)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    std::stringstream full_name;
+    full_name << dir << "/";
+
+    for(const std::string& sub_dir : sub_dirs) {
+        full_name << sub_dir;
+
+        bool dir_exists = false;
+
+        struct stat info;
+
+        if (stat(full_name.str().c_str(), &info) == 0) {
+            dir_exists = (info.st_mode & S_IFDIR) != 0;
+        }
+
+        if (!dir_exists) {
+            MFX_DEBUG_TRACE_STREAM(NAMED(full_name.str()));
+            mkdir(full_name.str().c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+        }
+
+        full_name << "/";
+    }
+
+    full_name << name;
+    stream_.open(full_name.str().c_str()/*, std::ios::app*/);
+}
+
+void YUVWriter::Write(const uint8_t* yuv_data, int stride, int height, int frameIndex) {
+    stream_ << "frame " << frameIndex << std::endl;
+
+    for(int i = 0; i < height; i++) {
+        for(int j = 0; j < stride; j++) {
+            stream_ << (int)yuv_data[i*stride + j] << " ";
+        }
+        stream_ << std::endl;
+    }
+    stream_ << std::endl;
+
+    auto ptr = &yuv_data[stride * height];
+    for(int i = 0; i < height/2; i++) {
+        for(int j = 0; j < stride; j++) {
+            stream_ << (int)ptr[i*stride + j] << " ";
+        }
+        stream_ << std::endl;
+    }
+}
+
 bool IsYUV420(const C2GraphicView &view) {
     const C2PlanarLayout &layout = view.layout();
     return (layout.numPlanes == 3

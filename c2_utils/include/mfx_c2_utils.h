@@ -164,6 +164,21 @@ private:
     std::ofstream stream_;
 };
 
+// Writes YUV format frame to file.It useful for debug.
+class YUVWriter
+{
+public:
+    YUVWriter(const std::string& dir,
+        const std::vector<std::string>& sub_dirs, const std::string& name);
+
+    //TODO:
+    //Only support NV12 for now.
+    void Write(const uint8_t* yuv_data, int stride, int height, int frameIndex/*, int fourCC*/);
+
+private:
+    std::ofstream stream_;
+};
+
 //declare used extension buffers
 template<class T>
 struct mfx_ext_buffer_id{};

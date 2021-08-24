@@ -34,38 +34,31 @@ using namespace android;
 MfxC2FrameIn::~MfxC2FrameIn()
 {
     MFX_DEBUG_TRACE_FUNC;
-
-    if (frame_converter_ && mfx_frame_ && mfx_frame_->Data.MemId) {
-        frame_converter_->FreeGrallocToVaMapping(mfx_frame_->Data.MemId);
-        free(mfx_frame_);
-        mfx_frame_ = NULL;
+    if (frame_converter_ && mfx_frame_surface_ && mfx_frame_surface_->Data.MemId) {
+        frame_converter_->FreeGrallocToVaMapping(mfx_frame_surface_->Data.MemId);
+        delete mfx_frame_surface_;
+        mfx_frame_surface_ = nullptr;
     }
 }
 
-c2_status_t MfxC2FrameIn::Create(std::shared_ptr<MfxFrameConverter> frame_converter,  std::unique_ptr<const C2GraphicView> c_graph_view,
-        C2FrameData& buf_pack, mfxFrameSurface1 *mfx_frame, MfxC2FrameIn* wrapper)
+c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converter,  std::unique_ptr<const C2GraphicView> c_graph_view,
+        C2FrameData& buf_pack, mfxFrameSurface1 *mfx_frame)
 {
-    wrapper->c2_graphic_view_ = std::move(c_graph_view);
-    wrapper->frame_converter_ = frame_converter;
-    wrapper->mfx_frame_ = mfx_frame;
-    wrapper->c2_buffer_ = std::move(buf_pack.buffers.front());
+    c2_graphic_view_ = std::move(c_graph_view);
+    frame_converter_ = frame_converter;
+    mfx_frame_surface_ = mfx_frame;
+    c2_buffer_ = std::move(buf_pack.buffers.front());
 
     return C2_OK;
 }
 
-c2_status_t MfxC2FrameIn::Create(std::shared_ptr<MfxFrameConverter> frame_converter,
-    C2FrameData& buf_pack, const mfxFrameInfo& info, c2_nsecs_t timeout, MfxC2FrameIn* wrapper)
+c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converter,
+    C2FrameData& buf_pack, const mfxFrameInfo& info, c2_nsecs_t timeout)
 {
     MFX_DEBUG_TRACE_FUNC;
-
     c2_status_t res = C2_OK;
 
     do {
-        if (nullptr == wrapper) {
-            res = C2_BAD_VALUE;
-            break;
-        }
-
         std::unique_ptr<C2ConstGraphicBlock> c_graph_block;
         res = GetC2ConstGraphicBlock(buf_pack, &c_graph_block);
         if(C2_OK != res) break;
@@ -94,51 +87,63 @@ c2_status_t MfxC2FrameIn::Create(std::shared_ptr<MfxFrameConverter> frame_conver
                 mem_id, c_graph_block->width(), c_graph_block->height(), MFX_FOURCC_NV12, info,
                 mfx_frame);
         } else {
-            res = MapConstGraphicBlock(*c_graph_block, timeout, &wrapper->c2_graphic_view_);
+            res = MapConstGraphicBlock(*c_graph_block, timeout, &c2_graphic_view_);
             if(C2_OK != res) break;
 
-            const uint8_t *pY = wrapper->c2_graphic_view_->data()[C2PlanarLayout::PLANE_Y];
-            const uint8_t *pU = wrapper->c2_graphic_view_->data()[C2PlanarLayout::PLANE_U];
-            const uint8_t *pV = wrapper->c2_graphic_view_->data()[C2PlanarLayout::PLANE_V];
+            const uint8_t *pY = c2_graphic_view_->data()[C2PlanarLayout::PLANE_Y];
+            const uint8_t *pU = c2_graphic_view_->data()[C2PlanarLayout::PLANE_U];
+            const uint8_t *pV = c2_graphic_view_->data()[C2PlanarLayout::PLANE_V];
 
             uint32_t width = c_graph_block->width();
             uint32_t height = c_graph_block->height();
-            uint32_t stride = wrapper->c2_graphic_view_->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
+            uint32_t stride = c2_graphic_view_->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
             uint32_t y_plane_size = stride * height;
-            if (IsNV12(*wrapper->c2_graphic_view_)) {
+
+            if (IsNV12(*c2_graphic_view_)) {
 
                 InitMfxFrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
-                    wrapper->c2_graphic_view_->data(),
+                    c2_graphic_view_->data(),
                     width, height, stride, MFX_FOURCC_NV12, info,
                     mfx_frame);
-            } else if (IsI420(*wrapper->c2_graphic_view_) || IsYV12(*wrapper->c2_graphic_view_)) {
-                static uint8_t yuv_data[WIDTH_4K * HEIGHT_4K * 3 / 2];
+            } else if (IsI420(*c2_graphic_view_) || IsYV12(*c2_graphic_view_)) {
+
+                if (stride * height * 3 / 2 > WIDTH_4K * HEIGHT_4K * 3 / 2) {
+                    MFX_DEBUG_TRACE_PRINTF("not enough memory to complete operation");
+                    res = C2_NO_MEMORY;
+                    break;
+                }
+                yuv_data_ = std::shared_ptr<uint8_t>(new uint8_t[WIDTH_4K * HEIGHT_4K * 3 / 2], std::default_delete<uint8_t[]>());
 
                 //IYUV or YV12 to NV12 conversion
-                memcpy(yuv_data, pY, y_plane_size);
+                memcpy(yuv_data_.get(), pY, y_plane_size);
 
-                uint32_t i = 0, j = 0;
-                for (j = 0; j < height / 2; j++) {
-                    uint8_t *ptr = &yuv_data[y_plane_size + j * stride];
-                    for (i = 0; i < stride / 2; i++) {
-                        memcpy(&ptr[i * 2], &pU[i], 1);
-                        memcpy(&ptr[i * 2 + 1], &pV[i], 1);
+                for (int j = 0; j < height / 2; j++) {
+                    uint8_t *ptr = yuv_data_.get() + y_plane_size + j * stride;
+                    for (int i = 0; i < stride / 2; i++) {
+                        memcpy(&ptr[i * 2], &pU[j*stride/2 + i], 1);
+                        memcpy(&ptr[i * 2 + 1], &pV[j*stride/2 + i], 1);
                     }
                 }
 
+#if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
+                static int frameIndex = 0;
+                static YUVWriter writer("/data/local/tmp",std::vector<std::string>({}),"encoder_frame.log");
+                writer.Write(yuv_data_.get(), stride, height, frameIndex++);
+#endif
+
                 InitMfxFrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
-                    yuv_data, width, height, stride, MFX_FOURCC_NV12, info,
-                    mfx_frame);
+                                        yuv_data_.get(), width, height, stride, MFX_FOURCC_NV12, info,
+                                        mfx_frame);
            } else {
-               ALOGE("%s, unsupported format", __func__);
+               MFX_DEBUG_TRACE_PRINTF("unsupported format");
                res = C2_BAD_VALUE;
                break;
            }
         }
 
-        wrapper->frame_converter_ = frame_converter;
-        wrapper->mfx_frame_ = mfx_frame;
-        wrapper->c2_buffer_ = std::move(buf_pack.buffers.front());
+        frame_converter_ = frame_converter;
+        mfx_frame_surface_ = mfx_frame;
+        c2_buffer_ = std::move(buf_pack.buffers.front());
 
     } while(false);
 
