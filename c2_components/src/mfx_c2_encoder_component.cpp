@@ -36,6 +36,7 @@
 #include <iomanip>
 #include <C2AllocatorGralloc.h>
 #include <C2Config.h>
+#include <Codec2Mapper.h>
 
 using namespace android;
 
@@ -43,6 +44,8 @@ using namespace android;
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_encoder_component"
 
 const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
+const mfxU32 MFX_MAX_H264_FRAMERATE = 172;
+const mfxU32 MFX_MAX_H265_FRAMERATE = 300;
 
 std::unique_ptr<mfxEncodeCtrl> EncoderControl::AcquireEncodeCtrl()
 {
@@ -102,6 +105,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
     pr.RegisterParam<C2LevelSetting>("Level");
     pr.RegisterParam<C2ProfileLevelInfo::output>("SupportedProfilesLevels");
 
+    pr.RegisterParam<C2StreamInitDataInfo::output>(C2_PARAMKEY_INIT_DATA);
     pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
 
     switch(encoder_type_) {
@@ -171,6 +175,9 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
         pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
             AllocUniqueString<C2PortMediaTypeSetting::output>("video/hevc"));
     }
+
+    pr.AddValue(C2_PARAMKEY_BITRATE_MODE,
+        std::make_unique<C2StreamBitrateModeTuning::output>(SINGLE_STREAM_ID, C2Config::bitrate_mode_t::BITRATE_CONST));
 
     pr.AddStreamInfo<C2StreamPictureSizeInfo::input>(
         C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
@@ -1285,6 +1292,18 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
             }
             case kParamIndexFrameRate: {
                 float framerate_value = static_cast<const C2StreamFrameRateInfo*>(param)->value;
+
+                if (encoder_type_ == ENCODER_H264 && framerate_value > MFX_MAX_H264_FRAMERATE) {
+                    framerate_value = MFX_MAX_H264_FRAMERATE;
+                }
+                else if (encoder_type_ == ENCODER_H265 && framerate_value > MFX_MAX_H265_FRAMERATE) {
+                    framerate_value = MFX_MAX_H265_FRAMERATE;
+                }
+                else {
+                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE));
+                    break;
+                }
+
                 video_params_config_.mfx.FrameInfo.FrameRateExtN = uint64_t(framerate_value * 1000); // keep 3 sign after dot
                 video_params_config_.mfx.FrameInfo.FrameRateExtD = 1000;
                 break;
@@ -1338,6 +1357,31 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                         C2SettingResult::CONFLICT, MakeVector(MakeC2ParamField<C2RateControlSetting>())));
                 }
                 break;
+            case kParamIndexBitrateMode: {
+                C2Config::bitrate_mode_t c2_bitmode = static_cast<const C2StreamBitrateModeTuning*>(param)->value;
+                int32_t bitrate_mode = -1;
+                C2Mapper::map(c2_bitmode, &bitrate_mode);
+                MFX_DEBUG_TRACE_U32(bitrate_mode);
+                mfxStatus sts = MFX_ERR_NONE;
+                switch (bitrate_mode) {
+                    case C2RateControlCBR:
+                        sts = mfx_set_RateControlMethod(MFX_RATECONTROL_CBR, &video_params_config_);
+                        break;
+                    case C2RateControlVBR:
+                        sts = mfx_set_RateControlMethod(MFX_RATECONTROL_VBR, &video_params_config_);
+                        break;
+                    case C2RateControlCQP:
+                        sts = mfx_set_RateControlMethod(MFX_RATECONTROL_CQP, &video_params_config_);
+                        break;
+                    default:
+                        sts = MFX_ERR_INVALID_VIDEO_PARAM;
+                        break;
+                }
+                if(MFX_ERR_NONE != sts) {
+                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
+                }
+                break;
+            }
             case kParamIndexFrameQP: {
                 const C2FrameQPSetting* qp_setting = static_cast<const C2FrameQPSetting*>(param);
                     if(video_params_config_.mfx.RateControlMethod != MFX_RATECONTROL_CQP) {

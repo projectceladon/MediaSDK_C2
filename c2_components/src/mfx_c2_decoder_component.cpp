@@ -967,7 +967,7 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
 
                 if (outputPools && outputPools->flexCount() >= 1) {
                     output_pool_id_ = outputPools->m.values[0];
-                    MFX_DEBUG_TRACE_PRINTF("config kParamIndexBlockPools to %d",output_pool_id_);
+                    MFX_DEBUG_TRACE_PRINTF("config kParamIndexBlockPools to %lu",output_pool_id_);
                 }
                 else {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
