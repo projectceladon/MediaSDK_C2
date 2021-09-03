@@ -108,6 +108,8 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
     pr.RegisterParam<C2StreamInitDataInfo::output>(C2_PARAMKEY_INIT_DATA);
     pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
 
+    pr.RegisterParam<C2StreamGopTuning::output>(C2_PARAMKEY_GOP);
+
     switch(encoder_type_) {
         case ENCODER_H264: {
             supported_profiles = {
@@ -1461,8 +1463,18 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::MISMATCH));
                     break;
                 }
-                video_params_config_.mfx.CodecProfile = info->profile;
-                video_params_config_.mfx.CodecLevel = info->level;
+                switch (encoder_type_) {
+                    case ENCODER_H264:
+                        AvcProfileAndroidToMfx(info->profile, &video_params_config_.mfx.CodecProfile);
+                        AvcLevelAndroidToMfx(info->level, &video_params_config_.mfx.CodecLevel);
+                        break;
+                    case ENCODER_H265:
+                        HevcProfileAndroidToMfx(info->profile, &video_params_config_.mfx.CodecProfile);
+                        HevcLevelAndroidToMfx(info->level, &video_params_config_.mfx.CodecLevel);
+                        break;
+                    default:
+                        break;
+                }
                 break;
             }
             case kParamIndexMemoryType: {
@@ -1471,6 +1483,12 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 if (!set_res) {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
                 }
+                break;
+            }
+            case kParamIndexGop: {
+                const C2StreamGopTuning* setting = static_cast<const C2StreamGopTuning*>(param);
+                video_params_config_.mfx.GopPicSize = setting->m.values[0].count;
+                MFX_DEBUG_TRACE_I32(video_params_config_.mfx.GopPicSize);
                 break;
             }
             default:
@@ -1535,7 +1553,7 @@ c2_status_t MfxC2EncoderComponent::Queue(std::list<std::unique_ptr<C2Work>>* con
                 DoWork(std::move(work));
             } );
 
-            if(eos) {
+            if(eos || !pending_works_.empty()) {
                 working_queue_.Push( [this] () { Drain(nullptr); } );
             }
         }
