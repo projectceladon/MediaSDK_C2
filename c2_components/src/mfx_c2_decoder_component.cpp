@@ -74,6 +74,9 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     pr.AddValue(C2_PARAMKEY_COMPONENT_NAME,
         AllocUniqueString<C2ComponentNameSetting>(name.c_str()));
 
+    pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
+                    AllocUniqueString<C2PortMediaTypeSetting::output>("video/raw"));
+
     const unsigned int SINGLE_STREAM_ID = 0u;
     pr.AddValue(C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE,
         std::make_unique<C2StreamBufferTypeSetting::input>(SINGLE_STREAM_ID, C2BufferData::LINEAR));
