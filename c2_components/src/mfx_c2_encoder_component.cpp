@@ -110,6 +110,8 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
 
     pr.RegisterParam<C2StreamGopTuning::output>(C2_PARAMKEY_GOP);
 
+    const unsigned int SINGLE_STREAM_ID = 0u;
+
     switch(encoder_type_) {
         case ENCODER_H264: {
             supported_profiles = {
@@ -129,7 +131,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
                 LEVEL_AVC_5, LEVEL_AVC_5_1, LEVEL_AVC_5_2,
             };
             pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
-                std::make_unique<C2StreamProfileLevelInfo::output>(0u, PROFILE_AVC_CONSTRAINED_BASELINE, LEVEL_AVC_5_2));
+                std::make_unique<C2StreamProfileLevelInfo::output>(SINGLE_STREAM_ID, PROFILE_AVC_CONSTRAINED_BASELINE, LEVEL_AVC_5_2));
             break;
         }
         case ENCODER_H265: {
@@ -150,7 +152,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
                 LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
             };
             pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
-                std::make_unique<C2StreamProfileLevelInfo::output>(0u, PROFILE_HEVC_MAIN, LEVEL_HEVC_MAIN_5_1));
+                std::make_unique<C2StreamProfileLevelInfo::output>(SINGLE_STREAM_ID, PROFILE_HEVC_MAIN, LEVEL_HEVC_MAIN_5_1));
             break;
         }
     }
@@ -161,7 +163,6 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
     pr.AddValue(C2_PARAMKEY_COMPONENT_KIND,
         std::make_unique<C2ComponentKindSetting>(C2Component::KIND_ENCODER));
 
-    const unsigned int SINGLE_STREAM_ID = 0u;
     pr.AddValue(C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE,
         std::make_unique<C2StreamBufferTypeSetting::input>(SINGLE_STREAM_ID, C2BufferData::GRAPHIC));
     pr.AddValue(C2_PARAMKEY_OUTPUT_STREAM_BUFFER_TYPE,
@@ -553,8 +554,17 @@ mfxStatus MfxC2EncoderComponent::EncodeFrameAsync(
             break;
         }
 
+        MFX_DEBUG_TRACE_STREAM("received MFX_WRN_DEVICE_BUSY [trying_count = " << trying_count << ", synced_points_count_ = " <<
+            synced_points_count_.load() << "]");
         std::unique_lock<std::mutex> lock(dev_busy_mutex_);
-        dev_busy_cond_.wait_for(lock, timeout, [this] { return synced_points_count_ < video_params_state_.AsyncDepth; } );
+        dev_busy_cond_.wait_for(lock, timeout, [this] {
+            if (synced_points_count_ < video_params_state_.AsyncDepth) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                return true;
+            }
+            else {
+                return false;
+            }});
       }
     } while (MFX_WRN_DEVICE_BUSY == sts);
 
