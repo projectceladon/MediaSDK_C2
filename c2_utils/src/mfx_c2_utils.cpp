@@ -39,8 +39,6 @@ c2_status_t MfxStatusToC2(mfxStatus mfx_status)
         case MFX_ERR_INVALID_HANDLE:
         case MFX_ERR_INCOMPATIBLE_VIDEO_PARAM:
         case MFX_ERR_INVALID_VIDEO_PARAM:
-        case MFX_ERR_INCOMPATIBLE_AUDIO_PARAM:
-        case MFX_ERR_INVALID_AUDIO_PARAM:
             return C2_BAD_VALUE;
 
         case MFX_ERR_UNSUPPORTED:

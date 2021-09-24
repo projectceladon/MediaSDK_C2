@@ -37,5 +37,9 @@ public:
     virtual std::shared_ptr<MfxFrameConverter> GetFrameConverter() override { return nullptr; }
     virtual std::shared_ptr<MfxFramePoolAllocator> GetFramePoolAllocator() override { return nullptr; }
 
+#ifdef USE_ONEVPL
+    virtual mfxStatus InitMfxSession(mfxSession session) override;
+#else
     virtual mfxStatus InitMfxSession(MFXVideoSession* session) override;
+#endif
 };

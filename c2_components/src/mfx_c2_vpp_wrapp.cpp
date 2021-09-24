@@ -29,7 +29,11 @@
 
 MfxC2VppWrapp::MfxC2VppWrapp(void):
     vpp_(NULL),
+#ifdef USE_ONEVPL
+    m_mfxSession(NULL),
+#else
     session_(NULL),
+#endif
     num_vpp_surfaces_(0)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -55,9 +59,14 @@ mfxStatus MfxC2VppWrapp::Init(MfxC2VppWrappParam *param)
     if (MFX_ERR_NONE == sts)
     {
         allocator_ = param->allocator;
+#ifdef USE_ONEVPL
+        m_mfxSession = param->session;
+        MFX_NEW(vpp_, MFXVideoVPP(m_mfxSession));
+#else
         session_ = param->session;
-
         MFX_NEW(vpp_, MFXVideoVPP(*session_));
+#endif
+
         if(!vpp_) sts = MFX_ERR_UNKNOWN;
 
         if (MFX_ERR_NONE == sts) sts = FillVppParams(param->frame_info, param->conversion);
@@ -99,7 +108,11 @@ mfxStatus MfxC2VppWrapp::Close(void)
     MFX_ZERO_MEMORY(responses_);
     MFX_ZERO_MEMORY(vpp_srf_);
     num_vpp_surfaces_ = 0;
+#ifdef USE_ONEVPL
+    m_mfxSession = NULL;
+#else
     session_ = NULL;
+#endif
     allocator_.reset();
 
     MFX_DEBUG_TRACE_I32(sts);
@@ -207,7 +220,12 @@ mfxStatus MfxC2VppWrapp::ProcessFrameVpp(mfxFrameSurface1 *in_srf, mfxFrameSurfa
     if (outSurface)
     {
         sts = vpp_->RunFrameVPPAsync(in_srf, outSurface, NULL, &syncp);
-        if (MFX_ERR_NONE == sts) sts = session_->SyncOperation(syncp, MFX_TIMEOUT_INFINITE);
+        if (MFX_ERR_NONE == sts)
+#ifdef USE_ONEVPL
+            sts = MFXVideoCORE_SyncOperation(m_mfxSession, syncp, MFX_TIMEOUT_INFINITE);
+#else
+            sts = session_->SyncOperation(syncp, MFX_TIMEOUT_INFINITE);
+#endif
     }
     else sts = MFX_ERR_MORE_SURFACE;
 

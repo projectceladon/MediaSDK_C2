@@ -122,6 +122,44 @@ mfxStatus MfxDevVa::Close()
     return res;
 }
 
+#ifdef USE_ONEVPL
+mfxStatus MfxDevVa::InitMfxSession(mfxSession session)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxStatus mfx_res = MFX_ERR_NONE;
+    ALOGI("%s, session = %p", __func__, session);
+
+    MFX_DEBUG_TRACE_P(session);
+
+    if(session != nullptr) {
+        mfx_res =  MFXVideoCORE_SetHandle(session, static_cast<mfxHandleType>(MFX_HANDLE_VA_DISPLAY), (mfxHDL)va_display_);
+        MFX_DEBUG_TRACE_MSG("SetHandle result:");
+        MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+
+        if(mfx_res == MFX_ERR_UNDEFINED_BEHAVIOR) {
+            MFX_DEBUG_TRACE_MSG("Check if the same handle is already set");
+            VADisplay dpy = NULL;
+            mfxStatus sts = MFXVideoCORE_GetHandle(session, static_cast<mfxHandleType>(MFX_HANDLE_VA_DISPLAY), (mfxHDL*)&dpy);
+            if(sts == MFX_ERR_NONE) {
+                if(dpy == va_display_) {
+                    MFX_DEBUG_TRACE_MSG("Same display handle is already set, not an error");
+                    mfx_res = MFX_ERR_NONE;
+                }
+                else {
+                    MFX_DEBUG_TRACE_MSG("Different display handle is set");
+                }
+            } else {
+                MFX_DEBUG_TRACE_MSG("GetHandle failed:");
+                MFX_DEBUG_TRACE__mfxStatus(sts);
+            }
+        }
+    } else {
+        mfx_res = MFX_ERR_NULL_PTR;
+    }
+    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+    return mfx_res;
+}
+#else
 mfxStatus MfxDevVa::InitMfxSession(MFXVideoSession* session)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -158,6 +196,7 @@ mfxStatus MfxDevVa::InitMfxSession(MFXVideoSession* session)
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }
+#endif
 
 std::shared_ptr<MfxFrameAllocator> MfxDevVa::GetFrameAllocator()
 {

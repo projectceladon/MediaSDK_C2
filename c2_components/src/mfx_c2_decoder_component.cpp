@@ -53,6 +53,10 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     std::shared_ptr<MfxC2ParamReflector> reflector, DecoderType decoder_type) :
         MfxC2Component(name, config, std::move(reflector)),
         decoder_type_(decoder_type),
+#ifdef USE_ONEVPL
+        m_mfxSession(nullptr),
+        m_mfxLoader(nullptr),
+#endif
         initialized_(false),
         synced_points_count_(0),
         set_hdr_sei_(false)
@@ -82,6 +86,10 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         std::make_unique<C2StreamBufferTypeSetting::input>(SINGLE_STREAM_ID, C2BufferData::LINEAR));
     pr.AddValue(C2_PARAMKEY_OUTPUT_STREAM_BUFFER_TYPE,
         std::make_unique<C2StreamBufferTypeSetting::output>(SINGLE_STREAM_ID, C2BufferData::GRAPHIC));
+
+    // Supported output format
+    pr.AddValue(C2_PARAMKEY_PIXEL_FORMAT,
+        std::make_unique<C2StreamPixelFormatInfo::output>(SINGLE_STREAM_ID, HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL));
 
     pr.AddStreamInfo<C2StreamPictureSizeInfo::output>(
         C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
@@ -396,7 +404,7 @@ void MfxC2DecoderComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
     registry.RegisterMfxC2Component("c2.intel.vp9.decoder",
         &MfxC2Component::Factory<MfxC2DecoderComponent, DecoderType>::Create<DECODER_VP9>);
 
-	registry.RegisterMfxC2Component("c2.intel.vp8.decoder",
+    registry.RegisterMfxC2Component("c2.intel.vp8.decoder",
         &MfxC2Component::Factory<MfxC2DecoderComponent, DecoderType>::Create<DECODER_VP8>);
 
     registry.RegisterMfxC2Component("c2.intel.mp2.decoder",
@@ -439,7 +447,11 @@ c2_status_t MfxC2DecoderComponent::DoStart()
 
         if (allocator_required != allocator_set_) {
 
+#ifdef USE_ONEVPL
+            mfx_res = MFXClose(m_mfxSession);
+#else
             mfx_res = session_.Close();
+#endif
             if (MFX_ERR_NONE != mfx_res) break;
 
             mfx_res = InitSession();
@@ -448,11 +460,18 @@ c2_status_t MfxC2DecoderComponent::DoStart()
             // set frame allocator
             if (allocator_required) {
                 allocator_ = device_->GetFramePoolAllocator();
+#ifdef USE_ONEVPL
+                mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, &(device_->GetFrameAllocator()->GetMfxAllocator()));
+#else
                 mfx_res = session_.SetFrameAllocator(&(device_->GetFrameAllocator()->GetMfxAllocator()));
-
+#endif
             } else {
                 allocator_ = nullptr;
+#ifdef USE_ONEVPL
+                mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, nullptr);
+#else
                 mfx_res = session_.SetFrameAllocator(nullptr);
+#endif
             }
             if (MFX_ERR_NONE != mfx_res) break;
 
@@ -513,8 +532,17 @@ c2_status_t MfxC2DecoderComponent::Release()
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
+    mfxStatus sts = MFX_ERR_NONE;
 
-    mfxStatus sts = session_.Close();
+#ifdef USE_ONEVPL
+    if (m_mfxSession) {
+        MFXClose(m_mfxSession);
+        m_mfxSession = nullptr;
+    }
+#else
+    sts = session_.Close();
+#endif
+
     if (MFX_ERR_NONE != sts) res = MfxStatusToC2(sts);
 
     if (device_) {
@@ -523,6 +551,14 @@ c2_status_t MfxC2DecoderComponent::Release()
 
         device_ = nullptr;
     }
+
+#ifdef USE_ONEVPL
+    if (m_mfxLoader) {
+        MFXUnload(m_mfxLoader);
+        m_mfxLoader = nullptr;
+    }
+#endif
+
     return res;
 }
 
@@ -559,6 +595,99 @@ void MfxC2DecoderComponent::InitFrameConstructor()
     c2_bitstream_ = std::make_unique<MfxC2BitstreamIn>(fc_type);
 }
 
+#ifdef USE_ONEVPL
+mfxStatus MfxC2DecoderComponent::InitSession()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    mfxStatus mfx_res = MFX_ERR_NONE;
+    mfxConfig cfg[2];
+    mfxVariant cfgVal[2];
+
+    m_mfxLoader = MFXLoad();
+    if (nullptr == m_mfxLoader) {
+        ALOGE("MFXLoad failed...is implementation in path?");
+        return MFX_ERR_UNKNOWN;
+    }
+
+    /* Create configurations for implementation */
+    cfg[0] = MFXCreateConfig(m_mfxLoader);
+    if (!cfg[0]) {
+        ALOGE("Failed to create a MFX configuration");
+        MFXUnload(m_mfxLoader);
+        return MFX_ERR_UNKNOWN;
+    }
+
+    cfgVal[0].Type = MFX_VARIANT_TYPE_U32;
+    cfgVal[0].Data.U32 = (mfx_implementation_ == MFX_IMPL_SOFTWARE) ? MFX_IMPL_TYPE_SOFTWARE : MFX_IMPL_TYPE_HARDWARE;
+    mfx_res = MFXSetConfigFilterProperty(cfg[0], (const mfxU8 *) "mfxImplDescription.Impl", cfgVal[0]);
+    if (MFX_ERR_NONE != mfx_res) {
+        ALOGE("Failed to add an additional MFX configuration (%d)", mfx_res);
+        MFXUnload(m_mfxLoader);
+        return MFX_ERR_UNKNOWN;
+    }
+
+    cfg[1] = MFXCreateConfig(m_mfxLoader);
+    if (!cfg[1]) {
+        ALOGE("Failed to create a MFX configuration");
+        MFXUnload(m_mfxLoader);
+        return MFX_ERR_UNKNOWN;
+    }
+
+    cfgVal[1].Type = MFX_VARIANT_TYPE_U32;
+    cfgVal[1].Data.U32 = MFX_VERSION;
+    mfx_res = MFXSetConfigFilterProperty(cfg[1], (const mfxU8 *) "mfxImplDescription.ApiVersion.Version", cfgVal[1]);
+    if (MFX_ERR_NONE != mfx_res) {
+        ALOGE("Failed to add an additional MFX configuration (%d)", mfx_res);
+        MFXUnload(m_mfxLoader);
+        return MFX_ERR_UNKNOWN;
+    }
+
+    while (1) {
+        /* Enumerate all implementations */
+        uint32_t idx = 0;
+        mfxImplDescription *idesc;
+        mfx_res = MFXEnumImplementations(m_mfxLoader, idx, MFX_IMPLCAPS_IMPLDESCSTRUCTURE, (mfxHDL *)&idesc);
+
+        if (MFX_ERR_NOT_FOUND == mfx_res) {
+            /* Failed to find an available implementation */
+            break;
+        }
+        else if (MFX_ERR_NONE != mfx_res) {
+            /*implementation found, but requested query format is not supported*/
+            idx++;
+            continue;
+        }
+        ALOGI("%s. Idx = %d. ApiVersion: %d.%d. Implementation type: %s. AccelerationMode via: %d",
+                 __func__, idx, idesc->ApiVersion.Major, idesc->ApiVersion.Minor,
+                (idesc->Impl == MFX_IMPL_TYPE_SOFTWARE) ? "SW" : "HW",
+                idesc->AccelerationMode);
+
+        mfx_res = MFXCreateSession(m_mfxLoader, idx, &m_mfxSession);
+
+        MFXDispReleaseImplDescription(m_mfxLoader, idesc);
+
+        if (MFX_ERR_NONE == mfx_res)
+            break;
+
+        idx++;
+    }
+
+    if (MFX_ERR_NONE != mfx_res)
+    {
+        if (!m_mfxLoader)
+            MFXUnload(m_mfxLoader);
+
+        ALOGE("Failed to create a MFX session (%d)", mfx_res);
+        return mfx_res;
+    }
+
+    mfx_res = device_->InitMfxSession(m_mfxSession);
+
+    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+    return mfx_res;
+}
+#else
 mfxStatus MfxC2DecoderComponent::InitSession()
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -585,6 +714,7 @@ mfxStatus MfxC2DecoderComponent::InitSession()
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }
+#endif
 
 mfxStatus MfxC2DecoderComponent::ResetSettings()
 {
@@ -608,7 +738,7 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
     case DECODER_VP9:
         video_params_.mfx.CodecId = MFX_CODEC_VP9;
         break;
-	case DECODER_VP8:
+    case DECODER_VP8:
         video_params_.mfx.CodecId = MFX_CODEC_VP8;
         break;
     case DECODER_MPEG2:
@@ -646,6 +776,10 @@ mfxU16 MfxC2DecoderComponent::GetAsyncDepth(void)
     MFX_DEBUG_TRACE_FUNC;
 
     mfxU16 asyncDepth;
+
+#ifdef USE_ONEVPL
+    asyncDepth = (MFX_IMPL_BASETYPE(mfx_implementation_) == MFX_IMPL_SOFTWARE) ? 0 : 1;
+#else
     if ((MFX_IMPL_HARDWARE == MFX_IMPL_BASETYPE(mfx_implementation_)) &&
         ((MFX_CODEC_AVC == video_params_.mfx.CodecId) ||
          (MFX_CODEC_HEVC == video_params_.mfx.CodecId) ||
@@ -656,6 +790,7 @@ mfxU16 MfxC2DecoderComponent::GetAsyncDepth(void)
         asyncDepth = 1;
     else
         asyncDepth = 0;
+#endif
 
     MFX_DEBUG_TRACE_I32(asyncDepth);
     return asyncDepth;
@@ -672,7 +807,11 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         MFX_DEBUG_TRACE_MSG("InitDecoder: DecodeHeader");
 
         if (nullptr == decoder_) {
+#ifdef USE_ONEVPL
+            decoder_.reset(MFX_NEW_NO_THROW(MFXVideoDECODE(m_mfxSession)));
+#else
             decoder_.reset(MFX_NEW_NO_THROW(MFXVideoDECODE(session_)));
+#endif
             if (nullptr == decoder_) {
                 mfx_res = MFX_ERR_MEMORY_ALLOC;
             }
@@ -735,7 +874,11 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
                 //No surface & BQ
                 video_params_.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
                 allocator_ = nullptr;
-                mfx_res= session_.SetFrameAllocator(nullptr);
+#ifdef USE_ONEVPL
+                mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, nullptr);
+#else
+                mfx_res = session_.SetFrameAllocator(nullptr);
+#endif
                 allocator_set_ = false;
                 ALOGI("Format = 0x%x. System memory is being used for decoding!", format);
                 if (MFX_ERR_NONE != mfx_res) MFX_DEBUG_TRACE_MSG("SetFrameAllocator failed");
@@ -769,6 +912,7 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         }
         if (MFX_ERR_NONE == mfx_res) {
             mfx_res = decoder_->GetVideoParam(&video_params_);
+
             max_width_ = video_params_.mfx.FrameInfo.Width;
             max_height_ = video_params_.mfx.FrameInfo.Height;
 
@@ -1339,7 +1483,11 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 #endif
             if (video_params_.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
                 allocator_ = nullptr;
+#ifdef USE_ONEVPL
+                mfx_sts = MFXVideoCORE_SetFrameAllocator(m_mfxSession, nullptr);
+#else
                 mfx_sts = session_.SetFrameAllocator(nullptr);
+#endif
                 allocator_set_ = false;
                 ALOGI("System memory is being used for decoding!");
 
@@ -1423,7 +1571,6 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 }
 
                 bool resolution_change_done = false;
-
                 mfxStatus decode_header_sts = decoder_->DecodeHeader(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(), &video_params_);
                 MFX_DEBUG_TRACE__mfxStatus(decode_header_sts);
                 mfx_sts = decode_header_sts;
@@ -1542,7 +1689,11 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
     c2_status_t res = C2_OK;
 
     {
+#ifdef USE_ONEVPL
+        mfxStatus mfx_res = MFXVideoCORE_SyncOperation(m_mfxSession, sync_point, MFX_TIMEOUT_INFINITE);
+#else
         mfxStatus mfx_res = session_.SyncOperation(sync_point, MFX_TIMEOUT_INFINITE);
+#endif
         if (MFX_ERR_NONE != mfx_res) {
             MFX_DEBUG_TRACE_MSG("SyncOperation failed");
             MFX_DEBUG_TRACE__mfxStatus(mfx_res);

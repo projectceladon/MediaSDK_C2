@@ -40,7 +40,11 @@ enum MfxC2Conversion
 
 struct MfxC2VppWrappParam
 {
+#ifdef USE_ONEVPL
+    mfxSession         session;
+#else
     MFXVideoSession   *session;
+#endif
     mfxFrameInfo      *frame_info;
     std::shared_ptr<MfxFrameAllocator> allocator;
 
@@ -62,7 +66,11 @@ protected:
     mfxStatus AllocateOneSurface(void);
 
     MFXVideoVPP *vpp_;
+#ifdef USE_ONEVPL
+    mfxSession m_mfxSession;
+#else
     MFXVideoSession *session_;
+#endif
     mfxVideoParam vpp_param_;
     std::shared_ptr<MfxFrameAllocator> allocator_;
 

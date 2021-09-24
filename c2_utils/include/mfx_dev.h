@@ -48,7 +48,10 @@ public:
 
     virtual std::shared_ptr<MfxFramePoolAllocator> GetFramePoolAllocator() = 0;
 
+#ifdef USE_ONEVPL
+    virtual mfxStatus InitMfxSession(mfxSession session) = 0;
+#else
     virtual mfxStatus InitMfxSession(MFXVideoSession* session) = 0;
-
+#endif
     static mfxStatus Create(Usage usage, std::unique_ptr<MfxDev>* device);
 };
