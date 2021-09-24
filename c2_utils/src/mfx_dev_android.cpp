@@ -48,6 +48,15 @@ mfxStatus MfxDevAndroid::Close()
     return MFX_ERR_NONE;
 }
 
+#ifdef USE_ONEVPL
+mfxStatus MfxDevAndroid::InitMfxSession(mfxSession session)
+{
+    (void)session;
+
+    MFX_DEBUG_TRACE_FUNC;
+    return MFX_ERR_NONE;
+}
+#else
 mfxStatus MfxDevAndroid::InitMfxSession(MFXVideoSession* session)
 {
     (void)session;
@@ -55,3 +64,4 @@ mfxStatus MfxDevAndroid::InitMfxSession(MFXVideoSession* session)
     MFX_DEBUG_TRACE_FUNC;
     return MFX_ERR_NONE;
 }
+#endif

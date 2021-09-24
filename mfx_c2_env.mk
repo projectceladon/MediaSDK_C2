@@ -7,6 +7,8 @@ ifeq ($(MFX_C2_IMPL_HW),)
   MFX_C2_IMPL_HW:=true
 endif
 
+# BOARD_HAVE_MEDIASDK_SRC is not set
+# BOARD_HAVE_MEDIASDK_OPEN_SOURCE is set
 ifeq ($(BOARD_HAVE_MEDIASDK_SRC),true)
 
   # Build SW C2 plugins

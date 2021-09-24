@@ -43,7 +43,11 @@ private:
     std::shared_ptr<MfxFrameAllocator> GetFrameAllocator() override;
     std::shared_ptr<MfxFrameConverter> GetFrameConverter() override;
     std::shared_ptr<MfxFramePoolAllocator> GetFramePoolAllocator() override;
+#ifdef USE_ONEVPL
+    mfxStatus InitMfxSession(mfxSession session) override;
+#else
     mfxStatus InitMfxSession(MFXVideoSession* session) override;
+#endif
 
 protected:
     typedef unsigned int MfxVaAndroidDisplayId;

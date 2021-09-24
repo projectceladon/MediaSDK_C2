@@ -26,6 +26,11 @@
 #include <algorithm>
 #include <list>
 
+#if (MFX_VERSION >= 2000)
+    #include "mfxdispatcher.h"
+    #define USE_ONEVPL
+#endif
+
 // includes below are to get Intel color formats
 #ifdef MFX_C2_USE_PRIME
     // USE_GRALLOC1 required for using PRIME buffer descriptor -

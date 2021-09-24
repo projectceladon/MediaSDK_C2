@@ -16,6 +16,12 @@ include $(MFX_C2_HOME)/mfx_c2_env.mk
 
 MFX_C2_CFLAGS := -DANDROID
 
+# Use oneVPL API
+USE_ONEVPL := true
+ifeq ($(USE_ONEVPL), true)
+MFX_C2_CFLAGS += -DMFX_VERSION=2003
+endif
+
 # Android version preference:
 ifneq ($(filter 11 11.% R ,$(PLATFORM_VERSION)),)
   MFX_ANDROID_VERSION:= MFX_R
@@ -77,7 +83,8 @@ MFX_C2_CFLAGS += \
   -fstack-protector-strong \
   -fPIE -fPIC \
   -O2 -D_FORTIFY_SOURCE=2 \
-  -Wformat -Wformat-security \
+  -Wno-error \
+  -Wno-deprecated-declarations \
   -fexceptions -std=c++17
 
 # LibVA support.
@@ -99,8 +106,14 @@ endif
 
 MFX_C2_INCLUDES_LIBVA := $(TARGET_OUT_HEADERS)/libva
 
-# Setting MediaSDK imported headers
-MFX_C2_HEADER_LIBRARIES := libmfx_headers libcodec2_headers
+ifeq ($(USE_ONEVPL), true)
+  # Setting oneVPL imported headers
+  MFX_C2_HEADER_LIBRARIES := libvpl_headers libcodec2_headers
+  MFX_C2_SHARED_LIBS += libvpl
+else
+  # Setting MediaSDK imported headers
+  MFX_C2_HEADER_LIBRARIES := libmfx_headers libcodec2_headers
+endif
 
 # Setting usual imported headers
 MFX_C2_HEADER_LIBRARIES += \

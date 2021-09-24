@@ -136,11 +136,19 @@ private:
     EncoderType encoder_type_;
 
     std::unique_ptr<MfxDev> device_;
+
+#ifdef USE_ONEVPL
+    mfxSession m_mfxSession;
+    mfxLoader m_mfxLoader;
+#else
     MFXVideoSession session_;
-    // if custom allocator was set to session_ with SetFrameAllocator
-    bool allocator_set_ { false };
+#endif
+
     // Accessed from working thread or stop method when working thread is stopped.
     std::unique_ptr<MFXVideoENCODE> encoder_;
+
+    // if custom allocator was set to session_ with SetFrameAllocator
+    bool allocator_set_ { false };
 
     MfxCmdQueue working_queue_;
     MFX_TRACEABLE(working_queue_);

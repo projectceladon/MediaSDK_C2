@@ -74,6 +74,10 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
     std::shared_ptr<MfxC2ParamReflector> reflector, EncoderType encoder_type) :
         MfxC2Component(name, config, std::move(reflector)),
         encoder_type_(encoder_type),
+#ifdef USE_ONEVPL
+        m_mfxSession(nullptr),
+        m_mfxLoader(nullptr),
+#endif
         synced_points_count_(0),
         vpp_determined_(false),
         input_vpp_type_(CONVERT_NONE)
@@ -252,7 +256,11 @@ c2_status_t MfxC2EncoderComponent::DoStart()
 
         if (allocator_required != allocator_set_) {
 
+#ifdef USE_ONEVPL
+            mfx_res = MFXClose(m_mfxSession);
+#else
             mfx_res = session_.Close();
+#endif
             if (MFX_ERR_NONE != mfx_res) break;
 
             mfx_res = InitSession();
@@ -267,11 +275,19 @@ c2_status_t MfxC2EncoderComponent::DoStart()
                     break;
                 }
 
+#ifdef USE_ONEVPL
+                mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, &allocator->GetMfxAllocator());
+#else
                 mfx_res = session_.SetFrameAllocator(&allocator->GetMfxAllocator());
+#endif
                 if (MFX_ERR_NONE != mfx_res) break;
 
             } else {
+#ifdef USE_ONEVPL
+                mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, nullptr);
+#else
                 mfx_res = session_.SetFrameAllocator(nullptr);
+#endif
                 if (MFX_ERR_NONE != mfx_res) break;
             }
             allocator_set_ = allocator_required;
@@ -338,10 +354,20 @@ c2_status_t MfxC2EncoderComponent::Release()
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
+    mfxStatus sts = MFX_ERR_NONE;
 
     locked_frames_.clear();
     vpp_.Close();
-    mfxStatus sts = session_.Close();
+
+#ifdef USE_ONEVPL
+    if (m_mfxSession) {
+        sts = MFXClose(m_mfxSession);
+        m_mfxSession = nullptr;
+    }
+#else
+    sts = session_.Close();
+#endif
+
     if (MFX_ERR_NONE != sts) res = MfxStatusToC2(sts);
 
     if (device_) {
@@ -351,10 +377,111 @@ c2_status_t MfxC2EncoderComponent::Release()
         device_ = nullptr;
     }
 
+#ifdef USE_ONEVPL
+    if (m_mfxLoader) {
+        MFXUnload(m_mfxLoader);
+        m_mfxLoader = nullptr;
+    }
+#endif
+
     MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 
+#ifdef USE_ONEVPL
+mfxStatus MfxC2EncoderComponent::InitSession()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    mfxStatus mfx_res = MFX_ERR_NONE;
+    mfxConfig cfg[2];
+    mfxVariant cfgVal[2];
+
+    m_mfxLoader = MFXLoad();
+    if (nullptr == m_mfxLoader) {
+        ALOGE("MFXLoad failed...is implementation in path?");
+        return MFX_ERR_UNKNOWN;
+    }
+
+    /* Create configurations for implementation */
+    cfg[0] = MFXCreateConfig(m_mfxLoader);
+    if (!cfg[0]) {
+        ALOGE("Failed to create a MFX configuration");
+        MFXUnload(m_mfxLoader);
+        return MFX_ERR_UNKNOWN;
+    }
+
+    cfgVal[0].Type = MFX_VARIANT_TYPE_U32;
+    cfgVal[0].Data.U32 = (mfx_implementation_ == MFX_IMPL_SOFTWARE) ? MFX_IMPL_TYPE_SOFTWARE : MFX_IMPL_TYPE_HARDWARE;
+    mfx_res = MFXSetConfigFilterProperty(cfg[0], (const mfxU8 *) "mfxImplDescription.Impl", cfgVal[0]);
+    if (MFX_ERR_NONE != mfx_res) {
+        ALOGE("Failed to add an additional MFX configuration (%d)", mfx_res);
+        MFXUnload(m_mfxLoader);
+        return MFX_ERR_UNKNOWN;
+    }
+
+    cfg[1] = MFXCreateConfig(m_mfxLoader);
+    if (!cfg[1]) {
+        ALOGE("Failed to create a MFX configuration");
+        MFXUnload(m_mfxLoader);
+        return MFX_ERR_UNKNOWN;
+    }
+
+    cfgVal[1].Type = MFX_VARIANT_TYPE_U32;
+    cfgVal[1].Data.U32 = MFX_VERSION;
+    mfx_res = MFXSetConfigFilterProperty(cfg[1], (const mfxU8 *) "mfxImplDescription.ApiVersion.Version", cfgVal[1]);
+    if (MFX_ERR_NONE != mfx_res) {
+        ALOGE("Failed to add an additional MFX configuration (%d)", mfx_res);
+        MFXUnload(m_mfxLoader);
+        return MFX_ERR_UNKNOWN;
+    }
+
+    while (1) {
+        /* Enumerate all implementations */
+        uint32_t idx = 0;
+        mfxImplDescription *idesc;
+        mfx_res = MFXEnumImplementations(m_mfxLoader, idx, MFX_IMPLCAPS_IMPLDESCSTRUCTURE, (mfxHDL *)&idesc);
+
+        if (MFX_ERR_NOT_FOUND == mfx_res) {
+            /* Failed to find an available implementation */
+            break;
+        }
+        else if (MFX_ERR_NONE != mfx_res) {
+            /*implementation found, but requested query format is not supported*/
+            idx++;
+            continue;
+        }
+        ALOGI("%s. ApiVersion: %d.%d. Implementation type: %s. AccelerationMode via: %d",
+                 __func__, idesc->ApiVersion.Major, idesc->ApiVersion.Minor,
+                (idesc->Impl == MFX_IMPL_TYPE_SOFTWARE) ? "SW" : "HW",
+                idesc->AccelerationMode);
+
+        mfx_res = MFXCreateSession(m_mfxLoader, idx, &m_mfxSession);
+
+        MFXDispReleaseImplDescription(m_mfxLoader, idesc);
+
+        if (MFX_ERR_NONE == mfx_res)
+            break;
+
+        idx++;
+    }
+
+    if (MFX_ERR_NONE != mfx_res) {
+        if (!m_mfxLoader)
+            MFXUnload(m_mfxLoader);
+
+        ALOGE("Failed to create a MFX session (%d)", mfx_res);
+        return mfx_res;
+    }
+
+    //mfx_res = device_->InitMfxSession((MFXVideoSession*)const_cast<mfxSession>(m_mfxSession));
+    mfx_res = device_->InitMfxSession(m_mfxSession);
+
+    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+    return mfx_res;
+}
+
+#else
 mfxStatus MfxC2EncoderComponent::InitSession()
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -381,6 +508,7 @@ mfxStatus MfxC2EncoderComponent::InitSession()
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }
+#endif
 
 mfxStatus MfxC2EncoderComponent::ResetSettings()
 {
@@ -424,7 +552,11 @@ mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
 
     video_params_config_.mfx.FrameInfo = frame_info;
     if (MFX_ERR_NONE == mfx_res) {
+#ifdef USE_ONEVPL
+        encoder_.reset(MFX_NEW_NO_THROW(MFXVideoENCODE(m_mfxSession)));
+#else
         encoder_.reset(MFX_NEW_NO_THROW(MFXVideoENCODE(session_)));
+#endif
         if (nullptr == encoder_) {
             mfx_res = MFX_ERR_MEMORY_ALLOC;
         }
@@ -435,6 +567,7 @@ mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
             MFX_DEBUG_TRACE__mfxVideoParam_enc(video_params_config_);
 
             mfx_res = encoder_->Init(&video_params_config_);
+
             MFX_DEBUG_TRACE_MSG("Encoder initialized");
             MFX_DEBUG_TRACE__mfxStatus(mfx_res);
 
@@ -476,7 +609,11 @@ mfxStatus MfxC2EncoderComponent::InitVPP(C2FrameData& buf_pack)
         // need color convert to YUV
         MfxC2VppWrappParam param;
 
+#ifdef USE_ONEVPL
+        param.session = m_mfxSession;
+#else
         param.session = &session_;
+#endif
         param.frame_info = &video_params_config_.mfx.FrameInfo;
         param.frame_info->Width = c_graph_block->width();
         param.frame_info->Height = c_graph_block->height();
@@ -872,7 +1009,11 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
 
     mfxStatus mfx_res = MFX_ERR_NONE;
 
+#ifdef USE_ONEVPL
+    mfx_res = MFXVideoCORE_SyncOperation(m_mfxSession, sync_point, MFX_TIMEOUT_INFINITE);
+#else
     mfx_res = session_.SyncOperation(sync_point, MFX_TIMEOUT_INFINITE);
+#endif
 
     if (MFX_ERR_NONE != mfx_res) {
         MFX_DEBUG_TRACE_MSG("SyncOperation failed");
@@ -939,7 +1080,6 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
                     }
 
                     mfx_res = encoder_->GetVideoParam(&video_param);
-
                 } catch(std::exception err) {
                     MFX_DEBUG_TRACE_STREAM("Error:" << err.what());
                     mfx_res = MFX_ERR_MEMORY_ALLOC;
@@ -1011,11 +1151,13 @@ std::unique_ptr<mfxVideoParam> MfxC2EncoderComponent::GetParamsView() const
         res->mfx.CodecId = in_params->mfx.CodecId;
 
         MFX_DEBUG_TRACE__mfxVideoParam_enc((*in_params));
-
         sts = MFXVideoENCODE_Query(
+#ifdef USE_ONEVPL
+            m_mfxSession,
+#else
             (mfxSession)*const_cast<MFXVideoSession*>(&session_),
+#endif
             in_params, res.get());
-
         MFX_DEBUG_TRACE__mfxVideoParam_enc((*res));
     } else {
         sts = encoder_->GetVideoParam(res.get());

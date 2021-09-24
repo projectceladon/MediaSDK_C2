@@ -52,8 +52,10 @@ define build_components
     LOCAL_STATIC_LIBRARIES += libmfx_c2_utils
   endif
 
-  LOCAL_SHARED_LIBRARIES_32 := libmfx$$(MSDK_IMPL)32
-  LOCAL_SHARED_LIBRARIES_64 := libmfx$$(MSDK_IMPL)64
+  ifneq ($(USE_ONEVPL), true)
+    LOCAL_SHARED_LIBRARIES_32 := libmfx$$(MSDK_IMPL)32
+    LOCAL_SHARED_LIBRARIES_64 := libmfx$$(MSDK_IMPL)64
+  endif
 
   LOCAL_HEADER_LIBRARIES := $$(MFX_C2_HEADER_LIBRARIES)
 
