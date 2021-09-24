@@ -70,6 +70,7 @@ c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converte
         }
 
         mfxFrameSurface1 *mfx_frame = new mfxFrameSurface1;
+        MFX_ZERO_MEMORY(*mfx_frame);
 
         if (nullptr != frame_converter) {
 
@@ -112,7 +113,17 @@ c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converte
                     res = C2_NO_MEMORY;
                     break;
                 }
-                yuv_data_ = std::shared_ptr<uint8_t>(new uint8_t[WIDTH_4K * HEIGHT_4K * 3 / 2], std::default_delete<uint8_t[]>());
+
+                try
+                {
+                    yuv_data_ = std::shared_ptr<uint8_t>(new uint8_t[WIDTH_4K * HEIGHT_4K * 3 / 2], std::default_delete<uint8_t[]>());
+                }
+                catch(const std::exception&)
+                {
+                    MFX_DEBUG_TRACE_MSG("unsuccessful allocation");
+                    res = C2_NO_MEMORY;
+                    return res;
+                }
 
                 //IYUV or YV12 to NV12 conversion
                 memcpy(yuv_data_.get(), pY, y_plane_size);
