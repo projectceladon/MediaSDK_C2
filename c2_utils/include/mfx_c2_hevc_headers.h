@@ -32,12 +32,12 @@ public:
 
     void Reset()
     {
-         m_SeqParams.Reset();
-         m_PicParams.Reset();
+         m_seqParams.Reset();
+         m_picParams.Reset();
     }
 
-    AVCParser::HeaderSet<H265SeqParamSet>  m_SeqParams;
-    AVCParser::HeaderSet<H265PicParamSet>  m_PicParams;
+    AVCParser::HeaderSet<H265SeqParamSet>  m_seqParams;
+    AVCParser::HeaderSet<H265PicParamSet>  m_picParams;
 };
 
 } //namespace HEVCParser

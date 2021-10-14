@@ -33,7 +33,7 @@
 #define MFX_DEBUG_MODULE_NAME "mfx_dev_va"
 
 MfxDevVa::MfxDevVa(Usage usage):
-    usage_(usage)
+    m_usage(usage)
 {
     MFX_DEBUG_TRACE_FUNC;
 }
@@ -49,17 +49,17 @@ mfxStatus MfxDevVa::Init()
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
 
-    if (!va_initialized_) {
+    if (!m_bVaInitialized) {
 
-        va_display_ = vaGetDisplay(&display_id_);
+        m_vaDisplay = vaGetDisplay(&m_displayId);
 
-        MFX_DEBUG_TRACE_STREAM(NAMED(va_display_));
+        MFX_DEBUG_TRACE_STREAM(NAMED(m_vaDisplay));
 
         int major_version = 0, minor_version = 0;
-        VAStatus va_res = vaInitialize(va_display_, &major_version, &minor_version);
+        VAStatus va_res = vaInitialize(m_vaDisplay, &major_version, &minor_version);
         if (VA_STATUS_SUCCESS == va_res) {
-            MFX_LOG_INFO("Driver version is %s", vaQueryVendorString(va_display_));
-            va_initialized_ = true;
+            MFX_LOG_INFO("Driver version is %s", vaQueryVendorString(m_vaDisplay));
+            m_bVaInitialized = true;
         }
         else
         {
@@ -69,17 +69,17 @@ mfxStatus MfxDevVa::Init()
     }
 
     if (MFX_ERR_NONE == mfx_res) {
-        switch(usage_) {
+        switch(m_usage) {
             case Usage::Encoder:
-                if (!va_allocator_) {
-                    va_allocator_.reset(new (std::nothrow)MfxVaFrameAllocator(va_display_));
-                    if (nullptr == va_allocator_) mfx_res = MFX_ERR_MEMORY_ALLOC;
+                if (!m_vaAllocator) {
+                    m_vaAllocator.reset(new (std::nothrow)MfxVaFrameAllocator(m_vaDisplay));
+                    if (nullptr == m_vaAllocator) mfx_res = MFX_ERR_MEMORY_ALLOC;
                 }
                 break;
             case Usage::Decoder:
-                if (!va_pool_allocator_) {
-                    va_pool_allocator_.reset(new (std::nothrow)MfxVaFramePoolAllocator(va_display_));
-                    if (nullptr == va_pool_allocator_) mfx_res = MFX_ERR_MEMORY_ALLOC;
+                if (!m_vaPoolAllocator) {
+                    m_vaPoolAllocator.reset(new (std::nothrow)MfxVaFramePoolAllocator(m_vaDisplay));
+                    if (nullptr == m_vaPoolAllocator) mfx_res = MFX_ERR_MEMORY_ALLOC;
                 }
                 break;
             default:
@@ -101,11 +101,11 @@ mfxStatus MfxDevVa::Close()
 
     mfxStatus res = MFX_ERR_NONE;
     // Define weak_ptrs to allocators to check if they exist.
-    std::weak_ptr<MfxVaFrameAllocator> weak_va_allocator { va_allocator_ };
-    std::weak_ptr<MfxVaFramePoolAllocator> weak_va_pool_allocator { va_pool_allocator_ };
+    std::weak_ptr<MfxVaFrameAllocator> weak_va_allocator { m_vaAllocator };
+    std::weak_ptr<MfxVaFramePoolAllocator> weak_va_pool_allocator { m_vaPoolAllocator };
 
-    va_allocator_.reset();
-    va_pool_allocator_.reset();
+    m_vaAllocator.reset();
+    m_vaPoolAllocator.reset();
 
     // If an allocator exists then some error in resource release order.
     if (!weak_va_allocator.expired() || !weak_va_pool_allocator.expired()) {
@@ -113,10 +113,10 @@ mfxStatus MfxDevVa::Close()
         res = MFX_ERR_UNDEFINED_BEHAVIOR;
     }
 
-    if (va_initialized_) {
-        MFX_DEBUG_TRACE_STREAM(NAMED(va_display_));
-        vaTerminate(va_display_);
-        va_initialized_ = false;
+    if (m_bVaInitialized) {
+        MFX_DEBUG_TRACE_STREAM(NAMED(m_vaDisplay));
+        vaTerminate(m_vaDisplay);
+        m_bVaInitialized = false;
     }
 
     return res;
@@ -169,7 +169,7 @@ mfxStatus MfxDevVa::InitMfxSession(MFXVideoSession* session)
 
     if(session != nullptr) {
         mfx_res = session->SetHandle(
-            static_cast<mfxHandleType>(MFX_HANDLE_VA_DISPLAY), (mfxHDL)va_display_);
+            static_cast<mfxHandleType>(MFX_HANDLE_VA_DISPLAY), (mfxHDL)m_vaDisplay);
         MFX_DEBUG_TRACE_MSG("SetHandle result:");
         MFX_DEBUG_TRACE__mfxStatus(mfx_res);
 
@@ -178,7 +178,7 @@ mfxStatus MfxDevVa::InitMfxSession(MFXVideoSession* session)
             VADisplay dpy = NULL;
             mfxStatus sts = session->GetHandle(static_cast<mfxHandleType>(MFX_HANDLE_VA_DISPLAY), (mfxHDL*)&dpy);
             if(sts == MFX_ERR_NONE) {
-                if(dpy == va_display_) {
+                if(dpy == m_vaDisplay) {
                     MFX_DEBUG_TRACE_MSG("Same display handle is already set, not an error");
                     mfx_res = MFX_ERR_NONE;
                 }
@@ -201,19 +201,19 @@ mfxStatus MfxDevVa::InitMfxSession(MFXVideoSession* session)
 std::shared_ptr<MfxFrameAllocator> MfxDevVa::GetFrameAllocator()
 {
     MFX_DEBUG_TRACE_FUNC;
-    return usage_ == Usage::Decoder ? va_pool_allocator_ : va_allocator_;
+    return m_usage == Usage::Decoder ? m_vaPoolAllocator : m_vaAllocator;
 }
 
 std::shared_ptr<MfxFrameConverter> MfxDevVa::GetFrameConverter()
 {
     MFX_DEBUG_TRACE_FUNC;
-    return usage_ == Usage::Decoder ? va_pool_allocator_ : va_allocator_;
+    return m_usage == Usage::Decoder ? m_vaPoolAllocator : m_vaAllocator;
 }
 
 std::shared_ptr<MfxFramePoolAllocator> MfxDevVa::GetFramePoolAllocator()
 {
     MFX_DEBUG_TRACE_FUNC;
-    return usage_ == Usage::Decoder ? va_pool_allocator_ : nullptr;
+    return m_usage == Usage::Decoder ? m_vaPoolAllocator : nullptr;
 }
 
 #endif // #ifdef LIBVA_SUPPORT

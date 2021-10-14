@@ -31,7 +31,7 @@ using namespace android;
 
 MfxC2MockComponent::MfxC2MockComponent(const C2String name, const CreateConfig& config,
     std::shared_ptr<MfxC2ParamReflector> reflector, Type type) :
-        MfxC2Component(name, config, std::move(reflector)), type_(type)
+        MfxC2Component(name, config, std::move(reflector)), m_type(type)
 {
     MFX_DEBUG_TRACE_FUNC;
 }
@@ -144,7 +144,7 @@ c2_status_t MfxC2MockComponent::CopyLinearToGraphic(const C2FrameData& input,
         const uint8_t* in_raw = read_view->data();
 
         const size_t MEM_SIZE = width * height * 3 / 2;
-        C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, producer_memory_type_ };
+        C2MemoryUsage mem_usage = { C2MemoryUsage::CPU_READ, m_uProducerMemoryType };
         std::shared_ptr<C2GraphicBlock> out_block;
 
         res = allocator->fetchGraphicBlock(width, height, HAL_PIXEL_FORMAT_NV12_TILED_INTEL, mem_usage, &out_block);
@@ -204,12 +204,12 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<C2Work>&& work)
             break;
         }
 
-        if (!c2_allocator_) {
-            auto block_pool_id = (type_ == Encoder) ?
+        if (!m_c2Allocator) {
+            auto block_pool_id = (m_type == Encoder) ?
                 C2BlockPool::BASIC_LINEAR : C2BlockPool::BASIC_GRAPHIC;
 
             res = GetCodec2BlockPool(block_pool_id,
-                shared_from_this(), &c2_allocator_);
+                shared_from_this(), &m_c2Allocator);
             if (res != C2_OK) break;
         }
 
@@ -218,10 +218,10 @@ void MfxC2MockComponent::DoWork(std::unique_ptr<C2Work>&& work)
         //  form header of output data, copy input timestamps, etc. to identify data in test
         output.ordinal = input.ordinal;
 
-        auto process_method = (type_ == Encoder) ?
+        auto process_method = (m_type == Encoder) ?
             &MfxC2MockComponent::CopyGraphicToLinear : &MfxC2MockComponent::CopyLinearToGraphic;
 
-        res = (this->*process_method)(input, c2_allocator_, &worklet->output.buffers.front());
+        res = (this->*process_method)(input, m_c2Allocator, &worklet->output.buffers.front());
 
     } while(false); // fake loop to have a cleanup point there
 
@@ -250,8 +250,8 @@ c2_status_t MfxC2MockComponent::Config(
         switch (C2Param::Type(param->type()).type()) {
             case C2ProducerMemoryType::PARAM_TYPE: {
                 const C2ProducerMemoryType* memory_param = (const C2ProducerMemoryType*)param;
-                producer_memory_type_ = memory_param->value;
-                MFX_DEBUG_TRACE_I32(producer_memory_type_);
+                m_uProducerMemoryType = memory_param->value;
+                MFX_DEBUG_TRACE_I32(m_uProducerMemoryType);
                 break;
             }
             case C2TrippedTuning::PARAM_TYPE: {
@@ -283,7 +283,7 @@ c2_status_t MfxC2MockComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* con
 
     for(auto& item : *items) {
 
-        cmd_queue_.Push( [ work = std::move(item), this ] () mutable {
+        m_cmdQueue.Push( [ work = std::move(item), this ] () mutable {
             DoWork(std::move(work));
         } );
     }
@@ -297,7 +297,7 @@ c2_status_t MfxC2MockComponent::Init()
 
     c2_status_t res = C2_OK;
 
-    if(type_ != Encoder && type_ != Decoder) {
+    if(m_type != Encoder && m_type != Decoder) {
         res = C2_CORRUPTED;
     }
 
@@ -308,7 +308,7 @@ c2_status_t MfxC2MockComponent::DoStart()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    cmd_queue_.Start();
+    m_cmdQueue.Start();
 
     return C2_OK;
 }
@@ -318,9 +318,9 @@ c2_status_t MfxC2MockComponent::DoStop(bool abort)
     MFX_DEBUG_TRACE_FUNC;
 
     if (abort) {
-        cmd_queue_.Abort();
+        m_cmdQueue.Abort();
     } else {
-        cmd_queue_.Stop();
+        m_cmdQueue.Stop();
     }
 
     return C2_OK;
@@ -330,7 +330,7 @@ c2_status_t MfxC2MockComponent::Pause()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    cmd_queue_.Pause();
+    m_cmdQueue.Pause();
 
     return C2_OK;
 }
@@ -339,7 +339,7 @@ c2_status_t MfxC2MockComponent::Resume()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    cmd_queue_.Resume();
+    m_cmdQueue.Resume();
 
     return C2_OK;
 }

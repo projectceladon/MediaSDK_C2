@@ -52,18 +52,18 @@ enum VP8_LEVEL {
 MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateConfig& config,
     std::shared_ptr<MfxC2ParamReflector> reflector, DecoderType decoder_type) :
         MfxC2Component(name, config, std::move(reflector)),
-        decoder_type_(decoder_type),
+        m_decoderType(decoder_type),
 #ifdef USE_ONEVPL
         m_mfxSession(nullptr),
         m_mfxLoader(nullptr),
 #endif
-        initialized_(false),
-        synced_points_count_(0),
-        set_hdr_sei_(false)
+        m_bInitialized(false),
+        m_uSyncedPointsCount(0),
+        m_bSetHdrSei(false)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    MfxC2ParamStorage& pr = param_storage_;
+    MfxC2ParamStorage& pr = m_paramStorage;
 
     pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
     pr.RegisterParam<C2PortAllocatorsTuning::output>(C2_PARAMKEY_OUTPUT_ALLOCATORS);
@@ -95,18 +95,18 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
         [this] (C2StreamPictureSizeInfo::output* dst)->bool {
             MFX_DEBUG_TRACE("GetPictureSize");
-            // Called from Query, video_params_ is already protected there with lock on init_decoder_mutex_
-            dst->width = video_params_.mfx.FrameInfo.Width;
-            dst->height = video_params_.mfx.FrameInfo.Height;
+            // Called from Query, m_mfxVideoParams is already protected there with lock on m_initDecoderMutex
+            dst->width = m_mfxVideoParams.mfx.FrameInfo.Width;
+            dst->height = m_mfxVideoParams.mfx.FrameInfo.Height;
             MFX_DEBUG_TRACE_STREAM(NAMED(dst->width) << NAMED(dst->height));
             return true;
         },
         [this] (const C2StreamPictureSizeInfo::output& src)->bool {
             MFX_DEBUG_TRACE("SetPictureSize");
             MFX_DEBUG_TRACE_STREAM(NAMED(src.width) << NAMED(src.height));
-            // Called from Config, video_params_ is already protected there with lock on init_decoder_mutex_
-            video_params_.mfx.FrameInfo.Width = src.width;
-            video_params_.mfx.FrameInfo.Height = src.height;
+            // Called from Config, m_mfxVideoParams is already protected there with lock on m_initDecoderMutex
+            m_mfxVideoParams.mfx.FrameInfo.Width = src.width;
+            m_mfxVideoParams.mfx.FrameInfo.Height = src.height;
             return true;
         }
     );
@@ -115,24 +115,24 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         C2_PARAMKEY_CROP_RECT, SINGLE_STREAM_ID,
         [this] (C2StreamCropRectInfo::output* dst)->bool {
             MFX_DEBUG_TRACE("GetCropRect");
-            // Called from Query, video_params_ is already protected there with lock on init_decoder_mutex_
-            dst->width = video_params_.mfx.FrameInfo.CropW = 640; // default width
-            dst->height = video_params_.mfx.FrameInfo.CropH = 480; // default height
-            dst->left = video_params_.mfx.FrameInfo.CropX = 0;
-            dst->top = video_params_.mfx.FrameInfo.CropY = 0;
+            // Called from Query, m_mfxVideoParams is already protected there with lock on m_initDecoderMutex
+            dst->width = m_mfxVideoParams.mfx.FrameInfo.CropW = 640; // default width
+            dst->height = m_mfxVideoParams.mfx.FrameInfo.CropH = 480; // default height
+            dst->left = m_mfxVideoParams.mfx.FrameInfo.CropX = 0;
+            dst->top = m_mfxVideoParams.mfx.FrameInfo.CropY = 0;
             MFX_DEBUG_TRACE_STREAM(NAMED(dst->left) << NAMED(dst->top) <<
                 NAMED(dst->width) << NAMED(dst->height));
             return true;
         },
         [this] (const C2StreamCropRectInfo::output& src)->bool {
             MFX_DEBUG_TRACE("SetCropRect");
-            // Called from Config, video_params_ is already protected there with lock on init_decoder_mutex_
+            // Called from Config, m_mfxVideoParams is already protected there with lock on m_initDecoderMutex
             MFX_DEBUG_TRACE_STREAM(NAMED(src.left) << NAMED(src.top) <<
                 NAMED(src.width) << NAMED(src.height));
-            video_params_.mfx.FrameInfo.CropW = src.width;
-            video_params_.mfx.FrameInfo.CropH = src.height;
-            video_params_.mfx.FrameInfo.CropX = src.left;
-            video_params_.mfx.FrameInfo.CropY = src.top;
+            m_mfxVideoParams.mfx.FrameInfo.CropW = src.width;
+            m_mfxVideoParams.mfx.FrameInfo.CropH = src.height;
+            m_mfxVideoParams.mfx.FrameInfo.CropX = src.left;
+            m_mfxVideoParams.mfx.FrameInfo.CropY = src.top;
             return true;
         }
     );
@@ -140,7 +140,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     std::vector<C2Config::profile_t> supported_profiles = {};
     std::vector<C2Config::level_t> supported_levels = {};
 
-    switch(decoder_type_) {
+    switch(m_decoderType) {
         case DECODER_H264: {
             supported_profiles = {
                 PROFILE_AVC_CONSTRAINED_BASELINE,
@@ -168,8 +168,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
                     AllocUniqueString<C2PortMediaTypeSetting::input>("video/avc"));
 
-            output_delay_ = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
-            input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            m_uInputDelay = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
         case DECODER_H265: {
@@ -199,8 +199,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
                     AllocUniqueString<C2PortMediaTypeSetting::input>("video/hevc"));
 
-            output_delay_ = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
-            input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            m_uInputDelay = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
         case DECODER_VP9: {
@@ -226,8 +226,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
                     AllocUniqueString<C2PortMediaTypeSetting::input>("video/x-vnd.on2.vp9"));
 
-            output_delay_ = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
-            input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            m_uOutputDelay = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            m_uInputDelay = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
         case DECODER_VP8: {
@@ -248,8 +248,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
                     AllocUniqueString<C2PortMediaTypeSetting::input>("video/x-vnd.on2.vp8"));
 
-            output_delay_ = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
-            input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            m_uOutputDelay = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            m_uInputDelay = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
         case DECODER_MPEG2: {
@@ -272,8 +272,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
                     AllocUniqueString<C2PortMediaTypeSetting::input>("video/mpeg2"));
 
-            output_delay_ = /*max_dpb_size*/4 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
-            input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            m_uOutputDelay = /*max_dpb_size*/4 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            m_uInputDelay = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
         case DECODER_AV1: {
@@ -298,14 +298,14 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
                     AllocUniqueString<C2PortMediaTypeSetting::input>("video/av01"));
 
-            output_delay_ = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
-            input_delay_ = /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            m_uOutputDelay = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            m_uInputDelay = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
 
         default:
-            MFX_DEBUG_TRACE_STREAM("C2PortDelayTuning::output value is not customized which can lead to hangs:" << output_delay_);
-            MFX_DEBUG_TRACE_STREAM("C2PortDelayTuning::input value is not customized which can lead to hangs:" << input_delay_);
+            MFX_DEBUG_TRACE_STREAM("C2PortDelayTuning::output value is not customized which can lead to hangs:" << m_uOutputDelay);
+            MFX_DEBUG_TRACE_STREAM("C2PortDelayTuning::input value is not customized which can lead to hangs:" << m_uInputDelay);
             break;
     }
 
@@ -314,11 +314,11 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     // of bitstream and will wait for decoded frames.
     // The parameter value is differet for codecs and must be equal the DPD value is gotten
     // form QueryIOSurf function call result.
-    pr.AddValue(C2_PARAMKEY_OUTPUT_DELAY, std::make_unique<C2PortDelayTuning::output>(output_delay_));
+    pr.AddValue(C2_PARAMKEY_OUTPUT_DELAY, std::make_unique<C2PortDelayTuning::output>(m_uOutputDelay));
 
     // The numInputSlots = inputDelayValue + pipelineDelayValue + kSmoothnessFactor;
     // pipelineDelayValue is 0, and kSmoothnessFactor is 4, for 4k video the first frame need 6 input
-    pr.AddValue(C2_PARAMKEY_INPUT_DELAY, std::make_unique<C2PortDelayTuning::input>(input_delay_));
+    pr.AddValue(C2_PARAMKEY_INPUT_DELAY, std::make_unique<C2PortDelayTuning::input>(m_uInputDelay));
 
     // List all the supported profiles and levels
     pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::profile, supported_profiles);
@@ -349,7 +349,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::matrix, MATRIX_UNSPECIFIED, MATRIX_OTHER);
 
     // HDR static
-    hdr_static_info_.mastering = {
+    m_hdrStaticInfo.mastering = {
         .red   = { .x = 0.708,  .y = 0.292 },
         .green = { .x = 0.170,  .y = 0.797 },
         .blue  = { .x = 0.131,  .y = 0.046 },
@@ -357,31 +357,31 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         .maxLuminance = 0,
         .minLuminance = 0,
     };
-    hdr_static_info_.maxCll = 0;
-    hdr_static_info_.maxFall = 0;
+    m_hdrStaticInfo.maxCll = 0;
+    m_hdrStaticInfo.maxFall = 0;
 
     pr.AddStreamInfo<C2StreamHdrStaticInfo::output>(
         C2_PARAMKEY_HDR_STATIC_INFO, SINGLE_STREAM_ID,
         [this] (C2StreamHdrStaticInfo::output* dst)->bool {
             MFX_DEBUG_TRACE("GetHdrStaticInfo");
-            dst->mastering.red.x = hdr_static_info_.mastering.red.x;
-            dst->mastering.red.y = hdr_static_info_.mastering.red.y;
-            dst->mastering.green.x = hdr_static_info_.mastering.green.x;
-            dst->mastering.green.y = hdr_static_info_.mastering.green.y;
-            dst->mastering.blue.x = hdr_static_info_.mastering.blue.x;
-            dst->mastering.blue.y = hdr_static_info_.mastering.blue.y;
-            dst->maxCll = hdr_static_info_.maxCll;
-            dst->maxFall = hdr_static_info_.maxFall;
+            dst->mastering.red.x = m_hdrStaticInfo.mastering.red.x;
+            dst->mastering.red.y = m_hdrStaticInfo.mastering.red.y;
+            dst->mastering.green.x = m_hdrStaticInfo.mastering.green.x;
+            dst->mastering.green.y = m_hdrStaticInfo.mastering.green.y;
+            dst->mastering.blue.x = m_hdrStaticInfo.mastering.blue.x;
+            dst->mastering.blue.y = m_hdrStaticInfo.mastering.blue.y;
+            dst->maxCll = m_hdrStaticInfo.maxCll;
+            dst->maxFall = m_hdrStaticInfo.maxFall;
             return true;
         },
         [this] (const C2StreamHdrStaticInfo::output& src)->bool {
             MFX_DEBUG_TRACE("SetHdrStaticInfo");
-            hdr_static_info_ = src;
+            m_hdrStaticInfo = src;
             return true;
         }
     );
 
-    param_storage_.DumpParams();
+    m_paramStorage.DumpParams();
 }
 
 MfxC2DecoderComponent::~MfxC2DecoderComponent()
@@ -418,7 +418,7 @@ c2_status_t MfxC2DecoderComponent::Init()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    mfxStatus mfx_res = MfxDev::Create(MfxDev::Usage::Decoder, &device_);
+    mfxStatus mfx_res = MfxDev::Create(MfxDev::Usage::Decoder, &m_device);
 
     if(mfx_res == MFX_ERR_NONE) {
         mfx_res = ResetSettings(); // requires device_ initialized
@@ -438,19 +438,19 @@ c2_status_t MfxC2DecoderComponent::DoStart()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    synced_points_count_ = 0;
+    m_uSyncedPointsCount = 0;
     mfxStatus mfx_res = MFX_ERR_NONE;
-    eos_received_ = false;
+    m_bEosReceived = false;
 
     do {
-        bool allocator_required = (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY);
+        bool allocator_required = (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY);
 
-        if (allocator_required != allocator_set_) {
+        if (allocator_required != m_bAllocatorSet) {
 
 #ifdef USE_ONEVPL
             mfx_res = MFXClose(m_mfxSession);
 #else
-            mfx_res = session_.Close();
+            mfx_res = m_mfxSession.Close();
 #endif
             if (MFX_ERR_NONE != mfx_res) break;
 
@@ -459,29 +459,29 @@ c2_status_t MfxC2DecoderComponent::DoStart()
 
             // set frame allocator
             if (allocator_required) {
-                allocator_ = device_->GetFramePoolAllocator();
+                m_allocator = m_device->GetFramePoolAllocator();
 #ifdef USE_ONEVPL
-                mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, &(device_->GetFrameAllocator()->GetMfxAllocator()));
+                mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, &(m_device->GetFrameAllocator()->GetMfxAllocator()));
 #else
-                mfx_res = session_.SetFrameAllocator(&(device_->GetFrameAllocator()->GetMfxAllocator()));
+                mfx_res = m_mfxSession.SetFrameAllocator(&(m_device->GetFrameAllocator()->GetMfxAllocator()));
 #endif
             } else {
-                allocator_ = nullptr;
+                m_allocator = nullptr;
 #ifdef USE_ONEVPL
                 mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, nullptr);
 #else
-                mfx_res = session_.SetFrameAllocator(nullptr);
+                mfx_res = m_mfxSession.SetFrameAllocator(nullptr);
 #endif
             }
             if (MFX_ERR_NONE != mfx_res) break;
 
-            allocator_set_ = allocator_required;
+            m_bAllocatorSet = allocator_required;
         }
 
-        MFX_DEBUG_TRACE_STREAM(surfaces_.size());
+        MFX_DEBUG_TRACE_STREAM(m_surfaces.size());
 
-        working_queue_.Start();
-        waiting_queue_.Start();
+        m_workingQueue.Start();
+        m_waitingQueue.Start();
 
     } while(false);
 
@@ -499,27 +499,27 @@ c2_status_t MfxC2DecoderComponent::DoStop(bool abort)
     // which is bad as sync point becomes invalid after
     // decoder Close/Init.
     if (abort) {
-        working_queue_.Abort();
-        waiting_queue_.Abort();
+        m_workingQueue.Abort();
+        m_waitingQueue.Abort();
     } else {
-        working_queue_.Stop();
-        waiting_queue_.Stop();
+        m_workingQueue.Stop();
+        m_waitingQueue.Stop();
     }
 
     {
-        std::lock_guard<std::mutex> lock(pending_works_mutex_);
-        for (auto& pair : pending_works_) {
+        std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
+        for (auto& pair : m_pendingWorks) {
             // Other statuses cause libstagefright_ccodec fatal error
             NotifyWorkDone(std::move(pair.second), C2_NOT_FOUND);
         }
-        pending_works_.clear();
+        m_pendingWorks.clear();
     }
 
-    c2_allocator_ = nullptr;
+    m_c2Allocator = nullptr;
 
     FreeDecoder();
 
-    // c2_bitstream_->Reset() doesn't cleanup header stored in frame constructor
+    // m_c2Bitstream->Reset() doesn't cleanup header stored in frame constructor
     // that causes test influence to each other
     // and false positive, so re-create it.
     InitFrameConstructor();
@@ -540,16 +540,16 @@ c2_status_t MfxC2DecoderComponent::Release()
         m_mfxSession = nullptr;
     }
 #else
-    sts = session_.Close();
+    sts = m_mfxSession.Close();
 #endif
 
     if (MFX_ERR_NONE != sts) res = MfxStatusToC2(sts);
 
-    if (device_) {
-        device_->Close();
+    if (m_device) {
+        m_device->Close();
         if (MFX_ERR_NONE != sts) res = MfxStatusToC2(sts);
 
-        device_ = nullptr;
+        m_device = nullptr;
     }
 
 #ifdef USE_ONEVPL
@@ -567,7 +567,7 @@ void MfxC2DecoderComponent::InitFrameConstructor()
     MFX_DEBUG_TRACE_FUNC;
 
     MfxC2FrameConstructorType fc_type;
-    switch (decoder_type_)
+    switch (m_decoderType)
     {
     case DECODER_H264:
         fc_type = MfxC2FC_AVC;
@@ -592,7 +592,7 @@ void MfxC2DecoderComponent::InitFrameConstructor()
         fc_type = MfxC2FC_None;
         break;
     }
-    c2_bitstream_ = std::make_unique<MfxC2BitstreamIn>(fc_type);
+    m_c2Bitstream = std::make_unique<MfxC2BitstreamIn>(fc_type);
 }
 
 #ifdef USE_ONEVPL
@@ -619,7 +619,7 @@ mfxStatus MfxC2DecoderComponent::InitSession()
     }
 
     cfgVal[0].Type = MFX_VARIANT_TYPE_U32;
-    cfgVal[0].Data.U32 = (mfx_implementation_ == MFX_IMPL_SOFTWARE) ? MFX_IMPL_TYPE_SOFTWARE : MFX_IMPL_TYPE_HARDWARE;
+    cfgVal[0].Data.U32 = (m_mfxImplementation == MFX_IMPL_SOFTWARE) ? MFX_IMPL_TYPE_SOFTWARE : MFX_IMPL_TYPE_HARDWARE;
     mfx_res = MFXSetConfigFilterProperty(cfg[0], (const mfxU8 *) "mfxImplDescription.Impl", cfgVal[0]);
     if (MFX_ERR_NONE != mfx_res) {
         ALOGE("Failed to add an additional MFX configuration (%d)", mfx_res);
@@ -695,7 +695,7 @@ mfxStatus MfxC2DecoderComponent::InitSession()
     mfxStatus mfx_res = MFX_ERR_NONE;
 
     do {
-        mfx_res = session_.Init(mfx_implementation_, &g_required_mfx_version);
+        mfx_res = m_mfxSession.Init(m_mfxImplementation, &g_required_mfx_version);
         if (MFX_ERR_NONE != mfx_res) {
             MFX_DEBUG_TRACE_MSG("MFXVideoSession::Init failed");
             break;
@@ -703,11 +703,11 @@ mfxStatus MfxC2DecoderComponent::InitSession()
         MFX_DEBUG_TRACE_I32(g_required_mfx_version.Major);
         MFX_DEBUG_TRACE_I32(g_required_mfx_version.Minor);
 
-        mfx_res = session_.QueryIMPL(&mfx_implementation_);
+        mfx_res = m_mfxSession.QueryIMPL(&m_mfxImplementation);
         if (MFX_ERR_NONE != mfx_res) break;
-        MFX_DEBUG_TRACE_I32(mfx_implementation_);
+        MFX_DEBUG_TRACE_I32(m_mfxImplementation);
 
-        mfx_res = device_->InitMfxSession(&session_);
+        mfx_res = m_device->InitMfxSession(&m_mfxSession);
 
     } while (false);
 
@@ -721,45 +721,45 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
     MFX_DEBUG_TRACE_FUNC;
 
     mfxStatus res = MFX_ERR_NONE;
-    memset(&video_params_, 0, sizeof(mfxVideoParam));
+    memset(&m_mfxVideoParams, 0, sizeof(mfxVideoParam));
 
-    memset(&signal_info_, 0, sizeof(mfxExtVideoSignalInfo));
-    signal_info_.Header.BufferId = MFX_EXTBUFF_VIDEO_SIGNAL_INFO;
-    signal_info_.Header.BufferSz = sizeof(mfxExtVideoSignalInfo);
+    memset(&m_signalInfo, 0, sizeof(mfxExtVideoSignalInfo));
+    m_signalInfo.Header.BufferId = MFX_EXTBUFF_VIDEO_SIGNAL_INFO;
+    m_signalInfo.Header.BufferSz = sizeof(mfxExtVideoSignalInfo);
 
-    switch (decoder_type_)
+    switch (m_decoderType)
     {
     case DECODER_H264:
-        video_params_.mfx.CodecId = MFX_CODEC_AVC;
+        m_mfxVideoParams.mfx.CodecId = MFX_CODEC_AVC;
         break;
     case DECODER_H265:
-        video_params_.mfx.CodecId = MFX_CODEC_HEVC;
+        m_mfxVideoParams.mfx.CodecId = MFX_CODEC_HEVC;
         break;
     case DECODER_VP9:
-        video_params_.mfx.CodecId = MFX_CODEC_VP9;
+        m_mfxVideoParams.mfx.CodecId = MFX_CODEC_VP9;
         break;
     case DECODER_VP8:
-        video_params_.mfx.CodecId = MFX_CODEC_VP8;
+        m_mfxVideoParams.mfx.CodecId = MFX_CODEC_VP8;
         break;
     case DECODER_MPEG2:
-        video_params_.mfx.CodecId = MFX_CODEC_MPEG2;
+        m_mfxVideoParams.mfx.CodecId = MFX_CODEC_MPEG2;
         break;
     case DECODER_AV1:
-        video_params_.mfx.CodecId = MFX_CODEC_AV1;
+        m_mfxVideoParams.mfx.CodecId = MFX_CODEC_AV1;
         break;
     default:
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
         break;
     }
 
-    color_aspects_.SetCodecID(video_params_.mfx.CodecId);
+    m_colorAspects.SetCodecID(m_mfxVideoParams.mfx.CodecId);
 
-    mfx_set_defaults_mfxVideoParam_dec(&video_params_);
+    mfx_set_defaults_mfxVideoParam_dec(&m_mfxVideoParams);
 
-    if (device_)
+    if (m_device)
     {
         // default pattern: video memory if allocator available
-        video_params_.IOPattern = device_->GetFrameAllocator() ?
+        m_mfxVideoParams.IOPattern = m_device->GetFrameAllocator() ?
         MFX_IOPATTERN_OUT_VIDEO_MEMORY : MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
 
     }
@@ -778,15 +778,15 @@ mfxU16 MfxC2DecoderComponent::GetAsyncDepth(void)
     mfxU16 asyncDepth;
 
 #ifdef USE_ONEVPL
-    asyncDepth = (MFX_IMPL_BASETYPE(mfx_implementation_) == MFX_IMPL_SOFTWARE) ? 0 : 1;
+    asyncDepth = (MFX_IMPL_BASETYPE(m_mfxImplementation) == MFX_IMPL_SOFTWARE) ? 0 : 1;
 #else
-    if ((MFX_IMPL_HARDWARE == MFX_IMPL_BASETYPE(mfx_implementation_)) &&
-        ((MFX_CODEC_AVC == video_params_.mfx.CodecId) ||
-         (MFX_CODEC_HEVC == video_params_.mfx.CodecId) ||
-         (MFX_CODEC_VP9 == video_params_.mfx.CodecId) ||
-         (MFX_CODEC_VP8 == video_params_.mfx.CodecId) ||
-         (MFX_CODEC_AV1 == video_params_.mfx.CodecId) ||
-         (MFX_CODEC_MPEG2 == video_params_.mfx.CodecId)))
+    if ((MFX_IMPL_HARDWARE == MFX_IMPL_BASETYPE(m_mfxImplementation)) &&
+        ((MFX_CODEC_AVC == m_mfxVideoParams.mfx.CodecId) ||
+         (MFX_CODEC_HEVC == m_mfxVideoParams.mfx.CodecId) ||
+         (MFX_CODEC_VP9 == m_mfxVideoParams.mfx.CodecId) ||
+         (MFX_CODEC_VP8 == m_mfxVideoParams.mfx.CodecId) ||
+         (MFX_CODEC_AV1 == m_mfxVideoParams.mfx.CodecId) ||
+         (MFX_CODEC_MPEG2 == m_mfxVideoParams.mfx.CodecId)))
         asyncDepth = 1;
     else
         asyncDepth = 0;
@@ -801,68 +801,68 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
 
-    std::lock_guard<std::mutex> lock(init_decoder_mutex_);
+    std::lock_guard<std::mutex> lock(m_initDecoderMutex);
 
     {
         MFX_DEBUG_TRACE_MSG("InitDecoder: DecodeHeader");
 
-        if (nullptr == decoder_) {
+        if (nullptr == m_mfxDecoder) {
 #ifdef USE_ONEVPL
-            decoder_.reset(MFX_NEW_NO_THROW(MFXVideoDECODE(m_mfxSession)));
+            m_mfxDecoder.reset(MFX_NEW_NO_THROW(MFXVideoDECODE(m_mfxSession)));
 #else
-            decoder_.reset(MFX_NEW_NO_THROW(MFXVideoDECODE(session_)));
+            m_mfxDecoder.reset(MFX_NEW_NO_THROW(MFXVideoDECODE(m_mfxSession)));
 #endif
-            if (nullptr == decoder_) {
+            if (nullptr == m_mfxDecoder) {
                 mfx_res = MFX_ERR_MEMORY_ALLOC;
             }
         }
 
         if (MFX_ERR_NONE == mfx_res) {
             // saving parameters
-            mfxVideoParam oldParams = video_params_;
+            mfxVideoParam oldParams = m_mfxVideoParams;
 
-            ext_buffers_.push_back(reinterpret_cast<mfxExtBuffer*>(&signal_info_));
-            video_params_.NumExtParam = ext_buffers_.size();
-            video_params_.ExtParam = &ext_buffers_.front();
+            m_extBuffers.push_back(reinterpret_cast<mfxExtBuffer*>(&m_signalInfo));
+            m_mfxVideoParams.NumExtParam = m_extBuffers.size();
+            m_mfxVideoParams.ExtParam = &m_extBuffers.front();
 
             // decoding header
-            mfx_res = decoder_->DecodeHeader(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(), &video_params_);
+            mfx_res = m_mfxDecoder->DecodeHeader(m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get(), &m_mfxVideoParams);
 
-            ext_buffers_.pop_back();
-            video_params_.NumExtParam = oldParams.NumExtParam;
-            video_params_.ExtParam = oldParams.ExtParam;
+            m_extBuffers.pop_back();
+            m_mfxVideoParams.NumExtParam = oldParams.NumExtParam;
+            m_mfxVideoParams.ExtParam = oldParams.ExtParam;
         }
         if (MFX_ERR_NULL_PTR == mfx_res) {
             mfx_res = MFX_ERR_MORE_DATA;
         }
 
-        video_params_.mfx.FrameInfo.Width = MFX_MEM_ALIGN(video_params_.mfx.FrameInfo.Width, 16);
-        video_params_.mfx.FrameInfo.Height = MFX_MEM_ALIGN(video_params_.mfx.FrameInfo.Height, 16);
+        m_mfxVideoParams.mfx.FrameInfo.Width = MFX_MEM_ALIGN(m_mfxVideoParams.mfx.FrameInfo.Width, 16);
+        m_mfxVideoParams.mfx.FrameInfo.Height = MFX_MEM_ALIGN(m_mfxVideoParams.mfx.FrameInfo.Height, 16);
         if (MFX_ERR_NONE == mfx_res) {
-            mfx_res = c2_bitstream_->GetFrameConstructor()->Init(video_params_.mfx.CodecProfile, video_params_.mfx.FrameInfo);
+            mfx_res = m_c2Bitstream->GetFrameConstructor()->Init(m_mfxVideoParams.mfx.CodecProfile, m_mfxVideoParams.mfx.FrameInfo);
         }
     }
     if (MFX_ERR_NONE == mfx_res) {
         MFX_DEBUG_TRACE_MSG("InitDecoder: UpdateBitstreamColorAspects");
-        color_aspects_.UpdateBitstreamColorAspects(signal_info_);
+        m_colorAspects.UpdateBitstreamColorAspects(m_signalInfo);
 
         MFX_DEBUG_TRACE_MSG("InitDecoder: UpdateHdrStaticInfo");
         UpdateHdrStaticInfo();
 
         MFX_DEBUG_TRACE_MSG("InitDecoder: GetAsyncDepth");
-        video_params_.AsyncDepth = GetAsyncDepth();
+        m_mfxVideoParams.AsyncDepth = GetAsyncDepth();
     }
 
     //We need check whether the BQ allocator has a surface, if No we cannot use MFX_IOPATTERN_OUT_VIDEO_MEMORY mode.
-    if (MFX_ERR_NONE == mfx_res && video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
+    if (MFX_ERR_NONE == mfx_res && m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
         std::shared_ptr<C2GraphicBlock> out_block;
         c2_status_t res = C2_OK;
         C2MemoryUsage mem_usage = {C2AndroidMemoryUsage::CPU_READ|C2AndroidMemoryUsage::HW_COMPOSER_READ,
                                      C2AndroidMemoryUsage::HW_CODEC_WRITE};
 
-        res = c2_allocator_->fetchGraphicBlock(video_params_.mfx.FrameInfo.Width,
-                                           video_params_.mfx.FrameInfo.Height,
-                                           MfxFourCCToGralloc(video_params_.mfx.FrameInfo.FourCC),
+        res = m_c2Allocator->fetchGraphicBlock(m_mfxVideoParams.mfx.FrameInfo.Width,
+                                           m_mfxVideoParams.mfx.FrameInfo.Height,
+                                           MfxFourCCToGralloc(m_mfxVideoParams.mfx.FrameInfo.FourCC),
                                            mem_usage, &out_block);
 
         if (res == C2_OK) {
@@ -872,14 +872,14 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
                                                     &stride, &generation, &igbp_id, &igbp_slot);
             if (!igbp_id && !igbp_slot) {
                 //No surface & BQ
-                video_params_.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
-                allocator_ = nullptr;
+                m_mfxVideoParams.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
+                m_allocator = nullptr;
 #ifdef USE_ONEVPL
                 mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, nullptr);
 #else
-                mfx_res = session_.SetFrameAllocator(nullptr);
+                mfx_res = m_mfxSession.SetFrameAllocator(nullptr);
 #endif
-                allocator_set_ = false;
+                m_bAllocatorSet = false;
                 ALOGI("Format = 0x%x. System memory is being used for decoding!", format);
                 if (MFX_ERR_NONE != mfx_res) MFX_DEBUG_TRACE_MSG("SetFrameAllocator failed");
             }
@@ -889,19 +889,19 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
     if (MFX_ERR_NONE == mfx_res) {
         MFX_DEBUG_TRACE_MSG("InitDecoder: Init");
 
-        MFX_DEBUG_TRACE__mfxVideoParam_dec(video_params_);
+        MFX_DEBUG_TRACE__mfxVideoParam_dec(m_mfxVideoParams);
 
-        if (allocator_) {
-            allocator_->SetC2Allocator(c2_allocator);
-            allocator_->SetBufferCount(output_delay_);
+        if (m_allocator) {
+            m_allocator->SetC2Allocator(c2_allocator);
+            m_allocator->SetBufferCount(m_uOutputDelay);
         }
 
         MFX_DEBUG_TRACE_MSG("Decoder initializing...");
-        mfx_res = decoder_->Init(&video_params_);
+        mfx_res = m_mfxDecoder->Init(&m_mfxVideoParams);
         MFX_DEBUG_TRACE_PRINTF("Decoder initialized, sts = %d", mfx_res);
-        // c2 allocator is needed to handle mfxAllocRequest coming from decoder_->Init,
+        // c2 allocator is needed to handle mfxAllocRequest coming from m_mfxDecoder->Init,
         // not needed after that.
-        if (allocator_) allocator_->SetC2Allocator(nullptr);
+        if (m_allocator) m_allocator->SetC2Allocator(nullptr);
 
         if (MFX_WRN_PARTIAL_ACCELERATION == mfx_res) {
             MFX_DEBUG_TRACE_MSG("InitDecoder returns MFX_WRN_PARTIAL_ACCELERATION");
@@ -911,15 +911,15 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             mfx_res = MFX_ERR_NONE;
         }
         if (MFX_ERR_NONE == mfx_res) {
-            mfx_res = decoder_->GetVideoParam(&video_params_);
+            mfx_res = m_mfxDecoder->GetVideoParam(&m_mfxVideoParams);
 
-            max_width_ = video_params_.mfx.FrameInfo.Width;
-            max_height_ = video_params_.mfx.FrameInfo.Height;
+            m_uMaxWidth = m_mfxVideoParams.mfx.FrameInfo.Width;
+            m_uMaxHeight = m_mfxVideoParams.mfx.FrameInfo.Height;
 
-            MFX_DEBUG_TRACE__mfxVideoParam_dec(video_params_);
+            MFX_DEBUG_TRACE__mfxVideoParam_dec(m_mfxVideoParams);
         }
         if (MFX_ERR_NONE == mfx_res) {
-            initialized_ = true;
+            m_bInitialized = true;
         }
     }
     if (MFX_ERR_NONE != mfx_res) {
@@ -934,23 +934,23 @@ void MfxC2DecoderComponent::FreeDecoder()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    initialized_ = false;
+    m_bInitialized = false;
 
-    locked_surfaces_.clear();
-    locked_block_.clear();
+    m_lockedSurfaces.clear();
+    m_lockedBlocks.clear();
 
-    if(nullptr != decoder_) {
-        decoder_->Close();
-        decoder_ = nullptr;
+    if(nullptr != m_mfxDecoder) {
+        m_mfxDecoder->Close();
+        m_mfxDecoder = nullptr;
     }
 
-    max_height_ = 0;
-    max_width_ = 0;
+    m_uMaxHeight = 0;
+    m_uMaxWidth = 0;
 
-    surfaces_.clear();
+    m_surfaces.clear();
 
-    if (allocator_) {
-        allocator_->Reset();
+    if (m_allocator) {
+        m_allocator->Reset();
     }
 }
 
@@ -959,7 +959,7 @@ c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
     MFX_DEBUG_TRACE_FUNC;
     c2_status_t res = C2_OK;
 
-    res = param_storage_.QueryParam(index, dst);
+    res = m_paramStorage.QueryParam(index, dst);
     if (C2_NOT_FOUND == res) {
         switch (index) {
             case kParamIndexMemoryType: {
@@ -975,7 +975,7 @@ c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
                 if (nullptr == *dst) {
                     std::unique_ptr<C2PortAllocatorsTuning::output> outAlloc =
                         C2PortAllocatorsTuning::output::AllocUnique(1);
-                    if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
+                    if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
 #ifdef MFX_BUFFER_QUEUE
                         outAlloc->m.values[0] = MFX_BUFFERQUEUE;
 #else
@@ -1013,17 +1013,17 @@ c2_status_t MfxC2DecoderComponent::Query(
 
     MFX_DEBUG_TRACE_FUNC;
 
-    std::lock_guard<std::mutex> lock(init_decoder_mutex_);
+    std::lock_guard<std::mutex> lock(m_initDecoderMutex);
 
     c2_status_t res = C2_OK;
 
     // determine source, update it if needed
-    const mfxVideoParam* params_view = &video_params_;
+    const mfxVideoParam* params_view = &m_mfxVideoParams;
     if (nullptr != params_view) {
         // 1st cycle on stack params
         for (C2Param* param : stackParams) {
             c2_status_t param_res = C2_OK;
-            if (param_storage_.FindParam(param->index())) {
+            if (m_paramStorage.FindParam(param->index())) {
                 param_res = QueryParam(params_view, param->index(), &param);
             } else {
                 param_res =  C2_BAD_INDEX;
@@ -1039,7 +1039,7 @@ c2_status_t MfxC2DecoderComponent::Query(
             C2Param* param = nullptr;
             // check on presence
             c2_status_t param_res = C2_OK;
-            if (param_storage_.FindParam(param_index.type())) {
+            if (m_paramStorage.FindParam(param_index.type())) {
                 param_res = QueryParam(params_view, param_index, &param);
             } else {
                 param_res = C2_BAD_INDEX;
@@ -1077,7 +1077,7 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
     for (const C2Param* param : params) {
 
         // check whether plugin supports this parameter
-        std::unique_ptr<C2SettingResult> find_res = param_storage_.FindParam(param);
+        std::unique_ptr<C2SettingResult> find_res = m_paramStorage.FindParam(param);
         if(nullptr != find_res) {
             MFX_DEBUG_TRACE_PRINTF("cannot found param: %X02", param->index());
             failures->push_back(std::move(find_res));
@@ -1085,7 +1085,7 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
         }
         // check whether plugin is in a correct state to apply this parameter
         bool modifiable = ((param->kind() & C2Param::TUNING) != 0) ||
-            state_ == State::STOPPED; /* all kinds, even INFO might be set by stagefright */
+            m_state == State::STOPPED; /* all kinds, even INFO might be set by stagefright */
 
         if (!modifiable) {
             MFX_DEBUG_TRACE_PRINTF("cannot modify param: %X02", param->index());
@@ -1094,7 +1094,7 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
         }
 
         // check ranges
-        if(!param_storage_.ValidateParam(param, failures)) {
+        if(!m_paramStorage.ValidateParam(param, failures)) {
             continue;
         }
 
@@ -1102,7 +1102,7 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
         switch (C2Param::Type(param->type()).typeIndex()) {
             case kParamIndexMemoryType: {
                 const C2MemoryTypeSetting* setting = static_cast<const C2MemoryTypeSetting*>(param);
-                bool set_res = C2MemoryTypeToMfxIOPattern(false, setting->value, &video_params_.IOPattern);
+                bool set_res = C2MemoryTypeToMfxIOPattern(false, setting->value, &m_mfxVideoParams.IOPattern);
                 if (!set_res) {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
                 }
@@ -1113,8 +1113,8 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
                                 static_cast<const C2PortBlockPoolsTuning::output*>(param);
 
                 if (outputPools && outputPools->flexCount() >= 1) {
-                    output_pool_id_ = outputPools->m.values[0];
-                    MFX_DEBUG_TRACE_PRINTF("config kParamIndexBlockPools to %lu",output_pool_id_);
+                    m_outputPoolId = outputPools->m.values[0];
+                    MFX_DEBUG_TRACE_PRINTF("config kParamIndexBlockPools to %lu",m_outputPoolId);
                 }
                 else {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
@@ -1140,14 +1140,14 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 signal_info.TransferCharacteristics = settings->transfer;
                 signal_info.MatrixCoefficients = settings->matrix;
 
-                color_aspects_.UpdateBitstreamColorAspects(signal_info);
-                color_aspects_.SetFrameworkColorAspects(ca);
+                m_colorAspects.UpdateBitstreamColorAspects(signal_info);
+                m_colorAspects.SetFrameworkColorAspects(ca);
                 break;
             }
 
             default:
                 MFX_DEBUG_TRACE_PRINTF("applying default parameter: %X02", param->index());
-                param_storage_.ConfigParam(*param, state_ == State::STOPPED, failures);
+                m_paramStorage.ConfigParam(*param, m_state == State::STOPPED, failures);
                 break;
         }
     }
@@ -1172,7 +1172,7 @@ c2_status_t MfxC2DecoderComponent::Config(std::unique_lock<std::mutex> state_loc
 
         failures->clear();
 
-        std::lock_guard<std::mutex> lock(init_decoder_mutex_);
+        std::lock_guard<std::mutex> lock(m_initDecoderMutex);
 
         DoConfig(params, failures, true);
 
@@ -1199,19 +1199,19 @@ mfxStatus MfxC2DecoderComponent::DecodeFrameAsync(
         // Prevent msdk decoder from overfeeding.
         // It may result in all allocated surfaces become locked, nothing to supply as surface_work
         // to DecodeFrameAsync.
-        std::unique_lock<std::mutex> lock(dev_busy_mutex_);
-        dev_busy_cond_.wait(lock, [this] { return synced_points_count_ < video_params_.AsyncDepth; } );
-        // Can release the lock here as synced_points_count_ is incremented in this thread,
+        std::unique_lock<std::mutex> lock(m_devBusyMutex);
+        m_devBusyCond.wait(lock, [this] { return m_uSyncedPointsCount < m_mfxVideoParams.AsyncDepth; } );
+        // Can release the lock here as m_uSyncedPointsCount is incremented in this thread,
         // so condition cannot go to false.
     }
 
     do {
-      mfx_res = decoder_->DecodeFrameAsync(bs, surface_work, surface_out, syncp);
+      mfx_res = m_mfxDecoder->DecodeFrameAsync(bs, surface_work, surface_out, syncp);
       ++trying_count;
 
       if (MFX_WRN_DEVICE_BUSY == mfx_res) {
 
-        if (flushing_) {
+        if (m_bFlushing) {
             // break waiting as flushing in progress and return MFX_WRN_DEVICE_BUSY as sign of it
             break;
         }
@@ -1222,14 +1222,14 @@ mfxStatus MfxC2DecoderComponent::DecodeFrameAsync(
             break;
         }
 
-        std::unique_lock<std::mutex> lock(dev_busy_mutex_);
-        unsigned int synced_points_count = synced_points_count_;
-        // wait for change of synced_points_count_
+        std::unique_lock<std::mutex> lock(m_devBusyMutex);
+        unsigned int synced_points_count = m_uSyncedPointsCount;
+        // wait for change of m_uSyncedPointsCount
         // that might help with MFX_WRN_DEVICE_BUSY
-        dev_busy_cond_.wait_for(lock, timeout, [this, synced_points_count] {
-            return synced_points_count_ < synced_points_count;
+        m_devBusyCond.wait_for(lock, timeout, [this, synced_points_count] {
+            return m_uSyncedPointsCount < synced_points_count;
         } );
-        if (flushing_) { // do check flushing again after timeout to not call DecodeFrameAsync once more
+        if (m_bFlushing) { // do check flushing again after timeout to not call DecodeFrameAsync once more
             break;
         }
       }
@@ -1285,9 +1285,9 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
             *expect_output = true; // It might not really produce output frame from consumed bitstream,
             // but neither surface_work->Data.Locked nor mfx_sts provide exact status of that.
 
-            std::unique_lock<std::mutex> lock(locked_surfaces_mutex_);
+            std::unique_lock<std::mutex> lock(m_lockedSurfacesMutex);
             // add output to waiting pool in case of Decode success only
-            locked_surfaces_.push_back(std::move(frame_work));
+            m_lockedSurfaces.push_back(std::move(frame_work));
 
             MFX_DEBUG_TRACE_P(surface_out);
             if (nullptr != surface_out) {
@@ -1301,9 +1301,9 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
                         [surface_out] (const auto& item) { return item.GetMfxFrameSurface().get() == surface_out; };
 
                     MfxC2FrameOut frame_out;
-                    auto found = std::find_if(locked_surfaces_.begin(), locked_surfaces_.end(),
+                    auto found = std::find_if(m_lockedSurfaces.begin(), m_lockedSurfaces.end(),
                         pred_match_surface);
-                    if (found != locked_surfaces_.end()) {
+                    if (found != m_lockedSurfaces.end()) {
                         frame_out = *found;
                     } else {
                         MFX_DEBUG_TRACE_STREAM("Not found LOCKED!!!");
@@ -1311,13 +1311,13 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
                     }
                     lock.unlock(); // unlock the mutex asap
 
-                    waiting_queue_.Push(
+                    m_waitingQueue.Push(
                         [ frame = std::move(frame_out), sync_point, this ] () mutable {
                         WaitWork(std::move(frame), sync_point);
                     } );
                     {
-                        std::unique_lock<std::mutex> lock(dev_busy_mutex_);
-                        ++synced_points_count_;
+                        std::unique_lock<std::mutex> lock(m_devBusyMutex);
+                        ++m_uSyncedPointsCount;
                     }
                 }
             }
@@ -1342,33 +1342,33 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
 
     do {
 
-        if (!c2_allocator_) {
+        if (!m_c2Allocator) {
             res = C2_NOT_FOUND;
             break;
         }
 
-        if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
+        if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
 
             C2MemoryUsage mem_usage = {C2AndroidMemoryUsage::CPU_READ|C2AndroidMemoryUsage::HW_COMPOSER_READ,
                                             C2AndroidMemoryUsage::HW_CODEC_WRITE};
-            res = c2_allocator_->fetchGraphicBlock(width, height,
+            res = m_c2Allocator->fetchGraphicBlock(width, height,
                                                MfxFourCCToGralloc(fourcc), mem_usage, out_block);
             if (res == C2_OK) {
                 buffer_handle_t hndl = android::UnwrapNativeCodec2GrallocHandle((*out_block)->handle());
                 uint64_t id;
-                c2_status_t sts = gralloc_allocator_->GetBackingStore(hndl, &id);
-                if (allocator_ && !allocator_->InCache(id)) {
+                c2_status_t sts = m_grallocAllocator->GetBackingStore(hndl, &id);
+                if (m_allocator && !m_allocator->InCache(id)) {
                     res = C2_BLOCKING;
                     usleep(1000);
                     MFX_DEBUG_TRACE_PRINTF("fetchGraphicBlock: BLOCKING");
                     ALOGE("fetchGraphicBlock a nocached block, please retune output blocks.");
                 }
             }
-        } else if (video_params_.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
+        } else if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
 
             C2MemoryUsage mem_usage = {C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE};
 
-            res = c2_allocator_->fetchGraphicBlock(width, height,
+            res = m_c2Allocator->fetchGraphicBlock(width, height,
                                                MfxFourCCToGralloc(fourcc, false), mem_usage, out_block);
        }
     } while (res == C2_BLOCKING);
@@ -1384,8 +1384,8 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
     c2_status_t res = C2_OK;
 
     std::shared_ptr<MfxFrameConverter> converter;
-    if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
-        converter = device_->GetFrameConverter();
+    if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
+        converter = m_device->GetFrameConverter();
     }
 
     do
@@ -1394,13 +1394,13 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
             return !item.GetMfxFrameSurface()->Data.Locked;
         };
         {
-            std::lock_guard<std::mutex> lock(locked_surfaces_mutex_);
-            locked_surfaces_.remove_if(pred_unlocked);
+            std::lock_guard<std::mutex> lock(m_lockedSurfacesMutex);
+            m_lockedSurfaces.remove_if(pred_unlocked);
         }
 
         std::shared_ptr<C2GraphicBlock> out_block;
-        res = AllocateC2Block(video_params_.mfx.FrameInfo.Width, video_params_.mfx.FrameInfo.Height,
-                              video_params_.mfx.FrameInfo.FourCC, &out_block);
+        res = AllocateC2Block(m_mfxVideoParams.mfx.FrameInfo.Width, m_mfxVideoParams.mfx.FrameInfo.Height,
+                              m_mfxVideoParams.mfx.FrameInfo.FourCC, &out_block);
         if (C2_TIMED_OUT == res)
         {
             continue;
@@ -1408,20 +1408,20 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
         if (C2_OK != res) break;
 
         buffer_handle_t hndl = android::UnwrapNativeCodec2GrallocHandle(out_block->handle());
-        auto it = surfaces_.end();
-        if (video_params_.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
+        auto it = m_surfaces.end();
+        if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
         {
             uint64_t id;
-            c2_status_t sts = gralloc_allocator_->GetBackingStore(hndl, &id);
+            c2_status_t sts = m_grallocAllocator->GetBackingStore(hndl, &id);
 
-            it = surfaces_.find(id);
-            if (it == surfaces_.end()){
+            it = m_surfaces.find(id);
+            if (it == m_surfaces.end()){
                 // haven't been used for decoding yet
-                res = MfxC2FrameOut::Create(converter, out_block, video_params_.mfx.FrameInfo, TIMEOUT_NS, frame_out, hndl);
+                res = MfxC2FrameOut::Create(converter, out_block, m_mfxVideoParams.mfx.FrameInfo, TIMEOUT_NS, frame_out, hndl);
                 if (C2_OK != res)
                     break;
 
-                surfaces_.emplace(id, frame_out->GetMfxFrameSurface());
+                m_surfaces.emplace(id, frame_out->GetMfxFrameSurface());
             } else {
                 if (it->second->Data.Locked) {
                     /* Buffer locked, try next block. */
@@ -1432,7 +1432,7 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
                     *frame_out = MfxC2FrameOut(std::move(out_block), it->second);
             }
         } else {
-            res = MfxC2FrameOut::Create(converter, out_block, video_params_.mfx.FrameInfo, TIMEOUT_NS, frame_out, hndl);
+            res = MfxC2FrameOut::Create(converter, out_block, m_mfxVideoParams.mfx.FrameInfo, TIMEOUT_NS, frame_out, hndl);
             if (C2_OK != res)
             break;
         }
@@ -1446,9 +1446,9 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    if (flushing_)
+    if (m_bFlushing)
     {
-        flushed_works_.push_back(std::move(work));
+        m_flushedWorks.push_back(std::move(work));
         return;
     }
 
@@ -1466,37 +1466,37 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
     do {
         std::unique_ptr<MfxC2BitstreamIn::FrameView> bitstream_view;
-        res = c2_bitstream_->AppendFrame(work->input, TIMEOUT_NS, &bitstream_view);
+        res = m_c2Bitstream->AppendFrame(work->input, TIMEOUT_NS, &bitstream_view);
         if (C2_OK != res) break;
 
         if (work->input.buffers.size() == 0) break;
 
         PushPending(std::move(work));
 
-        if (!c2_allocator_) {
-            res = GetCodec2BlockPool(output_pool_id_,
-                shared_from_this(), &c2_allocator_);
+        if (!m_c2Allocator) {
+            res = GetCodec2BlockPool(m_outputPoolId,
+                shared_from_this(), &m_c2Allocator);
             if (res != C2_OK) break;
 #ifdef MFX_BUFFER_QUEUE
-            bool hasSurface = std::static_pointer_cast<MfxC2BufferQueueBlockPool>(c2_allocator_)->outputSurfaceSet();
-            video_params_.IOPattern = hasSurface ? MFX_IOPATTERN_OUT_VIDEO_MEMORY : MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
+            bool hasSurface = std::static_pointer_cast<MfxC2BufferQueueBlockPool>(m_c2Allocator)->outputSurfaceSet();
+            m_mfxVideoParams.IOPattern = hasSurface ? MFX_IOPATTERN_OUT_VIDEO_MEMORY : MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
 #endif
-            if (video_params_.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
-                allocator_ = nullptr;
+            if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
+                m_allocator = nullptr;
 #ifdef USE_ONEVPL
                 mfx_sts = MFXVideoCORE_SetFrameAllocator(m_mfxSession, nullptr);
 #else
-                mfx_sts = session_.SetFrameAllocator(nullptr);
+                mfx_sts = m_mfxSession.SetFrameAllocator(nullptr);
 #endif
-                allocator_set_ = false;
+                m_bAllocatorSet = false;
                 ALOGI("System memory is being used for decoding!");
 
                 if (MFX_ERR_NONE != mfx_sts) break;
             }
         }
 
-        if (!gralloc_allocator_) {
-            res = MfxGrallocAllocator::Create(&gralloc_allocator_);
+        if (!m_grallocAllocator) {
+            res = MfxGrallocAllocator::Create(&m_grallocAllocator);
             if(C2_OK != res) {
                 break;
             }
@@ -1506,8 +1506,8 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         // if DecodeFrame returns error which is repairable, like resolution change
         bool resolution_change = false;
         do {
-            if (!initialized_) {
-                mfx_sts = InitDecoder(c2_allocator_);
+            if (!m_bInitialized) {
+                mfx_sts = InitDecoder(m_c2Allocator);
                 if(MFX_ERR_NONE != mfx_sts) {
                     MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
                     if (MFX_ERR_MORE_DATA == mfx_sts) {
@@ -1516,25 +1516,25 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                     res = MfxStatusToC2(mfx_sts);
                     break;
                 }
-                if (!initialized_) {
+                if (!m_bInitialized) {
                     MFX_DEBUG_TRACE_MSG("Cannot initialize mfx decoder");
                     res = C2_BAD_VALUE;
                     break;
                 }
-                if (set_hdr_sei_) {
+                if (m_bSetHdrSei) {
                     MFX_DEBUG_TRACE_MSG("Set HDR static info");
-                    std::lock_guard<std::mutex> lock(pending_works_mutex_);
-                    auto it = pending_works_.find(incoming_frame_index);
-                    if (it != pending_works_.end()) {
-                        it->second->worklets.front()->output.configUpdate.push_back(C2Param::Copy(hdr_static_info_));
+                    std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
+                    auto it = m_pendingWorks.find(incoming_frame_index);
+                    if (it != m_pendingWorks.end()) {
+                        it->second->worklets.front()->output.configUpdate.push_back(C2Param::Copy(m_hdrStaticInfo));
                     } else {
                         MFX_DEBUG_TRACE_MSG("Cannot find the Work in Pending works");
                     }
-                    set_hdr_sei_ = false;
+                    m_bSetHdrSei = false;
                 }
             }
 
-            mfxBitstream *bs = c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get();
+            mfxBitstream *bs = m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get();
             MfxC2FrameOut frame_out;
             do {
                 res = AllocateFrame(&frame_out);
@@ -1557,13 +1557,13 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 // Clear up all queue of works after drain except last work
                 // which caused resolution change and should be used again.
                 {
-                    std::lock_guard<std::mutex> lock(pending_works_mutex_);
-                    auto it = pending_works_.begin();
-                    while (it != pending_works_.end()) {
+                    std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
+                    auto it = m_pendingWorks.begin();
+                    while (it != m_pendingWorks.end()) {
                         if (it->first != incoming_frame_index) {
                             MFX_DEBUG_TRACE_STREAM("Work removed: " << NAMED(it->second->input.ordinal.frameIndex.peeku()));
                             NotifyWorkDone(std::move(it->second), C2_NOT_FOUND);
-                            it = pending_works_.erase(it);
+                            it = m_pendingWorks.erase(it);
                         } else {
                             ++it;
                         }
@@ -1571,7 +1571,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 }
 
                 bool resolution_change_done = false;
-                mfxStatus decode_header_sts = decoder_->DecodeHeader(c2_bitstream_->GetFrameConstructor()->GetMfxBitstream().get(), &video_params_);
+                mfxStatus decode_header_sts = m_mfxDecoder->DecodeHeader(m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get(), &m_mfxVideoParams);
                 MFX_DEBUG_TRACE__mfxStatus(decode_header_sts);
                 mfx_sts = decode_header_sts;
 
@@ -1601,11 +1601,11 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
     // notify listener in case of failure or empty output
     if (C2_OK != res || !expect_output || incomplete_frame || flushing) {
         if (!work) {
-            std::lock_guard<std::mutex> lock(pending_works_mutex_);
-            auto it = pending_works_.find(incoming_frame_index);
-            if (it != pending_works_.end()) {
+            std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
+            auto it = m_pendingWorks.find(incoming_frame_index);
+            if (it != m_pendingWorks.end()) {
                 work = std::move(it->second);
-                pending_works_.erase(it);
+                m_pendingWorks.erase(it);
             } else {
                 MFX_DEBUG_TRACE_STREAM("Not found C2Work to return error result!!!");
                 FatalError(C2_CORRUPTED);
@@ -1619,7 +1619,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 worklet->output.ordinal = work->input.ordinal;
             }
             if (flushing) {
-                flushed_works_.push_back(std::move(work));
+                m_flushedWorks.push_back(std::move(work));
             } else {
                 NotifyWorkDone(std::move(work), res);
             }
@@ -1633,12 +1633,12 @@ void MfxC2DecoderComponent::Drain(std::unique_ptr<C2Work>&& work)
 
     mfxStatus mfx_sts = MFX_ERR_NONE;
 
-    if (initialized_) {
+    if (m_bInitialized) {
         do {
 
-            if (flushing_) {
+            if (m_bFlushing) {
                 if (work) {
-                    flushed_works_.push_back(std::move(work));
+                    m_flushedWorks.push_back(std::move(work));
                 }
                 break;
             }
@@ -1652,7 +1652,7 @@ void MfxC2DecoderComponent::Drain(std::unique_ptr<C2Work>&& work)
             mfx_sts = DecodeFrame(nullptr, std::move(frame_out), &flushing, &expect_output);
             if (flushing) {
                 if (work) {
-                    flushed_works_.push_back(std::move(work));
+                    m_flushedWorks.push_back(std::move(work));
                 }
                 break;
             }
@@ -1661,7 +1661,7 @@ void MfxC2DecoderComponent::Drain(std::unique_ptr<C2Work>&& work)
 
         // eos work, should be sent after last work returned
         if (work) {
-            waiting_queue_.Push([work = std::move(work), this]() mutable {
+            m_waitingQueue.Push([work = std::move(work), this]() mutable {
 
                 std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
 
@@ -1673,9 +1673,9 @@ void MfxC2DecoderComponent::Drain(std::unique_ptr<C2Work>&& work)
         }
 
         const auto timeout = std::chrono::seconds(10);
-        std::unique_lock<std::mutex> lock(dev_busy_mutex_);
+        std::unique_lock<std::mutex> lock(m_devBusyMutex);
         bool cv_res =
-            dev_busy_cond_.wait_for(lock, timeout, [this] { return synced_points_count_ == 0; } );
+            m_devBusyCond.wait_for(lock, timeout, [this] { return m_uSyncedPointsCount == 0; } );
         if (!cv_res) {
             MFX_DEBUG_TRACE_MSG("Timeout on drain completion");
         }
@@ -1692,7 +1692,7 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
 #ifdef USE_ONEVPL
         mfxStatus mfx_res = MFXVideoCORE_SyncOperation(m_mfxSession, sync_point, MFX_TIMEOUT_INFINITE);
 #else
-        mfxStatus mfx_res = session_.SyncOperation(sync_point, MFX_TIMEOUT_INFINITE);
+        mfxStatus mfx_res = m_mfxSession.SyncOperation(sync_point, MFX_TIMEOUT_INFINITE);
 #endif
         if (MFX_ERR_NONE != mfx_res) {
             MFX_DEBUG_TRACE_MSG("SyncOperation failed");
@@ -1717,15 +1717,15 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
     std::unique_ptr<C2Work> work;
 
     {
-        std::lock_guard<std::mutex> lock(pending_works_mutex_);
+        std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
 
-        auto it = find_if(pending_works_.begin(), pending_works_.end(), [ready_timestamp] (const auto &item) {
+        auto it = find_if(m_pendingWorks.begin(), m_pendingWorks.end(), [ready_timestamp] (const auto &item) {
             return item.second->input.ordinal.timestamp == ready_timestamp;
         });
 
-        if (it != pending_works_.end()) {
+        if (it != m_pendingWorks.end()) {
             work = std::move(it->second);
-            pending_works_.erase(it);
+            m_pendingWorks.erase(it);
         }
     }
 
@@ -1742,14 +1742,14 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             // through parameters C2StreamPictureSizeInfo and C2StreamCropRectInfo.
             // Although updated frame format is available right after DecodeFrameAsync call,
             // getting update there doesn't give any improvement in terms of mutex sync,
-            // as init_decoder_mutex_ is not locked there.
+            // as m_initDecoderMutex is not locked there.
 
             // Also parameter update here is easily tested by comparison parameter with output in onWorkDone callback.
             // If parameters update is done after DecodeFrameAsync call
             // then it becomes not synchronized with output and input,
             // looks random from client side and cannot be tested.
-            std::lock_guard<std::mutex> lock(init_decoder_mutex_);
-            video_params_.mfx.FrameInfo = mfx_surface->Info;
+            std::lock_guard<std::mutex> lock(m_initDecoderMutex);
+            m_mfxVideoParams.mfx.FrameInfo = mfx_surface->Info;
         }
 
         std::shared_ptr<C2GraphicBlock> block = frame_out.GetC2GraphicBlock();
@@ -1759,27 +1759,27 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
         }
 
         {
-            std::lock_guard<std::mutex> lock(locked_surfaces_mutex_);
+            std::lock_guard<std::mutex> lock(m_lockedSurfacesMutex);
             // If output is not Locked - we have to release it asap to not interfere with possible
             // frame mapping in onWorkDone callback,
-            // if output is Locked - remove it temporarily from locked_surfaces_ to avoid holding
-            // locked_surfaces_mutex_ while long copy operation.
-            locked_surfaces_.remove(frame_out);
+            // if output is Locked - remove it temporarily from m_lockedSurfaces to avoid holding
+            // m_lockedSurfacesMutex while long copy operation.
+            m_lockedSurfaces.remove(frame_out);
         }
 
         if (mfx_surface->Data.Locked) {
-            // if output is still locked, return it back to locked_surfaces_
-            std::lock_guard<std::mutex> lock(locked_surfaces_mutex_);
-            locked_surfaces_.push_back(frame_out);
+            // if output is still locked, return it back to m_lockedSurfaces
+            std::lock_guard<std::mutex> lock(m_lockedSurfacesMutex);
+            m_lockedSurfaces.push_back(frame_out);
         }
 
         if (work) {
             C2ConstGraphicBlock const_graphic = block->share(rect, C2Fence()/*event.fence()*/);
             C2Buffer out_buffer = MakeC2Buffer( { const_graphic } );
 
-            if (color_aspects_.IsColorAspectsChanged()) {
+            if (m_colorAspects.IsColorAspectsChanged()) {
                 out_buffer.setInfo(getColorAspects_l());
-                color_aspects_.SignalChangedColorAspectsIsSent();
+                m_colorAspects.SignalChangedColorAspectsIsSent();
             }
 
             std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
@@ -1805,35 +1805,35 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
     }
 
     {
-      std::unique_lock<std::mutex> lock(dev_busy_mutex_);
-      --synced_points_count_;
+      std::unique_lock<std::mutex> lock(m_devBusyMutex);
+      --m_uSyncedPointsCount;
     }
-    dev_busy_cond_.notify_one();
+    m_devBusyCond.notify_one();
 }
 
 void MfxC2DecoderComponent::PushPending(std::unique_ptr<C2Work>&& work)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    std::lock_guard<std::mutex> lock(pending_works_mutex_);
+    std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
 
     const auto incoming_frame_timestamp = work->input.ordinal.timestamp;
-    auto duplicate = find_if(pending_works_.begin(), pending_works_.end(),
+    auto duplicate = find_if(m_pendingWorks.begin(), m_pendingWorks.end(),
         [incoming_frame_timestamp] (const auto &item) {
             return item.second->input.ordinal.timestamp == incoming_frame_timestamp;
         });
-    if (duplicate != pending_works_.end()) {
+    if (duplicate != m_pendingWorks.end()) {
         MFX_DEBUG_TRACE_STREAM("Potentional error: Found duplicated timestamp: "
                                << duplicate->second->input.ordinal.timestamp.peeku());
     }
 
     const auto incoming_frame_index = work->input.ordinal.frameIndex;
-    auto it = pending_works_.find(incoming_frame_index);
-    if (it != pending_works_.end()) { // Shouldn't be the same index there
+    auto it = m_pendingWorks.find(incoming_frame_index);
+    if (it != m_pendingWorks.end()) { // Shouldn't be the same index there
         NotifyWorkDone(std::move(it->second), C2_CORRUPTED);
-        pending_works_.erase(it);
+        m_pendingWorks.erase(it);
     }
-    pending_works_.emplace(incoming_frame_index, std::move(work));
+    m_pendingWorks.emplace(incoming_frame_index, std::move(work));
 }
 
 c2_status_t MfxC2DecoderComponent::ValidateWork(const std::unique_ptr<C2Work>& work)
@@ -1874,28 +1874,28 @@ c2_status_t MfxC2DecoderComponent::Queue(std::list<std::unique_ptr<C2Work>>* con
 
         if (C2_OK == sts) {
 
-            if (eos_received_) { // All works following eos treated as errors.
+            if (m_bEosReceived) { // All works following eos treated as errors.
                 item->result = C2_BAD_VALUE;
                 // Do this in working thread to follow Drain completion.
-                working_queue_.Push( [work = std::move(item), this] () mutable {
+                m_workingQueue.Push( [work = std::move(item), this] () mutable {
                     PushPending(std::move(work));
                 });
             } else {
                 bool eos = (item->input.flags & C2FrameData::FLAG_END_OF_STREAM);
                 bool empty = (item->input.buffers.size() == 0);
                 if (eos) {
-                    eos_received_ = true;
+                    m_bEosReceived = true;
                 }
                 if (eos && empty) {
-                    working_queue_.Push( [work = std::move(item), this] () mutable {
+                    m_workingQueue.Push( [work = std::move(item), this] () mutable {
                         Drain(std::move(work));
                     });
                 } else {
-                    working_queue_.Push( [ work = std::move(item), this ] () mutable {
+                    m_workingQueue.Push( [ work = std::move(item), this ] () mutable {
                         DoWork(std::move(work));
                     } );
                     if (eos) {
-                        working_queue_.Push( [this] () { Drain(nullptr); } );
+                        m_workingQueue.Push( [this] () { Drain(nullptr); } );
                     }
                 }
             }
@@ -1911,46 +1911,46 @@ c2_status_t MfxC2DecoderComponent::Flush(std::list<std::unique_ptr<C2Work>>* con
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    flushing_ = true;
+    m_bFlushing = true;
 
-    working_queue_.Push([this] () {
+    m_workingQueue.Push([this] () {
         MFX_DEBUG_TRACE("DecoderReset");
-        MFX_DEBUG_TRACE_STREAM(NAMED(decoder_.get()));
-        if (decoder_) { // check if initialized already
-            mfxStatus reset_sts = decoder_->Reset(&video_params_);
+        MFX_DEBUG_TRACE_STREAM(NAMED(m_mfxDecoder.get()));
+        if (m_mfxDecoder) { // check if initialized already
+            mfxStatus reset_sts = m_mfxDecoder->Reset(&m_mfxVideoParams);
             MFX_DEBUG_TRACE__mfxStatus(reset_sts);
         }
 
-        if (c2_bitstream_) {
-            c2_bitstream_->Reset();
+        if (m_c2Bitstream) {
+            m_c2Bitstream->Reset();
         }
 
     } );
 
     // Wait to have no works queued between Queue and DoWork.
-    working_queue_.WaitForEmpty();
-    waiting_queue_.WaitForEmpty();
+    m_workingQueue.WaitForEmpty();
+    m_waitingQueue.WaitForEmpty();
     // Turn off flushing mode only after working/waiting queues did all the job,
     // given queue_nb should not be called by libstagefright simultaneously with
-    // flush_sm, no threads read/write flushed_works_ list, so it can be used here
+    // flush_sm, no threads read/write m_flushedWorks list, so it can be used here
     // without block.
-    flushing_ = false;
+    m_bFlushing = false;
 
     {
-        std::lock_guard<std::mutex> lock(pending_works_mutex_);
+        std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
 
-        for (auto& item : pending_works_) {
-            flushed_works_.push_back(std::move(item.second));
+        for (auto& item : m_pendingWorks) {
+            m_flushedWorks.push_back(std::move(item.second));
         }
-        pending_works_.clear();
+        m_pendingWorks.clear();
     }
     {
-        std::lock_guard<std::mutex> lock(locked_surfaces_mutex_);
-        locked_surfaces_.clear();
+        std::lock_guard<std::mutex> lock(m_lockedSurfacesMutex);
+        m_lockedSurfaces.clear();
     }
 
-    *flushedWork = std::move(flushed_works_);
-    eos_received_ = false;
+    *flushedWork = std::move(m_flushedWorks);
+    m_bEosReceived = false;
 
     return C2_OK;
 }
@@ -1959,7 +1959,7 @@ void MfxC2DecoderComponent::UpdateHdrStaticInfo()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    mfxPayload* pHdrSeiPayload = c2_bitstream_->GetFrameConstructor()->GetSEI(MfxC2HEVCFrameConstructor::SEI_MASTERING_DISPLAY_COLOUR_VOLUME);
+    mfxPayload* pHdrSeiPayload = m_c2Bitstream->GetFrameConstructor()->GetSEI(MfxC2HEVCFrameConstructor::SEI_MASTERING_DISPLAY_COLOUR_VOLUME);
 
     const mfxU32 SEI_MASTERING_DISPLAY_COLOUR_VOLUME_SIZE = 24*8; // required size of data in bits
 
@@ -1967,23 +1967,23 @@ void MfxC2DecoderComponent::UpdateHdrStaticInfo()
     {
         MFX_DEBUG_TRACE_MSG("Set HDR static info: SEI_MASTERING_DISPLAY_COLOUR_VOLUME");
 
-        set_hdr_sei_ = true;
-        hdr_static_info_.mastering.red.x = pHdrSeiPayload->Data[1] | (pHdrSeiPayload->Data[0] << 8);
-        hdr_static_info_.mastering.red.y = pHdrSeiPayload->Data[3] | (pHdrSeiPayload->Data[2] << 8);
-        hdr_static_info_.mastering.green.x = pHdrSeiPayload->Data[5] | (pHdrSeiPayload->Data[4] << 8);
-        hdr_static_info_.mastering.green.y = pHdrSeiPayload->Data[7] | (pHdrSeiPayload->Data[6] << 8);
-        hdr_static_info_.mastering.blue.x = pHdrSeiPayload->Data[9] | (pHdrSeiPayload->Data[8] << 8);
-        hdr_static_info_.mastering.blue.y = pHdrSeiPayload->Data[11] | (pHdrSeiPayload->Data[10] << 8);
-        hdr_static_info_.mastering.white.x = pHdrSeiPayload->Data[13] | (pHdrSeiPayload->Data[12] << 8);
-        hdr_static_info_.mastering.white.y = pHdrSeiPayload->Data[15] | (pHdrSeiPayload->Data[14] << 8);
+        m_bSetHdrSei = true;
+        m_hdrStaticInfo.mastering.red.x = pHdrSeiPayload->Data[1] | (pHdrSeiPayload->Data[0] << 8);
+        m_hdrStaticInfo.mastering.red.y = pHdrSeiPayload->Data[3] | (pHdrSeiPayload->Data[2] << 8);
+        m_hdrStaticInfo.mastering.green.x = pHdrSeiPayload->Data[5] | (pHdrSeiPayload->Data[4] << 8);
+        m_hdrStaticInfo.mastering.green.y = pHdrSeiPayload->Data[7] | (pHdrSeiPayload->Data[6] << 8);
+        m_hdrStaticInfo.mastering.blue.x = pHdrSeiPayload->Data[9] | (pHdrSeiPayload->Data[8] << 8);
+        m_hdrStaticInfo.mastering.blue.y = pHdrSeiPayload->Data[11] | (pHdrSeiPayload->Data[10] << 8);
+        m_hdrStaticInfo.mastering.white.x = pHdrSeiPayload->Data[13] | (pHdrSeiPayload->Data[12] << 8);
+        m_hdrStaticInfo.mastering.white.y = pHdrSeiPayload->Data[15] | (pHdrSeiPayload->Data[14] << 8);
 
         mfxU32 mMaxDisplayLuminanceX10000 = pHdrSeiPayload->Data[19] | (pHdrSeiPayload->Data[18] << 8) | (pHdrSeiPayload->Data[17] << 16) | (pHdrSeiPayload->Data[16] << 24);
-        hdr_static_info_.mastering.maxLuminance = (mfxU16)(mMaxDisplayLuminanceX10000 / 10000);
+        m_hdrStaticInfo.mastering.maxLuminance = (mfxU16)(mMaxDisplayLuminanceX10000 / 10000);
 
         mfxU32 mMinDisplayLuminanceX10000 = pHdrSeiPayload->Data[23] | (pHdrSeiPayload->Data[22] << 8) | (pHdrSeiPayload->Data[21] << 16) | (pHdrSeiPayload->Data[20] << 24);
-        hdr_static_info_.mastering.minLuminance = (mfxU16)(mMinDisplayLuminanceX10000 / 10000);
+        m_hdrStaticInfo.mastering.minLuminance = (mfxU16)(mMinDisplayLuminanceX10000 / 10000);
     }
-    pHdrSeiPayload = c2_bitstream_->GetFrameConstructor()->GetSEI(MfxC2HEVCFrameConstructor::SEI_CONTENT_LIGHT_LEVEL_INFO);
+    pHdrSeiPayload = m_c2Bitstream->GetFrameConstructor()->GetSEI(MfxC2HEVCFrameConstructor::SEI_CONTENT_LIGHT_LEVEL_INFO);
 
     const mfxU32 SEI_CONTENT_LIGHT_LEVEL_INFO_SIZE = 4*8; // required size of data in bits
 
@@ -1991,8 +1991,8 @@ void MfxC2DecoderComponent::UpdateHdrStaticInfo()
     {
         MFX_DEBUG_TRACE_MSG("Set HDR static info: SEI_CONTENT_LIGHT_LEVEL_INFO");
 
-        hdr_static_info_.maxCll = pHdrSeiPayload->Data[1] | (pHdrSeiPayload->Data[0] << 8);
-        hdr_static_info_.maxFall = pHdrSeiPayload->Data[3] | (pHdrSeiPayload->Data[2] << 8);
+        m_hdrStaticInfo.maxCll = pHdrSeiPayload->Data[1] | (pHdrSeiPayload->Data[0] << 8);
+        m_hdrStaticInfo.maxFall = pHdrSeiPayload->Data[3] | (pHdrSeiPayload->Data[2] << 8);
     }
 }
 
@@ -2001,7 +2001,7 @@ std::shared_ptr<C2StreamColorAspectsInfo::output> MfxC2DecoderComponent::getColo
     android::ColorAspects sfAspects;
     std::shared_ptr<C2StreamColorAspectsInfo::output> codedAspects = std::make_shared<C2StreamColorAspectsInfo::output>(0u);
 
-    color_aspects_.GetOutputColorAspects(sfAspects);
+    m_colorAspects.GetOutputColorAspects(sfAspects);
 
     if (!C2Mapper::map(sfAspects.mPrimaries, &codedAspects->primaries)) {
             codedAspects->primaries = C2Color::PRIMARIES_UNSPECIFIED;

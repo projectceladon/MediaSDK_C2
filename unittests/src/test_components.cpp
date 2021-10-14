@@ -26,19 +26,19 @@ void CRC32Generator::AddData(uint32_t width, uint32_t height, const uint8_t* dat
 {
     if (nullptr != data)
     {
-        if (cur_width_ != width || cur_height_ != height) {
-            crc32_.push_back(0);
-            cur_width_ = width;
-            cur_height_ = height;
+        if (m_uCurWidth != width || m_uCurHeight != height) {
+            m_crc32.push_back(0);
+            m_uCurWidth = width;
+            m_uCurHeight = height;
         }
-        crc32_.back() = crc32(crc32_.back(), data, length);
+        m_crc32.back() = crc32(m_crc32.back(), data, length);
     }
 }
 
 GTestBinaryWriter::GTestBinaryWriter(const std::string& name)
 {
-    if (enabled_) {
-        writer_ = std::make_unique<BinaryWriter>(".", GetTestFolders(), name);
+    if (s_bEnabled) {
+        m_writer = std::make_unique<BinaryWriter>(".", GetTestFolders(), name);
     }
 }
 
@@ -59,9 +59,9 @@ std::vector<std::string> GTestBinaryWriter::GetTestFolders()
     return res;
 }
 
-bool GTestBinaryWriter::enabled_ = false;
+bool GTestBinaryWriter::s_bEnabled = false;
 
-ComponentsCache* ComponentsCache::g_cache = ComponentsCache::Create();
+ComponentsCache* ComponentsCache::s_cache = ComponentsCache::Create();
 
 void NoiseGenerator::Apply(uint32_t /*frame_index*/, uint8_t* data,
     uint32_t width, uint32_t stride, uint32_t height)

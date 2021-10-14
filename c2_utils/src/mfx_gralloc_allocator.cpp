@@ -50,7 +50,7 @@ MfxGrallocModule::~MfxGrallocModule()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    if (gralloc1_dev_) gralloc1_close(gralloc1_dev_);
+    if (m_gralloc1_dev) gralloc1_close(m_gralloc1_dev);
 }
 
 c2_status_t MfxGrallocModule::Init()
@@ -58,26 +58,27 @@ c2_status_t MfxGrallocModule::Init()
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
-    int hw_res = hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &hw_module_);
+    int hw_res = hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &m_hwModule);
     if (hw_res != 0) res = C2_NOT_FOUND;
 
     if (res == C2_OK) {
         int32_t gr1_err = GRALLOC1_ERROR_NONE;
         do {
-            gr1_err = gralloc1_open(hw_module_, &gralloc1_dev_);
+            gr1_err = gralloc1_open(m_hwModule, &m_gralloc1_dev);
 
             if (GRALLOC1_ERROR_NONE != gr1_err) {
                 res = C2_CORRUPTED;
+                MFX_DEBUG_TRACE_P(m_gralloc1_dev);
                 break;
             }
 
             bool functions_acquired =
-                gr_get_format_.Acquire(gralloc1_dev_) &&
-                gr_get_dimensions_.Acquire(gralloc1_dev_) &&
-                gr_get_num_flex_planes_.Acquire(gralloc1_dev_) &&
-                gr_get_byte_stride_.Acquire(gralloc1_dev_);
+                m_grGetFormatFunc.Acquire(m_gralloc1_dev) &&
+                m_grGetDimensionsFunc.Acquire(m_gralloc1_dev) &&
+                m_grGetNumFlexPlanesFunc.Acquire(m_gralloc1_dev) &&
+                m_grGetByteStrideFunc.Acquire(m_gralloc1_dev);
 #ifdef MFX_C2_USE_PRIME
-            if (gr_get_prime_.Acquire(gralloc1_dev_)) {
+            if (m_grGetPrimeFunc.Acquire(m_gralloc1_dev)) {
                 MFX_DEBUG_TRACE_MSG("Use PRIME");
             } else {
                 MFX_DEBUG_TRACE_MSG("Use GRALLOC");
@@ -88,8 +89,8 @@ c2_status_t MfxGrallocModule::Init()
 
             if (!functions_acquired) {
                 res = C2_CORRUPTED;
-                gralloc1_close(gralloc1_dev_);
-                gralloc1_dev_ = nullptr;
+                gralloc1_close(m_gralloc1_dev);
+                m_gralloc1_dev = nullptr;
             }
         } while (false);
     }
@@ -104,29 +105,29 @@ c2_status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handle,
     c2_status_t res = C2_OK;
 
     int format {};
-    int32_t errGetFormat = (*gr_get_format_)(gralloc1_dev_, handle, &(format));
+    int32_t errGetFormat = (*m_grGetFormatFunc)(m_gralloc1_dev, handle, &(format));
 
         uint32_t planes_count {};
-        int32_t errGetPlanes = (*gr_get_num_flex_planes_)(gralloc1_dev_, handle, &(planes_count));
+        int32_t errGetPlanes = (*m_grGetNumFlexPlanesFunc)(m_gralloc1_dev, handle, &(planes_count));
 
         uint32_t pitches[C2PlanarLayout::MAX_NUM_PLANES] {};
-        int32_t errGetByteStride = (*gr_get_byte_stride_)(gralloc1_dev_, handle, pitches, planes_count);
+        int32_t errGetByteStride = (*m_grGetByteStrideFunc)(m_gralloc1_dev, handle, pitches, planes_count);
 
     int32_t prime {-1};
     int32_t errGetPrime = GRALLOC1_ERROR_NONE;
 #ifdef MFX_C2_USE_PRIME
-    if (!(gr_get_prime_ == nullptr)) {
-        errGetPrime = (*gr_get_prime_)(gralloc1_dev_, handle, (uint32_t*)(&(prime)));
+    if (!(m_grGetPrimeFunc == nullptr)) {
+        errGetPrime = (*m_grGetPrimeFunc)(m_gralloc1_dev, handle, (uint32_t*)(&(prime)));
     }
 #endif
 
     uint32_t width {};
     uint32_t height {};
-    int32_t errGetDimensions = (*gr_get_dimensions_)(gralloc1_dev_, handle, &width, &height);
+    int32_t errGetDimensions = (*m_grGetDimensionsFunc)(m_gralloc1_dev, handle, &width, &height);
 
     if (GRALLOC1_ERROR_NONE == errGetFormat &&
-            GRALLOC1_ERROR_NONE == errGetPlanes &&
-            GRALLOC1_ERROR_NONE == errGetByteStride &&
+        GRALLOC1_ERROR_NONE == errGetPlanes &&
+        GRALLOC1_ERROR_NONE == errGetByteStride &&
         GRALLOC1_ERROR_NONE == errGetDimensions &&
         GRALLOC1_ERROR_NONE == errGetPrime)
     {
@@ -166,22 +167,23 @@ c2_status_t MfxGrallocAllocator::Create(std::unique_ptr<MfxGrallocAllocator>* al
 
 c2_status_t MfxGrallocAllocator::Init()
 {
+    MFX_DEBUG_TRACE_FUNC;
     c2_status_t res = MfxGrallocModule::Init();
 
     if (C2_OK == res) {
         bool functions_acquired =
-            gr_allocate_.Acquire(gralloc1_dev_) &&
-            gr_release_.Acquire(gralloc1_dev_) &&
-            gr_lock_.Acquire(gralloc1_dev_) &&
-            gr_unlock_.Acquire(gralloc1_dev_) &&
-            gr_create_descriptor_.Acquire(gralloc1_dev_) &&
-            gr_set_consumer_usage_.Acquire(gralloc1_dev_) &&
-            gr_set_producer_usage_.Acquire(gralloc1_dev_) &&
-            gr_set_dimensions_.Acquire(gralloc1_dev_) &&
-            gr_set_format_.Acquire(gralloc1_dev_) &&
-            gr_destroy_descriptor_.Acquire(gralloc1_dev_) &&
-            gr_import_buffer_.Acquire(gralloc1_dev_) &&
-            gr_get_backing_store_.Acquire(gralloc1_dev_);
+            m_grAllocateFunc.Acquire(m_gralloc1_dev) &&
+            m_grReleaseFunc.Acquire(m_gralloc1_dev) &&
+            m_grLockFunc.Acquire(m_gralloc1_dev) &&
+            m_grUnlockFunc.Acquire(m_gralloc1_dev) &&
+            m_grCreateDescriptorFunc.Acquire(m_gralloc1_dev) &&
+            m_grSetConsumerUsageFunc.Acquire(m_gralloc1_dev) &&
+            m_grSetProducerUsageFunc.Acquire(m_gralloc1_dev) &&
+            m_grSetDimensionsFunc.Acquire(m_gralloc1_dev) &&
+            m_grSetFormatFunc.Acquire(m_gralloc1_dev) &&
+            m_grDestroyDescriptorFunc.Acquire(m_gralloc1_dev) &&
+            m_grImportBufferFunc.Acquire(m_gralloc1_dev) &&
+            m_grGetBackingStoreFunc.Acquire(m_gralloc1_dev);
 
         if (!functions_acquired) {
             res = C2_CORRUPTED;
@@ -204,28 +206,28 @@ c2_status_t MfxGrallocAllocator::Alloc(const uint16_t width, const uint16_t heig
     gralloc1_buffer_descriptor_t descriptor = 0;
 
     do {
-        gr1_err = (*gr_create_descriptor_)(gralloc1_dev_, &descriptor);
+        gr1_err = (*m_grCreateDescriptorFunc)(m_gralloc1_dev, &descriptor);
         if (GRALLOC1_ERROR_NONE != gr1_err) break;
 
-        gr1_err = (*gr_set_consumer_usage_)(gralloc1_dev_, descriptor, GRALLOC1_CONSUMER_USAGE_VIDEO_ENCODER);
+        gr1_err = (*m_grSetConsumerUsageFunc)(m_gralloc1_dev, descriptor, GRALLOC1_CONSUMER_USAGE_VIDEO_ENCODER);
         if (GRALLOC1_ERROR_NONE != gr1_err) break;
 
-        gr1_err = (*gr_set_producer_usage_)(gralloc1_dev_, descriptor, GRALLOC1_PRODUCER_USAGE_CPU_WRITE);
+        gr1_err = (*m_grSetProducerUsageFunc)(m_gralloc1_dev, descriptor, GRALLOC1_PRODUCER_USAGE_CPU_WRITE);
         if (GRALLOC1_ERROR_NONE != gr1_err) break;
 
-        gr1_err = (*gr_set_dimensions_)(gralloc1_dev_, descriptor, width, height);
+        gr1_err = (*m_grSetDimensionsFunc)(m_gralloc1_dev, descriptor, width, height);
         if (GRALLOC1_ERROR_NONE != gr1_err) break;
 
-        gr1_err = (*gr_set_format_)(gralloc1_dev_, descriptor, HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL);
+        gr1_err = (*m_grSetFormatFunc)(m_gralloc1_dev, descriptor, HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL);
         if (GRALLOC1_ERROR_NONE != gr1_err) break;
 
-        gr1_err = (*gr_allocate_)(gralloc1_dev_, 1, &descriptor, handle);
+        gr1_err = (*m_grAllocateFunc)(m_gralloc1_dev, 1, &descriptor, handle);
         if (GRALLOC1_ERROR_NONE != gr1_err) break;
 
     } while(false);
 
     if (0 != descriptor) {
-        (*gr_destroy_descriptor_)(gralloc1_dev_, descriptor);
+        (*m_grDestroyDescriptorFunc)(m_gralloc1_dev, descriptor);
     }
 
     if (GRALLOC1_ERROR_NONE != gr1_err)
@@ -247,7 +249,7 @@ c2_status_t MfxGrallocAllocator::Free(const buffer_handle_t handle)
     MFX_DEBUG_TRACE_P(handle);
 
     if (handle) {
-        int32_t gr1_err = (*gr_release_)(gralloc1_dev_, handle);
+        int32_t gr1_err = (*m_grReleaseFunc)(m_gralloc1_dev, handle);
         if (GRALLOC1_ERROR_NONE != gr1_err)
         {
             MFX_DEBUG_TRACE_I32(gr1_err);
@@ -282,7 +284,7 @@ c2_status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** dat
         rect.width  = details.width;
         rect.height = details.height;
 
-        int32_t err = (*gr_lock_)(gralloc1_dev_,
+        int32_t err = (*m_grLockFunc)(m_gralloc1_dev,
                                    (buffer_handle_t)handle,
                                    GRALLOC_USAGE_SW_READ_MASK | GRALLOC_USAGE_SW_WRITE_MASK,
                                    GRALLOC_USAGE_SW_READ_MASK | GRALLOC_USAGE_SW_WRITE_MASK,
@@ -312,7 +314,7 @@ c2_status_t MfxGrallocAllocator::UnlockFrame(buffer_handle_t handle)
     c2_status_t res = C2_OK;
 
     int32_t releaseFence = -1;
-    int32_t gr1_res = (*gr_unlock_)(gralloc1_dev_, (buffer_handle_t)handle, &releaseFence);
+    int32_t gr1_res = (*m_grUnlockFunc)(m_gralloc1_dev, (buffer_handle_t)handle, &releaseFence);
     if (GRALLOC1_ERROR_NONE != gr1_res)
     {
         MFX_DEBUG_TRACE_I32(gr1_res);
@@ -326,7 +328,7 @@ c2_status_t MfxGrallocAllocator::ImportBuffer(const buffer_handle_t rawHandle, b
 {
     MFX_DEBUG_TRACE_FUNC;
     c2_status_t res = C2_OK;
-    int32_t gr1_res = (*gr_import_buffer_)(gralloc1_dev_, rawHandle, outBuffer);
+    int32_t gr1_res = (*m_grImportBufferFunc)(m_gralloc1_dev, rawHandle, outBuffer);
 
     if (GRALLOC1_ERROR_NONE != gr1_res) {
         MFX_DEBUG_TRACE_I32(gr1_res);
@@ -341,7 +343,7 @@ c2_status_t MfxGrallocAllocator::GetBackingStore(const buffer_handle_t rawHandle
 {
     MFX_DEBUG_TRACE_FUNC;
     c2_status_t res = C2_OK;
-    int32_t gr1_res = (*gr_get_backing_store_)(gralloc1_dev_, rawHandle, id);
+    int32_t gr1_res = (*m_grGetBackingStoreFunc)(m_gralloc1_dev, rawHandle, id);
     if (GRALLOC1_ERROR_NONE != gr1_res) {
         MFX_DEBUG_TRACE_I32(gr1_res);
         res = C2_BAD_STATE;

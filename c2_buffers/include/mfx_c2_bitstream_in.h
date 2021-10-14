@@ -34,14 +34,14 @@ public:
     public:
         FrameView(std::shared_ptr<IMfxC2FrameConstructor> frame_constructor,
             std::unique_ptr<C2ReadView>&& read_view):
-                frame_constructor_(frame_constructor), read_view_(std::move(read_view)) {}
+                m_frameConstructor(frame_constructor), m_readView(std::move(read_view)) {}
         ~FrameView() { Release(); }
 
         c2_status_t Release();
 
     private:
-        std::shared_ptr<IMfxC2FrameConstructor> frame_constructor_;
-        std::unique_ptr<C2ReadView> read_view_;
+        std::shared_ptr<IMfxC2FrameConstructor> m_frameConstructor;
+        std::unique_ptr<C2ReadView> m_readView;
 
     private:
         MFX_CLASS_NO_COPY(FrameView)
@@ -53,14 +53,14 @@ public:
 
     virtual c2_status_t Reset();
 
-    virtual std::shared_ptr<IMfxC2FrameConstructor> GetFrameConstructor() { return frame_constructor_; }
+    virtual std::shared_ptr<IMfxC2FrameConstructor> GetFrameConstructor() { return m_frameConstructor; }
     // Maps c2 linear block and can leave it in mapped state until
     // frame_view freed or frame_view->Release is called.
     virtual c2_status_t AppendFrame(const C2FrameData& buf_pack, c2_nsecs_t timeout,
         std::unique_ptr<FrameView>* frame_view);
 
 protected: // variables
-    std::shared_ptr<IMfxC2FrameConstructor> frame_constructor_;
+    std::shared_ptr<IMfxC2FrameConstructor> m_frameConstructor;
 
 private:
     MFX_CLASS_NO_COPY(MfxC2BitstreamIn)

@@ -1080,7 +1080,7 @@ void HEVCHeadersBitstream::GetSEI(mfxPayload *spl, mfxU32 type)
     mfxU32 code;
     mfxPayload currentSEI;
 
-    GetNBits(m_pbs, m_bitOffset, 8, code);
+    GetNBits(m_pbs, m_nBitOffset, 8, code);
 
     while ((mfxI32)BytesLeft() > 0)
     {
@@ -1098,7 +1098,7 @@ void HEVCHeadersBitstream::GetSEI(mfxPayload *spl, mfxU32 type)
             {
                 for (mfxU32 i = 0; i < (spl->NumBit / 8); i++)
                 {
-                    GetNBits(m_pbs, m_bitOffset, 8, spl->Data[i]);
+                    GetNBits(m_pbs, m_nBitOffset, 8, spl->Data[i]);
                 }
             }
             return;
@@ -1111,7 +1111,7 @@ void HEVCHeadersBitstream::GetSEI(mfxPayload *spl, mfxU32 type)
             mfxU8 tmp;
             for (mfxU32 i = 0; i < (currentSEI.NumBit / 8); i++)
             {
-                GetNBits(m_pbs, m_bitOffset, 8, tmp);
+                GetNBits(m_pbs, m_nBitOffset, 8, tmp);
             }
         }
     }
@@ -1128,17 +1128,17 @@ void HEVCHeadersBitstream::ParseSEI(mfxPayload *spl)
     while ((mfxI32)BytesLeft() > 0)
     {
         /* fixed-pattern bit string using 8 bits written equal to 0xFF */
-        PeakNextBits(m_pbs, m_bitOffset, 8, code);
+        PeakNextBits(m_pbs, m_nBitOffset, 8, code);
         if (0xFF != code)
             break;
-        GetNBits(m_pbs, m_bitOffset, 8, code);
+        GetNBits(m_pbs, m_nBitOffset, 8, code);
         payloadType += 255;
     }
 
     if ((mfxI32)BytesLeft() > 0)
     {
         mfxI32 last_payload_type_byte = 0;
-        GetNBits(m_pbs, m_bitOffset, 8, last_payload_type_byte);
+        GetNBits(m_pbs, m_nBitOffset, 8, last_payload_type_byte);
         payloadType += last_payload_type_byte;
     }
 
@@ -1147,17 +1147,17 @@ void HEVCHeadersBitstream::ParseSEI(mfxPayload *spl)
     while((mfxI32)BytesLeft() > 0)
     {
         /* fixed-pattern bit string using 8 bits written equal to 0xFF */
-        PeakNextBits(m_pbs, m_bitOffset, 8, code);
+        PeakNextBits(m_pbs, m_nBitOffset, 8, code);
         if (0xFF != code)
             break;
-        GetNBits(m_pbs, m_bitOffset, 8, code);
+        GetNBits(m_pbs, m_nBitOffset, 8, code);
         payloadSize += 255;
     }
 
     if ((mfxI32)BytesLeft() > 0)
     {
         mfxI32 last_payload_size_byte = 0;
-        GetNBits(m_pbs, m_bitOffset, 8, last_payload_size_byte);
+        GetNBits(m_pbs, m_nBitOffset, 8, last_payload_size_byte);
         payloadSize += last_payload_size_byte;
     }
 

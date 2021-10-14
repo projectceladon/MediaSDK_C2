@@ -30,37 +30,37 @@
 const std::vector<mfxU32> MfxC2HEVCFrameConstructor::NAL_UT_CODED_SLICEs = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 16, 17, 18, 19, 20, 21 };
 
 MfxC2FrameConstructor::MfxC2FrameConstructor():
-    bs_state_(MfxC2BS_HeaderAwaiting),
-    profile_(MFX_PROFILE_UNKNOWN),
-    eos_(false),
-    bst_buf_reallocs_(0),
-    bst_buf_copy_bytes_(0)
+    m_bsState(MfxC2BS_HeaderAwaiting),
+    m_profile(MFX_PROFILE_UNKNOWN),
+    m_bEos(false),
+    m_uBstBufReallocs(0),
+    m_uBstBufCopyBytes(0)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    bst_header_ = std::make_shared<mfxBitstream>();
-    bst_buf_ = std::make_shared<mfxBitstream>();
-    bst_in_ = std::make_shared<mfxBitstream>();
+    m_bstHeader = std::make_shared<mfxBitstream>();
+    m_bstBuf = std::make_shared<mfxBitstream>();
+    m_bstIn = std::make_shared<mfxBitstream>();
 
-    MFX_ZERO_MEMORY((*bst_header_));
-    MFX_ZERO_MEMORY((*bst_buf_));
-    MFX_ZERO_MEMORY((*bst_in_));
-    MFX_ZERO_MEMORY(fr_info_);
+    MFX_ZERO_MEMORY((*m_bstHeader));
+    MFX_ZERO_MEMORY((*m_bstBuf));
+    MFX_ZERO_MEMORY((*m_bstIn));
+    MFX_ZERO_MEMORY(m_frInfo);
 }
 
 MfxC2FrameConstructor::~MfxC2FrameConstructor()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    if (bst_buf_->Data) {
-        MFX_DEBUG_TRACE_I32(bst_buf_->MaxLength);
-        MFX_DEBUG_TRACE_I32(bst_buf_reallocs_);
-        MFX_DEBUG_TRACE_I32(bst_buf_copy_bytes_);
+    if (m_bstBuf->Data) {
+        MFX_DEBUG_TRACE_I32(m_bstBuf->MaxLength);
+        MFX_DEBUG_TRACE_I32(m_uBstBufReallocs);
+        MFX_DEBUG_TRACE_I32(m_uBstBufCopyBytes);
 
-        MFX_FREE(bst_buf_->Data);
+        MFX_FREE(m_bstBuf->Data);
     }
 
-    MFX_FREE(bst_header_->Data);
+    MFX_FREE(m_bstHeader->Data);
 }
 
 mfxStatus MfxC2FrameConstructor::Init(
@@ -70,8 +70,8 @@ mfxStatus MfxC2FrameConstructor::Init(
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
 
-    profile_ = profile;
-    fr_info_ = fr_info;
+    m_profile = profile;
+    m_frInfo = fr_info;
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }
@@ -87,50 +87,50 @@ mfxStatus MfxC2FrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, bool
     if (MFX_ERR_NONE == mfx_res) {
         if (header) {
             // if new header arrived after reset we are ignoring previously collected header data
-            if (bs_state_ == MfxC2BS_Resetting) {
-                bs_state_ = MfxC2BS_HeaderObtained;
+            if (m_bsState == MfxC2BS_Resetting) {
+                m_bsState = MfxC2BS_HeaderObtained;
             } else if (size) {
                 mfxU32 needed_MaxLength = 0;
                 mfxU8* new_data = nullptr;
 
-                needed_MaxLength = bst_header_->DataOffset + bst_header_->DataLength + size; // offset should be 0
-                if (bst_header_->MaxLength < needed_MaxLength) {
+                needed_MaxLength = m_bstHeader->DataOffset + m_bstHeader->DataLength + size; // offset should be 0
+                if (m_bstHeader->MaxLength < needed_MaxLength) {
                     // increasing buffer capacity if needed
-                    new_data = (mfxU8*)realloc(bst_header_->Data, needed_MaxLength);
+                    new_data = (mfxU8*)realloc(m_bstHeader->Data, needed_MaxLength);
                     if (new_data) {
                         // setting new values
-                        bst_header_->Data = new_data;
-                        bst_header_->MaxLength = needed_MaxLength;
+                        m_bstHeader->Data = new_data;
+                        m_bstHeader->MaxLength = needed_MaxLength;
                     }
                     else mfx_res = MFX_ERR_MEMORY_ALLOC;
                 }
                 if (MFX_ERR_NONE == mfx_res) {
-                    mfxU8* buf = bst_header_->Data + bst_header_->DataOffset + bst_header_->DataLength;
+                    mfxU8* buf = m_bstHeader->Data + m_bstHeader->DataOffset + m_bstHeader->DataLength;
 
                     std::copy(data, data + size, buf);
-                    bst_header_->DataLength += size;
+                    m_bstHeader->DataLength += size;
                 }
-                if (MfxC2BS_HeaderAwaiting == bs_state_) bs_state_ = MfxC2BS_HeaderCollecting;
+                if (MfxC2BS_HeaderAwaiting == m_bsState) m_bsState = MfxC2BS_HeaderCollecting;
             }
         } else {
             // We have generic data. In case we are in Resetting state (i.e. seek mode)
             // we attach header to the bitstream, other wise we are moving in Obtained state.
-            if (MfxC2BS_HeaderCollecting == bs_state_) {
+            if (MfxC2BS_HeaderCollecting == m_bsState) {
                 // As soon as we are receving first non header data we are stopping collecting header
-                bs_state_ = MfxC2BS_HeaderObtained;
+                m_bsState = MfxC2BS_HeaderObtained;
             }
-            else if (MfxC2BS_Resetting == bs_state_) {
+            else if (MfxC2BS_Resetting == m_bsState) {
                 // if reset detected and we have header data buffered - we are going to load it
-                mfx_res = BstBufRealloc(bst_header_->DataLength);
+                mfx_res = BstBufRealloc(m_bstHeader->DataLength);
                 if (MFX_ERR_NONE == mfx_res) {
-                    mfxU8* buf = bst_buf_->Data + bst_buf_->DataOffset + bst_buf_->DataLength;
+                    mfxU8* buf = m_bstBuf->Data + m_bstBuf->DataOffset + m_bstBuf->DataLength;
 
-                    std::copy(bst_header_->Data + bst_header_->DataOffset,
-                        bst_header_->Data + bst_header_->DataOffset + bst_header_->DataLength, buf);
-                    bst_buf_->DataLength += bst_header_->DataLength;
-                    bst_buf_copy_bytes_ += bst_header_->DataLength;
+                    std::copy(m_bstHeader->Data + m_bstHeader->DataOffset,
+                        m_bstHeader->Data + m_bstHeader->DataOffset + m_bstHeader->DataLength, buf);
+                    m_bstBuf->DataLength += m_bstHeader->DataLength;
+                    m_uBstBufCopyBytes += m_bstHeader->DataLength;
                 }
-                bs_state_ = MfxC2BS_HeaderObtained;
+                m_bsState = MfxC2BS_HeaderObtained;
             }
         }
     }
@@ -144,31 +144,31 @@ mfxStatus MfxC2FrameConstructor::Load_None(const mfxU8* data, mfxU32 size, mfxU6
     mfxStatus mfx_res = MFX_ERR_NONE;
 
     mfx_res = LoadHeader(data, size, header);
-    if ((MFX_ERR_NONE == mfx_res) && bst_buf_->DataLength) {
+    if ((MFX_ERR_NONE == mfx_res) && m_bstBuf->DataLength) {
         mfx_res = BstBufRealloc(size);
         if (MFX_ERR_NONE == mfx_res) {
-            mfxU8* buf = bst_buf_->Data + bst_buf_->DataOffset + bst_buf_->DataLength;
+            mfxU8* buf = m_bstBuf->Data + m_bstBuf->DataOffset + m_bstBuf->DataLength;
 
             std::copy(data, data + size, buf);
-            bst_buf_->DataLength += size;
-            bst_buf_copy_bytes_ += size;
+            m_bstBuf->DataLength += size;
+            m_uBstBufCopyBytes += size;
         }
     }
     if (MFX_ERR_NONE == mfx_res) {
-        if (bst_buf_->DataLength) bst_current_ = bst_buf_;
+        if (m_bstBuf->DataLength) m_bstCurrent = m_bstBuf;
         else {
-            bst_in_->Data = (mfxU8*)data;
-            bst_in_->DataOffset = 0;
-            bst_in_->DataLength = size;
-            bst_in_->MaxLength = size;
+            m_bstIn->Data = (mfxU8*)data;
+            m_bstIn->DataOffset = 0;
+            m_bstIn->DataLength = size;
+            m_bstIn->MaxLength = size;
             if (complete_frame)
-                bst_in_->DataFlag |= MFX_BITSTREAM_COMPLETE_FRAME;
+                m_bstIn->DataFlag |= MFX_BITSTREAM_COMPLETE_FRAME;
 
-            bst_current_ = bst_in_;
+            m_bstCurrent = m_bstIn;
         }
-        bst_current_->TimeStamp = pts;
+        m_bstCurrent->TimeStamp = pts;
     }
-    else bst_current_ = nullptr;
+    else m_bstCurrent = nullptr;
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }
@@ -185,8 +185,8 @@ mfxStatus MfxC2FrameConstructor::Load(const mfxU8* data, mfxU32 size, mfxU64 pts
     if (MFX_ERR_NONE == mfx_res) {
         mfx_res = Load_None(data, size, pts, header, complete_frame);
     }
-    MFX_DEBUG_TRACE__mfxBitstream((*bst_buf_));
-    MFX_DEBUG_TRACE__mfxBitstream((*bst_in_));
+    MFX_DEBUG_TRACE__mfxBitstream((*m_bstBuf));
+    MFX_DEBUG_TRACE__mfxBitstream((*m_bstIn));
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }
@@ -209,24 +209,24 @@ mfxStatus MfxC2FrameConstructor::Reset()
     mfxStatus mfx_res = MFX_ERR_NONE;
 
     // saving allocating information about internal buffer
-    mfxU8* data = bst_buf_->Data;
-    mfxU32 allocated_length = bst_buf_->MaxLength;
+    mfxU8* data = m_bstBuf->Data;
+    mfxU32 allocated_length = m_bstBuf->MaxLength;
 
     // resetting frame constructor
-    bst_current_ = nullptr;
-    bst_buf_ = std::make_shared<mfxBitstream>();
-    MFX_ZERO_MEMORY((*bst_buf_));
-    bst_in_ = std::make_shared<mfxBitstream>();
-    MFX_ZERO_MEMORY((*bst_in_));
+    m_bstCurrent = nullptr;
+    m_bstBuf = std::make_shared<mfxBitstream>();
+    MFX_ZERO_MEMORY((*m_bstBuf));
+    m_bstIn = std::make_shared<mfxBitstream>();
+    MFX_ZERO_MEMORY((*m_bstIn));
 
-    eos_ = false;
+    m_bEos = false;
 
     // restoring allocating information about internal buffer
-    bst_buf_->Data = data;
-    bst_buf_->MaxLength = allocated_length;
+    m_bstBuf->Data = data;
+    m_bstBuf->MaxLength = allocated_length;
 
     // we have some header data and will attempt to return it
-    if (bs_state_ >= MfxC2BS_HeaderCollecting) bs_state_ = MfxC2BS_Resetting;
+    if (m_bsState >= MfxC2BS_HeaderCollecting) m_bsState = MfxC2BS_Resetting;
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
@@ -240,17 +240,17 @@ mfxStatus MfxC2FrameConstructor::BstBufRealloc(mfxU32 add_size)
     mfxU8* new_data = nullptr;
 
     if (add_size) {
-        needed_MaxLength = bst_buf_->DataOffset + bst_buf_->DataLength + add_size; // offset should be 0
-        if (bst_buf_->MaxLength < needed_MaxLength) {
+        needed_MaxLength = m_bstBuf->DataOffset + m_bstBuf->DataLength + add_size; // offset should be 0
+        if (m_bstBuf->MaxLength < needed_MaxLength) {
             // increasing buffer capacity if needed
-            new_data = (mfxU8*)realloc(bst_buf_->Data, needed_MaxLength);
+            new_data = (mfxU8*)realloc(m_bstBuf->Data, needed_MaxLength);
             if (new_data) {
                 // collecting statistics
-                ++bst_buf_reallocs_;
-                if (new_data != bst_buf_->Data) bst_buf_copy_bytes_ += bst_buf_->MaxLength;
+                ++m_uBstBufReallocs;
+                if (new_data != m_bstBuf->Data) m_uBstBufCopyBytes += m_bstBuf->MaxLength;
                 // setting new values
-                bst_buf_->Data = new_data;
-                bst_buf_->MaxLength = needed_MaxLength;
+                m_bstBuf->Data = new_data;
+                m_bstBuf->MaxLength = needed_MaxLength;
             }
             else mfx_res = MFX_ERR_MEMORY_ALLOC;
         }
@@ -267,15 +267,15 @@ mfxStatus MfxC2FrameConstructor::BstBufMalloc(mfxU32 new_size)
 
     if (new_size) {
         needed_MaxLength = new_size;
-        if (bst_buf_->MaxLength < needed_MaxLength) {
+        if (m_bstBuf->MaxLength < needed_MaxLength) {
             // increasing buffer capacity if needed
-            MFX_FREE(bst_buf_->Data);
-            bst_buf_->Data = (mfxU8*)malloc(needed_MaxLength);
-            bst_buf_->MaxLength = needed_MaxLength;
-            ++bst_buf_reallocs_;
+            MFX_FREE(m_bstBuf->Data);
+            m_bstBuf->Data = (mfxU8*)malloc(needed_MaxLength);
+            m_bstBuf->MaxLength = needed_MaxLength;
+            ++m_uBstBufReallocs;
         }
-        if (!(bst_buf_->Data)) {
-            bst_buf_->MaxLength = 0;
+        if (!(m_bstBuf->Data)) {
+            m_bstBuf->MaxLength = 0;
             mfx_res = MFX_ERR_MEMORY_ALLOC;
         }
     }
@@ -288,32 +288,32 @@ mfxStatus MfxC2FrameConstructor::BstBufSync()
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
 
-    if (nullptr != bst_current_) {
-        if (bst_current_ == bst_buf_) {
-            if (bst_buf_->DataLength && bst_buf_->DataOffset) {
+    if (nullptr != m_bstCurrent) {
+        if (m_bstCurrent == m_bstBuf) {
+            if (m_bstBuf->DataLength && m_bstBuf->DataOffset) {
                 // shifting data to the beginning of the buffer
-                memmove(bst_buf_->Data, bst_buf_->Data + bst_buf_->DataOffset, bst_buf_->DataLength);
-                bst_buf_copy_bytes_ += bst_buf_->DataLength;
+                memmove(m_bstBuf->Data, m_bstBuf->Data + m_bstBuf->DataOffset, m_bstBuf->DataLength);
+                m_uBstBufCopyBytes += m_bstBuf->DataLength;
             }
-            bst_buf_->DataOffset = 0;
+            m_bstBuf->DataOffset = 0;
         }
-        if ((bst_current_ == bst_in_) && bst_in_->DataLength) {
-            // copying data from bst_in_ to bst_Buf
-            // Note: we read data from bst_in_, thus here bst_Buf is empty
-            mfx_res = BstBufMalloc(bst_in_->DataLength);
+        if ((m_bstCurrent == m_bstIn) && m_bstIn->DataLength) {
+            // copying data from m_bstIn to bst_Buf
+            // Note: we read data from m_bstIn, thus here bst_Buf is empty
+            mfx_res = BstBufMalloc(m_bstIn->DataLength);
             if (MFX_ERR_NONE == mfx_res) {
-                std::copy(bst_in_->Data + bst_in_->DataOffset,
-                    bst_in_->Data + bst_in_->DataOffset + bst_in_->DataLength, bst_buf_->Data);
-                bst_buf_->DataOffset = 0;
-                bst_buf_->DataLength = bst_in_->DataLength;
-                bst_buf_->TimeStamp  = bst_in_->TimeStamp;
-                bst_buf_->DataFlag   = bst_in_->DataFlag;
-                bst_buf_copy_bytes_ += bst_in_->DataLength;
+                std::copy(m_bstIn->Data + m_bstIn->DataOffset,
+                    m_bstIn->Data + m_bstIn->DataOffset + m_bstIn->DataLength, m_bstBuf->Data);
+                m_bstBuf->DataOffset = 0;
+                m_bstBuf->DataLength = m_bstIn->DataLength;
+                m_bstBuf->TimeStamp  = m_bstIn->TimeStamp;
+                m_bstBuf->DataFlag   = m_bstIn->DataFlag;
+                m_uBstBufCopyBytes += m_bstIn->DataLength;
             }
-            bst_in_ = std::make_shared<mfxBitstream>();
-            MFX_ZERO_MEMORY((*bst_in_));
+            m_bstIn = std::make_shared<mfxBitstream>();
+            MFX_ZERO_MEMORY((*m_bstIn));
         }
-        bst_current_ = nullptr;
+        m_bstCurrent = nullptr;
     }
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
@@ -325,16 +325,16 @@ std::shared_ptr<mfxBitstream> MfxC2FrameConstructor::GetMfxBitstream()
 
     std::shared_ptr<mfxBitstream> bst;
 
-    if (bst_buf_->Data && bst_buf_->DataLength) {
-        bst = bst_buf_;
-    } else if (bst_in_->Data && bst_in_->DataLength) {
-        bst = bst_in_;
+    if (m_bstBuf->Data && m_bstBuf->DataLength) {
+        bst = m_bstBuf;
+    } else if (m_bstIn->Data && m_bstIn->DataLength) {
+        bst = m_bstIn;
     } else {
-        bst = bst_buf_;
+        bst = m_bstBuf;
     }
 
-    MFX_DEBUG_TRACE_P(bst_in_.get());
-    MFX_DEBUG_TRACE_P(bst_buf_.get());
+    MFX_DEBUG_TRACE_P(m_bstIn.get());
+    MFX_DEBUG_TRACE_P(m_bstBuf.get());
     MFX_DEBUG_TRACE_P(bst.get());
     return bst;
 }
@@ -344,16 +344,16 @@ MfxC2AVCFrameConstructor::MfxC2AVCFrameConstructor():
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    MFX_ZERO_MEMORY(sps_);
-    MFX_ZERO_MEMORY(pps_);
+    MFX_ZERO_MEMORY(m_sps);
+    MFX_ZERO_MEMORY(m_pps);
 }
 
 MfxC2AVCFrameConstructor::~MfxC2AVCFrameConstructor()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    MFX_FREE(sps_.Data);
-    MFX_FREE(pps_.Data);
+    MFX_FREE(m_sps.Data);
+    MFX_FREE(m_pps.Data);
 }
 
 mfxStatus MfxC2AVCFrameConstructor::SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset)
@@ -363,25 +363,25 @@ mfxStatus MfxC2AVCFrameConstructor::SaveHeaders(std::shared_ptr<mfxBitstream> sp
     if (is_reset) Reset();
 
     if (nullptr != sps) {
-        if (sps_.MaxLength < sps->DataLength) {
-            sps_.Data = (mfxU8*)realloc(sps_.Data, sps->DataLength);
-            if (!sps_.Data)
+        if (m_sps.MaxLength < sps->DataLength) {
+            m_sps.Data = (mfxU8*)realloc(m_sps.Data, sps->DataLength);
+            if (!m_sps.Data)
                 return MFX_ERR_MEMORY_ALLOC;
-            sps_.MaxLength = sps->DataLength;
+            m_sps.MaxLength = sps->DataLength;
         }
         std::copy(sps->Data + sps->DataOffset,
-            sps->Data + sps->DataOffset + sps->DataLength, sps_.Data);
-        sps_.DataLength = sps->DataLength;
+            sps->Data + sps->DataOffset + sps->DataLength, m_sps.Data);
+        m_sps.DataLength = sps->DataLength;
     }
     if (nullptr != pps) {
-        if (pps_.MaxLength < pps->DataLength) {
-            pps_.Data = (mfxU8*)realloc(pps_.Data, pps->DataLength);
-            if (!pps_.Data)
+        if (m_pps.MaxLength < pps->DataLength) {
+            m_pps.Data = (mfxU8*)realloc(m_pps.Data, pps->DataLength);
+            if (!m_pps.Data)
                 return MFX_ERR_MEMORY_ALLOC;
-            pps_.MaxLength = pps->DataLength;
+            m_pps.MaxLength = pps->DataLength;
         }
-        std::copy(pps->Data + pps->DataOffset, pps->Data + pps->DataOffset + pps->DataLength, pps_.Data);
-        pps_.DataLength = pps->DataLength;
+        std::copy(pps->Data + pps->DataOffset, pps->Data + pps->DataOffset + pps->DataLength, m_pps.Data);
+        m_pps.DataLength = pps->DataLength;
     }
     return MFX_ERR_NONE;
 }
@@ -464,34 +464,34 @@ mfxStatus MfxC2AVCFrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, b
     bool bFoundSei = false;
 
     if (header && data && size) {
-        if (MfxC2BS_HeaderAwaiting == bs_state_) bs_state_ = MfxC2BS_HeaderCollecting;
+        if (MfxC2BS_HeaderAwaiting == m_bsState) m_bsState = MfxC2BS_HeaderCollecting;
 
         mfx_res = FindHeaders(data, size, bFoundSps, bFoundPps, bFoundSei);
         if (MFX_ERR_NONE == mfx_res && bFoundSps && bFoundPps)
-            bs_state_ = MfxC2BS_HeaderObtained;
+            m_bsState = MfxC2BS_HeaderObtained;
 
-    } else if (MfxC2BS_Resetting == bs_state_) {
+    } else if (MfxC2BS_Resetting == m_bsState) {
         mfx_res = FindHeaders(data, size, bFoundSps, bFoundPps, bFoundSei);
         if (MFX_ERR_NONE == mfx_res) {
             if (!bFoundSps || !bFoundPps) {
                 // In case we are in Resetting state (i.e. seek mode)
                 // and bitstream has no headers, we attach header to the bitstream.
-                mfx_res = BstBufRealloc(sps_.DataLength + pps_.DataLength);
+                mfx_res = BstBufRealloc(m_sps.DataLength + m_pps.DataLength);
                 if (MFX_ERR_NONE == mfx_res) {
-                    mfxU8* buf = bst_buf_->Data + bst_buf_->DataOffset + bst_buf_->DataLength;
-                    std::copy(sps_.Data, sps_.Data + sps_.DataLength, buf);
-                    buf += sps_.DataLength;
-                    std::copy(pps_.Data, pps_.Data + pps_.DataLength, buf);
+                    mfxU8* buf = m_bstBuf->Data + m_bstBuf->DataOffset + m_bstBuf->DataLength;
+                    std::copy(m_sps.Data, m_sps.Data + m_sps.DataLength, buf);
+                    buf += m_sps.DataLength;
+                    std::copy(m_pps.Data, m_pps.Data + m_pps.DataLength, buf);
 
-                    bst_buf_->DataLength += sps_.DataLength + pps_.DataLength;
-                    bst_buf_copy_bytes_ += sps_.DataLength + pps_.DataLength;
+                    m_bstBuf->DataLength += m_sps.DataLength + m_pps.DataLength;
+                    m_uBstBufCopyBytes += m_sps.DataLength + m_pps.DataLength;
                 }
             }
-            bs_state_ = MfxC2BS_HeaderObtained;
+            m_bsState = MfxC2BS_HeaderObtained;
         }
-    } else if (MfxC2BS_HeaderCollecting == bs_state_) {
+    } else if (MfxC2BS_HeaderCollecting == m_bsState) {
         // As soon as we are receving first non header data we are stopping collecting header
-        bs_state_ = MfxC2BS_HeaderObtained;
+        m_bsState = MfxC2BS_HeaderObtained;
     }
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
@@ -689,13 +689,13 @@ mfxStatus MfxC2HEVCFrameConstructor::SaveSEI(mfxBitstream *pSEI)
             if (sei.Type == sei_name && sei.NumBit > 0)
             {
                 // replace sei
-                auto old_sei = SEIMap.find(sei_name);
-                if (old_sei != SEIMap.end())
+                auto old_sei = m_SEIMap.find(sei_name);
+                if (old_sei != m_SEIMap.end())
                 {
                     MFX_FREE(old_sei->second.Data);
-                    SEIMap.erase(old_sei);
+                    m_SEIMap.erase(old_sei);
                 }
-                SEIMap.insert(std::pair<mfxU32, mfxPayload>(sei_name, sei));
+                m_SEIMap.insert(std::pair<mfxU32, mfxPayload>(sei_name, sei));
             }
             else
                 MFX_FREE(sei.Data);
@@ -708,8 +708,8 @@ mfxStatus MfxC2HEVCFrameConstructor::SaveSEI(mfxBitstream *pSEI)
 
 mfxPayload* MfxC2HEVCFrameConstructor::GetSEI(mfxU32 type)
 {
-    auto sei = SEIMap.find(type);
-    if (sei != SEIMap.end())
+    auto sei = m_SEIMap.find(type);
+    if (sei != m_SEIMap.end())
         return &(sei->second);
 
     return nullptr;

@@ -85,10 +85,10 @@ c2_status_t MfxC2ComponentsRegistry::CreateMfxC2Component(const char* name,
     c2_status_t result = C2_OK;
     *component = nullptr;
 
-    MFX_DEBUG_TRACE_I32(registry_.size());
+    MFX_DEBUG_TRACE_I32(m_registry.size());
 
-    auto it = registry_.find(name);
-    if(it != registry_.end()) {
+    auto it = m_registry.find(name);
+    if(it != m_registry.end()) {
         CreateMfxC2ComponentFunc* create_func = it->second;
         *component = create_func(name, config, std::move(reflector), &result);
     }
@@ -104,5 +104,5 @@ void MfxC2ComponentsRegistry::RegisterMfxC2Component(const std::string& name, Cr
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    registry_.emplace(name, createFunc);
+    m_registry.emplace(name, createFunc);
 }

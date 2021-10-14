@@ -26,7 +26,7 @@ class MfxC2ParamStorage
 {
 public:
     MfxC2ParamStorage(std::shared_ptr<MfxC2ParamReflector> reflector):
-        reflector_(std::move(reflector)) {}
+        m_reflector(std::move(reflector)) {}
 
     template<typename ParamType>
     void RegisterParam(const char* param_name);
@@ -89,17 +89,17 @@ private:
     };
 
 private:
-    std::shared_ptr<MfxC2ParamReflector> reflector_;
+    std::shared_ptr<MfxC2ParamReflector> m_reflector;
 
-    std::vector<std::shared_ptr<C2ParamDescriptor>> params_descriptors_;
+    std::vector<std::shared_ptr<C2ParamDescriptor>> m_paramsDescriptors;
 
-    std::map<C2ParamField, C2FieldSupportedValues> params_supported_values_;
+    std::map<C2ParamField, C2FieldSupportedValues> m_paramsSupportedValues;
 
-    std::map<C2Param::Index, C2ParamOperations> param_operations_;
+    std::map<C2Param::Index, C2ParamOperations> m_paramOperations;
 
-    std::map<C2Param::Index, std::unique_ptr<const C2Param>> values_;
+    std::map<C2Param::Index, std::unique_ptr<const C2Param>> m_values;
 
-    mutable std::mutex values_mutex_;
+    mutable std::mutex m_valuesMutex;
 };
 
 template<typename ParamType>
@@ -107,10 +107,10 @@ void MfxC2ParamStorage::RegisterParam(const char* param_name)
 {
     using namespace android;
 
-    params_descriptors_.push_back(
+    m_paramsDescriptors.push_back(
         std::make_shared<C2ParamDescriptor>(false, param_name, ParamType::PARAM_TYPE));
 
-    reflector_->AddDescription<ParamType>();
+    m_reflector->AddDescription<ParamType>();
 
 };
 
@@ -124,7 +124,7 @@ void MfxC2ParamStorage::RegisterSupportedRange(FieldType ValueType::* pm, FieldT
     C2ParamField field(&temp_param, pm);
     C2FieldSupportedValues values(min, max);
 
-    params_supported_values_.emplace(field, values);
+    m_paramsSupportedValues.emplace(field, values);
 };
 
 template<typename ParamType, typename ValueType, typename FieldType>
@@ -137,7 +137,7 @@ void MfxC2ParamStorage::RegisterSupportedValues(FieldType ValueType::* pm, const
     C2ParamField field(&temp_param, pm);
     C2FieldSupportedValues values(false, supported_values);
 
-    params_supported_values_.emplace(field, values);
+    m_paramsSupportedValues.emplace(field, values);
 };
 
 template<typename ParamType>
@@ -149,8 +149,8 @@ void MfxC2ParamStorage::AddValue(
     C2Param::Index index = C2Param::Index(value->index());
 
     {
-        std::lock_guard<std::mutex> lock(values_mutex_);
-        values_.emplace(index, std::move(value));
+        std::lock_guard<std::mutex> lock(m_valuesMutex);
+        m_values.emplace(index, std::move(value));
     }
 }
 
@@ -158,10 +158,10 @@ template<typename ParamType>
 c2_status_t MfxC2ParamStorage::UpdateValue(C2Param::Index param_index, std::unique_ptr<ParamType>&& value)
 {
     {
-        std::lock_guard<std::mutex> lock(values_mutex_);
-        auto found = values_.find(param_index);
+        std::lock_guard<std::mutex> lock(m_valuesMutex);
+        auto found = m_values.find(param_index);
 
-        if (found != values_.end()) {
+        if (found != m_values.end()) {
             found->second = std::move(value);
             return C2_OK;
         }
@@ -191,6 +191,6 @@ void MfxC2ParamStorage::AddStreamInfo(const char* param_name, unsigned int strea
     };
 
     C2Param::Index index{ParamType::PARAM_TYPE};
-    param_operations_.emplace(index.withStream(stream_id),
+    m_paramOperations.emplace(index.withStream(stream_id),
         C2ParamOperations{allocate, get_function, set_function});
 }

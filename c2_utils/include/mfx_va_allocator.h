@@ -79,15 +79,15 @@ private:
     typedef std::function<void(VaMemIdAllocated*)> VaMemIdDeleter;
 
 private:
-    VADisplay dpy_;
+    VADisplay m_dpy;
 
-    std::mutex mutex_;
+    std::mutex m_mutex;
 
-    std::unique_ptr<MfxGrallocModule> gralloc_module_; // lazy init
-    std::unique_ptr<MfxGrallocAllocator> gralloc_allocator_;
+    std::unique_ptr<MfxGrallocModule> m_grallocModule; // lazy init
+    std::unique_ptr<MfxGrallocAllocator> m_grallocAllocator;
 
     std::map<uint64_t, std::unique_ptr<VaMemIdAllocated, VaMemIdDeleter>>
-        mapped_va_surfaces_;
+        m_mappedVaSurfaces;
 
     MFX_CLASS_NO_COPY(MfxVaFrameAllocator)
 };

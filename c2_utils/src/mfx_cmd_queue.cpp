@@ -35,9 +35,9 @@ void MfxCmdQueue::Start()
 {
     MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
 
-    std::lock_guard<std::mutex> lock(thread_mutex_);
-    if(!working_thread_.joinable()) {
-        working_thread_ = std::thread(std::bind(&MfxCmdQueue::Process, this));
+    std::lock_guard<std::mutex> lock(m_threadMutex);
+    if(!m_workingThread.joinable()) {
+        m_workingThread = std::thread(std::bind(&MfxCmdQueue::Process, this));
     }
 }
 
@@ -51,16 +51,16 @@ void MfxCmdQueue::Stop()
 void MfxCmdQueue::Pause()
 {
     MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
-    std::lock_guard<std::mutex> lock(mutex_);
-    paused_ = true;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_bPaused = true;
 }
 
 void MfxCmdQueue::Resume()
 {
     MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
-    std::lock_guard<std::mutex> lock(mutex_);
-    paused_ = false;
-    condition_.notify_one();
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_bPaused = false;
+    m_condition.notify_one();
 }
 
 void MfxCmdQueue::Abort()
@@ -73,40 +73,40 @@ void MfxCmdQueue::Abort()
 void MfxCmdQueue::WaitingPop(MfxCmd* command)
 {
     MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
-    std::unique_lock<std::mutex> lock(mutex_);
-    if (data_.empty()) {
-        condition_empty_.notify_one();
+    std::unique_lock<std::mutex> lock(m_mutex);
+    if (m_data.empty()) {
+        m_conditionEmpty.notify_one();
     }
-    condition_.wait(lock, [this] { return !paused_ && !data_.empty(); });
-    *command = data_.front();
-    data_.pop();
+    m_condition.wait(lock, [this] { return !m_bPaused && !m_data.empty(); });
+    *command = m_data.front();
+    m_data.pop();
 }
 
 void MfxCmdQueue::WaitForEmpty()
 {
     MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
-    std::unique_lock<std::mutex> lock(mutex_);
-    condition_empty_.wait(lock, [this] { return data_.empty(); });
+    std::unique_lock<std::mutex> lock(m_mutex);
+    m_conditionEmpty.wait(lock, [this] { return m_data.empty(); });
 }
 
 void MfxCmdQueue::Shutdown(bool abort)
 {
     MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(m_mutex);
         if(abort) {
-            data_ = std::queue<MfxCmd>();
+            m_data = std::queue<MfxCmd>();
         }
-        data_.push(MfxCmd()); // nullptr command is a stop thread command
-        paused_ = false;
-        condition_.notify_one();
+        m_data.push(MfxCmd()); // nullptr command is a stop thread command
+        m_bPaused = false;
+        m_condition.notify_one();
     }
     {
         // mutexed code section to not have exception in join
         // if already joined in another thread or not started
-        std::lock_guard<std::mutex> lock(thread_mutex_);
-        if(working_thread_.joinable()) {
-            working_thread_.join();
+        std::lock_guard<std::mutex> lock(m_threadMutex);
+        if(m_workingThread.joinable()) {
+            m_workingThread.join();
         }
     }
 }

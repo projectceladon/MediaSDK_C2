@@ -65,18 +65,18 @@ protected:
     mfxStatus FillVppParams(mfxFrameInfo *frame_info, MfxC2Conversion conversion);
     mfxStatus AllocateOneSurface(void);
 
-    MFXVideoVPP *vpp_;
+    MFXVideoVPP *m_pVpp;
 #ifdef USE_ONEVPL
     mfxSession m_mfxSession;
 #else
-    MFXVideoSession *session_;
+    MFXVideoSession *m_pSession;
 #endif
-    mfxVideoParam vpp_param_;
-    std::shared_ptr<MfxFrameAllocator> allocator_;
+    mfxVideoParam m_vppParam;
+    std::shared_ptr<MfxFrameAllocator> m_allocator;
 
-    mfxFrameAllocResponse responses_[VPP_MAX_SRF_NUM];
-    mfxFrameSurface1 vpp_srf_[VPP_MAX_SRF_NUM];
-    mfxU32 num_vpp_surfaces_;
+    mfxFrameAllocResponse m_responses[VPP_MAX_SRF_NUM];
+    mfxFrameSurface1 m_vppSrf[VPP_MAX_SRF_NUM];
+    mfxU32 m_uVppSurfaceCount;
 
 private:
     MFX_CLASS_NO_COPY(MfxC2VppWrapp)

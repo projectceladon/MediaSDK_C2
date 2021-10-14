@@ -38,7 +38,7 @@ class MfxPool
 public:
     MfxPool()
     {
-        pool_impl_ = std::make_shared<MfxPoolImpl>();
+        m_poolImpl = std::make_shared<MfxPoolImpl>();
     }
 
     ~MfxPool()
@@ -46,8 +46,8 @@ public:
         // Correct method to free pool instance.
         // This waiting for destroyed is needed as module with pool could be unloaded from
         // memory while some resource could try to add itself back to the pool.
-        std::future<void> destroyed = pool_impl_->Destroyed();
-        pool_impl_.reset();
+        std::future<void> destroyed = m_poolImpl->Destroyed();
+        m_poolImpl.reset();
         destroyed.wait();
     }
 
@@ -56,12 +56,12 @@ public:
 public:
     void Append(std::unique_ptr<T>&& free_item)
     {
-        pool_impl_->Append(std::move(free_item));
+        m_poolImpl->Append(std::move(free_item));
     }
 
     std::shared_ptr<T> Alloc()
     {
-        return pool_impl_->Alloc();
+        return m_poolImpl->Alloc();
     }
 
 private:
@@ -70,34 +70,34 @@ private:
     class MfxPoolImpl : public std::enable_shared_from_this<MfxPoolImpl>
     {
     private:
-        std::mutex mutex_;
+        std::mutex m_mutex;
         // Signals new free resource added to the pool.
-        std::condition_variable condition_;
+        std::condition_variable m_condition;
         // Collection of free resources.
-        std::list<std::unique_ptr<T>> free_;
+        std::list<std::unique_ptr<T>> m_free;
         // Signal when instance destroyed
-        std::promise<void> destroyed_;
+        std::promise<void> m_destroyed;
     public:
         ~MfxPoolImpl()
         {
-            destroyed_.set_value();
+            m_destroyed.set_value();
         }
 
         void Append(std::unique_ptr<T>&& free_item)
         {
-            std::lock_guard<std::mutex> lock(mutex_);
-            free_.push_back(std::move(free_item));
-            condition_.notify_one();
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_free.push_back(std::move(free_item));
+            m_condition.notify_one();
         }
         // Returns allocated resource through shared_ptr.
         // That shared_ptr has Deleter returning released resource back to the pool.
         // The methods blocks if no free resource is in the pool.
         std::shared_ptr<T> Alloc()
         {
-            std::unique_lock<std::mutex> lock(mutex_);
+            std::unique_lock<std::mutex> lock(m_mutex);
 
-            if (free_.empty()) {
-                bool success = condition_.wait_for(lock, std::chrono::seconds(1), [this] { return !free_.empty(); });
+            if (m_free.empty()) {
+                bool success = m_condition.wait_for(lock, std::chrono::seconds(1), [this] { return !m_free.empty(); });
                 if (!success) return nullptr;
             }
 
@@ -113,17 +113,17 @@ private:
                 }
             };
 
-            std::unique_ptr<T> free_block = std::move(free_.front());
-            free_.pop_front();
+            std::unique_ptr<T> free_block = std::move(m_free.front());
+            m_free.pop_front();
             return std::shared_ptr<T>(free_block.release(), deleter);
         }
 
         std::future<void> Destroyed()
         {
-            return destroyed_.get_future();
+            return m_destroyed.get_future();
         }
     };
 
 private:
-    std::shared_ptr<MfxPoolImpl> pool_impl_;
+    std::shared_ptr<MfxPoolImpl> m_poolImpl;
 };

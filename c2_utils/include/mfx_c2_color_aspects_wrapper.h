@@ -59,13 +59,13 @@ private:
 private:
 
     // Color aspects passed from the framework.
-    android::ColorAspects framework_color_aspects_;
+    android::ColorAspects m_frameworkColorAspects;
     // Color aspects parsed from the bitstream. For decoder use only.
-    android::ColorAspects bitstream_color_aspects_;
+    android::ColorAspects m_bitstreamColorAspects;
 
-    bool bIs_color_aspects_changed_;
+    bool m_bIsColorAspectsChanged;
 
-    mfxU32 codec_ID_;
+    mfxU32 m_uCodecId;
 
     MFX_CLASS_NO_COPY(MfxC2ColorAspectsWrapper)
 };

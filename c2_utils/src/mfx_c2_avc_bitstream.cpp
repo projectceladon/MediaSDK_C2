@@ -254,9 +254,9 @@ inline void FillScalingList8x8(AVCScalingList8x8 *scl_dst,mfxU8 *coefs_src)
 
 AVCBaseBitstream::AVCBaseBitstream()
 	: m_pbs(0)
-	, m_bitOffset(31)
+	, m_nBitOffset(31)
 	, m_pbsBase(0)
-	, m_maxBsSize(0)
+	, m_uMaxBsSize(0)
 {
     //Reset(0, 0);
     //Remove duplicated init task.
@@ -275,8 +275,8 @@ void AVCBaseBitstream::Reset(mfxU8 * const pb, const mfxU32 maxsize)
 {
     m_pbs       = (mfxU32*)pb;
     m_pbsBase   = (mfxU32*)pb;
-    m_bitOffset = 31;
-    m_maxBsSize    = maxsize;
+    m_nBitOffset = 31;
+    m_uMaxBsSize    = maxsize;
 
 } // void Reset(mfxU8 * const pb, const mfxU32 maxsize)
 
@@ -284,15 +284,15 @@ void AVCBaseBitstream::Reset(mfxU8 * const pb, mfxI32 offset, const mfxU32 maxsi
 {
     m_pbs       = (mfxU32*)pb;
     m_pbsBase   = (mfxU32*)pb;
-    m_bitOffset = offset;
-    m_maxBsSize = maxsize;
+    m_nBitOffset = offset;
+    m_uMaxBsSize = maxsize;
 
 } // void Reset(mfxU8 * const pb, mfxI32 offset, const mfxU32 maxsize)
 
 mfxStatus AVCBaseBitstream::GetNALUnitType( NAL_Unit_Type &uNALUnitType,mfxU8 &uNALStorageIDC)
 {
     mfxU32 code;
-    avcGetBits8(m_pbs, m_bitOffset, code);
+    avcGetBits8(m_pbs, m_nBitOffset, code);
 
     uNALStorageIDC = (mfxU8)((code & NAL_STORAGE_IDC_BITS)>>5);
     uNALUnitType = (NAL_Unit_Type)(code & NAL_UNITTYPE_BITS);
@@ -303,7 +303,7 @@ mfxI32 AVCBaseBitstream::GetVLCElement(bool bIsSigned)
 {
     mfxI32 sval = 0;
 
-    mfxStatus res = DecodeExpGolombOne(&m_pbs, &m_bitOffset, &sval, bIsSigned);
+    mfxStatus res = DecodeExpGolombOne(&m_pbs, &m_nBitOffset, &sval, bIsSigned);
 
     if (res < MFX_ERR_NONE)
         throw AVC_exception(MFX_ERR_UNDEFINED_BEHAVIOR);
@@ -313,7 +313,7 @@ mfxI32 AVCBaseBitstream::GetVLCElement(bool bIsSigned)
 
 void AVCBaseBitstream::AlignPointerRight(void)
 {
-    avcAlignBSPointerRight(m_pbs, m_bitOffset);
+    avcAlignBSPointerRight(m_pbs, m_nBitOffset);
 
 } // void AVCBitstream::AlignPointerRight(void)
 
@@ -321,9 +321,9 @@ bool AVCBaseBitstream::More_RBSP_Data()
 {
     mfxI32 code, tmp;
     mfxU32* ptr_state = m_pbs;
-    mfxI32  bit_state = m_bitOffset;
+    mfxI32  bit_state = m_nBitOffset;
 
-    SAMPLE_ASSERT(m_bitOffset >= 0 && m_bitOffset <= 31);
+    SAMPLE_ASSERT(m_nBitOffset >= 0 && m_nBitOffset <= 31);
 
     mfxI32 remaining_bytes = (mfxI32)BytesLeft();
 
@@ -331,18 +331,18 @@ bool AVCBaseBitstream::More_RBSP_Data()
         return false;
 
     // get top bit, it can be "rbsp stop" bit
-    avcGetNBits(m_pbs, m_bitOffset, 1, code);
+    avcGetNBits(m_pbs, m_nBitOffset, 1, code);
 
     // get remain bits, which is less then byte
-    tmp = (m_bitOffset + 1) % 8;
+    tmp = (m_nBitOffset + 1) % 8;
 
     if(tmp)
     {
-        avcGetNBits(m_pbs, m_bitOffset, tmp, code);
+        avcGetNBits(m_pbs, m_nBitOffset, tmp, code);
         if ((code << (8 - tmp)) & 0x7f)    // most sig bit could be rbsp stop bit
         {
             m_pbs = ptr_state;
-            m_bitOffset = bit_state;
+            m_nBitOffset = bit_state;
             // there are more data
             return true;
         }
@@ -353,12 +353,12 @@ bool AVCBaseBitstream::More_RBSP_Data()
     // run through remain bytes
     while (0 < remaining_bytes)
     {
-        avcGetBits8(m_pbs, m_bitOffset, code);
+        avcGetBits8(m_pbs, m_nBitOffset, code);
 
         if (code)
         {
             m_pbs = ptr_state;
-            m_bitOffset = bit_state;
+            m_nBitOffset = bit_state;
             // there are more data
             return true;
         }
@@ -1969,34 +1969,34 @@ mfxI32 AVCHeadersBitstream::GetSEI(const HeaderSet<AVCSeqParamSet> & sps, mfxI32
     mfxU32 code;
     mfxI32 payloadType = 0;
 
-    avcNextBits(m_pbs, m_bitOffset, 8, code);
+    avcNextBits(m_pbs, m_nBitOffset, 8, code);
     while (code  ==  0xFF)
     {
         /* fixed-pattern bit string using 8 bits written equal to 0xFF */
-        avcGetNBits(m_pbs, m_bitOffset, 8, code);
+        avcGetNBits(m_pbs, m_nBitOffset, 8, code);
         payloadType += 255;
-        avcNextBits(m_pbs, m_bitOffset, 8, code);
+        avcNextBits(m_pbs, m_nBitOffset, 8, code);
     }
 
     mfxI32 last_payload_type_byte;
-    avcGetNBits(m_pbs, m_bitOffset, 8, last_payload_type_byte);
+    avcGetNBits(m_pbs, m_nBitOffset, 8, last_payload_type_byte);
 
     payloadType += last_payload_type_byte;
 
     mfxI32 payloadSize = 0;
 
-    avcNextBits(m_pbs, m_bitOffset, 8, code);
+    avcNextBits(m_pbs, m_nBitOffset, 8, code);
     while( code  ==  0xFF )
     {
         /* fixed-pattern bit string using 8 bits written equal to 0xFF */
-        avcGetNBits(m_pbs, m_bitOffset, 8, code);
+        avcGetNBits(m_pbs, m_nBitOffset, 8, code);
         payloadSize += 255;
-        avcNextBits(m_pbs, m_bitOffset, 8, code);
+        avcNextBits(m_pbs, m_nBitOffset, 8, code);
     }
 
     mfxI32 last_payload_size_byte;
 
-    avcGetNBits(m_pbs, m_bitOffset, 8, last_payload_size_byte);
+    avcGetNBits(m_pbs, m_nBitOffset, 8, last_payload_size_byte);
     payloadSize += last_payload_size_byte;
     spl->Reset();
     spl->payLoadSize = payloadSize;
@@ -2016,7 +2016,7 @@ mfxI32 AVCHeadersBitstream::GetSEI(const HeaderSet<AVCSeqParamSet> & sps, mfxI32
     mfxI32 bitOffset;
 
     pbs       = m_pbs;
-    bitOffsetU = m_bitOffset;
+    bitOffsetU = m_nBitOffset;
     bitOffset = bitOffsetU;
 
     mfxI32 ret = GetSEIPayload(sps, current_sps, spl);
@@ -2027,7 +2027,7 @@ mfxI32 AVCHeadersBitstream::GetSEI(const HeaderSet<AVCSeqParamSet> & sps, mfxI32
     }
 
     m_pbs = pbs;
-    m_bitOffset = bitOffset;
+    m_nBitOffset = bitOffset;
 
     return ret;
 }
@@ -2046,7 +2046,7 @@ mfxI32 AVCHeadersBitstream::GetSEIPayload(const HeaderSet<AVCSeqParamSet> & sps,
 mfxI32 AVCHeadersBitstream::reserved_sei_message(const HeaderSet<AVCSeqParamSet> & , mfxI32 current_sps, AVCSEIPayLoad *spl)
 {
     for (mfxU32 i = 0; i < spl->payLoadSize; i++)
-        avcSkipNBits(m_pbs, m_bitOffset, 8)
+        avcSkipNBits(m_pbs, m_nBitOffset, 8)
     AlignPointerRight();
     return current_sps;
 }

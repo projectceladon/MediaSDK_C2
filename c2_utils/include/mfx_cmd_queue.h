@@ -65,13 +65,13 @@ private:
     void Process();
 
 private:
-    std::mutex mutex_; // push/pop protection
-    std::queue<MfxCmd> data_;
-    bool paused_{false};
-    std::condition_variable condition_; // event from push to processor
-    std::condition_variable condition_empty_; // event queue is clean
-    std::thread working_thread_;
-    std::mutex thread_mutex_; // protect thread create/join operations
+    std::mutex m_mutex; // push/pop protection
+    std::queue<MfxCmd> m_data;
+    bool m_bPaused{false};
+    std::condition_variable m_condition; // event from push to processor
+    std::condition_variable m_conditionEmpty; // event queue is clean
+    std::thread m_workingThread;
+    std::mutex m_threadMutex; // protect thread create/join operations
 };
 
 template<class Task>
@@ -86,7 +86,7 @@ void MfxCmdQueue::Push(Task&& task)
 
     MfxCmd cmd = [shared_task] () { (*shared_task)(); }; // just call task
 
-    std::lock_guard<std::mutex> lock(mutex_);
-    data_.push(cmd);
-    condition_.notify_one();
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_data.push(cmd);
+    m_condition.notify_one();
 }

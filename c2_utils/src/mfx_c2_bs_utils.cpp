@@ -25,47 +25,47 @@
 #include "mfx_c2_utils.h"
 
 OutputBitstream::OutputBitstream(mfxU8 * buf, size_t size, bool emulationControl)
-: m_buf(buf)
+: m_pBuf(buf)
 , m_ptr(buf)
-, m_bufEnd(buf + size)
-, m_bitOff(0)
-, m_emulationControl(emulationControl)
+, m_pBufEnd(buf + size)
+, m_uBitOff(0)
+, m_bEmulationControl(emulationControl)
 {
-    if (m_ptr < m_bufEnd)
+    if (m_ptr < m_pBufEnd)
         *m_ptr = 0; // clear next byte
 }
 
 OutputBitstream::OutputBitstream(mfxU8 * buf, mfxU8 * bufEnd, bool emulationControl)
-: m_buf(buf)
+: m_pBuf(buf)
 , m_ptr(buf)
-, m_bufEnd(bufEnd)
-, m_bitOff(0)
-, m_emulationControl(emulationControl)
+, m_pBufEnd(bufEnd)
+, m_uBitOff(0)
+, m_bEmulationControl(emulationControl)
 {
-    if (m_ptr < m_bufEnd)
+    if (m_ptr < m_pBufEnd)
         *m_ptr = 0; // clear next byte
 }
 
 mfxU32 OutputBitstream::GetNumBits() const
 {
-    return mfxU32(8 * (m_ptr - m_buf) + m_bitOff);
+    return mfxU32(8 * (m_ptr - m_pBuf) + m_uBitOff);
 }
 
 void OutputBitstream::PutBit(mfxU32 bit)
 {
-    if (m_ptr >= m_bufEnd)
+    if (m_ptr >= m_pBufEnd)
         throw EndOfBuffer();
 
-    mfxU8 mask = mfxU8(0xff << (8 - m_bitOff));
-    mfxU8 newBit = mfxU8(bit << (7 - m_bitOff));
+    mfxU8 mask = mfxU8(0xff << (8 - m_uBitOff));
+    mfxU8 newBit = mfxU8(bit << (7 - m_uBitOff));
     *m_ptr = (*m_ptr & mask) | newBit;
 
-    if (++m_bitOff == 8)
+    if (++m_uBitOff == 8)
     {
-        if (m_emulationControl && m_ptr - 2 >= m_buf &&
+        if (m_bEmulationControl && m_ptr - 2 >= m_pBuf &&
             (*m_ptr & 0xfc) == 0 && *(m_ptr - 1) == 0 && *(m_ptr - 2) == 0)
         {
-            if (m_ptr + 1 >= m_bufEnd)
+            if (m_ptr + 1 >= m_pBufEnd)
                 throw EndOfBuffer();
 
             *(m_ptr + 1) = *(m_ptr + 0);
@@ -73,9 +73,9 @@ void OutputBitstream::PutBit(mfxU32 bit)
             m_ptr++;
         }
 
-        m_bitOff = 0;
+        m_uBitOff = 0;
         m_ptr++;
-        if (m_ptr < m_bufEnd)
+        if (m_ptr < m_pBufEnd)
             *m_ptr = 0; // clear next byte
     }
 }
@@ -116,30 +116,30 @@ void OutputBitstream::PutSe(mfxI32 val)
 void OutputBitstream::PutTrailingBits()
 {
     PutBit(1);
-    while (m_bitOff != 0)
+    while (m_uBitOff != 0)
         PutBit(0);
 }
 
 void OutputBitstream::PutRawBytes(mfxU8 const * begin, mfxU8 const * end)
 {
-    assert(m_bitOff == 0);
+    assert(m_uBitOff == 0);
 
-    if (m_bufEnd - m_ptr < end - begin)
+    if (m_pBufEnd - m_ptr < end - begin)
         throw EndOfBuffer();
 
     std::copy(begin, end, m_ptr);
-    m_bitOff = 0;
+    m_uBitOff = 0;
     m_ptr += end - begin;
 
-    if (m_ptr < m_bufEnd)
+    if (m_ptr < m_pBufEnd)
         *m_ptr = 0;
 }
 
 void OutputBitstream::PutFillerBytes(mfxU8 filler, mfxU32 nbytes)
 {
-    assert(m_bitOff == 0);
+    assert(m_uBitOff == 0);
 
-    if (m_ptr + nbytes > m_bufEnd)
+    if (m_ptr + nbytes > m_pBufEnd)
         throw EndOfBuffer();
 
     memset(m_ptr, filler, nbytes);
@@ -308,4 +308,3 @@ void BytesSwapper::SwapMemory(mfxU8 *pDestination, mfxU32 &nDstSize, mfxU8 *pSou
 {
     SwapMemoryAndRemovePreventingBytes(pDestination, nDstSize, pSource, nSrcSize);
 }
-

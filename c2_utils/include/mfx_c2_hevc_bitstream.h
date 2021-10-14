@@ -180,7 +180,7 @@ inline uint32_t HEVCBaseBitstream::GetVLCElementU()
 {
     int32_t sval = 0;
 
-    bool res = DecodeExpGolombOne_H265_1u32s(&m_pbs, &m_bitOffset, &sval, false);
+    bool res = DecodeExpGolombOne_H265_1u32s(&m_pbs, &m_nBitOffset, &sval, false);
 
     if (!res)
         throw HEVC_exception(MFX_ERR_UNDEFINED_BEHAVIOR);
@@ -193,7 +193,7 @@ inline int32_t HEVCBaseBitstream::GetVLCElementS()
 {
     int32_t sval = 0;
 
-    bool res = DecodeExpGolombOne_H265_1u32s(&m_pbs, &m_bitOffset, &sval, true);
+    bool res = DecodeExpGolombOne_H265_1u32s(&m_pbs, &m_nBitOffset, &sval, true);
 
     if (!res)
         throw HEVC_exception(MFX_ERR_UNDEFINED_BEHAVIOR);

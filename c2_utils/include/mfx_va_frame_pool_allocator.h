@@ -40,36 +40,36 @@ public:
     MfxVaFramePoolAllocator(VADisplay dpy):
         MfxVaFrameAllocator(dpy)
     {
-        pool_ = std::make_unique<MfxPool<C2GraphicBlock>>();
+        m_pool = std::make_unique<MfxPool<C2GraphicBlock>>();
     }
     virtual ~MfxVaFramePoolAllocator() = default;
 private:
     virtual void SetC2Allocator(std::shared_ptr<C2BlockPool> c2_allocator) override
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-        c2_allocator_ = c2_allocator;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_c2Allocator = c2_allocator;
     }
 
     virtual std::shared_ptr<C2GraphicBlock> Alloc() override
     {
         MFX_DEBUG_TRACE_FUNC;
-        std::shared_ptr<C2GraphicBlock> res = pool_->Alloc();
+        std::shared_ptr<C2GraphicBlock> res = m_pool->Alloc();
         MFX_DEBUG_TRACE_STREAM(res);
         return res;
     }
     // Forget about allocated resources.
     virtual void Reset() override
     {
-        pool_ = std::make_unique<MfxPool<C2GraphicBlock>>();
-        cached_buffer_id_.clear();
+        m_pool = std::make_unique<MfxPool<C2GraphicBlock>>();
+        m_cachedBufferId.clear();
     }
     virtual void SetBufferCount(unsigned int cnt) override
     {
-        suggest_buffer_cnt_ = cnt;
+        m_uSuggestBufferCnt = cnt;
     }
     bool InCache(uint64_t id) {
-        auto it = cached_buffer_id_.find(id);
-        if (it == cached_buffer_id_.end()){
+        auto it = m_cachedBufferId.find(id);
+        if (it == m_cachedBufferId.end()){
             return false;
         }
 
@@ -81,17 +81,17 @@ private:
     virtual mfxStatus FreeFrames(mfxFrameAllocResponse *response) override;
 
 private:
-    std::mutex mutex_;
+    std::mutex m_mutex;
 
-    std::shared_ptr<C2BlockPool> c2_allocator_;
+    std::shared_ptr<C2BlockPool> m_c2Allocator;
 
-    std::unique_ptr<MfxPool<C2GraphicBlock>> pool_;
+    std::unique_ptr<MfxPool<C2GraphicBlock>> m_pool;
 
-    std::unique_ptr<MfxGrallocAllocator> gralloc_allocator_;
+    std::unique_ptr<MfxGrallocAllocator> m_grallocAllocator;
 
-    std::map<uint64_t, int> cached_buffer_id_;
+    std::map<uint64_t, int> m_cachedBufferId;
 
-    unsigned int suggest_buffer_cnt_=0;
+    unsigned int m_uSuggestBufferCnt=0;
 
 private:
     MFX_CLASS_NO_COPY(MfxVaFramePoolAllocator)

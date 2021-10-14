@@ -35,7 +35,7 @@ public:
     virtual ~MfxDevVa();
 
 public:
-    VADisplay GetVaDisplay() { return va_display_; }
+    VADisplay GetVaDisplay() { return m_vaDisplay; }
 
 private:
     mfxStatus Init() override;
@@ -53,12 +53,12 @@ protected:
     typedef unsigned int MfxVaAndroidDisplayId;
 
 protected:
-    Usage usage_ {};
-    bool va_initialized_ { false };
-    MfxVaAndroidDisplayId display_id_ = MFX_VA_ANDROID_DISPLAY_ID;
-    VADisplay va_display_ { nullptr };
-    std::shared_ptr<MfxVaFrameAllocator> va_allocator_;
-    std::shared_ptr<MfxVaFramePoolAllocator> va_pool_allocator_;
+    Usage m_usage {};
+    bool m_bVaInitialized { false };
+    MfxVaAndroidDisplayId m_displayId = MFX_VA_ANDROID_DISPLAY_ID;
+    VADisplay m_vaDisplay { nullptr };
+    std::shared_ptr<MfxVaFrameAllocator> m_vaAllocator;
+    std::shared_ptr<MfxVaFramePoolAllocator> m_vaPoolAllocator;
 
 private:
     MFX_CLASS_NO_COPY(MfxDevVa)

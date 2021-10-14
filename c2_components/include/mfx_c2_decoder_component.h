@@ -142,75 +142,75 @@ private:
     std::shared_ptr<C2StreamColorAspectsInfo::output> getColorAspects_l();
 
 private:
-    DecoderType decoder_type_;
+    DecoderType m_decoderType;
 
-    std::unique_ptr<MfxDev> device_;
+    std::unique_ptr<MfxDev> m_device;
 #ifdef USE_ONEVPL
     mfxSession m_mfxSession;
     mfxLoader m_mfxLoader;
 #else
-    MFXVideoSession session_;
+    MFXVideoSession m_mfxSession;
 #endif
 
     // Accessed from working thread or stop method when working thread is stopped.
-    std::unique_ptr<MFXVideoDECODE> decoder_;
+    std::unique_ptr<MFXVideoDECODE> m_mfxDecoder;
 
-    // if custom allocator was set to session_ with SetFrameAllocator
-    bool allocator_set_ { false };
+    // if custom allocator was set to m_session with SetFrameAllocator
+    bool m_bAllocatorSet { false };
 
-    bool initialized_;
+    bool m_bInitialized;
 
-    MfxCmdQueue working_queue_;
-    MFX_TRACEABLE(working_queue_);
-    MfxCmdQueue waiting_queue_;
-    MFX_TRACEABLE(waiting_queue_);
+    MfxCmdQueue m_workingQueue;
+    MFX_TRACEABLE(m_workingQueue);
+    MfxCmdQueue m_waitingQueue;
+    MFX_TRACEABLE(m_waitingQueue);
 
-    mfxVideoParam video_params_ {};
-    std::vector<mfxExtBuffer*> ext_buffers_;
-    mfxExtVideoSignalInfo signal_info_;
+    mfxVideoParam m_mfxVideoParams {};
+    std::vector<mfxExtBuffer*> m_extBuffers;
+    mfxExtVideoSignalInfo m_signalInfo;
 
-    // Protects decoder initialization and video_params_
-    mutable std::mutex init_decoder_mutex_;
+    // Protects decoder initialization and m_mfxVideoParams
+    mutable std::mutex m_initDecoderMutex;
     // Width and height of decoding surfaces and respectively maximum frame size supported
     // without re-creation of decoder when resolution changed.
-    mfxU16 max_width_ {};
-    mfxU16 max_height_ {};
+    mfxU16 m_uMaxWidth {};
+    mfxU16 m_uMaxHeight {};
 
-    std::atomic<bool> eos_received_ {};
+    std::atomic<bool> m_bEosReceived {};
     // Members handling MFX_WRN_DEVICE_BUSY.
     // Active sync points got from DecodeFrameAsync for waiting on.
-    std::atomic_uint synced_points_count_;
+    std::atomic_uint m_uSyncedPointsCount;
     // Condition variable to notify of decreasing active sync points.
-    std::condition_variable dev_busy_cond_;
+    std::condition_variable m_devBusyCond;
     // Mutex to cover data accessed from condition variable checking lambda.
     // Even atomic type needs to be mutex protected.
-    std::mutex dev_busy_mutex_;
+    std::mutex m_devBusyMutex;
 
-    std::unique_ptr<MfxC2BitstreamIn> c2_bitstream_;
+    std::unique_ptr<MfxC2BitstreamIn> m_c2Bitstream;
     // Store raw pointers there as don't want to keep objects by shared_ptr
-    std::map<uint64_t, std::shared_ptr<mfxFrameSurface1>> surfaces_; // all ever send to Decoder
+    std::map<uint64_t, std::shared_ptr<mfxFrameSurface1>> m_surfaces; // all ever send to Decoder
 
-    std::mutex locked_surfaces_mutex_;
-    std::list<MfxC2FrameOut> locked_surfaces_; // allocated, but cannot be re-used as Locked by Decoder
-    std::list<std::shared_ptr<C2GraphicBlock>> locked_block_; //locked block, don't use
+    std::mutex m_lockedSurfacesMutex;
+    std::list<MfxC2FrameOut> m_lockedSurfaces; // allocated, but cannot be re-used as Locked by Decoder
+    std::list<std::shared_ptr<C2GraphicBlock>> m_lockedBlocks; //locked block, don't use
 
-    std::mutex pending_works_mutex_;
-    std::map<decltype(C2WorkOrdinalStruct::timestamp), std::unique_ptr<C2Work>> pending_works_;
+    std::mutex m_pendingWorksMutex;
+    std::map<decltype(C2WorkOrdinalStruct::timestamp), std::unique_ptr<C2Work>> m_pendingWorks;
 
-    std::shared_ptr<MfxFramePoolAllocator> allocator_; // used when Video memory output
+    std::shared_ptr<MfxFramePoolAllocator> m_allocator; // used when Video memory output
     // for pre-allocation when Video memory is chosen and always when System memory output
-    std::shared_ptr<C2BlockPool> c2_allocator_;
-    C2BlockPool::local_id_t output_pool_id_ = C2BlockPool::BASIC_GRAPHIC;
-    std::unique_ptr<MfxGrallocAllocator> gralloc_allocator_;
-    std::atomic<bool> flushing_{false};
+    std::shared_ptr<C2BlockPool> m_c2Allocator;
+    C2BlockPool::local_id_t m_outputPoolId = C2BlockPool::BASIC_GRAPHIC;
+    std::unique_ptr<MfxGrallocAllocator> m_grallocAllocator;
+    std::atomic<bool> m_bFlushing{false};
 
-    std::list<std::unique_ptr<C2Work>> flushed_works_;
+    std::list<std::unique_ptr<C2Work>> m_flushedWorks;
 
-    C2StreamHdrStaticInfo::output hdr_static_info_;
-    bool set_hdr_sei_;
+    C2StreamHdrStaticInfo::output m_hdrStaticInfo;
+    bool m_bSetHdrSei;
 
-    MfxC2ColorAspectsWrapper color_aspects_;
+    MfxC2ColorAspectsWrapper m_colorAspects;
 
-    unsigned int output_delay_ = 8u;
-    unsigned int input_delay_ = 1u;
+    unsigned int m_uOutputDelay = 8u;
+    unsigned int m_uInputDelay = 1u;
 };

@@ -81,9 +81,9 @@ public:
 
 protected:
     mfxU32 *m_pbs;                                              // pointer to the current position of the buffer.
-    mfxI32 m_bitOffset;                                         // the bit position (0 to 31) in the dword pointed by m_pbs.
+    mfxI32 m_nBitOffset;                                         // the bit position (0 to 31) in the dword pointed by m_pbs.
     mfxU32 *m_pbsBase;                                          // pointer to the first byte of the buffer.
-    mfxU32 m_maxBsSize;                                         // maximum buffer size in bytes.
+    mfxU32 m_uMaxBsSize;                                         // maximum buffer size in bytes.
 };
 
 class AVCHeadersBitstream : public AVCBaseBitstream
@@ -232,14 +232,14 @@ inline mfxU32 AVCBaseBitstream::GetBits(mfxU32 nbits)
 {
     mfxU32 w, n = nbits;
 
-    avcGetNBits(m_pbs, m_bitOffset, n, w);
+    avcGetNBits(m_pbs, m_nBitOffset, n, w);
     return w;
 }
 
 inline mfxU32 AVCBaseBitstream::Get1Bit()
 {
     mfxU32 w;
-    avcGetBits1(m_pbs, m_bitOffset, w);
+    avcGetBits1(m_pbs, m_nBitOffset, w);
     return w;
 
 } // AVCBitstream::Get1Bit()
@@ -247,12 +247,12 @@ inline mfxU32 AVCBaseBitstream::Get1Bit()
 inline mfxU32 AVCBaseBitstream::BytesDecoded()
 {
     return static_cast<mfxU32>((mfxU8*)m_pbs - (mfxU8*)m_pbsBase) +
-            ((31 - m_bitOffset) >> 3);
+            ((31 - m_nBitOffset) >> 3);
 }
 
 inline mfxU32 AVCBaseBitstream::BytesLeft()
 {
-    return ((mfxI32)m_maxBsSize - (mfxI32) BytesDecoded());
+    return ((mfxI32)m_uMaxBsSize - (mfxI32) BytesDecoded());
 }
 
 } // namespace AVCParser

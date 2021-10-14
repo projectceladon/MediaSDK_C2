@@ -86,12 +86,12 @@ private:
 
     static void EndElementHandlerWrapper(void *me, const char *name);
 
-    c2_status_t parsing_status_; // used for internal error handling, required by EXPAT callback
-    Section current_section_;
-    size_t codec_counter_;
-    C2String href_base_;
-    std::vector<Section> section_stack_;
-    std::map<C2String, CodecProperties> codec_map_;
-    std::map<C2String, CodecProperties>::iterator current_codec_;
-    std::map<C2String, AttributeMap>::iterator current_type_;
+    c2_status_t m_parsingStatus; // used for internal error handling, required by EXPAT callback
+    Section m_currentSection;
+    size_t m_uCodecCounter;
+    C2String m_hrefBase;
+    std::vector<Section> m_sectionStack;
+    std::map<C2String, CodecProperties> m_codecMap;
+    std::map<C2String, CodecProperties>::iterator m_currentCodec;
+    std::map<C2String, AttributeMap>::iterator m_currentType;
 };

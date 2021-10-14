@@ -40,21 +40,21 @@
 #include <expat.h>
 
 MfxXmlParser::MfxXmlParser():
-    parsing_status_(C2_NO_INIT),
-    current_section_(SECTION_TOPLEVEL),
-    codec_counter_(0),
-    href_base_(),
-    section_stack_(),
-    codec_map_(),
-    current_codec_(),
-    current_type_()
+    m_parsingStatus(C2_NO_INIT),
+    m_currentSection(SECTION_TOPLEVEL),
+    m_uCodecCounter(0),
+    m_hrefBase(),
+    m_sectionStack(),
+    m_codecMap(),
+    m_currentCodec(),
+    m_currentType()
 {}
 
 c2_status_t MfxXmlParser::parseConfig(const char* path) {
 
     MFX_DEBUG_TRACE_FUNC;
 
-    parsing_status_ = C2_OK;
+    m_parsingStatus = C2_OK;
     return parse(path);
 }
 
@@ -62,8 +62,8 @@ C2String MfxXmlParser::getMediaType(const char* name) {
 
     MFX_DEBUG_TRACE_FUNC;
 
-    auto codec = codec_map_.find(name);
-    if (codec == codec_map_.end()) {
+    auto codec = m_codecMap.find(name);
+    if (codec == m_codecMap.end()) {
         MFX_DEBUG_TRACE_STREAM("codec " << name << "wasn't found");
         return C2String("");
     }
@@ -73,8 +73,8 @@ C2String MfxXmlParser::getMediaType(const char* name) {
 C2Component::kind_t MfxXmlParser::getKind(const char *name) {
     MFX_DEBUG_TRACE_FUNC;
 
-    auto codec = codec_map_.find(name);
-    if (codec == codec_map_.end()) {
+    auto codec = m_codecMap.find(name);
+    if (codec == m_codecMap.end()) {
         MFX_DEBUG_TRACE_STREAM("codec " << name << "wasn't found");
         return KIND_OTHER;
     }
@@ -85,8 +85,8 @@ bool MfxXmlParser::dumpOutputEnabled(const char *name) {
 
     MFX_DEBUG_TRACE_FUNC;
 
-    auto codec = codec_map_.find(name);
-    if (codec == codec_map_.end()) {
+    auto codec = m_codecMap.find(name);
+    if (codec == m_codecMap.end()) {
         MFX_DEBUG_TRACE_STREAM("codec " << name << "wasn't found");
         return false;
     }
@@ -126,15 +126,15 @@ c2_status_t MfxXmlParser::addMediaCodecFromAttributes(bool encoder, const char**
         return C2_BAD_VALUE;
     }
 
-    current_codec_ = codec_map_.find(name);
-    if (current_codec_ == codec_map_.end()) {
-        // create a new codec in codec_map_
-        current_codec_ = codec_map_.insert(std::pair<C2String, CodecProperties>(name, CodecProperties())).first;
+    m_currentCodec = m_codecMap.find(name);
+    if (m_currentCodec == m_codecMap.end()) {
+        // create a new codec in m_codecMap
+        m_currentCodec = m_codecMap.insert(std::pair<C2String, CodecProperties>(name, CodecProperties())).first;
         if (type != nullptr) {
-            current_type_ = current_codec_->second.typeMap.insert(std::pair<C2String, AttributeMap>(type, AttributeMap())).first;
+            m_currentType = m_currentCodec->second.typeMap.insert(std::pair<C2String, AttributeMap>(type, AttributeMap())).first;
         }
-        current_codec_->second.isEncoder = encoder;
-        current_codec_->second.order = codec_counter_++;
+        m_currentCodec->second.isEncoder = encoder;
+        m_currentCodec->second.order = m_uCodecCounter++;
     } else {
         // existing codec name
         MFX_DEBUG_TRACE_STREAM("adding existing codec");
@@ -173,7 +173,7 @@ c2_status_t MfxXmlParser::addDiagnostics(const char **attrs) {
         ++i;
     }
 
-    current_codec_->second.dump_output = dump_output;
+    m_currentCodec->second.dump_output = dump_output;
     return C2_OK;
 }
 
@@ -181,26 +181,26 @@ void MfxXmlParser::startElementHandler(const char* name, const char** attrs) {
 
     MFX_DEBUG_TRACE_FUNC;
 
-    if (parsing_status_ != C2_OK) {
+    if (m_parsingStatus != C2_OK) {
         return;
     }
 
     if (strcmp(name, "Include") == 0) {
-        parsing_status_ = include(attrs);
-        if (parsing_status_ == C2_OK) {
-            section_stack_.push_back(current_section_);
-            current_section_ = SECTION_INCLUDE;
+        m_parsingStatus = include(attrs);
+        if (m_parsingStatus == C2_OK) {
+            m_sectionStack.push_back(m_currentSection);
+            m_currentSection = SECTION_INCLUDE;
         }
         return;
     }
 
-    switch (current_section_) {
+    switch (m_currentSection) {
         case SECTION_TOPLEVEL:
         {
             if (strcmp(name, "Decoders") == 0) {
-                current_section_ = SECTION_DECODERS;
+                m_currentSection = SECTION_DECODERS;
             } else if (strcmp(name, "Encoders") == 0) {
-                current_section_ = SECTION_ENCODERS;
+                m_currentSection = SECTION_ENCODERS;
             }
             break;
         }
@@ -208,10 +208,10 @@ void MfxXmlParser::startElementHandler(const char* name, const char** attrs) {
         case SECTION_DECODERS:
         {
             if (strcmp(name, "MediaCodec") == 0) {
-                parsing_status_ =
+                m_parsingStatus =
                     addMediaCodecFromAttributes(false /* encoder */, attrs);
 
-                current_section_ = SECTION_DECODER;
+                m_currentSection = SECTION_DECODER;
             }
             break;
         }
@@ -219,10 +219,10 @@ void MfxXmlParser::startElementHandler(const char* name, const char** attrs) {
         case SECTION_ENCODERS:
         {
             if (strcmp(name, "MediaCodec") == 0) {
-                parsing_status_ =
+                m_parsingStatus =
                     addMediaCodecFromAttributes(true /* encoder */, attrs);
 
-                current_section_ = SECTION_ENCODER;
+                m_currentSection = SECTION_ENCODER;
             }
             break;
         }
@@ -231,7 +231,7 @@ void MfxXmlParser::startElementHandler(const char* name, const char** attrs) {
         case SECTION_ENCODER:
         {
             if (strcmp(name, "Diagnostics") == 0) {
-                parsing_status_ =
+                m_parsingStatus =
                     addDiagnostics(attrs);
             }
             break;
@@ -244,16 +244,16 @@ void MfxXmlParser::startElementHandler(const char* name, const char** attrs) {
 }
 
 void MfxXmlParser::endElementHandler(const char* name) {
-    if (parsing_status_ != C2_OK) {
+    if (m_parsingStatus != C2_OK) {
         return;
     }
 
-    switch (current_section_) {
+    switch (m_currentSection) {
 
         case SECTION_DECODERS:
         {
             if (strcmp(name, "Decoders") == 0) {
-                current_section_ = SECTION_TOPLEVEL;
+                m_currentSection = SECTION_TOPLEVEL;
             }
             break;
         }
@@ -261,7 +261,7 @@ void MfxXmlParser::endElementHandler(const char* name) {
         case SECTION_ENCODERS:
         {
             if (strcmp(name, "Encoders") == 0) {
-                current_section_ = SECTION_TOPLEVEL;
+                m_currentSection = SECTION_TOPLEVEL;
             }
             break;
         }
@@ -269,7 +269,7 @@ void MfxXmlParser::endElementHandler(const char* name) {
         case SECTION_DECODER:
         {
             if (strcmp(name, "MediaCodec") == 0) {
-                current_section_ = SECTION_DECODERS;
+                m_currentSection = SECTION_DECODERS;
             }
             break;
         }
@@ -277,16 +277,16 @@ void MfxXmlParser::endElementHandler(const char* name) {
         case SECTION_ENCODER:
         {
             if (strcmp(name, "MediaCodec") == 0) {
-                current_section_ = SECTION_ENCODERS;
+                m_currentSection = SECTION_ENCODERS;
             }
             break;
         }
 
         case SECTION_INCLUDE:
         {
-            if ((strcmp(name, "Include") == 0) && (section_stack_.size() > 0)) {
-                current_section_ = section_stack_.back();
-                section_stack_.pop_back();
+            if ((strcmp(name, "Include") == 0) && (m_sectionStack.size() > 0)) {
+                m_currentSection = m_sectionStack.back();
+                m_sectionStack.pop_back();
             }
             break;
         }
@@ -331,25 +331,25 @@ c2_status_t MfxXmlParser::parse(const char* path) {
             parser, StartElementHandlerWrapper, EndElementHandlerWrapper);
 
     static constexpr int BUFF_SIZE = 512;
-    while (parsing_status_ == C2_OK) {
+    while (m_parsingStatus == C2_OK) {
         void* buff = ::XML_GetBuffer(parser, BUFF_SIZE);
         if (buff == nullptr) {
             MFX_DEBUG_TRACE_STREAM("failed in call to XML_GetBuffer()");
-            parsing_status_ = C2_BAD_VALUE;
+            m_parsingStatus = C2_BAD_VALUE;
             break;
         }
 
         int bytes_read = fread(buff, 1, BUFF_SIZE, file);
         if (bytes_read < 0) {
             MFX_DEBUG_TRACE_STREAM("failed in call to read");
-            parsing_status_ = C2_BAD_VALUE;
+            m_parsingStatus = C2_BAD_VALUE;
             break;
         }
 
         XML_Status status = ::XML_ParseBuffer(parser, bytes_read, bytes_read == 0);
         if (status != XML_STATUS_OK) {
             MFX_DEBUG_TRACE_STREAM("malformed " << ::XML_ErrorString(::XML_GetErrorCode(parser)));
-            parsing_status_ = C2_BAD_VALUE;
+            m_parsingStatus = C2_BAD_VALUE;
             break;
         }
 
@@ -361,8 +361,8 @@ c2_status_t MfxXmlParser::parse(const char* path) {
     ::XML_ParserFree(parser);
     fclose(file);
 
-    MFX_DEBUG_TRACE__android_c2_status_t(parsing_status_);
-    return parsing_status_;
+    MFX_DEBUG_TRACE__android_c2_status_t(m_parsingStatus);
+    return m_parsingStatus;
 }
 
 c2_status_t MfxXmlParser::include(const char** attrs) {
@@ -403,7 +403,7 @@ c2_status_t MfxXmlParser::include(const char** attrs) {
         MFX_DEBUG_TRACE_STREAM("invalid include file name: " << href);
         return C2_BAD_VALUE;
     }
-    filename.insert(0, href_base_);
+    filename.insert(0, m_hrefBase);
 
     return parse(filename.c_str());
 }
