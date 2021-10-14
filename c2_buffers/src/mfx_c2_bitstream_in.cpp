@@ -33,7 +33,7 @@ MfxC2BitstreamIn::MfxC2BitstreamIn(MfxC2FrameConstructorType fc_type)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    frame_constructor_ = MfxC2FrameConstructorFactory::CreateFrameConstructor(fc_type);
+    m_frameConstructor = MfxC2FrameConstructorFactory::CreateFrameConstructor(fc_type);
 }
 
 MfxC2BitstreamIn::~MfxC2BitstreamIn()
@@ -48,7 +48,7 @@ c2_status_t MfxC2BitstreamIn::Reset()
     c2_status_t res = C2_OK;
 
     do {
-        mfxStatus mfx_res = frame_constructor_->Reset();
+        mfxStatus mfx_res = m_frameConstructor->Reset();
         res = MfxStatusToC2(mfx_res);
         if(C2_OK != res) break;
     } while(false);
@@ -73,7 +73,7 @@ c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_
         }
 
         if (buf_pack.buffers.size() == 0) {
-            frame_constructor_->SetEosMode(buf_pack.flags & C2FrameData::FLAG_END_OF_STREAM);
+            m_frameConstructor->SetEosMode(buf_pack.flags & C2FrameData::FLAG_END_OF_STREAM);
             break;
         }
 
@@ -92,9 +92,9 @@ c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_
 
         MFX_DEBUG_TRACE_STREAM("data: " << FormatHex(data, filled_len));
 
-        frame_constructor_->SetEosMode(buf_pack.flags & C2FrameData::FLAG_END_OF_STREAM);
+        m_frameConstructor->SetEosMode(buf_pack.flags & C2FrameData::FLAG_END_OF_STREAM);
 
-        mfxStatus mfx_res = frame_constructor_->Load(data,
+        mfxStatus mfx_res = m_frameConstructor->Load(data,
                                                      filled_len,
                                                      buf_pack.ordinal.timestamp.peeku(), // pass pts
                                                      buf_pack.flags & C2FrameData::FLAG_CODEC_CONFIG,
@@ -102,7 +102,7 @@ c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_
         res = MfxStatusToC2(mfx_res);
         if(C2_OK != res) break;
 
-        *frame_view = std::make_unique<FrameView>(frame_constructor_, std::move(read_view));
+        *frame_view = std::make_unique<FrameView>(m_frameConstructor, std::move(read_view));
 
     } while(false);
 
@@ -115,9 +115,9 @@ c2_status_t MfxC2BitstreamIn::FrameView::Release()
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
-    if (read_view_) {
-        res = MfxStatusToC2(frame_constructor_->Unload());
-        read_view_.reset();
+    if (m_readView) {
+        res = MfxStatusToC2(m_frameConstructor->Unload());
+        m_readView.reset();
     }
     return res;
 }

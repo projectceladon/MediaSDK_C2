@@ -41,18 +41,18 @@ public:
     void PushBack(const uint8_t* data, size_t length)
     {
         std::basic_string<uint8_t> s(data, length);
-        data_.emplace_back(std::hash<std::basic_string<uint8_t>>()(s));
+        m_data.emplace_back(std::hash<std::basic_string<uint8_t>>()(s));
     }
     bool operator==(const BinaryChunks& other) const
     {
-        return data_ == other.data_;
+        return m_data == other.m_data;
     }
     bool operator!=(const BinaryChunks& other) const
     {
-        return data_ != other.data_;
+        return m_data != other.m_data;
     }
 private:
-    std::vector<size_t> data_; // std::hash results
+    std::vector<size_t> m_data; // std::hash results
 };
 
 // Calculates CRC32 checksum
@@ -65,13 +65,13 @@ public:
 
     std::list<uint32_t> GetCrc32()
     {
-        return crc32_;
+        return m_crc32;
     }
 
 private:
-    uint32_t cur_width_ {};
-    uint32_t cur_height_ {};
-    std::list<uint32_t> crc32_; // one crc32 for evety resolution change
+    uint32_t m_uCurWidth {};
+    uint32_t m_uCurHeight {};
+    std::list<uint32_t> m_crc32; // one crc32 for evety resolution change
 };
 
 // BinaryTester descendant simplifying BinaryWriter constructing for gtest tests
@@ -86,34 +86,34 @@ public:
 
     void Write(const uint8_t* data, size_t length)
     {
-        if (writer_) {
-            writer_->Write(data, length);
+        if (m_writer) {
+            m_writer->Write(data, length);
         }
     }
 
     static void Enable(bool enable)
     {
-        enabled_ = enable;
+        s_bEnabled = enable;
     }
 
 private:
-    std::unique_ptr<BinaryWriter> writer_;
+    std::unique_ptr<BinaryWriter> m_writer;
 
     static std::vector<std::string> GetTestFolders();
 
-    static bool enabled_;
+    static bool s_bEnabled;
 };
 
 class ComponentsCache : public testing::Environment
 {
 public:
-    static ComponentsCache* GetInstance() { return g_cache; }
+    static ComponentsCache* GetInstance() { return s_cache; }
 
     std::shared_ptr<MfxC2Component> GetComponent(const char* name)
     {
         std::shared_ptr<MfxC2Component> result;
-        auto it = components_.find(name);
-        if(it != components_.end()) {
+        auto it = m_components.find(name);
+        if(it != m_components.end()) {
             result = it->second;
         }
         return result;
@@ -121,23 +121,23 @@ public:
 
     void PutComponent(const char* name, std::shared_ptr<MfxC2Component> component)
     {
-        components_.emplace(name, component);
+        m_components.emplace(name, component);
     }
 
     void RemoveComponent(const char* name)
     {
-        size_t count = components_.erase(name);
+        size_t count = m_components.erase(name);
         EXPECT_EQ(count, 1u);
     }
 
     void Clear()
     {
-        for (auto& pair : components_) {
+        for (auto& pair : m_components) {
             MfxC2Component* component = pair.second.get();
             c2_status_t res = ((C2Component*)component)->release();
             EXPECT_EQ(res, C2_OK);
         }
-        components_.clear();
+        m_components.clear();
     }
 
     void TearDown() override { Clear(); }
@@ -151,9 +151,9 @@ private:
     }
 
 private:
-    static ComponentsCache* g_cache;
+    static ComponentsCache* s_cache;
 
-    std::map<std::string, std::shared_ptr<MfxC2Component>> components_;
+    std::map<std::string, std::shared_ptr<MfxC2Component>> m_components;
 };
 
 template<typename ComponentDesc>

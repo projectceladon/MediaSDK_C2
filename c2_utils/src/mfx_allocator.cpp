@@ -59,12 +59,12 @@ static mfxStatus WrapperGetHdl(mfxHDL pthis, mfxMemId mid, mfxHDL *handle)
 
 MfxFrameAllocator::MfxFrameAllocator()
 {
-    mfx_allocator_.pthis = this;
-    mfx_allocator_.Alloc = WrapperAlloc;
-    mfx_allocator_.Free = WrapperFree;
-    mfx_allocator_.Lock = WrapperLock;
-    mfx_allocator_.Unlock = WrapperUnlock;
-    mfx_allocator_.GetHDL = WrapperGetHdl;
+    m_mfxAllocator.pthis = this;
+    m_mfxAllocator.Alloc = WrapperAlloc;
+    m_mfxAllocator.Free = WrapperFree;
+    m_mfxAllocator.Lock = WrapperLock;
+    m_mfxAllocator.Unlock = WrapperUnlock;
+    m_mfxAllocator.GetHDL = WrapperGetHdl;
 }
 
 MfxFrameAllocator::~MfxFrameAllocator()

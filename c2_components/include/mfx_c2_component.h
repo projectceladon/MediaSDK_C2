@@ -178,28 +178,28 @@ private:
         State next_state);
 
 protected: // variables
-    State state_ = State::STOPPED;
-    State next_state_ = State::STOPPED;
+    State m_state = State::STOPPED;
+    State m_nextState = State::STOPPED;
     // If next_state_ != state_ then it is a transition state.
     // If they are equal it is a stable state.
-    mutable std::mutex state_mutex_;
+    mutable std::mutex m_stateMutex;
 
-    mutable std::condition_variable cond_state_stable_; // notified when state gets stable
+    mutable std::condition_variable m_condStateStable; // notified when state gets stable
 
-    mutable std::mutex release_mutex_;
+    mutable std::mutex m_releaseMutex;
 
-    C2String name_;
+    C2String m_name;
 
-    CreateConfig create_config_;
+    CreateConfig m_createConfig;
 
-    MfxC2ParamStorage param_storage_;
+    MfxC2ParamStorage m_paramStorage;
 
-    mfxIMPL mfx_implementation_;
+    mfxIMPL m_mfxImplementation;
 
 private:
-    std::list<std::shared_ptr<Listener>> listeners_;
+    std::list<std::shared_ptr<Listener>> m_listeners;
 
-    std::mutex listeners_mutex_;
+    std::mutex m_listenersMutex;
 };
 
 typedef MfxC2Component* (CreateMfxC2ComponentFunc)(const char* name,

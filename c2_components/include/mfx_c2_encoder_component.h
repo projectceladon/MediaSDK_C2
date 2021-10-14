@@ -30,15 +30,15 @@
 #include "mfx_c2_vpp_wrapp.h"
 
 // Assumes all calls are done from one (working) thread, no sync is needed.
-// ctrl_once_ accumulates subsequent changes for one next frame.
+// m_ctrlOnce accumulates subsequent changes for one next frame.
 // When AcquireEncodeCtrl is called it passes ownership to mfxEncodeCtrl
-// and resets internal ctrl_once_,
+// and resets internal m_ctrlOnce,
 // so next call will return nullptr (default) mfxEncodeCtrl.
 class EncoderControl
 {
 private:
     // Encoder control for next one frame only.
-    std::unique_ptr<mfxEncodeCtrl> ctrl_once_;
+    std::unique_ptr<mfxEncodeCtrl> m_ctrlOnce;
 
 public:
     typedef std::function<void(mfxEncodeCtrl* ctrl)> ModifyFunction;
@@ -133,64 +133,64 @@ private:
         MfxC2BitstreamOut&& bit_stream, mfxSyncPoint sync_point);
 
 private:
-    EncoderType encoder_type_;
+    EncoderType m_encoderType;
 
-    std::unique_ptr<MfxDev> device_;
+    std::unique_ptr<MfxDev> m_device;
 
 #ifdef USE_ONEVPL
     mfxSession m_mfxSession;
     mfxLoader m_mfxLoader;
 #else
-    MFXVideoSession session_;
+    MFXVideoSession m_mfxSession;
 #endif
 
     // Accessed from working thread or stop method when working thread is stopped.
-    std::unique_ptr<MFXVideoENCODE> encoder_;
+    std::unique_ptr<MFXVideoENCODE> m_mfxEncoder;
 
     // if custom allocator was set to session_ with SetFrameAllocator
-    bool allocator_set_ { false };
+    bool m_bAllocatorSet { false };
 
-    MfxCmdQueue working_queue_;
-    MFX_TRACEABLE(working_queue_);
-    MfxCmdQueue waiting_queue_;
-    MFX_TRACEABLE(waiting_queue_);
+    MfxCmdQueue m_workingQueue;
+    MFX_TRACEABLE(m_workingQueue);
+    MfxCmdQueue m_waitingQueue;
+    MFX_TRACEABLE(m_waitingQueue);
 
     // Video params configured through config_vb, retained between Start/Stop
     // sessions, used for init encoder,
     // can have zero (default) fields.
-    MfxVideoParamsWrapper video_params_config_;
+    MfxVideoParamsWrapper m_mfxVideoParamsConfig;
     // Internal encoder state, queried from encoder.
-    MfxVideoParamsWrapper video_params_state_ {};
-    // Protects encoder initializatin and video_params_config_/video_params_state_
-    mutable std::mutex init_encoder_mutex_;
+    MfxVideoParamsWrapper m_mfxVideoParamsState {};
+    // Protects encoder initializatin and m_mfxVideoParamsConfig/m_mfxVideoParamsState
+    mutable std::mutex m_initEncoderMutex;
 
     // Members handling MFX_WRN_DEVICE_BUSY.
     // Active sync points got from EncodeFrameAsync for waiting on.
-    std::atomic_uint synced_points_count_;
+    std::atomic_uint m_uSyncedPointsCount;
     // Condition variable to notify of decreasing active sync points.
-    std::condition_variable dev_busy_cond_;
+    std::condition_variable m_devBusyCond;
     // Mutex to cover data accessed from condition variable checking lambda.
     // Even atomic type needs to be mutex protected.
-    std::mutex dev_busy_mutex_;
+    std::mutex m_devBusyMutex;
 
     // These are works whose input frames are sent to encoder,
     // got ERR_MORE_DATA so their output aren't being produced.
     // Handles display order only.
     // This queue is accessed from working thread only.
-    std::queue<std::unique_ptr<C2Work>> pending_works_;
+    std::queue<std::unique_ptr<C2Work>> m_pendingWorks;
 
-    std::list<MfxC2FrameIn> locked_frames_;
+    std::list<MfxC2FrameIn> m_lockedFrames;
 
-    EncoderControl encoder_control_;
+    EncoderControl m_encoderControl;
 
-    std::shared_ptr<C2BlockPool> c2_allocator_;
+    std::shared_ptr<C2BlockPool> m_c2Allocator;
 
-    std::unique_ptr<BinaryWriter> output_writer_;
+    std::unique_ptr<BinaryWriter> m_outputWriter;
 
-    bool header_sent_{false};
+    bool m_bHeaderSent{false};
 
     // VPP used to convert color format which MSDK accepted.
-    bool vpp_determined_;
-    MfxC2VppWrapp vpp_;
-    MfxC2Conversion input_vpp_type_;
+    bool m_bVppDetermined;
+    MfxC2VppWrapp m_vpp;
+    MfxC2Conversion m_inputVppType;
 };

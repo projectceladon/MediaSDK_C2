@@ -91,11 +91,11 @@ private:
     void DoWork(std::unique_ptr<C2Work>&& work);
 
 private:
-    Type type_;
+    Type m_type;
 
-    MfxCmdQueue cmd_queue_;
+    MfxCmdQueue m_cmdQueue;
 
-    uint64_t producer_memory_type_ { C2MemoryUsage::CPU_WRITE };
+    uint64_t m_uProducerMemoryType { C2MemoryUsage::CPU_WRITE };
 
-    std::shared_ptr<C2BlockPool> c2_allocator_;
+    std::shared_ptr<C2BlockPool> m_c2Allocator;
 };

@@ -28,14 +28,14 @@ std::unique_ptr<C2StructDescriptor> MfxC2ParamReflector::describe(
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    std::lock_guard<std::mutex> lock(descriptors_mutex_);
+    std::lock_guard<std::mutex> lock(m_descriptorsMutex_);
 
     MFX_DEBUG_TRACE_STREAM(std::hex << NAMED(coreIndex.coreIndex()));
 
     std::unique_ptr<C2StructDescriptor> result;
 
-    auto found_struct = params_struct_descriptors_.find(C2Param::Type(coreIndex.coreIndex()));
-    if(found_struct != params_struct_descriptors_.end()) {
+    auto found_struct = m_paramsStructDescriptors.find(C2Param::Type(coreIndex.coreIndex()));
+    if(found_struct != m_paramsStructDescriptors.end()) {
         result = std::make_unique<C2StructDescriptor>(found_struct->second);
     }
 
@@ -62,12 +62,12 @@ void MfxC2ParamReflector::DumpParams()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    std::lock_guard<std::mutex> lock(descriptors_mutex_);
+    std::lock_guard<std::mutex> lock(m_descriptorsMutex_);
 
     const std::string indent(4, ' ');
 
-    MFX_DEBUG_TRACE_MSG("params_struct_descriptors_");
-    for(const auto& pair : params_struct_descriptors_) {
+    MFX_DEBUG_TRACE_MSG("m_paramsStructDescriptors");
+    for(const auto& pair : m_paramsStructDescriptors) {
         std::ostringstream oss;
         oss << std::hex << *(uint32_t*)&pair.first;
         MFX_DEBUG_TRACE_MSG(oss.str().c_str());

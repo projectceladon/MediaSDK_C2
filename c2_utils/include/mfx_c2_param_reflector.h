@@ -48,15 +48,15 @@ public: // C2ParamReflector
 #endif
 
 private:
-    std::map<C2Param::CoreIndex, C2StructDescriptor> params_struct_descriptors_;
-    mutable std::mutex descriptors_mutex_;
+    std::map<C2Param::CoreIndex, C2StructDescriptor> m_paramsStructDescriptors;
+    mutable std::mutex m_descriptorsMutex_;
 };
 
 template<typename ParamType>
 void MfxC2ParamReflector::AddDescription()
 {
-    std::lock_guard<std::mutex> lock(descriptors_mutex_);
-    params_struct_descriptors_.insert({ C2Param::Type(ParamType::PARAM_TYPE).coreIndex(), C2StructDescriptor(ParamType::PARAM_TYPE, ParamType::FieldList()) });
+    std::lock_guard<std::mutex> lock(m_descriptorsMutex_);
+    m_paramsStructDescriptors.insert({ C2Param::Type(ParamType::PARAM_TYPE).coreIndex(), C2StructDescriptor(ParamType::PARAM_TYPE, ParamType::FieldList()) });
 }
 
 // Google uses a trick to access private fields/methods of some classes

@@ -54,13 +54,13 @@ c2_status_t MfxC2BitstreamOut::Create(
             break;
         }
 
-        res = MapLinearBlock(*block, timeout, &wrapper->c2_linear_view_);
+        res = MapLinearBlock(*block, timeout, &wrapper->m_c2LinearView);
         if (C2_OK != res) break;
 
-        wrapper->mfx_bitstream_ = std::make_unique<mfxBitstream>();
-        wrapper->c2_linear_block_ = block;
+        wrapper->m_mfxBitstream = std::make_unique<mfxBitstream>();
+        wrapper->m_c2LinearBlock = block;
 
-        InitMfxBitstream(wrapper->c2_linear_view_->data(), block->capacity(), wrapper->mfx_bitstream_.get());
+        InitMfxBitstream(wrapper->m_c2LinearView->data(), block->capacity(), wrapper->m_mfxBitstream.get());
 
     } while(false);
 

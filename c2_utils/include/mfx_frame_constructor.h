@@ -96,9 +96,9 @@ public:
     // gets bitstream with data
     virtual std::shared_ptr<mfxBitstream> GetMfxBitstream();
     // notifies that end of stream reached
-    virtual void SetEosMode(bool eos) { eos_ = eos; }
+    virtual void SetEosMode(bool eos) { m_bEos = eos; }
     // returns EOS status
-    virtual bool WasEosReached() { return eos_; }
+    virtual bool WasEosReached() { return m_bEos; }
     // get saved SEI (right now only for HEVC 10 bit SeiHDRStaticInfo)
     virtual mfxPayload* GetSEI(mfxU32 /*type*/) {return nullptr;}
     // save current SPS/PPS
@@ -123,28 +123,28 @@ protected: // functions
 
 protected: // data
     // parameters which define FC behavior
-    MfxC2BitstreamState bs_state_;
+    MfxC2BitstreamState m_bsState;
 
     // parameters needed for VC1 frame constructor
-    mfxFrameInfo fr_info_;
-    mfxU16 profile_;
+    mfxFrameInfo m_frInfo;
+    mfxU16 m_profile;
 
     // mfx bistreams:
     // pointer to current bitstream
-    std::shared_ptr<mfxBitstream> bst_current_;
+    std::shared_ptr<mfxBitstream> m_bstCurrent;
     // saved stream header to be returned after seek if no new header will be found
-    std::shared_ptr<mfxBitstream> bst_header_;
+    std::shared_ptr<mfxBitstream> m_bstHeader;
     // buffered data: seq header or remained from previos sample
-    std::shared_ptr<mfxBitstream> bst_buf_;
+    std::shared_ptr<mfxBitstream> m_bstBuf;
     // data from input sample (case when buffering and copying is not needed)
-    std::shared_ptr<mfxBitstream> bst_in_;
+    std::shared_ptr<mfxBitstream> m_bstIn;
 
     // EOS flag
-    bool eos_;
+    bool m_bEos;
 
     // some statistics:
-    mfxU32 bst_buf_reallocs_;
-    mfxU32 bst_buf_copy_bytes_;
+    mfxU32 m_uBstBufReallocs;
+    mfxU32 m_uBstBufCopyBytes;
 
 private:
     MFX_CLASS_NO_COPY(MfxC2FrameConstructor)
@@ -179,8 +179,8 @@ protected: // data
     const static mfxU32 NAL_UT_AVC_SPS = 7;
     const static mfxU32 NAL_UT_AVC_PPS = 8;
 
-    mfxBitstream sps_;
-    mfxBitstream pps_;
+    mfxBitstream m_sps;
+    mfxBitstream m_pps;
 
 private:
     MFX_CLASS_NO_COPY(MfxC2AVCFrameConstructor)
@@ -213,7 +213,7 @@ protected: // data
     const static mfxU32 NAL_UT_HEVC_SEI = 39;
     const static std::vector<mfxU32> NAL_UT_CODED_SLICEs;
 
-    std::map<mfxU32, mfxPayload> SEIMap;
+    std::map<mfxU32, mfxPayload> m_SEIMap;
 
 private:
     MFX_CLASS_NO_COPY(MfxC2HEVCFrameConstructor)

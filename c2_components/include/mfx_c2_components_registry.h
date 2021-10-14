@@ -50,5 +50,5 @@ public:
     void RegisterMfxC2Component(const std::string& name, CreateMfxC2ComponentFunc* createFunc);
 
 private:
-    std::map<std::string, CreateMfxC2ComponentFunc*> registry_;
+    std::map<std::string, CreateMfxC2ComponentFunc*> m_registry;
 };

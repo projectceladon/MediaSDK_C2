@@ -25,11 +25,11 @@
 class MfxFrameAllocator
 {
 private:
-    mfxFrameAllocator mfx_allocator_ {};
+    mfxFrameAllocator m_mfxAllocator {};
 public:
     MfxFrameAllocator();
     virtual ~MfxFrameAllocator();
-    mfxFrameAllocator& GetMfxAllocator() { return mfx_allocator_; }
+    mfxFrameAllocator& GetMfxAllocator() { return m_mfxAllocator; }
 
 public:
     virtual mfxStatus AllocFrames(mfxFrameAllocRequest *request, mfxFrameAllocResponse *response) = 0;

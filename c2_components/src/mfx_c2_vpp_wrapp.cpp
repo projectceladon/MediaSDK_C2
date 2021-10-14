@@ -28,18 +28,18 @@
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_vpp_wrapp"
 
 MfxC2VppWrapp::MfxC2VppWrapp(void):
-    vpp_(NULL),
+    m_pVpp(NULL),
 #ifdef USE_ONEVPL
     m_mfxSession(NULL),
 #else
-    session_(NULL),
+    m_pSession(NULL),
 #endif
-    num_vpp_surfaces_(0)
+    m_uVppSurfaceCount(0)
 {
     MFX_DEBUG_TRACE_FUNC;
-    MFX_ZERO_MEMORY(vpp_param_);
-    MFX_ZERO_MEMORY(allocator_);
-    MFX_ZERO_MEMORY(responses_);
+    MFX_ZERO_MEMORY(m_vppParam);
+    MFX_ZERO_MEMORY(m_allocator);
+    MFX_ZERO_MEMORY(m_responses);
 }
 
 MfxC2VppWrapp::~MfxC2VppWrapp(void)
@@ -58,22 +58,22 @@ mfxStatus MfxC2VppWrapp::Init(MfxC2VppWrappParam *param)
 
     if (MFX_ERR_NONE == sts)
     {
-        allocator_ = param->allocator;
+        m_allocator = param->allocator;
 #ifdef USE_ONEVPL
         m_mfxSession = param->session;
-        MFX_NEW(vpp_, MFXVideoVPP(m_mfxSession));
+        MFX_NEW(m_pVpp, MFXVideoVPP(m_mfxSession));
 #else
-        session_ = param->session;
-        MFX_NEW(vpp_, MFXVideoVPP(*session_));
+        m_pSession = param->session;
+        MFX_NEW(m_pVpp, MFXVideoVPP(*m_pSession));
 #endif
 
-        if(!vpp_) sts = MFX_ERR_UNKNOWN;
+        if(!m_pVpp) sts = MFX_ERR_UNKNOWN;
 
         if (MFX_ERR_NONE == sts) sts = FillVppParams(param->frame_info, param->conversion);
-        MFX_DEBUG_TRACE__mfxFrameInfo(vpp_param_.vpp.In);
-        MFX_DEBUG_TRACE__mfxFrameInfo(vpp_param_.vpp.Out);
+        MFX_DEBUG_TRACE__mfxFrameInfo(m_vppParam.vpp.In);
+        MFX_DEBUG_TRACE__mfxFrameInfo(m_vppParam.vpp.Out);
 
-        if (MFX_ERR_NONE == sts) sts = vpp_->Init(&vpp_param_);
+        if (MFX_ERR_NONE == sts) sts = m_pVpp->Init(&m_vppParam);
     }
 
     if (MFX_ERR_NONE == sts) sts = AllocateOneSurface();
@@ -89,31 +89,31 @@ mfxStatus MfxC2VppWrapp::Close(void)
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus sts = MFX_ERR_NONE;
 
-    if (vpp_)
+    if (m_pVpp)
     {
-        sts = vpp_->Close();
-        MFX_DELETE(vpp_);
-        vpp_ = NULL;
+        sts = m_pVpp->Close();
+        MFX_DELETE(m_pVpp);
+        m_pVpp = NULL;
     }
 
-    MFX_DEBUG_TRACE_I32(num_vpp_surfaces_);
-    if (num_vpp_surfaces_)
+    MFX_DEBUG_TRACE_I32(m_uVppSurfaceCount);
+    if (m_uVppSurfaceCount)
     {
-        for (mfxU32 i = 0; i < num_vpp_surfaces_; i++)
+        for (mfxU32 i = 0; i < m_uVppSurfaceCount; i++)
         {
-            allocator_->FreeFrames(&responses_[i]);
+            m_allocator->FreeFrames(&m_responses[i]);
         }
     }
 
-    MFX_ZERO_MEMORY(responses_);
-    MFX_ZERO_MEMORY(vpp_srf_);
-    num_vpp_surfaces_ = 0;
+    MFX_ZERO_MEMORY(m_responses);
+    MFX_ZERO_MEMORY(m_vppSrf);
+    m_uVppSurfaceCount = 0;
 #ifdef USE_ONEVPL
     m_mfxSession = NULL;
 #else
-    session_ = NULL;
+    m_pSession = NULL;
 #endif
-    allocator_.reset();
+    m_allocator.reset();
 
     MFX_DEBUG_TRACE_I32(sts);
     return sts;
@@ -128,26 +128,26 @@ mfxStatus MfxC2VppWrapp::FillVppParams(mfxFrameInfo *frame_info, MfxC2Conversion
 
     if (MFX_ERR_NONE == sts)
     {
-        MFX_ZERO_MEMORY(vpp_param_);
-        vpp_param_.AsyncDepth = 1;
-        vpp_param_.IOPattern = MFX_IOPATTERN_IN_VIDEO_MEMORY | MFX_IOPATTERN_OUT_VIDEO_MEMORY;
-        vpp_param_.vpp.In = *frame_info;
-        vpp_param_.vpp.Out = *frame_info;
+        MFX_ZERO_MEMORY(m_vppParam);
+        m_vppParam.AsyncDepth = 1;
+        m_vppParam.IOPattern = MFX_IOPATTERN_IN_VIDEO_MEMORY | MFX_IOPATTERN_OUT_VIDEO_MEMORY;
+        m_vppParam.vpp.In = *frame_info;
+        m_vppParam.vpp.Out = *frame_info;
 
         switch (conversion)
         {
             case ARGB_TO_NV12:
-                if (MFX_FOURCC_RGB4 != vpp_param_.vpp.In.FourCC)
+                if (MFX_FOURCC_RGB4 != m_vppParam.vpp.In.FourCC)
                     sts = MFX_ERR_INCOMPATIBLE_VIDEO_PARAM;
 
-                vpp_param_.vpp.Out.FourCC = MFX_FOURCC_NV12;
+                m_vppParam.vpp.Out.FourCC = MFX_FOURCC_NV12;
                 break;
 
             case NV12_TO_ARGB:
-                if (MFX_FOURCC_NV12 != vpp_param_.vpp.In.FourCC)
+                if (MFX_FOURCC_NV12 != m_vppParam.vpp.In.FourCC)
                     sts = MFX_ERR_INCOMPATIBLE_VIDEO_PARAM;
 
-                vpp_param_.vpp.Out.FourCC = MFX_FOURCC_RGB4;
+                m_vppParam.vpp.Out.FourCC = MFX_FOURCC_RGB4;
                 break;
 
             case CONVERT_NONE:
@@ -155,7 +155,7 @@ mfxStatus MfxC2VppWrapp::FillVppParams(mfxFrameInfo *frame_info, MfxC2Conversion
         }
 
         if (MFX_ERR_NONE != sts)
-            MFX_ZERO_MEMORY(vpp_param_);
+            MFX_ZERO_MEMORY(m_vppParam);
     }
 
     MFX_DEBUG_TRACE_I32(sts);
@@ -167,26 +167,26 @@ mfxStatus MfxC2VppWrapp::AllocateOneSurface(void)
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus sts = MFX_ERR_NONE;
 
-    if (num_vpp_surfaces_ >= VPP_MAX_SRF_NUM) sts = MFX_ERR_UNKNOWN;
+    if (m_uVppSurfaceCount >= VPP_MAX_SRF_NUM) sts = MFX_ERR_UNKNOWN;
 
     if (MFX_ERR_NONE == sts)
     {
         mfxFrameAllocRequest request;
         MFX_ZERO_MEMORY(request);
-        request.Info = vpp_param_.vpp.Out;
+        request.Info = m_vppParam.vpp.Out;
         request.NumFrameMin = 1;
         request.NumFrameSuggested = 1;
         request.Type = MFX_MEMTYPE_VIDEO_MEMORY_PROCESSOR_TARGET | MFX_MEMTYPE_FROM_VPPOUT;
 
-        sts = allocator_->AllocFrames(&request, &responses_[num_vpp_surfaces_]);
+        sts = m_allocator->AllocFrames(&request, &m_responses[m_uVppSurfaceCount]);
     }
 
     if (MFX_ERR_NONE == sts)
     {
-        MFX_ZERO_MEMORY(vpp_srf_[num_vpp_surfaces_]);
-        vpp_srf_[num_vpp_surfaces_].Info = vpp_param_.vpp.Out;
-        vpp_srf_[num_vpp_surfaces_].Data.MemId = responses_[num_vpp_surfaces_].mids[0];
-        num_vpp_surfaces_++;
+        MFX_ZERO_MEMORY(m_vppSrf[m_uVppSurfaceCount]);
+        m_vppSrf[m_uVppSurfaceCount].Info = m_vppParam.vpp.Out;
+        m_vppSrf[m_uVppSurfaceCount].Data.MemId = m_responses[m_uVppSurfaceCount].mids[0];
+        m_uVppSurfaceCount++;
     }
 
     MFX_DEBUG_TRACE_I32(sts);
@@ -202,29 +202,29 @@ mfxStatus MfxC2VppWrapp::ProcessFrameVpp(mfxFrameSurface1 *in_srf, mfxFrameSurfa
 
     if (!in_srf || !out_srf) return MFX_ERR_UNKNOWN;
 
-    for (mfxU32 i = 0; i < num_vpp_surfaces_; i++)
+    for (mfxU32 i = 0; i < m_uVppSurfaceCount; i++)
     {
-        if (false == vpp_srf_[i].Data.Locked)
+        if (false == m_vppSrf[i].Data.Locked)
         {
-            outSurface = &vpp_srf_[i];
+            outSurface = &m_vppSrf[i];
             break;
         }
     }
 
-    if (num_vpp_surfaces_ < VPP_MAX_SRF_NUM && NULL == outSurface)
+    if (m_uVppSurfaceCount < VPP_MAX_SRF_NUM && NULL == outSurface)
     {
         sts = AllocateOneSurface();
-        if (MFX_ERR_NONE == sts) outSurface = &vpp_srf_[num_vpp_surfaces_-1]; // just created outSurface
+        if (MFX_ERR_NONE == sts) outSurface = &m_vppSrf[m_uVppSurfaceCount-1]; // just created outSurface
     }
 
     if (outSurface)
     {
-        sts = vpp_->RunFrameVPPAsync(in_srf, outSurface, NULL, &syncp);
+        sts = m_pVpp->RunFrameVPPAsync(in_srf, outSurface, NULL, &syncp);
         if (MFX_ERR_NONE == sts)
 #ifdef USE_ONEVPL
             sts = MFXVideoCORE_SyncOperation(m_mfxSession, syncp, MFX_TIMEOUT_INFINITE);
 #else
-            sts = session_->SyncOperation(syncp, MFX_TIMEOUT_INFINITE);
+            sts = m_pSession->SyncOperation(syncp, MFX_TIMEOUT_INFINITE);
 #endif
     }
     else sts = MFX_ERR_MORE_SURFACE;

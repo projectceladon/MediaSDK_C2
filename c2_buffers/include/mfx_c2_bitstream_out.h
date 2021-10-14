@@ -36,15 +36,15 @@ public:
 
     std::shared_ptr<C2LinearBlock> GetC2LinearBlock() const
     {
-        return c2_linear_block_;
+        return m_c2LinearBlock;
     }
 
     mfxBitstream* GetMfxBitstream() const
     {
-        return mfx_bitstream_.get();
+        return m_mfxBitstream.get();
     }
 private:
-    std::shared_ptr<C2LinearBlock> c2_linear_block_;
-    std::unique_ptr<C2WriteView> c2_linear_view_;
-    std::unique_ptr<mfxBitstream> mfx_bitstream_;
+    std::shared_ptr<C2LinearBlock> m_c2LinearBlock;
+    std::unique_ptr<C2WriteView> m_c2LinearView;
+    std::unique_ptr<mfxBitstream> m_mfxBitstream;
 };

@@ -33,7 +33,7 @@ class HeaderSet
 public:
 
     HeaderSet()
-        : m_currentID(-1)
+        : m_nCurrentID(-1)
     {
     }
 
@@ -45,36 +45,36 @@ public:
     void AddHeader(T* hdr)
     {
         mfxU32 id = hdr->GetID();
-        if (id >= m_header.size())
+        if (id >= m_headers.size())
         {
-            m_header.resize(id + 1);
+            m_headers.resize(id + 1);
         }
 
-        if (m_header[id])
+        if (m_headers[id])
         {
-            delete m_header[id];
-            m_header[id]=0;
+            delete m_headers[id];
+            m_headers[id]=0;
         }
 
-        m_header[id] = new T();
-        *(m_header[id]) = *hdr;
+        m_headers[id] = new T();
+        *(m_headers[id]) = *hdr;
     }
 
     T * GetHeader(mfxU32 id)
     {
-        if (id >= m_header.size())
+        if (id >= m_headers.size())
             return 0;
 
-        return m_header[id];
+        return m_headers[id];
     }
 
     void RemoveHeader(mfxU32 id)
     {
-        if (id >= m_header.size())
+        if (id >= m_headers.size())
             return;
 
-        delete m_header[id];
-        m_header[id] = 0;
+        delete m_headers[id];
+        m_headers[id] = 0;
     }
 
     void RemoveHeader(T * hdr)
@@ -87,50 +87,50 @@ public:
 
     const T * GetHeader(mfxU32 id) const
     {
-        if (id >= m_header.size())
+        if (id >= m_headers.size())
             return 0;
 
-        return m_header[id];
+        return m_headers[id];
     }
 
     void Reset()
     {
-        for (mfxU32 i = 0; i < m_header.size(); i++)
+        for (mfxU32 i = 0; i < m_headers.size(); i++)
         {
-            delete m_header[i];
-            m_header[i]=0;
+            delete m_headers[i];
+            m_headers[i]=0;
         }
     }
 
     void SetCurrentID(mfxU32 id)
     {
-        m_currentID = id;
+        m_nCurrentID = id;
     }
 
     mfxI32 GetCurrrentID() const
     {
-        return m_currentID;
+        return m_nCurrentID;
     }
 
     T * GetCurrentHeader()
     {
-        if (m_currentID == -1)
+        if (m_nCurrentID == -1)
             return 0;
 
-        return GetHeader(m_currentID);
+        return GetHeader(m_nCurrentID);
     }
 
     const T * GetCurrentHeader() const
     {
-        if (m_currentID == -1)
+        if (m_nCurrentID == -1)
             return 0;
 
-        return GetHeader(m_currentID);
+        return GetHeader(m_nCurrentID);
     }
 
 private:
-    std::vector<T*>           m_header;
-    mfxI32                    m_currentID;
+    std::vector<T*>           m_headers;
+    mfxI32                    m_nCurrentID;
 };
 
 /****************************************************************************************************/

@@ -112,7 +112,7 @@ static mfxU32 ConvertVAFourccToVARTFormat(mfxU32 va_fourcc)
 }
 
 MfxVaFrameAllocator::MfxVaFrameAllocator(VADisplay dpy)
-    : dpy_(dpy)
+    : m_dpy(dpy)
 {
     MFX_DEBUG_TRACE_FUNC;
 }
@@ -131,7 +131,7 @@ mfxStatus MfxVaFrameAllocator::AllocFrames(mfxFrameAllocRequest *request, mfxFra
     MFX_DEBUG_TRACE_I32(request->NumFrameMin);
     MFX_DEBUG_TRACE_I32(request->NumFrameSuggested);
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(m_mutex);
 
     mfxStatus mfx_res = MFX_ERR_NONE;
     *response = mfxFrameAllocResponse {};
@@ -167,7 +167,7 @@ mfxStatus MfxVaFrameAllocator::AllocFrames(mfxFrameAllocRequest *request, mfxFra
             attrib.value.value.i = va_fourcc;
             attrib.flags = VA_SURFACE_ATTRIB_SETTABLE;
 
-            VAStatus va_res = vaCreateSurfaces(dpy_, VA_RT_FORMAT_YUV420,
+            VAStatus va_res = vaCreateSurfaces(m_dpy, VA_RT_FORMAT_YUV420,
                 request->Info.Width, request->Info.Height,
                 surfaces.get(), surfaces_count, &attrib, 1);
             if (VA_STATUS_SUCCESS != va_res) {
@@ -182,13 +182,13 @@ mfxStatus MfxVaFrameAllocator::AllocFrames(mfxFrameAllocRequest *request, mfxFra
             VAStatus va_res = VA_STATUS_SUCCESS;
             for (int alloc_count = 0; alloc_count < surfaces_count; ++alloc_count) {
 
-                va_res = vaCreateBuffer(dpy_, context_id, VAEncCodedBufferType,
+                va_res = vaCreateBuffer(m_dpy, context_id, VAEncCodedBufferType,
                     codedbuf_size, 1, nullptr, &(surfaces[alloc_count]));
 
                 if (VA_STATUS_SUCCESS != va_res) {
                     MFX_DEBUG_TRACE_U32(va_res);
                     for (int i = alloc_count - 1; i >= 0; --i) { // free allocated already
-                        vaDestroyBuffer(dpy_, surfaces[i]);
+                        vaDestroyBuffer(m_dpy, surfaces[i]);
                     }
                     break;
                 }
@@ -222,7 +222,7 @@ mfxStatus MfxVaFrameAllocator::FreeFrames(mfxFrameAllocResponse *response)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(m_mutex);
 
     mfxStatus mfx_res = MFX_ERR_NONE;
     if (response) {
@@ -233,10 +233,10 @@ mfxStatus MfxVaFrameAllocator::FreeFrames(mfxFrameAllocResponse *response)
             VASurfaceID* surfaces = va_mids->surface_;
 
             if (MFX_FOURCC_P8 != va_mids->fourcc_) {
-                vaDestroySurfaces(dpy_, surfaces, response->NumFrameActual);
+                vaDestroySurfaces(m_dpy, surfaces, response->NumFrameActual);
             } else {
                 for (int i = 0; i < response->NumFrameActual; ++i) {
-                    vaDestroyBuffer(dpy_, surfaces[i]);
+                    vaDestroyBuffer(m_dpy, surfaces[i]);
                 }
             }
             delete[] surfaces;
@@ -285,7 +285,7 @@ static mfxStatus InitMfxFrameData(VaMemId& va_mid, mfxU8* pBuffer, mfxFrameData 
 mfxStatus MfxVaFrameAllocator::LockFrame(mfxMemId mid, mfxFrameData *frame_data)
 {
     MFX_DEBUG_TRACE_FUNC;
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(m_mutex);
 
     mfxStatus mfx_res = MFX_ERR_NONE;
 
@@ -300,7 +300,7 @@ mfxStatus MfxVaFrameAllocator::LockFrame(mfxMemId mid, mfxFrameData *frame_data)
         if (MFX_FOURCC_P8 == va_mid->fourcc_)   // bitstream processing
         {
             VACodedBufferSegment *coded_buffer_segment;
-            VAStatus va_res = vaMapBuffer(dpy_, *(va_mid->surface_),
+            VAStatus va_res = vaMapBuffer(m_dpy, *(va_mid->surface_),
                 (void **)(&coded_buffer_segment));
             if (VA_STATUS_SUCCESS != va_res) {
                 mfx_res = va_to_mfx_status(va_res);
@@ -310,20 +310,20 @@ mfxStatus MfxVaFrameAllocator::LockFrame(mfxMemId mid, mfxFrameData *frame_data)
             frame_data->MemId = va_mid;
             frame_data->Y = (mfxU8*)coded_buffer_segment->buf;
         } else {
-            VAStatus va_res = vaDeriveImage(dpy_, *(va_mid->surface_), &(va_mid->image_));
+            VAStatus va_res = vaDeriveImage(m_dpy, *(va_mid->surface_), &(va_mid->image_));
             if (VA_STATUS_SUCCESS != va_res) {
                 mfx_res = va_to_mfx_status(va_res);
                 break;
             }
 
-            va_res = vaSyncSurface(dpy_, *(va_mid->surface_));
+            va_res = vaSyncSurface(m_dpy, *(va_mid->surface_));
             if (VA_STATUS_SUCCESS != va_res) {
                 mfx_res = va_to_mfx_status(va_res);
                 break;
             }
 
             mfxU8* pBuffer = nullptr;
-            va_res = vaMapBuffer(dpy_, va_mid->image_.buf, (void**)&pBuffer);
+            va_res = vaMapBuffer(m_dpy, va_mid->image_.buf, (void**)&pBuffer);
             if (VA_STATUS_SUCCESS != va_res) {
                 mfx_res = va_to_mfx_status(va_res);
                 break;
@@ -344,17 +344,17 @@ mfxStatus MfxVaFrameAllocator::UnlockFrame(mfxMemId mid, mfxFrameData *frame_dat
 
     mfxStatus mfx_res = MFX_ERR_NONE;
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(m_mutex);
 
     VaMemId* va_mid = (VaMemId*)mid;
     if (va_mid && va_mid->surface_) {
 
         if (MFX_FOURCC_P8 == va_mid->fourcc_) { // bitstream processing
-            vaUnmapBuffer(dpy_, *(va_mid->surface_));
+            vaUnmapBuffer(m_dpy, *(va_mid->surface_));
         }
         else { // Image processing
-            vaUnmapBuffer(dpy_, va_mid->image_.buf);
-            vaDestroyImage(dpy_, va_mid->image_.image_id);
+            vaUnmapBuffer(m_dpy, va_mid->image_.buf);
+            vaDestroyImage(m_dpy, va_mid->image_.image_id);
 
             if (nullptr != frame_data) {
                 frame_data->Pitch = 0;
@@ -375,7 +375,7 @@ mfxStatus MfxVaFrameAllocator::UnlockFrame(mfxMemId mid, mfxFrameData *frame_dat
 mfxStatus MfxVaFrameAllocator::GetFrameHDL(mfxMemId mid, mfxHDL *handle)
 {
     MFX_DEBUG_TRACE_FUNC;
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(m_mutex);
 
     VaMemId* va_mid = (VaMemId*)mid;
 
@@ -389,15 +389,15 @@ mfxStatus MfxVaFrameAllocator::ConvertGrallocToVa(buffer_handle_t gralloc_buffer
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(m_mutex);
 
     mfxStatus mfx_res = MFX_ERR_NONE;
 
     VASurfaceID surface { VA_INVALID_ID };
 
     do {
-        if (!gralloc_allocator_) {
-            c2_status_t sts = MfxGrallocAllocator::Create(&gralloc_allocator_);
+        if (!m_grallocAllocator) {
+            c2_status_t sts = MfxGrallocAllocator::Create(&m_grallocAllocator);
             if(C2_OK != sts) {
                 mfx_res = MFX_ERR_MEMORY_ALLOC;
                 break;
@@ -411,14 +411,14 @@ mfxStatus MfxVaFrameAllocator::ConvertGrallocToVa(buffer_handle_t gralloc_buffer
 
 
         uint64_t id;
-        c2_status_t sts = gralloc_allocator_->GetBackingStore(gralloc_buffer, &id);
+        c2_status_t sts = m_grallocAllocator->GetBackingStore(gralloc_buffer, &id);
         if(C2_OK != sts) {
             mfx_res = MFX_ERR_INVALID_HANDLE;
             break;
         }
 
-        auto found = mapped_va_surfaces_.find(id);
-        if (found != mapped_va_surfaces_.end()) {
+        auto found = m_mappedVaSurfaces.find(id);
+        if (found != m_mappedVaSurfaces.end()) {
             *mem_id = found->second.get();
         } else {
             mfxU32 fourcc {};
@@ -433,7 +433,7 @@ mfxStatus MfxVaFrameAllocator::ConvertGrallocToVa(buffer_handle_t gralloc_buffer
 
             VaMemIdDeleter deleter = [this] (VaMemIdAllocated* va_mid) {
                 if (VA_INVALID_ID != va_mid->surface_) {
-                    vaDestroySurfaces(dpy_, &va_mid->surface_, 1);
+                    vaDestroySurfaces(m_dpy, &va_mid->surface_, 1);
                 }
             };
 
@@ -450,9 +450,9 @@ mfxStatus MfxVaFrameAllocator::ConvertGrallocToVa(buffer_handle_t gralloc_buffer
 
             *mem_id = mem_id_alloc.get();
 
-            mapped_va_surfaces_.emplace(id, std::move(mem_id_alloc));
+            m_mappedVaSurfaces.emplace(id, std::move(mem_id_alloc));
 
-            MFX_DEBUG_TRACE_STREAM(NAMED(this) << NAMED(gralloc_buffer) << NAMED(*mem_id) << NAMED(mapped_va_surfaces_.size()));
+            MFX_DEBUG_TRACE_STREAM(NAMED(this) << NAMED(gralloc_buffer) << NAMED(*mem_id) << NAMED(m_mappedVaSurfaces.size()));
         }
     } while(false);
 
@@ -463,24 +463,24 @@ mfxStatus MfxVaFrameAllocator::ConvertGrallocToVa(buffer_handle_t gralloc_buffer
 void MfxVaFrameAllocator::FreeGrallocToVaMapping(mfxMemId mem_id)
 {
     MFX_DEBUG_TRACE_FUNC;
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(m_mutex);
 
     auto match = [mem_id] (const auto& item) -> bool {
         return item.second.get() == (VaMemIdAllocated*)mem_id;
     };
 
-    auto found = std::find_if(mapped_va_surfaces_.begin(), mapped_va_surfaces_.end(), match);
-    if (found != mapped_va_surfaces_.end()) {
-        mapped_va_surfaces_.erase(found);
+    auto found = std::find_if(m_mappedVaSurfaces.begin(), m_mappedVaSurfaces.end(), match);
+    if (found != m_mappedVaSurfaces.end()) {
+        m_mappedVaSurfaces.erase(found);
     }
 }
 
 void MfxVaFrameAllocator::FreeAllMappings()
 {
     MFX_DEBUG_TRACE_FUNC;
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(m_mutex);
 
-    mapped_va_surfaces_.clear();
+    m_mappedVaSurfaces.clear();
 }
 
 mfxStatus MfxVaFrameAllocator::CreateSurfaceFromGralloc(const MfxGrallocModule::BufferDetails& buffer_details,
@@ -552,7 +552,7 @@ mfxStatus MfxVaFrameAllocator::CreateSurfaceFromGralloc(const MfxGrallocModule::
     attribs[1].value.type = VAGenericValueTypePointer;
     attribs[1].value.value.p = (void *)&surfExtBuf;
 
-    VAStatus va_res = vaCreateSurfaces(dpy_, rt_format,
+    VAStatus va_res = vaCreateSurfaces(m_dpy, rt_format,
         width, height,
         surface, 1,
         attribs, MFX_GET_ARRAY_SIZE(attribs));
@@ -574,8 +574,8 @@ mfxStatus MfxVaFrameAllocator::MapGrallocBufferToSurface(buffer_handle_t gralloc
 
     do {
 
-        if (!gralloc_module_) {
-            c2_status_t sts = MfxGrallocModule::Create(&gralloc_module_);
+        if (!m_grallocModule) {
+            c2_status_t sts = MfxGrallocModule::Create(&m_grallocModule);
             if(C2_OK != sts) {
                 mfx_res = MFX_ERR_MEMORY_ALLOC;
                 break;
@@ -583,7 +583,7 @@ mfxStatus MfxVaFrameAllocator::MapGrallocBufferToSurface(buffer_handle_t gralloc
         }
 
         MfxGrallocModule::BufferDetails buffer_details;
-        c2_status_t sts = gralloc_module_->GetBufferDetails(gralloc_buffer, &buffer_details);
+        c2_status_t sts = m_grallocModule->GetBufferDetails(gralloc_buffer, &buffer_details);
         if(C2_OK != sts) {
             mfx_res = MFX_ERR_INVALID_HANDLE;
             break;

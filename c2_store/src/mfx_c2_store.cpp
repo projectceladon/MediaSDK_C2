@@ -69,8 +69,8 @@ c2_status_t MfxC2ComponentStore::createComponent(C2String name, std::shared_ptr<
     c2_status_t result = C2_OK;
     if(component != nullptr) {
 
-        auto it = components_registry_.find(name);
-        if(it != components_registry_.end()) {
+        auto it = m_componentsRegistry_.find(name);
+        if(it != m_componentsRegistry_.end()) {
 
             auto dso_deleter = [] (void* handle) { dlclose(handle); };
             std::unique_ptr<void, decltype(dso_deleter)> dso(loadModule(it->second.dso_name_), dso_deleter);
@@ -82,8 +82,8 @@ c2_status_t MfxC2ComponentStore::createComponent(C2String name, std::shared_ptr<
 
                     std::shared_ptr<MfxC2ParamReflector> reflector;
                     {
-                        std::lock_guard<std::mutex> lock(reflector_mutex_);
-                        reflector = reflector_; // safe copy
+                        std::lock_guard<std::mutex> lock(m_reflectorMutex);
+                        reflector = m_reflector; // safe copy
                     }
 
                     MfxC2Component* mfx_component = (*create_func)(name.c_str(), it->second.config_, std::move(reflector), &result);
@@ -136,7 +136,7 @@ std::vector<std::shared_ptr<const C2Component::Traits>> MfxC2ComponentStore::lis
     std::vector<std::shared_ptr<const C2Component::Traits>> result;
 
     try {
-        for(const auto& it_pair : components_registry_ ) {
+        for(const auto& it_pair : m_componentsRegistry_ ) {
             std::unique_ptr<C2Component::Traits> traits = std::make_unique<C2Component::Traits>();
             traits->name = it_pair.first;
             traits->domain = DOMAIN_VIDEO;
@@ -197,8 +197,8 @@ std::shared_ptr<C2ParamReflector> MfxC2ComponentStore::getParamReflector() const
     MFX_DEBUG_TRACE_FUNC;
     std::shared_ptr<MfxC2ParamReflector> reflector;
     {
-        std::lock_guard<std::mutex> lock(reflector_mutex_);
-        reflector = reflector_; // safe copy
+        std::lock_guard<std::mutex> lock(m_reflectorMutex);
+        reflector = m_reflector; // safe copy
     }
     return reflector;
 }
@@ -293,20 +293,20 @@ c2_status_t MfxC2ComponentStore::readConfigFile()
                 flags = strtol(str.c_str(), NULL, 16);
             }
 
-            C2String media_type = xml_parser_.getMediaType(name.c_str());
+            C2String media_type = m_xmlParser.getMediaType(name.c_str());
             MFX_DEBUG_TRACE_S(media_type.c_str());
 
-            C2Component::kind_t kind = xml_parser_.getKind(name.c_str());
+            C2Component::kind_t kind = m_xmlParser.getKind(name.c_str());
 
             MfxC2Component::CreateConfig config;
             config.flags = flags;
-            config.dump_output = xml_parser_.dumpOutputEnabled(name.c_str());
+            config.dump_output = m_xmlParser.dumpOutputEnabled(name.c_str());
 
-            components_registry_.emplace(name, ComponentDesc(module.c_str(), media_type.c_str(), kind, config));
+            m_componentsRegistry_.emplace(name, ComponentDesc(module.c_str(), media_type.c_str(), kind, config));
         }
         config_file.close();
     }
-    MFX_DEBUG_TRACE_I32(components_registry_.size());
+    MFX_DEBUG_TRACE_I32(m_componentsRegistry_.size());
     MFX_DEBUG_TRACE__android_c2_status_t(c2_res);
     return c2_res;
 }
@@ -319,7 +319,7 @@ c2_status_t MfxC2ComponentStore::readXmlConfigFile()
     config_filename.append("/");
     config_filename.append(MFX_C2_CONFIG_XML_FILE_NAME);
 
-    c2_res = xml_parser_.parseConfig(config_filename.c_str());
+    c2_res = m_xmlParser.parseConfig(config_filename.c_str());
 
     MFX_DEBUG_TRACE__android_c2_status_t(c2_res);
     return c2_res;

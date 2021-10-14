@@ -73,10 +73,10 @@ c2_status_t MfxC2ParamStorage::QueryParam(C2Param::Index index, C2Param** dst) c
     c2_status_t res = C2_OK;
 
     {
-        std::lock_guard<std::mutex> lock(values_mutex_);
-        auto value_found = values_.find(index);
+        std::lock_guard<std::mutex> lock(m_valuesMutex);
+        auto value_found = m_values.find(index);
 
-        if (value_found != values_.end()) {
+        if (value_found != m_values.end()) {
             if (nullptr == *dst) {
                 *dst = C2Param::Copy(*value_found->second).release();
             }
@@ -89,8 +89,8 @@ c2_status_t MfxC2ParamStorage::QueryParam(C2Param::Index index, C2Param** dst) c
             }
 
         } else {
-            auto operations_found = param_operations_.find(index);
-            if (operations_found != param_operations_.end()) {
+            auto operations_found = m_paramOperations.find(index);
+            if (operations_found != m_paramOperations.end()) {
                 const C2ParamOperations& operations = operations_found->second;
                 if (nullptr == *dst) {
                     *dst = operations.allocate_();
@@ -134,16 +134,16 @@ c2_status_t MfxC2ParamStorage::ConfigParam(const C2Param& param, bool component_
 
         C2Param::Index index = param.index();
         {
-            std::lock_guard<std::mutex> lock(values_mutex_);
-            auto value_found = values_.find(index);
-            if (value_found != values_.end()) {
+            std::lock_guard<std::mutex> lock(m_valuesMutex);
+            auto value_found = m_values.find(index);
+            if (value_found != m_values.end()) {
                 failures->push_back(MakeC2SettingResult(C2ParamField(&param), C2SettingResult::READ_ONLY));
                 break;
             }
         }
 
-        auto operations_found = param_operations_.find(index);
-        if (operations_found == param_operations_.end()) {
+        auto operations_found = m_paramOperations.find(index);
+        if (operations_found == m_paramOperations.end()) {
             failures->push_back(MakeC2SettingResult(C2ParamField(&param), C2SettingResult::READ_ONLY));
             break;
         }
@@ -176,7 +176,7 @@ bool MfxC2ParamStorage::ValidateParam(const C2Param* param,
 
         MFX_DEBUG_TRACE_STREAM(std::hex << NAMED(core_index.coreIndex()));
 
-        std::unique_ptr<C2StructDescriptor> struct_desc = reflector_->describe(core_index);
+        std::unique_ptr<C2StructDescriptor> struct_desc = m_reflector->describe(core_index);
         if (!struct_desc) {
             MFX_DEBUG_TRACE_MSG("the whole param is not supported");
             res = false;
@@ -205,8 +205,8 @@ bool MfxC2ParamStorage::ValidateParam(const C2Param* param,
                     << std::dec << " offset: " << _C2ParamInspector::getOffset(param_field)
                     << " size: " << _C2ParamInspector::getSize(param_field));
 
-                auto it_supported = params_supported_values_.find(param_field);
-                if(it_supported != params_supported_values_.end()) {
+                auto it_supported = m_paramsSupportedValues.find(param_field);
+                if(it_supported != m_paramsSupportedValues.end()) {
                    const C2FieldSupportedValues& supported = it_supported->second;
                    switch(supported.type) {
                         case C2FieldSupportedValues::RANGE: {
@@ -241,12 +241,12 @@ bool MfxC2ParamStorage::ValidateParam(const C2Param* param,
 
 bool MfxC2ParamStorage::FindParam(C2Param::Index param_index) const
 {
-    return FindC2Param(params_descriptors_, param_index);
+    return FindC2Param(m_paramsDescriptors, param_index);
 }
 
 std::unique_ptr<C2SettingResult> MfxC2ParamStorage::FindParam(const C2Param* param) const
 {
-    return FindC2Param(params_descriptors_, param);
+    return FindC2Param(m_paramsDescriptors, param);
 }
 
 c2_status_t MfxC2ParamStorage::getSupportedParams(
@@ -254,7 +254,7 @@ c2_status_t MfxC2ParamStorage::getSupportedParams(
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    (*params) = params_descriptors_;
+    (*params) = m_paramsDescriptors;
 
     return C2_OK;
 }
@@ -269,13 +269,13 @@ c2_status_t MfxC2ParamStorage::querySupportedValues_vb(
     for (C2FieldSupportedValuesQuery &query : queries) {
         std::ostringstream oss;
 
-        const auto iter = std::find_if(params_supported_values_.begin(), params_supported_values_.end(),
+        const auto iter = std::find_if(m_paramsSupportedValues.begin(), m_paramsSupportedValues.end(),
             [query](const std::pair<C2ParamField, C2FieldSupportedValues>& p) {
                 return (C2Param::CoreIndex(_C2ParamInspector::getIndex(p.first)).coreIndex()
                         == C2Param::CoreIndex(_C2ParamInspector::getIndex(query.field())).coreIndex())
                        && _C2ParamInspector::getFieldId(p.first) == _C2ParamInspector::getFieldId(query.field()); });
 
-        if (iter == params_supported_values_.end()) {
+        if (iter == m_paramsSupportedValues.end()) {
             oss << "bad field:"
                 << " ParamID:" << std::hex << _C2ParamInspector::getIndex(query.field())
                 << " offset:" << std::dec << _C2ParamInspector::getOffset(query.field())
@@ -326,17 +326,17 @@ void MfxC2ParamStorage::DumpParams()
 
     const std::string indent(4, ' ');
 
-    for(auto desc : params_descriptors_) {
+    for(auto desc : m_paramsDescriptors) {
         std::ostringstream oss;
         uint32_t index = desc->index();
         oss << std::hex << index << " " << desc->name();
         MFX_DEBUG_TRACE_MSG(oss.str().c_str());
     }
 
-    reflector_->DumpParams();
+    m_reflector->DumpParams();
 
-    MFX_DEBUG_TRACE_MSG("params_supported_values_");
-    for(const auto& pair : params_supported_values_) {
+    MFX_DEBUG_TRACE_MSG("m_paramsSupportedValues");
+    for(const auto& pair : m_paramsSupportedValues) {
         std::ostringstream oss;
 
         const C2ParamField& param_field = pair.first;

@@ -81,17 +81,17 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
             res = MapGraphicBlock(*block, timeout, &view);
             if(C2_OK != res) break;
 
-            wrapper->c2_graphic_view_ = std::shared_ptr<C2GraphicView>(std::move(view));
+            wrapper->m_c2GraphicView = std::shared_ptr<C2GraphicView>(std::move(view));
 
-            const uint32_t stride = wrapper->c2_graphic_view_->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
+            const uint32_t stride = wrapper->m_c2GraphicView->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
             InitMfxFrameSW(timestamp, frame_index,
-                wrapper->c2_graphic_view_->data(),
+                wrapper->m_c2GraphicView->data(),
                 block->width(), block->height(), stride, info.FourCC, info,
                 mfx_frame.get());
         }
 
-        wrapper->c2_graphic_block_ = block;
-        wrapper->mfx_surface_ = mfx_frame;
+        wrapper->m_c2GraphicBlock = block;
+        wrapper->m_mfxSurface = mfx_frame;
 
     } while(false);
 
@@ -102,17 +102,17 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
 std::shared_ptr<C2GraphicBlock> MfxC2FrameOut::GetC2GraphicBlock() const
 {
     MFX_DEBUG_TRACE_FUNC;
-    return c2_graphic_block_;
+    return m_c2GraphicBlock;
 }
 
 std::shared_ptr<C2GraphicView> MfxC2FrameOut::GetC2GraphicView() const
 {
     MFX_DEBUG_TRACE_FUNC;
-    return c2_graphic_view_;
+    return m_c2GraphicView;
 }
 
 std::shared_ptr<mfxFrameSurface1> MfxC2FrameOut::GetMfxFrameSurface() const
 {
     MFX_DEBUG_TRACE_FUNC;
-    return mfx_surface_;
+    return m_mfxSurface;
 }

@@ -42,12 +42,12 @@ public:
 
     mfxFrameSurface1* GetMfxFrameSurface() const
     {
-        return mfx_frame_surface_;
+        return m_pMfxFrameSurface;
     }
 private:
-    std::shared_ptr<C2Buffer> c2_buffer_;
-    std::unique_ptr<const C2GraphicView> c2_graphic_view_;
-    mfxFrameSurface1 *mfx_frame_surface_;
-    std::shared_ptr<uint8_t> yuv_data_; //only for sw frame
-    std::shared_ptr<MfxFrameConverter> frame_converter_;
+    std::shared_ptr<C2Buffer> m_c2Buffer;
+    std::unique_ptr<const C2GraphicView> m_c2GraphicView;
+    mfxFrameSurface1 *m_pMfxFrameSurface;
+    std::shared_ptr<uint8_t> m_yuvData; //only for sw frame
+    std::shared_ptr<MfxFrameConverter> m_frameConverter;
 };

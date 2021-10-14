@@ -86,10 +86,10 @@ private: // data
     // this is a map between component names and component descriptions:
     //   (component's config, dso name, etc.)
     // no mutexed access needed as written only once before any read access
-    std::map<std::string, ComponentDesc> components_registry_;
+    std::map<std::string, ComponentDesc> m_componentsRegistry_;
 
-    MfxXmlParser xml_parser_;
+    MfxXmlParser m_xmlParser;
 
-    std::shared_ptr<MfxC2ParamReflector> reflector_ = std::make_shared<MfxC2ParamReflector>();
-    mutable std::mutex reflector_mutex_;
+    std::shared_ptr<MfxC2ParamReflector> m_reflector = std::make_shared<MfxC2ParamReflector>();
+    mutable std::mutex m_reflectorMutex;
 };

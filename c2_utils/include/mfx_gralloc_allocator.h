@@ -66,31 +66,31 @@ protected:
     c2_status_t Init();
 
 protected:
-    hw_module_t const* hw_module_ {};
+    hw_module_t const* m_hwModule {};
 
     template<typename FuncType, gralloc1_function_descriptor_t FuncId>
     class Gralloc1Func
     {
     private:
-        FuncType func_ {};
+        FuncType m_func {};
     public:
-        FuncType operator*() { return func_; }
+        FuncType operator*() { return m_func; }
         bool Acquire(gralloc1_device_t* gr_device)
         {
-            func_ = (FuncType)gr_device->getFunction(gr_device, FuncId);
-            return func_ != nullptr;
+            m_func = (FuncType)gr_device->getFunction(gr_device, FuncId);
+            return m_func != nullptr;
         }
-        bool operator==(FuncType const &right) { return func_ == right; }
+        bool operator==(FuncType const &right) { return m_func == right; }
     };
 
-    gralloc1_device_t* gralloc1_dev_ {};
+    gralloc1_device_t* m_gralloc1_dev {};
 
-    Gralloc1Func<GRALLOC1_PFN_GET_FORMAT, GRALLOC1_FUNCTION_GET_FORMAT> gr_get_format_;
-    Gralloc1Func<GRALLOC1_PFN_GET_DIMENSIONS, GRALLOC1_FUNCTION_GET_DIMENSIONS> gr_get_dimensions_;
-    Gralloc1Func<GRALLOC1_PFN_GET_NUM_FLEX_PLANES, GRALLOC1_FUNCTION_GET_NUM_FLEX_PLANES> gr_get_num_flex_planes_;
-    Gralloc1Func<GRALLOC1_PFN_GET_BYTE_STRIDE, (gralloc1_function_descriptor_t)GRALLOC1_FUNCTION_GET_BYTE_STRIDE> gr_get_byte_stride_;
+    Gralloc1Func<GRALLOC1_PFN_GET_FORMAT, GRALLOC1_FUNCTION_GET_FORMAT> m_grGetFormatFunc;
+    Gralloc1Func<GRALLOC1_PFN_GET_DIMENSIONS, GRALLOC1_FUNCTION_GET_DIMENSIONS> m_grGetDimensionsFunc;
+    Gralloc1Func<GRALLOC1_PFN_GET_NUM_FLEX_PLANES, GRALLOC1_FUNCTION_GET_NUM_FLEX_PLANES> m_grGetNumFlexPlanesFunc;
+    Gralloc1Func<GRALLOC1_PFN_GET_BYTE_STRIDE, (gralloc1_function_descriptor_t)GRALLOC1_FUNCTION_GET_BYTE_STRIDE> m_grGetByteStrideFunc;
 #ifdef MFX_C2_USE_PRIME
-    Gralloc1Func<GRALLOC1_PFN_GET_PRIME, (gralloc1_function_descriptor_t)GRALLOC1_FUNCTION_GET_PRIME> gr_get_prime_;
+    Gralloc1Func<GRALLOC1_PFN_GET_PRIME, (gralloc1_function_descriptor_t)GRALLOC1_FUNCTION_GET_PRIME> m_grGetPrimeFunc;
 #endif
 };
 
@@ -112,18 +112,18 @@ private:
     c2_status_t Init();
 
 protected:
-    Gralloc1Func<GRALLOC1_PFN_ALLOCATE, GRALLOC1_FUNCTION_ALLOCATE> gr_allocate_;
-    Gralloc1Func<GRALLOC1_PFN_RELEASE, GRALLOC1_FUNCTION_RELEASE> gr_release_;
-    Gralloc1Func<GRALLOC1_PFN_LOCK, GRALLOC1_FUNCTION_LOCK> gr_lock_;
-    Gralloc1Func<GRALLOC1_PFN_UNLOCK, GRALLOC1_FUNCTION_UNLOCK> gr_unlock_;
-    Gralloc1Func<GRALLOC1_PFN_CREATE_DESCRIPTOR, GRALLOC1_FUNCTION_CREATE_DESCRIPTOR> gr_create_descriptor_;
-    Gralloc1Func<GRALLOC1_PFN_SET_CONSUMER_USAGE, GRALLOC1_FUNCTION_SET_CONSUMER_USAGE> gr_set_consumer_usage_;
-    Gralloc1Func<GRALLOC1_PFN_SET_PRODUCER_USAGE, GRALLOC1_FUNCTION_SET_PRODUCER_USAGE> gr_set_producer_usage_;
-    Gralloc1Func<GRALLOC1_PFN_SET_DIMENSIONS, GRALLOC1_FUNCTION_SET_DIMENSIONS> gr_set_dimensions_;
-    Gralloc1Func<GRALLOC1_PFN_SET_FORMAT, GRALLOC1_FUNCTION_SET_FORMAT> gr_set_format_;
-    Gralloc1Func<GRALLOC1_PFN_DESTROY_DESCRIPTOR, GRALLOC1_FUNCTION_DESTROY_DESCRIPTOR> gr_destroy_descriptor_;
-    Gralloc1Func<GRALLOC1_PFN_IMPORT_BUFFER, GRALLOC1_FUNCTION_IMPORT_BUFFER> gr_import_buffer_;
-    Gralloc1Func<GRALLOC1_PFN_GET_BACKING_STORE, GRALLOC1_FUNCTION_GET_BACKING_STORE> gr_get_backing_store_;
+    Gralloc1Func<GRALLOC1_PFN_ALLOCATE, GRALLOC1_FUNCTION_ALLOCATE> m_grAllocateFunc;
+    Gralloc1Func<GRALLOC1_PFN_RELEASE, GRALLOC1_FUNCTION_RELEASE> m_grReleaseFunc;
+    Gralloc1Func<GRALLOC1_PFN_LOCK, GRALLOC1_FUNCTION_LOCK> m_grLockFunc;
+    Gralloc1Func<GRALLOC1_PFN_UNLOCK, GRALLOC1_FUNCTION_UNLOCK> m_grUnlockFunc;
+    Gralloc1Func<GRALLOC1_PFN_CREATE_DESCRIPTOR, GRALLOC1_FUNCTION_CREATE_DESCRIPTOR> m_grCreateDescriptorFunc;
+    Gralloc1Func<GRALLOC1_PFN_SET_CONSUMER_USAGE, GRALLOC1_FUNCTION_SET_CONSUMER_USAGE> m_grSetConsumerUsageFunc;
+    Gralloc1Func<GRALLOC1_PFN_SET_PRODUCER_USAGE, GRALLOC1_FUNCTION_SET_PRODUCER_USAGE> m_grSetProducerUsageFunc;
+    Gralloc1Func<GRALLOC1_PFN_SET_DIMENSIONS, GRALLOC1_FUNCTION_SET_DIMENSIONS> m_grSetDimensionsFunc;
+    Gralloc1Func<GRALLOC1_PFN_SET_FORMAT, GRALLOC1_FUNCTION_SET_FORMAT> m_grSetFormatFunc;
+    Gralloc1Func<GRALLOC1_PFN_DESTROY_DESCRIPTOR, GRALLOC1_FUNCTION_DESTROY_DESCRIPTOR> m_grDestroyDescriptorFunc;
+    Gralloc1Func<GRALLOC1_PFN_IMPORT_BUFFER, GRALLOC1_FUNCTION_IMPORT_BUFFER> m_grImportBufferFunc;
+    Gralloc1Func<GRALLOC1_PFN_GET_BACKING_STORE, GRALLOC1_FUNCTION_GET_BACKING_STORE> m_grGetBackingStoreFunc;
 
     MFX_CLASS_NO_COPY(MfxGrallocAllocator)
 };

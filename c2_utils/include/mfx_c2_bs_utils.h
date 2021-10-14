@@ -52,11 +52,11 @@ public:
     void PutTrailingBits();
 
 private:
-    mfxU8 * m_buf;
+    mfxU8 * m_pBuf;
     mfxU8 * m_ptr;
-    mfxU8 * m_bufEnd;
-    mfxU32  m_bitOff;
-    bool    m_emulationControl;
+    mfxU8 * m_pBufEnd;
+    mfxU32  m_uBitOff;
+    bool    m_bEmulationControl;
 };
 
 class BytesSwapper

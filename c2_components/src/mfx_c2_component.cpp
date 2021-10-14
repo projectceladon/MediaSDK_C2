@@ -29,10 +29,10 @@ using namespace android;
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_component"
 
 MfxC2Component::MfxC2Component(const C2String& name, const CreateConfig& config, std::shared_ptr<MfxC2ParamReflector> reflector) :
-    name_(name),
-    create_config_(config),
-    param_storage_(std::move(reflector)),
-    mfx_implementation_(MFX_IMPLEMENTATION)
+    m_name(name),
+    m_createConfig(config),
+    m_paramStorage(std::move(reflector)),
+    m_mfxImplementation(MFX_IMPLEMENTATION)
 {
     MFX_DEBUG_TRACE_FUNC;
 }
@@ -57,9 +57,9 @@ C2String MfxC2Component::getName() const
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    MFX_DEBUG_TRACE_S(name_.c_str());
+    MFX_DEBUG_TRACE_S(m_name.c_str());
 
-    return name_;
+    return m_name;
 }
 
 c2_node_id_t MfxC2Component::getId() const
@@ -75,14 +75,14 @@ std::unique_lock<std::mutex> MfxC2Component::AcquireStableStateLock(bool may_blo
 
     std::unique_lock<std::mutex> res;
     if (may_block) {
-        std::unique_lock<std::mutex> lock(state_mutex_);
-        cond_state_stable_.wait(lock, [this] () { return next_state_ == state_; } );
+        std::unique_lock<std::mutex> lock(m_stateMutex);
+        m_condStateStable.wait(lock, [this] () { return m_nextState == m_state; } );
         res = std::move(lock);
     } else {
         // try lock state to check if current state is stable or transition
-        std::unique_lock<std::mutex> lock(state_mutex_, std::try_to_lock);
+        std::unique_lock<std::mutex> lock(m_stateMutex, std::try_to_lock);
         if (lock.owns_lock()) {
-             if (next_state_ != state_) {
+             if (m_nextState != m_state) {
                 // if locked state is transition - the method returned unlocked unique_lock as a failure
                 lock.unlock();
             }
@@ -99,7 +99,7 @@ std::unique_lock<std::mutex> MfxC2Component::AcquireRunningStateLock(bool may_bl
     std::unique_lock<std::mutex> res = AcquireStableStateLock(may_block);
     if (res) {
         const State RUNNING_STATES[]{State::RUNNING, State::TRIPPED, State::ERROR};
-        bool running = std::find(std::begin(RUNNING_STATES), std::end(RUNNING_STATES), state_)
+        bool running = std::find(std::begin(RUNNING_STATES), std::end(RUNNING_STATES), m_state)
             != std::end(RUNNING_STATES);
         if (!running) {
             res.unlock();
@@ -118,7 +118,7 @@ c2_status_t MfxC2Component::query_vb(
 
     c2_status_t res = C2_OK;
 
-    std::unique_lock<std::mutex> lock(release_mutex_, std::defer_lock);
+    std::unique_lock<std::mutex> lock(m_releaseMutex, std::defer_lock);
 
     if (mayBlock == C2_MAY_BLOCK) {
         lock.lock();
@@ -127,7 +127,7 @@ c2_status_t MfxC2Component::query_vb(
     }
 
     if (lock.owns_lock()) {
-        if (State::RELEASED != state_) {
+        if (State::RELEASED != m_state) {
             res = Query(std::move(lock), stackParams, heapParamIndices, mayBlock, heapParams);
         } else {
             res = C2_BAD_STATE;
@@ -149,7 +149,7 @@ c2_status_t MfxC2Component::config_vb(
 
     std::unique_lock<std::mutex> lock = AcquireStableStateLock(mayBlock == C2_MAY_BLOCK);
     if (lock.owns_lock()) {
-        if (State::RELEASED != state_) {
+        if (State::RELEASED != m_state) {
             res = Config(std::move(lock), params, mayBlock, failures);
         } else {
             res = C2_BAD_STATE;
@@ -183,7 +183,7 @@ c2_status_t MfxC2Component::querySupportedParams_nb(
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    return param_storage_.getSupportedParams(params);
+    return m_paramStorage.getSupportedParams(params);
 }
 
 c2_status_t MfxC2Component::querySupportedValues_vb(
@@ -195,8 +195,8 @@ c2_status_t MfxC2Component::querySupportedValues_vb(
 
     std::unique_lock<std::mutex> lock = AcquireStableStateLock(mayBlock == C2_MAY_BLOCK);
     if (lock.owns_lock()) {
-        if (State::RELEASED != state_) {
-            res = param_storage_.querySupportedValues_vb(queries, mayBlock);
+        if (State::RELEASED != m_state) {
+            res = m_paramStorage.querySupportedValues_vb(queries, mayBlock);
         } else {
             res = C2_BAD_STATE;
         }
@@ -267,12 +267,12 @@ c2_status_t MfxC2Component::CheckStateTransitionConflict(const std::unique_lock<
     MFX_DEBUG_TRACE_FUNC;
 
     (void)state_lock;
-    assert(state_lock.mutex() == &state_mutex_);
+    assert(state_lock.mutex() == &m_stateMutex);
     assert(state_lock.owns_lock());
 
     c2_status_t res = C2_OK;
-    if (next_state_ != state_) { // transition
-        if (next_state_ == next_state) {
+    if (m_nextState != m_state) { // transition
+        if (m_nextState == next_state) {
             // C2Component.h: when called during another same state change from another thread
             res = C2_DUPLICATE;
         } else {
@@ -294,16 +294,16 @@ c2_status_t MfxC2Component::start()
     std::function<c2_status_t()> action = [] () { return C2_CORRUPTED; };
 
     { // Pre-check of state change.
-        std::unique_lock<std::mutex> lock(state_mutex_);
+        std::unique_lock<std::mutex> lock(m_stateMutex);
         res = CheckStateTransitionConflict(lock, State::RUNNING);
         if (C2_OK == res) {
-            switch (state_) {
+            switch (m_state) {
                 case State::STOPPED:
-                    next_state_ = State::RUNNING;
+                    m_nextState = State::RUNNING;
                     action = [this] () { return DoStart(); };
                     break;
                 case State::TRIPPED:
-                    next_state_ = State::RUNNING;
+                    m_nextState = State::RUNNING;
                     action = [this] () { return Resume(); };
                     break;
                 default:
@@ -317,14 +317,14 @@ c2_status_t MfxC2Component::start()
         res = action();
         // Depending on res finish state change or roll it back
         {
-            std::lock_guard<std::mutex> lock(state_mutex_);
+            std::lock_guard<std::mutex> lock(m_stateMutex);
             if (C2_OK == res) {
-                state_ = next_state_;
+                m_state = m_nextState;
                  // next_state_ it maybe not RUNNING if Config/FatalError took place during action
             } else {
-                next_state_ = state_;
+                m_nextState = m_state;
             }
-            cond_state_stable_.notify_all();
+            m_condStateStable.notify_all();
         }
     }
 
@@ -340,26 +340,26 @@ c2_status_t MfxC2Component::stop()
     bool abort = false; // When stop from ERROR state all queued tasks should be abandoned.
 
     {
-        std::unique_lock<std::mutex> lock(state_mutex_);
+        std::unique_lock<std::mutex> lock(m_stateMutex);
         res = CheckStateTransitionConflict(lock, State::STOPPED);
         if (C2_BAD_STATE == res) {
-            if (State::ERROR == next_state_ || State::TRIPPED == next_state_) {
+            if (State::ERROR == m_nextState || State::TRIPPED == m_nextState) {
                 // Transitions to ERROR and TRIPPED states are caused by the component itself,
                 // should not give error, might wait for transition completion.
-                cond_state_stable_.wait(lock, [this] () { return next_state_ == state_; } );
+                m_condStateStable.wait(lock, [this] () { return m_nextState == m_state; } );
                 res = C2_OK; // Suppress the error as transition completed.
             }
         }
         if (C2_OK == res) {
-            switch (state_) {
+            switch (m_state) {
                 case State::RUNNING:
                 case State::TRIPPED:
                     abort = false;
-                    next_state_ = State::STOPPED;
+                    m_nextState = State::STOPPED;
                     break;
                 case State::ERROR:
                     abort = true;
-                    next_state_ = State::STOPPED;
+                    m_nextState = State::STOPPED;
                     break;
                 default:
                     res = C2_BAD_STATE;
@@ -372,9 +372,9 @@ c2_status_t MfxC2Component::stop()
         c2_status_t stop_res = DoStop(abort);
         MFX_DEBUG_TRACE__android_c2_status_t(stop_res);
 
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        state_ = next_state_; // may not be STOPPED
-        cond_state_stable_.notify_all();
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        m_state = m_nextState; // may not be STOPPED
+        m_condStateStable.notify_all();
     }
 
     MFX_DEBUG_TRACE__android_c2_status_t(res);
@@ -391,7 +391,7 @@ c2_status_t MfxC2Component::release()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    std::lock_guard<std::mutex> release_lock(release_mutex_);
+    std::lock_guard<std::mutex> release_lock(m_releaseMutex);
 
     c2_status_t res = C2_OK;
     bool do_stop = false;
@@ -399,11 +399,11 @@ c2_status_t MfxC2Component::release()
     { // Pre-check of state change.
         std::unique_lock<std::mutex> lock = AcquireStableStateLock(true/*may_block*/);
         if (lock.owns_lock()) {
-            if (State::RELEASED == state_) {
+            if (State::RELEASED == m_state) {
                 res = C2_DUPLICATE;
             } else {
-                next_state_ = State::RELEASED;
-                if (State::STOPPED != state_) {
+                m_nextState = State::RELEASED;
+                if (State::STOPPED != m_state) {
                     do_stop = true;
                 }
             }
@@ -424,15 +424,15 @@ c2_status_t MfxC2Component::release()
         }
 
         {   // determine state we managed to reach
-            std::lock_guard<std::mutex> lock(state_mutex_);
+            std::lock_guard<std::mutex> lock(m_stateMutex);
             if (C2_OK == res) { // required operations succeeded
-                state_ = next_state_ = State::RELEASED;
+                m_state = m_nextState = State::RELEASED;
             } else if (do_stop && (C2_OK == stop_res)) { // DoStop succeeded, Release failed
-                state_ = next_state_ = State::STOPPED;
+                m_state = m_nextState = State::STOPPED;
             } else { // no operations succeeded
-                next_state_ = state_;
+                m_nextState = m_state;
             }
-            cond_state_stable_.notify_all();
+            m_condStateStable.notify_all();
         }
     }
 
@@ -455,11 +455,11 @@ c2_status_t MfxC2Component::setListener_vb(
 {
     (void)mayBlock;
 
-    std::lock_guard<std::mutex> lock(listeners_mutex_);
+    std::lock_guard<std::mutex> lock(m_listenersMutex);
 
-    listeners_.clear(); // only one listener is allowed by documentation
+    m_listeners.clear(); // only one listener is allowed by documentation
     if (listener) {
-        listeners_.push_back(listener);
+        m_listeners.push_back(listener);
     }
     return C2_OK;
 }
@@ -468,8 +468,8 @@ void MfxC2Component::NotifyListeners(std::function<void(std::shared_ptr<Listener
 {
     std::list<std::shared_ptr<Listener>> listeners_copy;
     {
-        std::lock_guard<std::mutex> lock(listeners_mutex_);
-        listeners_copy = listeners_;
+        std::lock_guard<std::mutex> lock(m_listenersMutex);
+        listeners_copy = m_listeners;
     }
     for(std::shared_ptr<Listener> listener : listeners_copy) {
         notify(listener);
@@ -504,11 +504,11 @@ void MfxC2Component::ConfigError(const std::vector<std::shared_ptr<C2SettingResu
 
     bool do_pause = false;
     {
-        std::lock_guard<std::mutex> lock(state_mutex_);
+        std::lock_guard<std::mutex> lock(m_stateMutex);
 
-        if (State::RUNNING == next_state_) {
+        if (State::RUNNING == m_nextState) {
             // has sense if in or going to less critical state
-            next_state_ = State::TRIPPED;
+            m_nextState = State::TRIPPED;
             do_pause = true;
         }
     }
@@ -517,9 +517,9 @@ void MfxC2Component::ConfigError(const std::vector<std::shared_ptr<C2SettingResu
         c2_status_t pause_res = Pause();
         MFX_DEBUG_TRACE__android_c2_status_t(pause_res);
 
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        state_ = next_state_;
-        cond_state_stable_.notify_all();
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        m_state = m_nextState;
+        m_condStateStable.notify_all();
     }
 
     std::weak_ptr<C2Component> weak_this = shared_from_this();
@@ -535,11 +535,11 @@ void MfxC2Component::FatalError(c2_status_t error)
 
     bool do_pause = false;
     {
-        std::lock_guard<std::mutex> lock(state_mutex_);
+        std::lock_guard<std::mutex> lock(m_stateMutex);
 
-        if (State::RUNNING == next_state_ || State::TRIPPED == next_state_) {
+        if (State::RUNNING == m_nextState || State::TRIPPED == m_nextState) {
             // has sense if in or going to less critical state
-            next_state_ = State::ERROR;
+            m_nextState = State::ERROR;
             do_pause = true;
         }
     }
@@ -548,9 +548,9 @@ void MfxC2Component::FatalError(c2_status_t error)
         c2_status_t pause_res = Pause();
         MFX_DEBUG_TRACE__android_c2_status_t(pause_res);
 
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        state_ = next_state_;
-        cond_state_stable_.notify_all();
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        m_state = m_nextState;
+        m_condStateStable.notify_all();
     }
 
     std::weak_ptr<C2Component> weak_this = shared_from_this();

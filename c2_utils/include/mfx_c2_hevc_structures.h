@@ -237,18 +237,18 @@ const uint16_t SAspectRatio[17][2] =
 class H265ScalingList
 {
 public:
-    H265ScalingList() { m_initialized = false; }
+    H265ScalingList() { m_bInitialized = false; }
     ~H265ScalingList()
     {
-        if (m_initialized)
+        if (m_bInitialized)
             destroy();
     }
 
-    int*      getScalingListAddress   (unsigned sizeId, unsigned listId)          { return m_scalingListCoef[sizeId][listId]; }
-    const int* getScalingListAddress  (unsigned sizeId, unsigned listId) const    { return m_scalingListCoef[sizeId][listId]; }
-    void     setRefMatrixId           (unsigned sizeId, unsigned listId, unsigned u)   { m_refMatrixId[sizeId][listId] = u; }
-    unsigned getRefMatrixId           (unsigned sizeId, unsigned listId)           { return m_refMatrixId[sizeId][listId]; }
-    void     setScalingListDC         (unsigned sizeId, unsigned listId, unsigned u)   { m_scalingListDC[sizeId][listId] = u; }
+    int*      getScalingListAddress   (unsigned sizeId, unsigned listId)          { return m_nScalingListCoef[sizeId][listId]; }
+    const int* getScalingListAddress  (unsigned sizeId, unsigned listId) const    { return m_nScalingListCoef[sizeId][listId]; }
+    void     setRefMatrixId           (unsigned sizeId, unsigned listId, unsigned u)   { m_uRefMatrixId[sizeId][listId] = u; }
+    unsigned getRefMatrixId           (unsigned sizeId, unsigned listId)           { return m_uRefMatrixId[sizeId][listId]; }
+    void     setScalingListDC         (unsigned sizeId, unsigned listId, unsigned u)   { m_nScalingListDC[sizeId][listId] = u; }
     // Copy data from predefined scaling matrixes
     void     processRefMatrix(unsigned sizeId, unsigned listId, unsigned refListId)
     {
@@ -256,11 +256,11 @@ public:
             ((listId == refListId) ? getScalingListDefaultAddress(sizeId, refListId) : getScalingListAddress(sizeId, refListId)),
             sizeof(int)*MSDK_MIN(MAX_MATRIX_COEF_NUM, (int)g_scalingListSize[sizeId]));
     }
-    int      getScalingListDC         (unsigned sizeId, unsigned listId) const     { return m_scalingListDC[sizeId][listId]; }
+    int      getScalingListDC         (unsigned sizeId, unsigned listId) const     { return m_nScalingListDC[sizeId][listId]; }
 
     // Allocate and initialize scaling list tables
     void init();
-    bool is_initialized(void) { return m_initialized; }
+    bool is_initialized(void) { return m_bInitialized; }
     // Initialize scaling list with default data
     void initFromDefaultScalingList(void);
     // Calculated coefficients used for dequantization
@@ -269,7 +269,7 @@ public:
     // Deallocate scaling list tables
     void destroy()
     {
-        if (!m_initialized)
+        if (!m_bInitialized)
             return;
 
         for (uint32_t sizeId = 0; sizeId < SCALING_LIST_SIZE_NUM; sizeId++)
@@ -278,7 +278,7 @@ public:
             m_dequantCoef[sizeId][0][0] = 0;
         }
 
-        m_initialized = false;
+        m_bInitialized = false;
     }
 
     int16_t *m_dequantCoef[SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM][SCALING_LIST_REM_NUM];
@@ -316,10 +316,10 @@ private:
         return src;
     }
 
-    int      m_scalingListDC               [SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
-    unsigned m_refMatrixId                 [SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
-    int      m_scalingListCoef             [SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM][MAX_MATRIX_COEF_NUM];
-    bool     m_initialized;
+    int      m_nScalingListDC               [SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
+    unsigned m_uRefMatrixId                 [SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM];
+    int      m_nScalingListCoef             [SCALING_LIST_SIZE_NUM][SCALING_LIST_NUM][MAX_MATRIX_COEF_NUM];
+    bool     m_bInitialized;
 };
 
 // One profile, tier, level data structure

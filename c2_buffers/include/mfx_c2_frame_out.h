@@ -33,8 +33,8 @@ public:
 
     MfxC2FrameOut(std::shared_ptr<C2GraphicBlock>&& c2_block,
         std::shared_ptr<mfxFrameSurface1> mfx_frame)
-        : c2_graphic_block_(std::move(c2_block))
-        , mfx_surface_(mfx_frame)
+        : m_c2GraphicBlock(std::move(c2_block))
+        , m_mfxSurface(mfx_frame)
     {}
 
     static c2_status_t Create(const std::shared_ptr<MfxFrameConverter>& frame_converter,
@@ -50,12 +50,12 @@ public:
 
     bool operator==(const MfxC2FrameOut& other) const {
         return
-            c2_graphic_block_ == other.c2_graphic_block_ &&
-            c2_graphic_view_ == other.c2_graphic_view_ &&
-            mfx_surface_ == other.mfx_surface_;
+            m_c2GraphicBlock == other.m_c2GraphicBlock &&
+            m_c2GraphicView == other.m_c2GraphicView &&
+            m_mfxSurface == other.m_mfxSurface;
     }
 private:
-    std::shared_ptr<C2GraphicBlock> c2_graphic_block_;
-    std::shared_ptr<C2GraphicView> c2_graphic_view_;
-    std::shared_ptr<mfxFrameSurface1> mfx_surface_;
+    std::shared_ptr<C2GraphicBlock> m_c2GraphicBlock;
+    std::shared_ptr<C2GraphicView> m_c2GraphicView;
+    std::shared_ptr<mfxFrameSurface1> m_mfxSurface;
 };
