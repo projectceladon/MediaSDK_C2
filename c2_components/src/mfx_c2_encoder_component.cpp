@@ -412,7 +412,7 @@ mfxStatus MfxC2EncoderComponent::InitSession()
     }
 
     cfgVal[0].Type = MFX_VARIANT_TYPE_U32;
-    cfgVal[0].Data.U32 = (mfx_implementation_ == MFX_IMPL_SOFTWARE) ? MFX_IMPL_TYPE_SOFTWARE : MFX_IMPL_TYPE_HARDWARE;
+    cfgVal[0].Data.U32 = (m_mfxImplementation == MFX_IMPL_SOFTWARE) ? MFX_IMPL_TYPE_SOFTWARE : MFX_IMPL_TYPE_HARDWARE;
     mfx_res = MFXSetConfigFilterProperty(cfg[0], (const mfxU8 *) "mfxImplDescription.Impl", cfgVal[0]);
     if (MFX_ERR_NONE != mfx_res) {
         ALOGE("Failed to add an additional MFX configuration (%d)", mfx_res);
@@ -474,8 +474,7 @@ mfxStatus MfxC2EncoderComponent::InitSession()
         return mfx_res;
     }
 
-    //mfx_res = device_->InitMfxSession((MFXVideoSession*)const_cast<mfxSession>(m_mfxSession));
-    mfx_res = device_->InitMfxSession(m_mfxSession);
+    mfx_res = m_device->InitMfxSession(m_mfxSession);
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;

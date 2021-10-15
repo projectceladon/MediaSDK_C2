@@ -127,12 +127,11 @@ mfxStatus MfxDevVa::InitMfxSession(mfxSession session)
 {
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
-    ALOGI("%s, session = %p", __func__, session);
 
     MFX_DEBUG_TRACE_P(session);
 
     if(session != nullptr) {
-        mfx_res =  MFXVideoCORE_SetHandle(session, static_cast<mfxHandleType>(MFX_HANDLE_VA_DISPLAY), (mfxHDL)va_display_);
+        mfx_res =  MFXVideoCORE_SetHandle(session, static_cast<mfxHandleType>(MFX_HANDLE_VA_DISPLAY), (mfxHDL)m_vaDisplay);
         MFX_DEBUG_TRACE_MSG("SetHandle result:");
         MFX_DEBUG_TRACE__mfxStatus(mfx_res);
 
@@ -141,7 +140,7 @@ mfxStatus MfxDevVa::InitMfxSession(mfxSession session)
             VADisplay dpy = NULL;
             mfxStatus sts = MFXVideoCORE_GetHandle(session, static_cast<mfxHandleType>(MFX_HANDLE_VA_DISPLAY), (mfxHDL*)&dpy);
             if(sts == MFX_ERR_NONE) {
-                if(dpy == va_display_) {
+                if(dpy == m_vaDisplay) {
                     MFX_DEBUG_TRACE_MSG("Same display handle is already set, not an error");
                     mfx_res = MFX_ERR_NONE;
                 }

@@ -298,7 +298,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
                     AllocUniqueString<C2PortMediaTypeSetting::input>("video/av01"));
 
-            m_uOutputDelay = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            m_uOutputDelay = /*max_dpb_size*/9 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             m_uInputDelay = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
@@ -682,7 +682,7 @@ mfxStatus MfxC2DecoderComponent::InitSession()
         return mfx_res;
     }
 
-    mfx_res = device_->InitMfxSession(m_mfxSession);
+    mfx_res = m_device->InitMfxSession(m_mfxSession);
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
@@ -834,6 +834,22 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         }
         if (MFX_ERR_NULL_PTR == mfx_res) {
             mfx_res = MFX_ERR_MORE_DATA;
+        }
+
+        if (MFX_ERR_NONE == mfx_res) {
+            // Query required surfaces number for decoder
+            mfxFrameAllocRequest decRequest = {};
+            mfx_res = m_mfxDecoder->QueryIOSurf(&m_mfxVideoParams, &decRequest);
+            if (MFX_ERR_NONE == mfx_res) {
+               if (m_uOutputDelay < decRequest.NumFrameSuggested) {
+                   MFX_DEBUG_TRACE_MSG("More buffer needed for decoder output!");
+                   ALOGE("More buffer needed for decoder output! Actual: %d. Expected: %d", m_uOutputDelay, decRequest.NumFrameSuggested);
+                   mfx_res = MFX_ERR_MORE_SURFACE;
+               }
+            } else {
+                MFX_DEBUG_TRACE_MSG("QueryIOSurf failed");
+                mfx_res = MFX_ERR_UNKNOWN;
+            }
         }
 
         m_mfxVideoParams.mfx.FrameInfo.Width = MFX_MEM_ALIGN(m_mfxVideoParams.mfx.FrameInfo.Width, 16);
