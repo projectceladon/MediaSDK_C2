@@ -29,7 +29,6 @@
 #include <mutex>
 #include "mfx_debug.h"
 
-
 // Complex allocator: allocates pool through MfxFrameAllocator interface.
 // Allocates for every required item of mfxAllocRequest pair:
 // (C2GraphicBlock, mfxMemId).
@@ -90,6 +89,8 @@ private:
     std::unique_ptr<MfxGrallocAllocator> m_grallocAllocator;
 
     std::map<uint64_t, int> m_cachedBufferId;
+
+    std::vector<native_handle_t*> m_cachedHandle;
 
     unsigned int m_uSuggestBufferCnt=0;
 

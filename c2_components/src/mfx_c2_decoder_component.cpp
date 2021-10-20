@@ -721,9 +721,9 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
     MFX_DEBUG_TRACE_FUNC;
 
     mfxStatus res = MFX_ERR_NONE;
-    memset(&m_mfxVideoParams, 0, sizeof(mfxVideoParam));
+    MFX_ZERO_MEMORY(m_mfxVideoParams);
+    MFX_ZERO_MEMORY(m_signalInfo);
 
-    memset(&m_signalInfo, 0, sizeof(mfxExtVideoSignalInfo));
     m_signalInfo.Header.BufferId = MFX_EXTBUFF_VIDEO_SIGNAL_INFO;
     m_signalInfo.Header.BufferSz = sizeof(mfxExtVideoSignalInfo);
 
@@ -970,6 +970,52 @@ void MfxC2DecoderComponent::FreeDecoder()
     }
 }
 
+mfxStatus MfxC2DecoderComponent::HandleFormatChange()
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxStatus mfx_res = MFX_ERR_NONE;
+
+    if (!m_mfxDecoder) return MFX_ERR_NULL_PTR;
+
+    bool need_realloc = false;
+    mfx_res = m_mfxDecoder->DecodeHeader(m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get(), &m_mfxVideoParams);
+    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+    if (MFX_ERR_NONE == mfx_res) {
+        // Query required surfaces number for decoder
+        mfxFrameAllocRequest decRequest = {};
+        mfx_res = m_mfxDecoder->QueryIOSurf(&m_mfxVideoParams, &decRequest);
+        if (MFX_ERR_NONE == mfx_res) {
+            if (m_mfxVideoParams.mfx.FrameInfo.Width != m_uMaxWidth ||
+                m_mfxVideoParams.mfx.FrameInfo.Height != m_uMaxHeight) {
+                need_realloc = true;
+            } else if (m_uOutputDelay < decRequest.NumFrameSuggested){
+                // This should never happen here as buffers with the maximum count are allocated
+                return MFX_ERR_MEMORY_ALLOC;
+            }
+
+            if (need_realloc) {
+                // Free all the surfaces
+                mfx_res = m_mfxDecoder->Close();
+                if (MFX_ERR_NONE == mfx_res) {
+                    // De-allocate all the surfaces
+                    m_lockedSurfaces.clear();
+                    m_lockedBlocks.clear();
+                    m_surfaces.clear();
+                    if (m_allocator) {
+                        m_allocator->Reset();
+                    }
+                    // Re-init decoder
+                    m_bInitialized = false;
+                    m_uMaxWidth = m_mfxVideoParams.mfx.FrameInfo.Width;
+                    m_uMaxHeight = m_mfxVideoParams.mfx.FrameInfo.Height;
+                }
+            }
+        }
+    }
+
+    return mfx_res;
+}
+
 c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Index index, C2Param** dst) const
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -1131,8 +1177,7 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 if (outputPools && outputPools->flexCount() >= 1) {
                     m_outputPoolId = outputPools->m.values[0];
                     MFX_DEBUG_TRACE_PRINTF("config kParamIndexBlockPools to %lu",m_outputPoolId);
-                }
-                else {
+                } else {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
                 }
                 break;
@@ -1151,6 +1196,7 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 ca.mPrimaries = (android::ColorAspects::Primaries)settings->primaries;
 
                 mfxExtVideoSignalInfo signal_info;
+                MFX_ZERO_MEMORY(signal_info);
                 signal_info.VideoFullRange = settings->range;
                 signal_info.ColourPrimaries = settings->primaries;
                 signal_info.TransferCharacteristics = settings->transfer;
@@ -1370,10 +1416,11 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
             res = m_c2Allocator->fetchGraphicBlock(width, height,
                                                MfxFourCCToGralloc(fourcc), mem_usage, out_block);
             if (res == C2_OK) {
-                buffer_handle_t hndl = android::UnwrapNativeCodec2GrallocHandle((*out_block)->handle());
+                native_handle_t *hndl = android::UnwrapNativeCodec2GrallocHandle((*out_block)->handle());
                 uint64_t id;
                 c2_status_t sts = m_grallocAllocator->GetBackingStore(hndl, &id);
                 if (m_allocator && !m_allocator->InCache(id)) {
+                    native_handle_delete(hndl);
                     res = C2_BLOCKING;
                     usleep(1000);
                     MFX_DEBUG_TRACE_PRINTF("fetchGraphicBlock: BLOCKING");
@@ -1417,13 +1464,11 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
         std::shared_ptr<C2GraphicBlock> out_block;
         res = AllocateC2Block(m_mfxVideoParams.mfx.FrameInfo.Width, m_mfxVideoParams.mfx.FrameInfo.Height,
                               m_mfxVideoParams.mfx.FrameInfo.FourCC, &out_block);
-        if (C2_TIMED_OUT == res)
-        {
-            continue;
-        }
+        if (C2_TIMED_OUT == res) continue;
+
         if (C2_OK != res) break;
 
-        buffer_handle_t hndl = android::UnwrapNativeCodec2GrallocHandle(out_block->handle());
+        native_handle_t *hndl = android::UnwrapNativeCodec2GrallocHandle(out_block->handle());
         auto it = m_surfaces.end();
         if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
         {
@@ -1434,8 +1479,10 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
             if (it == m_surfaces.end()){
                 // haven't been used for decoding yet
                 res = MfxC2FrameOut::Create(converter, out_block, m_mfxVideoParams.mfx.FrameInfo, TIMEOUT_NS, frame_out, hndl);
-                if (C2_OK != res)
+                if (C2_OK != res) {
+                    native_handle_delete(hndl);
                     break;
+                }
 
                 m_surfaces.emplace(id, frame_out->GetMfxFrameSurface());
             } else {
@@ -1449,9 +1496,12 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
             }
         } else {
             res = MfxC2FrameOut::Create(converter, out_block, m_mfxVideoParams.mfx.FrameInfo, TIMEOUT_NS, frame_out, hndl);
-            if (C2_OK != res)
-            break;
+            if (C2_OK != res) {
+                native_handle_delete(hndl);
+                break;
+            }
         }
+
     } while (C2_TIMED_OUT == res);
 
     MFX_DEBUG_TRACE__android_c2_status_t(res);
@@ -1462,8 +1512,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    if (m_bFlushing)
-    {
+    if (m_bFlushing) {
         m_flushedWorks.push_back(std::move(work));
         return;
     }
@@ -1565,7 +1614,6 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
             resolution_change = (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == mfx_sts);
             if (resolution_change) {
-
                 frame_out = MfxC2FrameOut(); // release the frame to be used in Drain
 
                 Drain(nullptr);
@@ -1586,12 +1634,10 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                     }
                 }
 
-                bool resolution_change_done = false;
-                mfxStatus decode_header_sts = m_mfxDecoder->DecodeHeader(m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get(), &m_mfxVideoParams);
-                MFX_DEBUG_TRACE__mfxStatus(decode_header_sts);
-                mfx_sts = decode_header_sts;
-
-                if (!resolution_change_done) {
+                mfxStatus format_change_sts = HandleFormatChange();
+                MFX_DEBUG_TRACE__mfxStatus(format_change_sts);
+                mfx_sts = format_change_sts;
+                if (MFX_ERR_NONE != mfx_sts) {
                     FreeDecoder();
                 }
             }
@@ -2016,6 +2062,7 @@ std::shared_ptr<C2StreamColorAspectsInfo::output> MfxC2DecoderComponent::getColo
     MFX_DEBUG_TRACE_FUNC;
     android::ColorAspects sfAspects;
     std::shared_ptr<C2StreamColorAspectsInfo::output> codedAspects = std::make_shared<C2StreamColorAspectsInfo::output>(0u);
+    if (!codedAspects) return nullptr;
 
     m_colorAspects.GetOutputColorAspects(sfAspects);
 

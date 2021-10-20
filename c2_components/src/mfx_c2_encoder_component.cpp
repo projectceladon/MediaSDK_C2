@@ -828,7 +828,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             frame_converter = m_device->GetFrameConverter();
         }
 
-        if (CONVERT_NONE != m_inputVppType) {
+        if (CONVERT_NONE != m_inputVppType && frame_converter) {
             std::unique_ptr<mfxFrameSurface1> unique_mfx_frame =
                     std::make_unique<mfxFrameSurface1>();
             mfxFrameSurface1* pSurfaceToEncode;
@@ -1610,10 +1610,6 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
             }
             case kParamIndexProfileLevel: {
                 const C2StreamProfileLevelInfo* info = static_cast<const C2StreamProfileLevelInfo*>(param);
-                if(info == nullptr) {
-                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::MISMATCH));
-                    break;
-                }
                 switch (m_encoderType) {
                     case ENCODER_H264:
                         AvcProfileAndroidToMfx(info->profile, &m_mfxVideoParamsConfig.mfx.CodecProfile);

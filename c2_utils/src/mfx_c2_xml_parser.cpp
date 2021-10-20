@@ -384,6 +384,8 @@ c2_status_t MfxXmlParser::include(const char** attrs) {
         i++;
     }
 
+    if (!href) return C2_BAD_VALUE;
+
     // for simplicity, file names can only contain
     // [a-zA-Z0-9_.] and must start with  media_codecs_ and end with .xml
     for (i = 0; href[i] != '\0'; i++) {

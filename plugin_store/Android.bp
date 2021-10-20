@@ -31,19 +31,15 @@ cc_library_shared {
     ],
 
     shared_libs: [
-        "libbase",
         "android.hardware.graphics.bufferqueue@2.0",
         "libcutils",
         "libhardware",
         "libhidlbase",
         "libnativewindow",
-        "liblog",
         "libstagefright_bufferqueue_helper",
         "libstagefright_foundation",
         "libui",
         "libutilscallstack",
-        "libutils",
-        "libcodec2_vndk",
     ],
 
     cflags: [
