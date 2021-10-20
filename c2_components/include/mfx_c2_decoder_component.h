@@ -113,6 +113,8 @@ private:
 
     void FreeDecoder();
 
+    mfxStatus HandleFormatChange();
+
     mfxStatus DecodeFrameAsync(
         mfxBitstream *bs, mfxFrameSurface1 *surface_work, mfxFrameSurface1 **surface_out,
         mfxSyncPoint *syncp);

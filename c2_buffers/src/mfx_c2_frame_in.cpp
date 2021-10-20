@@ -80,6 +80,8 @@ c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converte
 
             mfxStatus mfx_sts = frame_converter->ConvertGrallocToVa(grallocHandle, decode_target, &mem_id);
             if (MFX_ERR_NONE != mfx_sts) {
+                delete mfx_frame;
+                native_handle_delete(grallocHandle);
                 res = MfxStatusToC2(mfx_sts);
                 break;
             }
@@ -89,7 +91,10 @@ c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converte
                 mfx_frame);
         } else {
             res = MapConstGraphicBlock(*c_graph_block, timeout, &m_c2GraphicView);
-            if(C2_OK != res) break;
+            if(C2_OK != res) {
+                delete mfx_frame;
+                break;
+            }
 
             const uint8_t *pY = m_c2GraphicView->data()[C2PlanarLayout::PLANE_Y];
             const uint8_t *pU = m_c2GraphicView->data()[C2PlanarLayout::PLANE_U];
@@ -110,6 +115,7 @@ c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converte
 
                 if (stride * height * 3 / 2 > WIDTH_4K * HEIGHT_4K * 3 / 2) {
                     MFX_DEBUG_TRACE_PRINTF("not enough memory to complete operation");
+                    delete mfx_frame;
                     res = C2_NO_MEMORY;
                     break;
                 }
@@ -118,6 +124,7 @@ c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converte
                 if(m_yuvData == nullptr)
                 {
                     MFX_DEBUG_TRACE_MSG("unsuccessful allocation");
+                    delete mfx_frame;
                     res = C2_NO_MEMORY;
                     break;
                 }
@@ -144,6 +151,7 @@ c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converte
                                         mfx_frame);
            } else {
                MFX_DEBUG_TRACE_PRINTF("unsupported format");
+               delete mfx_frame;
                res = C2_BAD_VALUE;
                break;
            }

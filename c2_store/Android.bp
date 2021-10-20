@@ -56,11 +56,8 @@ cc_binary {
         "libhidlbase",
         "libhidltransport",
         "libhwbinder",
-        "liblog",
-        "libcodec2_vndk",
         "libstagefright_omx",
         "libstagefright_xmlparser",
-        "libutils",
         "libcutils",
     ],
 

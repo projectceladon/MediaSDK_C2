@@ -2,6 +2,10 @@ mfx_cc_defaults {
 
     name: "mfx_c2_defaults",
 
+    defaults: [
+        "libcodec2-impl-defaults",
+    ],
+
     cflags: [
         "-Wall",
         "-Werror",
@@ -31,13 +35,16 @@ mfx_cc_defaults {
     include_dirs: [
         "hardware/intel/external/minigbm-intel/cros_gralloc", // remove then minigbm gets Android.bp
         "frameworks/av/media/libstagefright/foundation/include",
+        "frameworks/av/media/bufferpool/2.0/include",
         "frameworks/av/media/codec2/sfplugin/utils",
+        "frameworks/av/media/codec2/vndk/include",
         "frameworks/native/include",
     ],
 
     header_libs: [
         "libvpl_headers",
         "libcodec2_headers",
+        "libcodec2_internal",
         "libutils_headers",
         "libhardware_headers" // # It's here due to <hardware/gralloc.h> include. Need to remove when the header will be removed
     ],
