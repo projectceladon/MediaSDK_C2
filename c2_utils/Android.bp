@@ -1,0 +1,20 @@
+cc_library_static {
+
+    name: "libmfx_c2_utils",
+
+    static_libs: [
+        "libexpat",
+    ],
+
+    defaults: ["mfx_c2_defaults"],
+
+    srcs: ["src/*.cpp"],
+
+    cflags: [
+        //"-DMFX_BUFFER_QUEUE"
+    ],
+
+    include_dirs: [
+        "vendor/intel/mediasdk_c2/plugin_store/include",
+    ],
+}

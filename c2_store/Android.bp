@@ -1,0 +1,74 @@
+cc_library_static {
+
+    name: "libmfx_c2_store",
+
+    defaults: ["mfx_c2_defaults"],
+
+    cflags: [
+        "-fexceptions"
+    ],
+
+    header_libs: [
+        "mfx_c2_components_headers"
+    ],
+
+    static_libs: [
+        "libmfx_c2_utils"
+    ],
+
+    srcs: ["src/mfx_c2_store.cpp"],
+}
+
+cc_binary {
+
+    name: "hardware.intel.media.c2@1.0-service",
+    defaults: ["hidl_defaults", "mfx_c2_exe_defaults"],
+    soc_specific: true,
+    relative_install_path: "hw",
+
+    local_include_dirs: [
+        "include",
+    ],
+
+    srcs: [
+        "src/mfx_c2_service.cpp",
+    ],
+
+    init_rc: ["hardware.intel.media.c2@1.0-service.rc"],
+
+    header_libs: [
+        "mfx_c2_components_headers",
+        "libmedia_headers",
+    ],
+
+    static_libs: [
+        "libmfx_c2_store",
+        "libmfx_c2_utils",
+        "libexpat"
+    ],
+
+    shared_libs: [
+        "android.hardware.media.omx@1.0",
+        "android.hardware.media.c2@1.0",
+        "libavservices_minijail_vendor",
+        "libbinder",
+        "libcodec2_hidl@1.0",
+        "libhidlbase",
+        "libhidltransport",
+        "libhwbinder",
+        "libstagefright_omx",
+        "libstagefright_xmlparser",
+        "libcutils",
+    ],
+
+    arch: {
+        arm: {
+            required: ["codec2.vendor.base.policy"],
+        },
+        x86: {
+            required: ["codec2.vendor.base.policy"],
+        },
+    },
+
+    compile_multilib: "32",
+}

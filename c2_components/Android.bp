@@ -1,0 +1,10 @@
+cc_library_headers {
+    name: "mfx_c2_components_headers",
+
+    export_include_dirs: [
+        "include",
+    ],
+
+    vendor: true,
+}
+
