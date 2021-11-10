@@ -1416,11 +1416,17 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
             res = m_c2Allocator->fetchGraphicBlock(width, height,
                                                MfxFourCCToGralloc(fourcc), mem_usage, out_block);
             if (res == C2_OK) {
-                native_handle_t *hndl = android::UnwrapNativeCodec2GrallocHandle((*out_block)->handle());
-                uint64_t id;
-                c2_status_t sts = m_grallocAllocator->GetBackingStore(hndl, &id);
-                if (m_allocator && !m_allocator->InCache(id)) {
+                auto hndl_deleter = [](native_handle_t *hndl) {
                     native_handle_delete(hndl);
+                    hndl = nullptr;
+                };
+
+                std::unique_ptr<native_handle_t, decltype(hndl_deleter)> hndl(
+                    android::UnwrapNativeCodec2GrallocHandle((*out_block)->handle()), hndl_deleter);
+
+                uint64_t id;
+                c2_status_t sts = m_grallocAllocator->GetBackingStore(hndl.get(), &id);
+                if (m_allocator && !m_allocator->InCache(id)) {
                     res = C2_BLOCKING;
                     usleep(1000);
                     MFX_DEBUG_TRACE_PRINTF("fetchGraphicBlock: BLOCKING");
@@ -1468,19 +1474,25 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
 
         if (C2_OK != res) break;
 
-        native_handle_t *hndl = android::UnwrapNativeCodec2GrallocHandle(out_block->handle());
+        auto hndl_deleter = [](native_handle_t *hndl) {
+            native_handle_delete(hndl);
+            hndl = nullptr;
+        };
+
+        std::unique_ptr<native_handle_t, decltype(hndl_deleter)> hndl(
+            android::UnwrapNativeCodec2GrallocHandle(out_block->handle()), hndl_deleter);
+
         auto it = m_surfaces.end();
         if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
         {
             uint64_t id;
-            c2_status_t sts = m_grallocAllocator->GetBackingStore(hndl, &id);
+            c2_status_t sts = m_grallocAllocator->GetBackingStore(hndl.get(), &id);
 
             it = m_surfaces.find(id);
             if (it == m_surfaces.end()){
                 // haven't been used for decoding yet
-                res = MfxC2FrameOut::Create(converter, out_block, m_mfxVideoParams.mfx.FrameInfo, TIMEOUT_NS, frame_out, hndl);
+                res = MfxC2FrameOut::Create(converter, out_block, m_mfxVideoParams.mfx.FrameInfo, TIMEOUT_NS, frame_out, hndl.get());
                 if (C2_OK != res) {
-                    native_handle_delete(hndl);
                     break;
                 }
 
@@ -1495,9 +1507,8 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
                     *frame_out = MfxC2FrameOut(std::move(out_block), it->second);
             }
         } else {
-            res = MfxC2FrameOut::Create(converter, out_block, m_mfxVideoParams.mfx.FrameInfo, TIMEOUT_NS, frame_out, hndl);
+            res = MfxC2FrameOut::Create(converter, out_block, m_mfxVideoParams.mfx.FrameInfo, TIMEOUT_NS, frame_out, hndl.get());
             if (C2_OK != res) {
-                native_handle_delete(hndl);
                 break;
             }
         }

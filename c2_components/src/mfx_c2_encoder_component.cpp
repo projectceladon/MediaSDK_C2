@@ -844,6 +844,10 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
             mfxStatus mfx_sts = frame_converter->ConvertGrallocToVa(grallocHandle,
                                          decode_target, &mem_id);
+
+            native_handle_delete(grallocHandle);
+            grallocHandle = nullptr;
+
             if (MFX_ERR_NONE != mfx_sts) {
                 res = MfxStatusToC2(mfx_sts);
                 break;

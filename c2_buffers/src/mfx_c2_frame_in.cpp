@@ -69,30 +69,34 @@ c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converte
             break;
         }
 
-        mfxFrameSurface1 *mfx_frame = new mfxFrameSurface1;
-        MFX_ZERO_MEMORY(*mfx_frame);
+        auto mfx_frame = std::make_unique<mfxFrameSurface1>();
+        MFX_ZERO_MEMORY(*mfx_frame.get());
 
         if (nullptr != frame_converter) {
 
             mfxMemId mem_id = nullptr;
             bool decode_target = false;
-            native_handle_t *grallocHandle = android::UnwrapNativeCodec2GrallocHandle(c_graph_block->handle());
 
-            mfxStatus mfx_sts = frame_converter->ConvertGrallocToVa(grallocHandle, decode_target, &mem_id);
+            auto hndl_deleter = [](native_handle_t *hndl) {
+                native_handle_delete(hndl);
+                hndl = nullptr;
+            };
+
+            std::unique_ptr<native_handle_t, decltype(hndl_deleter)> grallocHandle(
+                android::UnwrapNativeCodec2GrallocHandle(c_graph_block->handle()), hndl_deleter);
+
+            mfxStatus mfx_sts = frame_converter->ConvertGrallocToVa(grallocHandle.get(), decode_target, &mem_id);
             if (MFX_ERR_NONE != mfx_sts) {
-                delete mfx_frame;
-                native_handle_delete(grallocHandle);
                 res = MfxStatusToC2(mfx_sts);
                 break;
             }
 
             InitMfxFrameHW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
                 mem_id, c_graph_block->width(), c_graph_block->height(), MFX_FOURCC_NV12, info,
-                mfx_frame);
+                mfx_frame.get());
         } else {
             res = MapConstGraphicBlock(*c_graph_block, timeout, &m_c2GraphicView);
             if(C2_OK != res) {
-                delete mfx_frame;
                 break;
             }
 
@@ -110,12 +114,11 @@ c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converte
                 InitMfxFrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
                     m_c2GraphicView->data(),
                     width, height, stride, MFX_FOURCC_NV12, info,
-                    mfx_frame);
+                    mfx_frame.get());
             } else if (IsI420(*m_c2GraphicView) || IsYV12(*m_c2GraphicView)) {
 
                 if (stride * height * 3 / 2 > WIDTH_4K * HEIGHT_4K * 3 / 2) {
                     MFX_DEBUG_TRACE_PRINTF("not enough memory to complete operation");
-                    delete mfx_frame;
                     res = C2_NO_MEMORY;
                     break;
                 }
@@ -124,7 +127,6 @@ c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converte
                 if(m_yuvData == nullptr)
                 {
                     MFX_DEBUG_TRACE_MSG("unsuccessful allocation");
-                    delete mfx_frame;
                     res = C2_NO_MEMORY;
                     break;
                 }
@@ -148,17 +150,16 @@ c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converte
 
                 InitMfxFrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
                                         m_yuvData.get(), width, height, stride, MFX_FOURCC_NV12, info,
-                                        mfx_frame);
+                                        mfx_frame.get());
            } else {
                MFX_DEBUG_TRACE_PRINTF("unsupported format");
-               delete mfx_frame;
                res = C2_BAD_VALUE;
                break;
            }
         }
 
         m_frameConverter = frame_converter;
-        m_pMfxFrameSurface = mfx_frame;
+        m_pMfxFrameSurface = mfx_frame.release();
         m_c2Buffer = std::move(buf_pack.buffers.front());
 
     } while(false);
