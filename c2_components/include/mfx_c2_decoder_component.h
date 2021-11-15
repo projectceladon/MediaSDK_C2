@@ -213,6 +213,8 @@ private:
 
     MfxC2ColorAspectsWrapper m_colorAspects;
 
+    std::vector<std::unique_ptr<C2Param>> m_updatingC2Configures;
+
     unsigned int m_uOutputDelay = 8u;
     unsigned int m_uInputDelay = 1u;
 };

@@ -226,7 +226,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
                     AllocUniqueString<C2PortMediaTypeSetting::input>("video/x-vnd.on2.vp9"));
 
-            m_uOutputDelay = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            m_uOutputDelay = /*max_dpb_size*/9 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             m_uInputDelay = /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
@@ -842,9 +842,16 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             mfx_res = m_mfxDecoder->QueryIOSurf(&m_mfxVideoParams, &decRequest);
             if (MFX_ERR_NONE == mfx_res) {
                if (m_uOutputDelay < decRequest.NumFrameSuggested) {
-                   MFX_DEBUG_TRACE_MSG("More buffer needed for decoder output!");
-                   ALOGE("More buffer needed for decoder output! Actual: %d. Expected: %d", m_uOutputDelay, decRequest.NumFrameSuggested);
-                   mfx_res = MFX_ERR_MORE_SURFACE;
+                    MFX_DEBUG_TRACE_MSG("More buffer needed for decoder output!");
+                    ALOGW("More buffer needed for decoder output! Actual: %d. Expected: %d, update to %d", 
+                        m_uOutputDelay, decRequest.NumFrameSuggested, decRequest.NumFrameSuggested);\
+
+                    m_uOutputDelay = decRequest.NumFrameSuggested;
+                    m_updatingC2Configures.push_back(C2Param::Copy(C2PortDelayTuning::output((C2Uint32Value)m_uOutputDelay)));
+
+                    m_paramStorage.UpdateValue(C2PortDelayTuning::output::PARAM_TYPE, 
+                        std::make_unique<C2PortDelayTuning::output>(m_uOutputDelay));
+                    //mfx_res = MFX_ERR_MORE_SURFACE;
                }
             } else {
                 MFX_DEBUG_TRACE_MSG("QueryIOSurf failed");
@@ -1859,6 +1866,11 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             // Pass end of stream flag only.
             worklet->output.flags = (C2FrameData::flags_t)(work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
             worklet->output.ordinal = work->input.ordinal;
+            // Update codec's configure
+            for (int i = 0; i < m_updatingC2Configures.size(); i++) {
+                worklet->output.configUpdate.push_back(std::move(m_updatingC2Configures[i]));
+            }
+            m_updatingC2Configures.clear();
 
             // Deleter is for keeping source block in lambda capture.
             // block reference count is increased as shared_ptr is captured to the lambda by value.
