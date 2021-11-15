@@ -843,15 +843,9 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             if (MFX_ERR_NONE == mfx_res) {
                if (m_uOutputDelay < decRequest.NumFrameSuggested) {
                     MFX_DEBUG_TRACE_MSG("More buffer needed for decoder output!");
-                    ALOGW("More buffer needed for decoder output! Actual: %d. Expected: %d, update to %d", 
-                        m_uOutputDelay, decRequest.NumFrameSuggested, decRequest.NumFrameSuggested);\
-
-                    m_uOutputDelay = decRequest.NumFrameSuggested;
-                    m_updatingC2Configures.push_back(C2Param::Copy(C2PortDelayTuning::output((C2Uint32Value)m_uOutputDelay)));
-
-                    m_paramStorage.UpdateValue(C2PortDelayTuning::output::PARAM_TYPE, 
-                        std::make_unique<C2PortDelayTuning::output>(m_uOutputDelay));
-                    //mfx_res = MFX_ERR_MORE_SURFACE;
+                    ALOGE("More buffer needed for decoder output! Actual: %d. Expected: %d", 
+                        m_uOutputDelay, decRequest.NumFrameSuggested);
+                    mfx_res = MFX_ERR_MORE_SURFACE;
                }
             } else {
                 MFX_DEBUG_TRACE_MSG("QueryIOSurf failed");
