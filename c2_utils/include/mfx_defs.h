@@ -25,6 +25,7 @@
 #include <limits>
 #include <algorithm>
 #include <list>
+#include <mfx_android_config.h>
 
 #if (MFX_VERSION >= 2000)
     #include "mfxdispatcher.h"

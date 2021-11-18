@@ -23,30 +23,12 @@ MFX_C2_CFLAGS += -DMFX_VERSION=2003
 endif
 
 # Android version preference:
+# We start codec2.0 development starting from Android R
+ifneq ($(filter 12 12.% S ,$(PLATFORM_VERSION)),)
+  MFX_ANDROID_VERSION:= MFX_S
+endif
 ifneq ($(filter 11 11.% R ,$(PLATFORM_VERSION)),)
   MFX_ANDROID_VERSION:= MFX_R
-endif
-ifneq ($(filter 10 10.% Q ,$(PLATFORM_VERSION)),)
-  MFX_ANDROID_VERSION:= MFX_Q
-endif
-ifneq ($(filter 9 9.% P ,$(PLATFORM_VERSION)),)
-  MFX_ANDROID_VERSION:= MFX_P
-endif
-ifneq ($(filter 8.% O ,$(PLATFORM_VERSION)),)
-  ifneq ($(filter 8.0.%,$(PLATFORM_VERSION)),)
-    MFX_ANDROID_VERSION:= MFX_O
-  else
-    MFX_ANDROID_VERSION:= MFX_O_MR1
-  endif
-endif
-ifneq ($(filter 7.% N ,$(PLATFORM_VERSION)),)
-  MFX_ANDROID_VERSION:= MFX_N
-endif
-ifneq ($(filter 6.% M ,$(PLATFORM_VERSION)),)
-  MFX_ANDROID_VERSION:= MFX_MM
-endif
-ifneq ($(filter 5.% L ,$(PLATFORM_VERSION)),)
-  MFX_ANDROID_VERSION:= MFX_LD
 endif
 
 ifeq ($(MFX_ANDROID_PLATFORM),)
@@ -60,13 +42,10 @@ MFX_C2_CFLAGS += \
 
 ifeq ($(BOARD_USES_GRALLOC1),true)
   # plugins should use PRIME buffer descriptor since Android P
+  ifneq ($(filter MFX_S ,$(MFX_ANDROID_VERSION)),)
+      MFX_C2_CFLAGS += -DMFX_C2_USE_PRIME
+  endif
   ifneq ($(filter MFX_R ,$(MFX_ANDROID_VERSION)),)
-      MFX_C2_CFLAGS += -DMFX_C2_USE_PRIME
-  endif
-  ifneq ($(filter MFX_Q ,$(MFX_ANDROID_VERSION)),)
-      MFX_C2_CFLAGS += -DMFX_C2_USE_PRIME
-  endif
-  ifneq ($(filter MFX_P ,$(MFX_ANDROID_VERSION)),)
       MFX_C2_CFLAGS += -DMFX_C2_USE_PRIME
   endif
 else
@@ -90,10 +69,6 @@ MFX_C2_CFLAGS += \
 # LibVA support.
 MFX_C2_CFLAGS_LIBVA := -DLIBVA_SUPPORT -DLIBVA_ANDROID_SUPPORT
 
-ifneq ($(filter $(MFX_ANDROID_VERSION), MFX_O),)
-  MFX_C2_CFLAGS_LIBVA += -DANDROID_O
-endif
-
 # Setting usual paths to include files
 MFX_C2_INCLUDES := \
   $(LOCAL_PATH)/include
@@ -108,7 +83,7 @@ MFX_C2_INCLUDES_LIBVA := $(TARGET_OUT_HEADERS)/libva
 
 ifeq ($(USE_ONEVPL), true)
   # Setting oneVPL imported headers
-  MFX_C2_HEADER_LIBRARIES := libvpl_headers libcodec2_headers
+  MFX_C2_HEADER_LIBRARIES := libvpl_headers libmfx_android_headers libcodec2_headers
   MFX_C2_SHARED_LIBS += libvpl
 else
   # Setting MediaSDK imported headers

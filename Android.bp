@@ -43,6 +43,7 @@ mfx_cc_defaults {
 
     header_libs: [
         "libvpl_headers",
+        "libmfx_android_headers",
         "libcodec2_headers",
         "libcodec2_internal",
         "libutils_headers",
