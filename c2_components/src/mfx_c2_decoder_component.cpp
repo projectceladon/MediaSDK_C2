@@ -41,9 +41,12 @@ using namespace android;
 
 const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
+// Android S declared VP8 profile
+#if MFX_ANDROID_VERSION <= MFX_R
 enum VP8_PROFILE {
     PROFILE_VP8_0 = C2_PROFILE_LEVEL_VENDOR_START,
 };
+#endif
 
 enum VP8_LEVEL {
     LEVEL_VP8_Version0 = C2_PROFILE_LEVEL_VENDOR_START,
@@ -232,15 +235,24 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         }
         case DECODER_VP8: {
             supported_profiles = {
+#if MFX_ANDROID_VERSION <= MFX_R
                 (C2Config::profile_t)PROFILE_VP8_0,
+#else
+                PROFILE_VP8_0,
+#endif
             };
 
             supported_levels = {
                 (C2Config::level_t)LEVEL_VP8_Version0,
             };
 
+#if MFX_ANDROID_VERSION <= MFX_R
             pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
                 std::make_unique<C2StreamProfileLevelInfo::input>(0u, (C2Config::profile_t)PROFILE_VP8_0, (C2Config::level_t)LEVEL_VP8_Version0));
+#else
+            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
+                std::make_unique<C2StreamProfileLevelInfo::input>(0u, PROFILE_VP8_0, (C2Config::level_t)LEVEL_VP8_Version0));
+#endif
 
             pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
                 std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_4K, HEIGHT_4K));
@@ -843,7 +855,7 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             if (MFX_ERR_NONE == mfx_res) {
                if (m_uOutputDelay < decRequest.NumFrameSuggested) {
                     MFX_DEBUG_TRACE_MSG("More buffer needed for decoder output!");
-                    ALOGE("More buffer needed for decoder output! Actual: %d. Expected: %d", 
+                    ALOGE("More buffer needed for decoder output! Actual: %d. Expected: %d",
                         m_uOutputDelay, decRequest.NumFrameSuggested);
                     mfx_res = MFX_ERR_MORE_SURFACE;
                }
