@@ -1,4 +1,4 @@
-ifneq ($(filter $(BOARD_HAVE_MEDIASDK_OPEN_SOURCE) $(BOARD_HAVE_MEDIASDK_SRC) ,true),)
+ifneq ($(filter $(BOARD_HAVE_MEDIASDK_CODEC2),true),)
   MFX_C2_HOME := $(call my-dir)
 
   # Recursively call sub-folder Android.mk

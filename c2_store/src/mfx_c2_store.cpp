@@ -32,6 +32,9 @@ static const std::string FIELD_SEP = " : ";
 
 using namespace android;
 
+#undef MFX_DEBUG_MODULE_NAME
+#define MFX_DEBUG_MODULE_NAME "MfxC2ComponentStore"
+
 MfxC2ComponentStore* MfxC2ComponentStore::Create(c2_status_t* status) {
 
     MFX_DEBUG_TRACE_FUNC;

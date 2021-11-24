@@ -22,8 +22,8 @@ cc_library_static {
 cc_binary {
 
     name: "hardware.intel.media.c2@1.0-service",
-    defaults: ["hidl_defaults", "mfx_c2_exe_defaults"],
-    soc_specific: true,
+    defaults: ["libcodec2-hidl-defaults", "mfx_c2_exe_defaults"],
+    vendor: true,
     relative_install_path: "hw",
 
     local_include_dirs: [
@@ -49,26 +49,38 @@ cc_binary {
 
     shared_libs: [
         "android.hardware.media.omx@1.0",
-        "android.hardware.media.c2@1.0",
         "libavservices_minijail_vendor",
         "libbinder",
-        "libcodec2_hidl@1.0",
-        "libhidlbase",
         "libhidltransport",
         "libhwbinder",
         "libstagefright_omx",
         "libstagefright_xmlparser",
-        "libcutils",
     ],
+
+    vintf_fragments: ["manifest_media_c2_V1_0_default.xml"],
+
+    required: ["android.hardware.media.c2@1.0-vendor.policy"],
+
+    compile_multilib: "32",
+}
+
+prebuilt_etc {
+    name: "android.hardware.media.c2@1.0-vendor.policy",
+    vendor: true,
+    sub_dir: "seccomp_policy",
 
     arch: {
         arm: {
-            required: ["codec2.vendor.base.policy"],
+            src: "seccomp_policy/android.hardware.media.c2@1.0-arm.policy",
+        },
+        arm64: {
+            src: "seccomp_policy/android.hardware.media.c2@1.0-arm64.policy",
         },
         x86: {
-            required: ["codec2.vendor.base.policy"],
+            src: "seccomp_policy/android.hardware.media.c2@1.0-x86.policy",
+        },
+        x86_64: {
+            src: "seccomp_policy/android.hardware.media.c2@1.0-x86_64.policy",
         },
     },
-
-    compile_multilib: "32",
 }

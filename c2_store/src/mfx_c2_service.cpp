@@ -57,11 +57,11 @@
 
 // This is created by module "codec2.vendor.base.policy". This can be modified.
 static constexpr char kBaseSeccompPolicyPath[] =
-        "/vendor/etc/seccomp_policy/codec2.vendor.base.policy";
+        "/vendor/etc/seccomp_policy/android.hardware.media.c2@1.0-vendor.policy";
 
 // Additional device-specific seccomp permissions can be added in this file.
 static constexpr char kExtSeccompPolicyPath[] =
-        "/vendor/etc/seccomp_policy/codec2.vendor.ext.policy";
+        "/vendor/etc/seccomp_policy/android.hardware.media.c2@1.0-vendor.ext.policy";
 
 // Create and register IComponentStore service.
 void RegisterC2Service()
@@ -120,7 +120,6 @@ int main(int /* argc */, char** /* argv */) {
             ALOGE("Cannot register IOmxStore HAL service.");
         }
     }
-
     android::hardware::joinRpcThreadpool();
     return 0;
 }
