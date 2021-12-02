@@ -24,6 +24,7 @@
 #include "mfx_debug.h"
 #include "mfx_c2_debug.h"
 #include "mfx_c2_component.h"
+#include <cutils/properties.h>
 
 #include <dlfcn.h>
 #include <fstream>
@@ -70,6 +71,15 @@ c2_status_t MfxC2ComponentStore::createComponent(C2String name, std::shared_ptr<
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t result = C2_OK;
+
+    char szVendorIntelVideoCodec[PROPERTY_VALUE_MAX] = {'\0'};
+    if(property_get("vendor.intel.video.codec", szVendorIntelVideoCodec, NULL) > 0 ) {
+        if (strncmp(szVendorIntelVideoCodec, "software", PROPERTY_VALUE_MAX) == 0 ) {
+            ALOGI("Property vendor.intel.video.codec is %s in auto_hal.in and will not load hardware codec plugin", szVendorIntelVideoCodec);
+            return C2_NOT_FOUND;
+        }
+    }
+
     if(component != nullptr) {
 
         auto it = m_componentsRegistry_.find(name);
