@@ -50,6 +50,10 @@ mfx_cc_defaults {
         "libhardware_headers" // # It's here due to <hardware/gralloc.h> include. Need to remove when the header will be removed
     ],
 
+    shared_libs: [
+        "libcutils"
+    ],
+
     owner: "intel",
     vendor: true
 }
