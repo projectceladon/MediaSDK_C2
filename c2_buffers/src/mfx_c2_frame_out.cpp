@@ -85,7 +85,7 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
 
             const uint32_t stride = wrapper->m_c2GraphicView->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
             InitMfxFrameSW(timestamp, frame_index,
-                wrapper->m_c2GraphicView->data(),
+                const_cast<uint8_t*>(wrapper->m_c2GraphicView->data()[0]),
                 block->width(), block->height(), stride, info.FourCC, info,
                 mfx_frame.get());
         }

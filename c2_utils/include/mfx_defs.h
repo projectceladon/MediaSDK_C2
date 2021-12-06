@@ -96,6 +96,12 @@ extern mfxVersion g_required_mfx_version;
 
 #define MFX_MIN(A, B) (((A) < (B)) ? (A) : (B))
 
+// 16-byte align requirement
+#define MFX_C2_IS_COPY_NEEDED(_mem_type, _input_info, _mfx_info)\
+    ((MFX_MEMTYPE_SYSTEM_MEMORY == _mem_type) && \
+    (((_input_info).Width < (_mfx_info.Width)) || \
+    ((_input_info).Height < (_mfx_info.Height))))
+
 #define MFX_TRY_AND_CATCH(_try, _catch) \
     { try { _try; } catch(...) { _catch; } }
 
@@ -168,17 +174,20 @@ std::vector<T> MakeVector(T&& item)
     return res;
 }
 
-void InitMfxFrameSW(
-    uint64_t timestamp, uint64_t frame_index,
-    const uint8_t *const *data,
-    uint32_t width, uint32_t height, uint32_t stride, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame);
-
-void InitMfxFrameSW(
+mfxStatus InitMfxFrameSW(
     uint64_t timestamp, uint64_t frame_index,
     uint8_t *data,
     uint32_t width, uint32_t height, uint32_t stride, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame);
 
-void InitMfxFrameHW(
+mfxStatus InitMfxFrameHW(
     uint64_t timestamp, uint64_t frame_index,
     mfxMemId mem_id,
     uint32_t width, uint32_t height, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame);
+
+mfxStatus MFXLoadSurfaceSW(uint8_t *data, uint32_t stride, const mfxFrameInfo& input_info, mfxFrameSurface1* srf);
+
+uint32_t MFXGetSurfaceSize(uint32_t FourCC, uint32_t width, uint32_t height);
+uint32_t MFXGetFreeSurfaceIdx(mfxFrameSurface1 *SurfacesPool, uint32_t nPoolSize);
+
+mfxStatus MFXAllocSystemMemorySurfacePool(uint8_t **buf, mfxFrameSurface1 *surfpool, mfxFrameInfo frame_info, uint32_t surfnum);
+void MFXFreeSystemMemorySurfacePool(uint8_t *buf, mfxFrameSurface1 *surfpool);

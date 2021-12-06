@@ -38,16 +38,25 @@ public:
         C2FrameData& buf_pack, mfxFrameSurface1 *mfx_frame);
 
     c2_status_t init(std::shared_ptr<MfxFrameConverter> frame_converter,
-        C2FrameData& buf_pack, const mfxFrameInfo& info, c2_nsecs_t timeout);
+        C2FrameData& buf_pack, const mfxFrameInfo& info, mfxFrameSurface1 *mfx_frame, c2_nsecs_t timeout);
 
     mfxFrameSurface1* GetMfxFrameSurface() const
     {
         return m_pMfxFrameSurface;
     }
+
+private:
+    c2_status_t MfxC2LoadSurfaceInHW(C2ConstGraphicBlock& c_graph_block,
+        C2FrameData& buf_pack);
+
+    c2_status_t MfxC2LoadSurfaceInSW(C2ConstGraphicBlock& c_graph_block,
+        C2FrameData& buf_pack, c2_nsecs_t timeout);
+
 private:
     std::shared_ptr<C2Buffer> m_c2Buffer;
     std::unique_ptr<const C2GraphicView> m_c2GraphicView;
     mfxFrameSurface1 *m_pMfxFrameSurface;
     std::shared_ptr<uint8_t> m_yuvData; //only for sw frame
     std::shared_ptr<MfxFrameConverter> m_frameConverter;
+    mfxFrameInfo m_mfxFrameInfo; //va surface info with width and height 16byte aligned
 };

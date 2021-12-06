@@ -31,8 +31,8 @@ static void InitMfxFrameHeader(
     MFX_DEBUG_TRACE_FUNC;
 
     mfx_frame->Info = info;//apply component's mfxFrameInfo
-    mfx_frame->Info.Width = width;
-    mfx_frame->Info.Height = height;
+    mfx_frame->Info.CropW = width;
+    mfx_frame->Info.CropH = height;
     mfx_frame->Info.CropX = 0;
     mfx_frame->Info.CropY = 0;
     mfx_frame->Info.FourCC = fourcc;
@@ -42,57 +42,181 @@ static void InitMfxFrameHeader(
     mfx_frame->Data.FrameOrder = frame_index;
 }
 
-void InitMfxFrameSW(
-    uint64_t timestamp, uint64_t frame_index,
-    const uint8_t *const *data,
-    uint32_t width, uint32_t height, uint32_t stride, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    InitMfxFrameHeader(timestamp, frame_index, width, height, fourcc, info, mfx_frame);
-
-    mfx_frame->Data.MemType = MFX_MEMTYPE_SYSTEM_MEMORY;
-
-    mfx_frame->Data.PitchHigh = 0;
-    mfx_frame->Data.PitchLow = MFX_ALIGN_32(stride);
-    // TODO: 16-byte align requirement is not fulfilled - copy might be needed
-    // MFX_FOURCC_NV12
-    mfx_frame->Data.Y = const_cast<uint8_t*>(data[0]);
-    mfx_frame->Data.UV = const_cast<uint8_t*>(data[1]);
-    mfx_frame->Data.V = const_cast<uint8_t*>(data[2]);
-}
-
-void InitMfxFrameSW(
+mfxStatus InitMfxFrameSW(
     uint64_t timestamp, uint64_t frame_index,
     uint8_t *data,
     uint32_t width, uint32_t height, uint32_t stride, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
 {
     MFX_DEBUG_TRACE_FUNC;
+    mfxStatus res = MFX_ERR_NONE;
+    mfxFrameInfo input_info = info;
+    input_info.Width = width;
+    input_info.Height = height;
 
     InitMfxFrameHeader(timestamp, frame_index, width, height, fourcc, info, mfx_frame);
 
     mfx_frame->Data.MemType = MFX_MEMTYPE_SYSTEM_MEMORY;
+    mfx_frame->Data.Pitch = MFX_ALIGN_32(stride);
 
-    mfx_frame->Data.PitchHigh = 0;
-    mfx_frame->Data.PitchLow = MFX_ALIGN_32(stride);
-    // TODO: 16-byte align requirement is not fulfilled - copy might be needed
-    uint32_t y_plane_size = stride * height;
-    // MFX_FOURCC_NV12
-    mfx_frame->Data.Y = data;
-    mfx_frame->Data.U = data + y_plane_size;
-    mfx_frame->Data.V = mfx_frame->Data.U + 1;
+    res = MFXLoadSurfaceSW(data, stride, input_info, mfx_frame);
+
+    return res;
 }
 
-void InitMfxFrameHW(
+mfxStatus MFXLoadSurfaceSW(uint8_t *data, uint32_t stride, const mfxFrameInfo& input_info, mfxFrameSurface1* srf)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxStatus res = MFX_ERR_NONE;
+
+    uint32_t nOWidth = input_info.Width;
+    uint32_t nOHeight = input_info.Height;
+    uint32_t nOPitch = stride;
+
+    uint32_t nCropX = srf->Info.CropX;
+    uint32_t nCropY = srf->Info.CropY;
+    uint32_t nCropW = srf->Info.CropW;
+    uint32_t nCropH = srf->Info.CropH;
+    uint32_t nPitch = srf->Data.Pitch;
+
+    if (!MFX_C2_IS_COPY_NEEDED(srf->Data.MemType, input_info, srf->Info)) {
+        srf->Data.Y  = data;
+        srf->Data.UV = data + nOWidth * nOHeight;
+        srf->Data.Pitch = nOPitch;
+    } else {
+        uint32_t i = 0;
+        uint8_t* Y  = data;
+        uint8_t* UV = data + nOPitch * nOHeight;
+
+        // if input surface width or height is not 16bit aligned, do copy here
+        for (i = 0; i < nCropH/2; ++i)
+        {
+            // copying Y
+            uint8_t *src = Y + nCropX + (nCropY + i)*nOPitch;
+            uint8_t *dst = srf->Data.Y + nCropX + (nCropY + i)*nPitch;
+            std::copy(src, src + nCropW, dst);
+
+            // copying UV
+            src = UV + nCropX + (nCropY/2 + i)*nOPitch;
+            dst = srf->Data.UV + nCropX + (nCropY/2 + i)*nPitch;
+            std::copy(src, src + nCropW, dst);
+        }
+        for (i = nCropH/2; i < nCropH; ++i)
+        {
+            // copying Y (remained data)
+            uint8_t *src = Y + nCropX + (nCropY + i)*nOPitch;
+            uint8_t *dst = srf->Data.Y + nCropX + (nCropY + i)*nPitch;
+            std::copy(src, src + nCropW, dst);
+        }
+    }
+
+    return res;
+}
+
+mfxStatus InitMfxFrameHW(
     uint64_t timestamp, uint64_t frame_index,
     mfxMemId mem_id,
     uint32_t width, uint32_t height, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
 {
     MFX_DEBUG_TRACE_FUNC;
+    mfxStatus res = MFX_ERR_NONE;
 
     InitMfxFrameHeader(timestamp, frame_index, width, height, fourcc, info, mfx_frame);
 
     MFX_ZERO_MEMORY(mfx_frame->Data);
     mfx_frame->Data.MemType = MFX_MEMTYPE_EXTERNAL_FRAME;
     mfx_frame->Data.MemId = mem_id;
+
+    return res;
+}
+
+uint32_t MFXGetSurfaceSize(uint32_t FourCC, uint32_t width, uint32_t height)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    mfxU32 nbytes = 0;
+
+    switch (FourCC) {
+        case MFX_FOURCC_I420:
+        case MFX_FOURCC_NV12:
+            nbytes = width * height + (width >> 1) * (height >> 1) + (width >> 1) * (height >> 1);
+            break;
+        case MFX_FOURCC_I010:
+        case MFX_FOURCC_P010:
+            nbytes = width * height + (width >> 1) * (height >> 1) + (width >> 1) * (height >> 1);
+            nbytes *= 2;
+            break;
+        case MFX_FOURCC_RGB4:
+            nbytes = width * height * 4;
+            break;
+        default:
+            break;
+    }
+
+    return nbytes;
+}
+
+uint32_t MFXGetFreeSurfaceIdx(mfxFrameSurface1 *SurfacesPool, uint32_t nPoolSize)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    for (uint32_t i = 0; i < nPoolSize; i++) {
+        if (0 == SurfacesPool[i].Data.Locked)
+            return i;
+    }
+    return MFX_ERR_NOT_FOUND;
+}
+
+mfxStatus MFXAllocSystemMemorySurfacePool(uint8_t **buf, mfxFrameSurface1 *surfpool, mfxFrameInfo frame_info, uint32_t surfnum)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    // initialize surface pool (I420, RGB4 format)
+    if (!surfpool)
+        return MFX_ERR_NULL_PTR;
+
+    uint32_t surfaceSize = MFXGetSurfaceSize(frame_info.FourCC, frame_info.Width, frame_info.Height);
+    if (!surfaceSize)
+        return MFX_ERR_MEMORY_ALLOC;
+
+    size_t framePoolBufSize = static_cast<size_t>(surfaceSize) * surfnum;
+    *buf = reinterpret_cast<uint8_t *>(calloc(framePoolBufSize, 1));
+
+    uint32_t surfW = 0;
+    uint32_t surfH = frame_info.Height;
+
+    if (frame_info.FourCC == MFX_FOURCC_RGB4) {
+        surfW = frame_info.Width * 4;
+
+        for (uint32_t i = 0; i < surfnum; i++) {
+            uint32_t buf_offset    = i * surfaceSize;
+            surfpool[i].Data.B     = *buf + buf_offset;
+            surfpool[i].Data.G     = surfpool[i].Data.B + 1;
+            surfpool[i].Data.R     = surfpool[i].Data.B + 2;
+            surfpool[i].Data.A     = surfpool[i].Data.B + 3;
+            surfpool[i].Data.Pitch = surfW;
+        }
+    } else {
+        surfW = (frame_info.FourCC == MFX_FOURCC_P010) ? frame_info.Width * 2 : frame_info.Width;
+
+        for (uint32_t i = 0; i < surfnum; i++) {
+            uint32_t buf_offset    = i * surfaceSize;
+            surfpool[i].Data.Y     = *buf + buf_offset;
+            surfpool[i].Data.U     = *buf + buf_offset + (surfW * surfH);
+            surfpool[i].Data.V     = surfpool[i].Data.U + ((surfW / 2) * (surfH / 2));
+            surfpool[i].Data.Pitch = surfW;
+        }
+    }
+
+    return MFX_ERR_NONE;
+}
+
+void MFXFreeSystemMemorySurfacePool(uint8_t *buf, mfxFrameSurface1 *surfpool)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    if (buf)
+        free(buf);
+
+    if (surfpool)
+        free(surfpool);
 }

@@ -102,8 +102,11 @@ private:
 
     mfxStatus ResetSettings();
 
-    mfxStatus InitEncoder(const mfxFrameInfo& frame_info);
+    mfxStatus InitEncoder();
     mfxStatus InitVPP(C2FrameData& buf_pack);
+    // Allocate external system memory surface pool
+    mfxStatus AllocateSurfacePool();
+    void FreeSurfacePool();
 
     void FreeEncoder();
 
@@ -189,8 +192,15 @@ private:
 
     bool m_bHeaderSent{false};
 
+    mfxFrameSurface1 *m_encSrfPool;
+    uint8_t *m_encOutBuf;
+    uint32_t m_encSrfNum;
+
     // VPP used to convert color format which MSDK accepted.
     bool m_bVppDetermined;
     MfxC2VppWrapp m_vpp;
     MfxC2Conversion m_inputVppType;
+
+    // Input frame info with width or height not 16byte aligned
+    mfxFrameInfo m_mfxInputInfo;
 };
