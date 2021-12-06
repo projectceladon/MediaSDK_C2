@@ -53,117 +53,135 @@ c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converte
 }
 
 c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converter,
-    C2FrameData& buf_pack, const mfxFrameInfo& info, c2_nsecs_t timeout)
+    C2FrameData& buf_pack, const mfxFrameInfo& info, mfxFrameSurface1 *mfx_frame, c2_nsecs_t timeout)
 {
     MFX_DEBUG_TRACE_FUNC;
     c2_status_t res = C2_OK;
+
+    m_mfxFrameInfo = info;
+    m_pMfxFrameSurface = mfx_frame;
 
     do {
         std::unique_ptr<C2ConstGraphicBlock> c_graph_block;
         res = GetC2ConstGraphicBlock(buf_pack, &c_graph_block);
         if(C2_OK != res) break;
 
-        if ( (info.Width && info.Width > c_graph_block->width()) ||
-             (info.Height && info.Height > c_graph_block->height()) ) {
-            res = C2_BAD_VALUE;
-            break;
-        }
-
-        auto mfx_frame = std::make_unique<mfxFrameSurface1>();
-        MFX_ZERO_MEMORY(*mfx_frame.get());
-
-        if (nullptr != frame_converter) {
-
-            mfxMemId mem_id = nullptr;
-            bool decode_target = false;
-
-            auto hndl_deleter = [](native_handle_t *hndl) {
-                native_handle_delete(hndl);
-                hndl = nullptr;
-            };
-
-            std::unique_ptr<native_handle_t, decltype(hndl_deleter)> grallocHandle(
-                android::UnwrapNativeCodec2GrallocHandle(c_graph_block->handle()), hndl_deleter);
-
-            mfxStatus mfx_sts = frame_converter->ConvertGrallocToVa(grallocHandle.get(), decode_target, &mem_id);
-            if (MFX_ERR_NONE != mfx_sts) {
-                res = MfxStatusToC2(mfx_sts);
-                break;
-            }
-
-            InitMfxFrameHW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
-                mem_id, c_graph_block->width(), c_graph_block->height(), MFX_FOURCC_NV12, info,
-                mfx_frame.get());
-        } else {
-            res = MapConstGraphicBlock(*c_graph_block, timeout, &m_c2GraphicView);
-            if(C2_OK != res) {
-                break;
-            }
-
-            const uint8_t *pY = m_c2GraphicView->data()[C2PlanarLayout::PLANE_Y];
-            const uint8_t *pU = m_c2GraphicView->data()[C2PlanarLayout::PLANE_U];
-            const uint8_t *pV = m_c2GraphicView->data()[C2PlanarLayout::PLANE_V];
-
-            uint32_t width = c_graph_block->width();
-            uint32_t height = c_graph_block->height();
-            uint32_t stride = m_c2GraphicView->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
-            uint32_t y_plane_size = stride * height;
-
-            if (IsNV12(*m_c2GraphicView)) {
-
-                InitMfxFrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
-                    m_c2GraphicView->data(),
-                    width, height, stride, MFX_FOURCC_NV12, info,
-                    mfx_frame.get());
-            } else if (IsI420(*m_c2GraphicView) || IsYV12(*m_c2GraphicView)) {
-
-                if (stride * height * 3 / 2 > WIDTH_4K * HEIGHT_4K * 3 / 2) {
-                    MFX_DEBUG_TRACE_PRINTF("not enough memory to complete operation");
-                    res = C2_NO_MEMORY;
-                    break;
-                }
-
-                m_yuvData = std::shared_ptr<uint8_t>(new (std::nothrow)uint8_t[WIDTH_4K * HEIGHT_4K * 3 / 2], std::default_delete<uint8_t[]>());
-                if(m_yuvData == nullptr)
-                {
-                    MFX_DEBUG_TRACE_MSG("unsuccessful allocation");
-                    res = C2_NO_MEMORY;
-                    break;
-                }
-
-                //IYUV or YV12 to NV12 conversion
-                memcpy(m_yuvData.get(), pY, y_plane_size);
-
-                for (int j = 0; j < height / 2; j++) {
-                    uint8_t *ptr = m_yuvData.get() + y_plane_size + j * stride;
-                    for (int i = 0; i < stride / 2; i++) {
-                        memcpy(&ptr[i * 2], &pU[j*stride/2 + i], 1);
-                        memcpy(&ptr[i * 2 + 1], &pV[j*stride/2 + i], 1);
-                    }
-                }
-
-#if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
-                static int frameIndex = 0;
-                static YUVWriter writer("/data/local/tmp",std::vector<std::string>({}),"encoder_frame.log");
-                writer.Write(m_yuvData.get(), stride, height, frameIndex++);
-#endif
-
-                InitMfxFrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
-                                        m_yuvData.get(), width, height, stride, MFX_FOURCC_NV12, info,
-                                        mfx_frame.get());
-           } else {
-               MFX_DEBUG_TRACE_PRINTF("unsupported format");
-               res = C2_BAD_VALUE;
-               break;
-           }
-        }
-
         m_frameConverter = frame_converter;
-        m_pMfxFrameSurface = mfx_frame.release();
-        m_c2Buffer = std::move(buf_pack.buffers.front());
+        if (nullptr != m_frameConverter) {
+            res = MfxC2LoadSurfaceInHW(*c_graph_block, buf_pack);
+        } else {
+            res = MfxC2LoadSurfaceInSW(*c_graph_block, buf_pack, timeout);
+        }
 
+       if(C2_OK != res) break;
+
+       m_c2Buffer = std::move(buf_pack.buffers.front());
     } while(false);
 
     MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
+}
+
+c2_status_t MfxC2FrameIn::MfxC2LoadSurfaceInHW(C2ConstGraphicBlock& c_graph_block, C2FrameData& buf_pack)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    c2_status_t res = C2_OK;
+
+    mfxMemId mem_id = nullptr;
+    bool decode_target = false;
+
+    auto hndl_deleter = [](native_handle_t *hndl) {
+        native_handle_delete(hndl);
+        hndl = nullptr;
+    };
+
+    std::unique_ptr<native_handle_t, decltype(hndl_deleter)> grallocHandle(
+        android::UnwrapNativeCodec2GrallocHandle(c_graph_block.handle()), hndl_deleter);
+
+    mfxStatus mfx_sts = m_frameConverter->ConvertGrallocToVa(grallocHandle.get(), decode_target, &mem_id);
+    if (MFX_ERR_NONE != mfx_sts) {
+        res = MfxStatusToC2(mfx_sts);
+        return res;
+    }
+
+    InitMfxFrameHW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
+        mem_id, c_graph_block.width(), c_graph_block.height(), MFX_FOURCC_NV12, m_mfxFrameInfo,
+        m_pMfxFrameSurface);
+
+    return res;
+}
+
+c2_status_t MfxC2FrameIn::MfxC2LoadSurfaceInSW(C2ConstGraphicBlock& c_graph_block, C2FrameData& buf_pack, c2_nsecs_t timeout)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    c2_status_t res = C2_OK;
+    mfxStatus mfx_sts = MFX_ERR_NONE;
+
+	res = MapConstGraphicBlock(c_graph_block, timeout, &m_c2GraphicView);
+    if(C2_OK != res) {
+        return res;
+    }
+
+	const uint8_t *pY = m_c2GraphicView->data()[C2PlanarLayout::PLANE_Y];
+	const uint8_t *pU = m_c2GraphicView->data()[C2PlanarLayout::PLANE_U];
+	const uint8_t *pV = m_c2GraphicView->data()[C2PlanarLayout::PLANE_V];
+
+	uint32_t width = c_graph_block.width();
+	uint32_t height = c_graph_block.height();
+	uint32_t stride = m_c2GraphicView->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
+	uint32_t y_plane_size = stride * height;
+
+    if (IsNV12(*m_c2GraphicView)) {
+        mfx_sts = InitMfxFrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
+            const_cast<uint8_t*>(m_c2GraphicView->data()[0]),
+            width, height, stride, MFX_FOURCC_NV12, m_mfxFrameInfo,
+            m_pMfxFrameSurface);
+		if (MFX_ERR_NONE != mfx_sts) {
+            res = MfxStatusToC2(mfx_sts);
+			return res;
+        }
+    } else if (IsI420(*m_c2GraphicView) || IsYV12(*m_c2GraphicView)) {
+
+        if (stride * height * 3 / 2 > WIDTH_4K * HEIGHT_4K * 3 / 2) {
+            MFX_DEBUG_TRACE_PRINTF("not enough memory to complete operation");
+            return C2_NO_MEMORY;
+        }
+
+        m_yuvData = std::shared_ptr<uint8_t>(new (std::nothrow)uint8_t[WIDTH_4K * HEIGHT_4K * 3 / 2], std::default_delete<uint8_t[]>());
+        if(m_yuvData == nullptr)
+        {
+            MFX_DEBUG_TRACE_MSG("unsuccessful allocation");
+            return C2_NO_MEMORY;
+        }
+
+        //IYUV or YV12 to NV12 conversion
+        memcpy(m_yuvData.get(), pY, y_plane_size);
+
+        for (int j = 0; j < height / 2; j++) {
+            uint8_t *ptr = m_yuvData.get() + y_plane_size + j * stride;
+            for (int i = 0; i < stride / 2; i++) {
+                memcpy(&ptr[i * 2], &pU[j*stride/2 + i], 1);
+                memcpy(&ptr[i * 2 + 1], &pV[j*stride/2 + i], 1);
+            }
+        }
+
+#if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
+        static int frameIndex = 0;
+        static YUVWriter writer("/data/local/tmp",std::vector<std::string>({}),"encoder_frame.log");
+        writer.Write(m_yuvData.get(), stride, height, frameIndex++);
+#endif
+
+        mfx_sts = InitMfxFrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
+                                m_yuvData.get(), width, height, stride, MFX_FOURCC_NV12, m_mfxFrameInfo,
+                                m_pMfxFrameSurface);
+        if (MFX_ERR_NONE != mfx_sts) {
+            res = MfxStatusToC2(mfx_sts);
+			return res;
+        }
+   } else {
+       MFX_DEBUG_TRACE_PRINTF("unsupported format");
+	   return C2_BAD_VALUE;
+   }
+
+   return res;
 }

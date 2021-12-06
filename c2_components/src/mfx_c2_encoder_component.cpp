@@ -46,6 +46,7 @@ using namespace android;
 const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 const mfxU32 MFX_MAX_H264_FRAMERATE = 172;
 const mfxU32 MFX_MAX_H265_FRAMERATE = 300;
+const mfxU32 MFX_MAX_SURFACE_NUM = 10;
 
 std::unique_ptr<mfxEncodeCtrl> EncoderControl::AcquireEncodeCtrl()
 {
@@ -79,6 +80,9 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
         m_mfxLoader(nullptr),
 #endif
         m_uSyncedPointsCount(0),
+        m_encSrfPool(nullptr),
+        m_encOutBuf(nullptr),
+        m_encSrfNum(MFX_MAX_SURFACE_NUM),
         m_bVppDetermined(false),
         m_inputVppType(CONVERT_NONE)
 {
@@ -167,6 +171,9 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
     pr.AddValue(C2_PARAMKEY_COMPONENT_KIND,
         std::make_unique<C2ComponentKindSetting>(C2Component::KIND_ENCODER));
 
+    pr.AddValue(C2_PARAMKEY_COMPONENT_NAME,
+        AllocUniqueString<C2ComponentNameSetting>(name.c_str()));
+
     pr.AddValue(C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE,
         std::make_unique<C2StreamBufferTypeSetting::input>(SINGLE_STREAM_ID, C2BufferData::GRAPHIC));
     pr.AddValue(C2_PARAMKEY_OUTPUT_STREAM_BUFFER_TYPE,
@@ -199,8 +206,10 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
             MFX_DEBUG_TRACE("SetPictureSize");
             m_mfxVideoParamsConfig.mfx.FrameInfo.Width = MFX_MEM_ALIGN(src.width, 16);
             m_mfxVideoParamsConfig.mfx.FrameInfo.Height = MFX_MEM_ALIGN(src.height, 16);
-            m_mfxVideoParamsConfig.mfx.FrameInfo.CropW = MFX_MEM_ALIGN(src.width, 16);
-            m_mfxVideoParamsConfig.mfx.FrameInfo.CropH = MFX_MEM_ALIGN(src.height, 16);
+            m_mfxVideoParamsConfig.mfx.FrameInfo.CropX = 0;
+            m_mfxVideoParamsConfig.mfx.FrameInfo.CropY = 0;
+            m_mfxVideoParamsConfig.mfx.FrameInfo.CropW = src.width;
+            m_mfxVideoParamsConfig.mfx.FrameInfo.CropH = src.height;
             MFX_DEBUG_TRACE_STREAM(NAMED(src.width) << NAMED(src.height));
             return true;
         }
@@ -356,6 +365,7 @@ c2_status_t MfxC2EncoderComponent::Release()
     c2_status_t res = C2_OK;
     mfxStatus sts = MFX_ERR_NONE;
 
+    FreeSurfacePool();
     m_lockedFrames.clear();
     m_vpp.Close();
 
@@ -542,14 +552,13 @@ mfxStatus MfxC2EncoderComponent::ResetSettings()
     return mfx_res;
 }
 
-mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
+mfxStatus MfxC2EncoderComponent::InitEncoder()
 {
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
 
     std::lock_guard<std::mutex> lock(m_initEncoderMutex);
 
-    m_mfxVideoParamsConfig.mfx.FrameInfo = frame_info;
     if (MFX_ERR_NONE == mfx_res) {
 #ifdef USE_ONEVPL
         m_mfxEncoder.reset(MFX_NEW_NO_THROW(MFXVideoENCODE(m_mfxSession)));
@@ -573,6 +582,22 @@ mfxStatus MfxC2EncoderComponent::InitEncoder(const mfxFrameInfo& frame_info)
             if (MFX_WRN_PARTIAL_ACCELERATION == mfx_res) {
                 MFX_DEBUG_TRACE_MSG("InitEncoder returns MFX_WRN_PARTIAL_ACCELERATION");
                 mfx_res = MFX_ERR_NONE;
+            }
+
+            if (MFX_ERR_NONE == mfx_res) {
+                // Query required surfaces number for encoder
+                mfxFrameAllocRequest encRequest = {};
+                mfx_res = m_mfxEncoder->QueryIOSurf(&m_mfxVideoParamsConfig, &encRequest);
+                if (MFX_ERR_NONE == mfx_res) {
+                   if (m_encSrfNum < encRequest.NumFrameSuggested) {
+                        ALOGE("More buffer needed for encoder input! Actual: %d. Expected: %d",
+                        m_encSrfNum, encRequest.NumFrameSuggested);
+                        mfx_res = MFX_ERR_MORE_SURFACE;
+                   }
+                } else {
+                    MFX_DEBUG_TRACE_MSG("QueryIOSurf failed");
+                    mfx_res = MFX_ERR_UNKNOWN;
+                }
             }
         }
 
@@ -600,7 +625,11 @@ mfxStatus MfxC2EncoderComponent::InitVPP(C2FrameData& buf_pack)
     std::unique_ptr<C2ConstGraphicBlock> c_graph_block;
     std::unique_ptr<const C2GraphicView> c2_graphic_view_;
     res = GetC2ConstGraphicBlock(buf_pack, &c_graph_block);
-        if(C2_OK != res) return MFX_ERR_NONE;
+    if(C2_OK != res) return MFX_ERR_NONE;
+
+    m_mfxInputInfo = m_mfxVideoParamsConfig.mfx.FrameInfo;
+    m_mfxInputInfo.Width = c_graph_block->width();
+    m_mfxInputInfo.Height = c_graph_block->height();
 
     res = MapConstGraphicBlock(*c_graph_block, TIMEOUT_NS, &c2_graphic_view_);
 
@@ -613,13 +642,7 @@ mfxStatus MfxC2EncoderComponent::InitVPP(C2FrameData& buf_pack)
 #else
         param.session = &m_mfxSession;
 #endif
-        param.frame_info = &m_mfxVideoParamsConfig.mfx.FrameInfo;
-        param.frame_info->Width = c_graph_block->width();
-        param.frame_info->Height = c_graph_block->height();
-        param.frame_info->CropX = 0;
-        param.frame_info->CropY = 0;
-        param.frame_info->CropW = c_graph_block->width();
-        param.frame_info->CropH = c_graph_block->height();
+        param.frame_info = &m_mfxInputInfo;
         param.frame_info->FourCC = MFX_FOURCC_RGB4;
         param.allocator = m_device->GetFrameAllocator();
         param.conversion = ARGB_TO_NV12;
@@ -627,7 +650,6 @@ mfxStatus MfxC2EncoderComponent::InitVPP(C2FrameData& buf_pack)
         mfx_res = m_vpp.Init(&param);
         m_inputVppType = param.conversion;
     } else {
-
         uint32_t width, height, format, stride, igbp_slot, generation;
         uint64_t usage, igbp_id;
         android::_UnwrapNativeCodec2GrallocMetadata(c_graph_block->handle(), &width, &height, &format, &usage,
@@ -635,8 +657,18 @@ mfxStatus MfxC2EncoderComponent::InitVPP(C2FrameData& buf_pack)
         if (!igbp_id && !igbp_slot) {
             //No surface & BQ
             m_mfxVideoParamsConfig.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY;
-            ALOGI("%s, format = 0x%x. System memory is being used for encoding!", __func__, format);
+#ifdef USE_ONEVPL
+            mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, nullptr);
+#else
+            mfx_res = m_mfxSession.SetFrameAllocator(nullptr);
+#endif
+            m_bAllocatorSet = false;
+            ALOGI("Format = 0x%x. System memory is being used for encoding!", format);
+            if (MFX_ERR_NONE != mfx_res) MFX_DEBUG_TRACE_MSG("SetFrameAllocator failed");
         }
+
+        mfx_res = AllocateSurfacePool();
+        if (MFX_ERR_NONE != mfx_res) MFX_DEBUG_TRACE_MSG("AllocateSurfacePool failed");
 
         m_inputVppType = CONVERT_NONE;
     }
@@ -706,6 +738,43 @@ mfxStatus MfxC2EncoderComponent::EncodeFrameAsync(
 
     MFX_DEBUG_TRACE__mfxStatus(sts);
     return sts;
+}
+
+mfxStatus MfxC2EncoderComponent::AllocateSurfacePool()
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxStatus sts = MFX_ERR_NONE;
+
+    const mfxFrameInfo frame_info = m_mfxVideoParamsConfig.mfx.FrameInfo;
+
+    // External (application) allocation of encoder surfaces
+    m_encSrfPool =
+        (mfxFrameSurface1 *)calloc(sizeof(mfxFrameSurface1), m_encSrfNum);
+    if (!m_encSrfPool) {
+        return MFX_ERR_MEMORY_ALLOC;
+    }
+
+    for (uint32_t i = 0; i < m_encSrfNum; i++) {
+         MFX_ZERO_MEMORY(m_encSrfPool[i]);
+    }
+
+    if (MFX_IOPATTERN_IN_SYSTEM_MEMORY == m_mfxVideoParamsConfig.IOPattern) {
+        if (MFX_C2_IS_COPY_NEEDED(MFX_MEMTYPE_SYSTEM_MEMORY, m_mfxInputInfo, frame_info)) {
+            sts = MFXAllocSystemMemorySurfacePool(&m_encOutBuf, m_encSrfPool, frame_info, m_encSrfNum);
+        }
+    }
+
+    return sts;
+}
+
+void MfxC2EncoderComponent::FreeSurfacePool()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    MFXFreeSystemMemorySurfacePool(m_encOutBuf, m_encSrfPool);
+    m_encOutBuf = nullptr;
+    m_encSrfPool= nullptr;
+    m_encSrfNum = 0;
 }
 
 c2_status_t MfxC2EncoderComponent::AllocateBitstream(const std::unique_ptr<C2Work>& work,
@@ -854,20 +923,26 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             }
 
             InitMfxFrameHW(input.ordinal.timestamp.peeku(), input.ordinal.frameIndex.peeku(),
-                mem_id, c_graph_block->width(), c_graph_block->height(), MFX_FOURCC_RGB4, m_mfxVideoParamsConfig.mfx.FrameInfo,
+                mem_id, c_graph_block->width(), c_graph_block->height(), MFX_FOURCC_RGB4, m_mfxInputInfo,
                 unique_mfx_frame.get());
 
             m_vpp.ProcessFrameVpp(unique_mfx_frame.get(), &pSurfaceToEncode);
             res = mfx_frame_in.init(NULL, std::move(c_graph_view), input, pSurfaceToEncode);
         } else {
-            res = mfx_frame_in.init(frame_converter, input, m_mfxVideoParamsConfig.mfx.FrameInfo, TIMEOUT_NS);
+            uint32_t nIndex = MFXGetFreeSurfaceIdx(m_encSrfPool, m_encSrfNum);
+            MFX_DEBUG_TRACE_I32(nIndex);
+            if (nIndex >= m_encSrfNum) {
+                mfxStatus mfx_sts = MFX_ERR_NOT_FOUND;
+                MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
+                res = MfxStatusToC2(mfx_sts);
+                break;
+            }
+            res = mfx_frame_in.init(frame_converter, input, m_mfxVideoParamsConfig.mfx.FrameInfo, &m_encSrfPool[nIndex], TIMEOUT_NS);
         }
         if(C2_OK != res) break;
 
         if(nullptr == m_mfxEncoder) {
-            // get frame format and size for encoder init from the first frame
-            // should be got from slot descriptor
-            mfxStatus mfx_sts = InitEncoder(mfx_frame_in.GetMfxFrameSurface()->Info);
+            mfxStatus mfx_sts = InitEncoder();
             if(MFX_ERR_NONE != mfx_sts) {
                 MFX_DEBUG_TRACE__mfxStatus(mfx_sts);
                 res = MfxStatusToC2(mfx_sts);
