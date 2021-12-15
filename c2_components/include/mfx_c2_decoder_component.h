@@ -208,8 +208,8 @@ private:
 
     std::list<std::unique_ptr<C2Work>> m_flushedWorks;
 
-    C2StreamHdrStaticInfo::output m_hdrStaticInfo;
-    bool m_bSetHdrSei;
+    std::shared_ptr<C2StreamHdrStaticInfo::output> m_hdrStaticInfo;
+    bool m_bSetHdrStatic;
 
     MfxC2ColorAspectsWrapper m_colorAspects;
 

@@ -62,7 +62,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
 #endif
         m_bInitialized(false),
         m_uSyncedPointsCount(0),
-        m_bSetHdrSei(false)
+        m_bSetHdrStatic(false)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -360,38 +360,18 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::transfer, TRANSFER_UNSPECIFIED, TRANSFER_OTHER);
     pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::matrix, MATRIX_UNSPECIFIED, MATRIX_OTHER);
 
-    // HDR static
-    m_hdrStaticInfo.mastering = {
+    // HDR static with BT2020 by default
+    m_hdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
+    m_hdrStaticInfo->mastering = {
         .red   = { .x = 0.708,  .y = 0.292 },
         .green = { .x = 0.170,  .y = 0.797 },
         .blue  = { .x = 0.131,  .y = 0.046 },
         .white = { .x = 0.3127, .y = 0.3290 },
         .maxLuminance = 0,
         .minLuminance = 0,
-    };
-    m_hdrStaticInfo.maxCll = 0;
-    m_hdrStaticInfo.maxFall = 0;
-
-    pr.AddStreamInfo<C2StreamHdrStaticInfo::output>(
-        C2_PARAMKEY_HDR_STATIC_INFO, SINGLE_STREAM_ID,
-        [this] (C2StreamHdrStaticInfo::output* dst)->bool {
-            MFX_DEBUG_TRACE("GetHdrStaticInfo");
-            dst->mastering.red.x = m_hdrStaticInfo.mastering.red.x;
-            dst->mastering.red.y = m_hdrStaticInfo.mastering.red.y;
-            dst->mastering.green.x = m_hdrStaticInfo.mastering.green.x;
-            dst->mastering.green.y = m_hdrStaticInfo.mastering.green.y;
-            dst->mastering.blue.x = m_hdrStaticInfo.mastering.blue.x;
-            dst->mastering.blue.y = m_hdrStaticInfo.mastering.blue.y;
-            dst->maxCll = m_hdrStaticInfo.maxCll;
-            dst->maxFall = m_hdrStaticInfo.maxFall;
-            return true;
-        },
-        [this] (const C2StreamHdrStaticInfo::output& src)->bool {
-            MFX_DEBUG_TRACE("SetHdrStaticInfo");
-            m_hdrStaticInfo = src;
-            return true;
-        }
-    );
+        };
+    m_hdrStaticInfo->maxCll = 0;
+    m_hdrStaticInfo->maxFall = 0;
 
     m_paramStorage.DumpParams();
 }
@@ -874,9 +854,6 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
     if (MFX_ERR_NONE == mfx_res) {
         MFX_DEBUG_TRACE_MSG("InitDecoder: UpdateBitstreamColorAspects");
         m_colorAspects.UpdateBitstreamColorAspects(m_signalInfo);
-
-        MFX_DEBUG_TRACE_MSG("InitDecoder: UpdateHdrStaticInfo");
-        UpdateHdrStaticInfo();
 
         MFX_DEBUG_TRACE_MSG("InitDecoder: GetAsyncDepth");
         m_mfxVideoParams.AsyncDepth = GetAsyncDepth();
@@ -1610,18 +1587,22 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                     res = C2_BAD_VALUE;
                     break;
                 }
-                if (m_bSetHdrSei) {
-                    MFX_DEBUG_TRACE_MSG("Set HDR static info");
+
+                {
+                    // Update pixel format info after decoder initialized
+                    uint32_t yuvType = MfxFourCCToGralloc(m_mfxVideoParams.mfx.FrameInfo.FourCC, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY);
+                    C2StreamPixelFormatInfo::output format(0, yuvType);
                     std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
                     auto it = m_pendingWorks.find(incoming_frame_index);
                     if (it != m_pendingWorks.end()) {
-                        it->second->worklets.front()->output.configUpdate.push_back(C2Param::Copy(m_hdrStaticInfo));
+                        it->second->worklets.front()->output.configUpdate.push_back(C2Param::Copy(format));
                     } else {
                         MFX_DEBUG_TRACE_MSG("Cannot find the Work in Pending works");
                     }
-                    m_bSetHdrSei = false;
                 }
             }
+
+            if (!m_bSetHdrStatic) UpdateHdrStaticInfo();
 
             mfxBitstream *bs = m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get();
             MfxC2FrameOut frame_out;
@@ -1863,6 +1844,9 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             C2ConstGraphicBlock const_graphic = block->share(rect, C2Fence()/*event.fence()*/);
             C2Buffer out_buffer = MakeC2Buffer( { const_graphic } );
 
+            // set static hdr info
+            out_buffer.setInfo(m_hdrStaticInfo);
+
             if (m_colorAspects.IsColorAspectsChanged()) {
                 out_buffer.setInfo(getColorAspects_l());
                 m_colorAspects.SignalChangedColorAspectsIsSent();
@@ -2058,21 +2042,21 @@ void MfxC2DecoderComponent::UpdateHdrStaticInfo()
     {
         MFX_DEBUG_TRACE_MSG("Set HDR static info: SEI_MASTERING_DISPLAY_COLOUR_VOLUME");
 
-        m_bSetHdrSei = true;
-        m_hdrStaticInfo.mastering.red.x = pHdrSeiPayload->Data[1] | (pHdrSeiPayload->Data[0] << 8);
-        m_hdrStaticInfo.mastering.red.y = pHdrSeiPayload->Data[3] | (pHdrSeiPayload->Data[2] << 8);
-        m_hdrStaticInfo.mastering.green.x = pHdrSeiPayload->Data[5] | (pHdrSeiPayload->Data[4] << 8);
-        m_hdrStaticInfo.mastering.green.y = pHdrSeiPayload->Data[7] | (pHdrSeiPayload->Data[6] << 8);
-        m_hdrStaticInfo.mastering.blue.x = pHdrSeiPayload->Data[9] | (pHdrSeiPayload->Data[8] << 8);
-        m_hdrStaticInfo.mastering.blue.y = pHdrSeiPayload->Data[11] | (pHdrSeiPayload->Data[10] << 8);
-        m_hdrStaticInfo.mastering.white.x = pHdrSeiPayload->Data[13] | (pHdrSeiPayload->Data[12] << 8);
-        m_hdrStaticInfo.mastering.white.y = pHdrSeiPayload->Data[15] | (pHdrSeiPayload->Data[14] << 8);
+        m_bSetHdrStatic = true;
+        m_hdrStaticInfo->mastering.red.x = pHdrSeiPayload->Data[1] | (pHdrSeiPayload->Data[0] << 8);
+        m_hdrStaticInfo->mastering.red.y = pHdrSeiPayload->Data[3] | (pHdrSeiPayload->Data[2] << 8);
+        m_hdrStaticInfo->mastering.green.x = pHdrSeiPayload->Data[5] | (pHdrSeiPayload->Data[4] << 8);
+        m_hdrStaticInfo->mastering.green.y = pHdrSeiPayload->Data[7] | (pHdrSeiPayload->Data[6] << 8);
+        m_hdrStaticInfo->mastering.blue.x = pHdrSeiPayload->Data[9] | (pHdrSeiPayload->Data[8] << 8);
+        m_hdrStaticInfo->mastering.blue.y = pHdrSeiPayload->Data[11] | (pHdrSeiPayload->Data[10] << 8);
+        m_hdrStaticInfo->mastering.white.x = pHdrSeiPayload->Data[13] | (pHdrSeiPayload->Data[12] << 8);
+        m_hdrStaticInfo->mastering.white.y = pHdrSeiPayload->Data[15] | (pHdrSeiPayload->Data[14] << 8);
 
         mfxU32 mMaxDisplayLuminanceX10000 = pHdrSeiPayload->Data[19] | (pHdrSeiPayload->Data[18] << 8) | (pHdrSeiPayload->Data[17] << 16) | (pHdrSeiPayload->Data[16] << 24);
-        m_hdrStaticInfo.mastering.maxLuminance = (mfxU16)(mMaxDisplayLuminanceX10000 / 10000);
+        m_hdrStaticInfo->mastering.maxLuminance = mMaxDisplayLuminanceX10000 / 10000.0;
 
         mfxU32 mMinDisplayLuminanceX10000 = pHdrSeiPayload->Data[23] | (pHdrSeiPayload->Data[22] << 8) | (pHdrSeiPayload->Data[21] << 16) | (pHdrSeiPayload->Data[20] << 24);
-        m_hdrStaticInfo.mastering.minLuminance = (mfxU16)(mMinDisplayLuminanceX10000 / 10000);
+        m_hdrStaticInfo->mastering.minLuminance = mMinDisplayLuminanceX10000 / 10000.0;
     }
     pHdrSeiPayload = m_c2Bitstream->GetFrameConstructor()->GetSEI(MfxC2HEVCFrameConstructor::SEI_CONTENT_LIGHT_LEVEL_INFO);
 
@@ -2082,9 +2066,12 @@ void MfxC2DecoderComponent::UpdateHdrStaticInfo()
     {
         MFX_DEBUG_TRACE_MSG("Set HDR static info: SEI_CONTENT_LIGHT_LEVEL_INFO");
 
-        m_hdrStaticInfo.maxCll = pHdrSeiPayload->Data[1] | (pHdrSeiPayload->Data[0] << 8);
-        m_hdrStaticInfo.maxFall = pHdrSeiPayload->Data[3] | (pHdrSeiPayload->Data[2] << 8);
+        m_bSetHdrStatic = true;
+        m_hdrStaticInfo->maxCll = pHdrSeiPayload->Data[1] | (pHdrSeiPayload->Data[0] << 8);
+        m_hdrStaticInfo->maxFall = pHdrSeiPayload->Data[3] | (pHdrSeiPayload->Data[2] << 8);
     }
+
+    MFX_DEBUG_TRACE__hdrStaticInfo(m_hdrStaticInfo);
 }
 
 std::shared_ptr<C2StreamColorAspectsInfo::output> MfxC2DecoderComponent::getColorAspects_l(){
@@ -2115,4 +2102,3 @@ std::shared_ptr<C2StreamColorAspectsInfo::output> MfxC2DecoderComponent::getColo
 
     return codedAspects;
 }
-

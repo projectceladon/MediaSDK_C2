@@ -83,6 +83,8 @@ mfxStatus MfxC2FrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, bool
 
     MFX_DEBUG_TRACE_P(data);
     MFX_DEBUG_TRACE_I32(size);
+    MFX_DEBUG_TRACE_I32(header);
+    MFX_DEBUG_TRACE_I32(m_bsState);
     if (!data || !size) mfx_res = MFX_ERR_NULL_PTR;
     if (MFX_ERR_NONE == mfx_res) {
         if (header) {
@@ -443,7 +445,7 @@ mfxStatus MfxC2AVCFrameConstructor::FindHeaders(const mfxU8* data, mfxU32 size, 
                 start_code = ReadStartCode(&data, &size);
                 if (-1 != start_code.type)
                     sei.DataLength -= size + start_code.size;
-                 MFX_DEBUG_TRACE_STREAM("Found SEI size %d" << sei.DataLength);
+                 MFX_DEBUG_TRACE_STREAM("Found SEI size " << sei.DataLength);
                  mfx_res = SaveSEI(&sei);
                  if (MFX_ERR_NONE != mfx_res) return mfx_res;
                  found_sei = true;
@@ -462,6 +464,11 @@ mfxStatus MfxC2AVCFrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, b
 {
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
+
+    MFX_DEBUG_TRACE_P(data);
+    MFX_DEBUG_TRACE_I32(size);
+    MFX_DEBUG_TRACE_I32(header);
+    MFX_DEBUG_TRACE_I32(m_bsState);
 
     bool bFoundSps = false;
     bool bFoundPps = false;
@@ -496,6 +503,16 @@ mfxStatus MfxC2AVCFrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, b
     } else if (MfxC2BS_HeaderCollecting == m_bsState) {
         // As soon as we are receving first non header data we are stopping collecting header
         m_bsState = MfxC2BS_HeaderObtained;
+    }
+
+    if (MfxC2BS_HeaderObtained == m_bsState) {
+        if (!header && data && size) {
+            // In case SEI comes in the second acess unit
+            mfx_res = FindHeaders(data, size, bFoundSps, bFoundPps, bFoundSei);
+            if (MFX_ERR_NONE == mfx_res && bFoundSei) {
+                MFX_DEBUG_TRACE_MSG("Found SEI info!");
+            }
+        }
     }
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
