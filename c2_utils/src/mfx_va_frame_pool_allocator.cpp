@@ -139,6 +139,7 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
             }
             MFX_DEBUG_TRACE_I32(response->NumFrameActual);
             MFX_DEBUG_TRACE_I32(request->NumFrameMin);
+            MFX_DEBUG_TRACE_I32(max_buffers);
 
             if (response->NumFrameActual >= request->NumFrameMin) {
                 response->mids = mids.release();

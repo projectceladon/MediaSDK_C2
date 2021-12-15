@@ -151,6 +151,20 @@ MFX_DEBUG_DECLARE_VALUE_DESC_PRINTF(mfxStatus)
     MFX_DEBUG_TRACE_I32(_s.NumExtParam); \
     MFX_DEBUG_TRACE_P(_s.ExtParam); \
 
+#define MFX_DEBUG_TRACE__hdrStaticInfo(_s) \
+    MFX_DEBUG_TRACE_F64(_s->mastering.red.x); \
+    MFX_DEBUG_TRACE_F64(_s->mastering.red.y); \
+    MFX_DEBUG_TRACE_F64(_s->mastering.green.x); \
+    MFX_DEBUG_TRACE_F64(_s->mastering.green.y); \
+    MFX_DEBUG_TRACE_F64(_s->mastering.blue.x); \
+    MFX_DEBUG_TRACE_F64(_s->mastering.blue.y); \
+    MFX_DEBUG_TRACE_F64(_s->mastering.white.x); \
+    MFX_DEBUG_TRACE_F64(_s->mastering.white.y); \
+    MFX_DEBUG_TRACE_F64(_s->maxCll); \
+    MFX_DEBUG_TRACE_F64(_s->maxFall); \
+    MFX_DEBUG_TRACE_F64(_s->mastering.minLuminance); \
+    MFX_DEBUG_TRACE_F64(_s->mastering.maxLuminance); \
+
 #define MFX_DEBUG_TRACE__mfxBitstream(_s) \
     MFX_DEBUG_TRACE_I64(_s.TimeStamp); \
     MFX_DEBUG_TRACE_P(_s.Data); \
@@ -160,6 +174,7 @@ MFX_DEBUG_DECLARE_VALUE_DESC_PRINTF(mfxStatus)
     MFX_DEBUG_TRACE_I32(_s.PicStruct); \
     MFX_DEBUG_TRACE_I32(_s.FrameType); \
     MFX_DEBUG_TRACE_I32(_s.DataFlag);
+
 
 #if MFX_DEBUG == MFX_DEBUG_YES
     #define MFX_DEBUG_TRACE__mfxStatus(_e) printf_mfxStatus(MFX_DEBUG_TRACE_VAR, #_e, _e)
