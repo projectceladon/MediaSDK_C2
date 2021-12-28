@@ -102,6 +102,9 @@ mfxStatus mfx_set_RateControlMethod(mfxU16 rate_control_method, mfxVideoParam* p
                 case MFX_CODEC_HEVC:
                     params->mfx.TargetKbps = 3000;
                     break;
+                case MFX_CODEC_VP9:
+                    params->mfx.TargetKbps = 3000;
+                    break;
                 default:
                     MFX_DEBUG_TRACE_MSG("Unsupported Codec ID");
                     res = MFX_ERR_INVALID_VIDEO_PARAM;
@@ -196,6 +199,18 @@ mfxStatus mfx_set_defaults_mfxVideoParam_enc(mfxVideoParam* params)
             params->mfx.GopRefDist = 1;
             params->mfx.NumSlice = 1;
             params->mfx.NumRefFrame = 1;
+            break;
+        case MFX_CODEC_VP9:
+            params->mfx.CodecProfile = MFX_PROFILE_VP9_0;
+            params->mfx.CodecLevel = MFX_LEVEL_UNKNOWN;
+            params->mfx.TargetUsage = MFX_TARGETUSAGE_BEST_SPEED;
+            params->mfx.FrameInfo.PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
+            res = mfx_set_RateControlMethod(MFX_RATECONTROL_CBR, params);
+            params->mfx.GopPicSize = 16;
+            params->mfx.GopRefDist = 1;
+            params->mfx.NumSlice = 1;
+            params->mfx.NumRefFrame = 1;
+            params->mfx.LowPower = MFX_CODINGOPTION_ON;
             break;
         default:
             break;

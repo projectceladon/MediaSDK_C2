@@ -138,6 +138,8 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
                 LEVEL_AVC_4, LEVEL_AVC_4_1, LEVEL_AVC_4_2,
                 LEVEL_AVC_5, LEVEL_AVC_5_1, LEVEL_AVC_5_2,
             };
+            pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
+                AllocUniqueString<C2PortMediaTypeSetting::output>("video/avc"));
             pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
                 std::make_unique<C2StreamProfileLevelInfo::output>(SINGLE_STREAM_ID, PROFILE_AVC_CONSTRAINED_BASELINE, LEVEL_AVC_5_2));
             break;
@@ -159,10 +161,31 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
                 LEVEL_HEVC_HIGH_4_1, LEVEL_HEVC_HIGH_5,
                 LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
             };
+            pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
+                AllocUniqueString<C2PortMediaTypeSetting::output>("video/hevc"));
             pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
                 std::make_unique<C2StreamProfileLevelInfo::output>(SINGLE_STREAM_ID, PROFILE_HEVC_MAIN, LEVEL_HEVC_MAIN_5_1));
             break;
         }
+        case ENCODER_VP9: {
+            supported_profiles = {
+                PROFILE_VP9_0,
+                PROFILE_VP9_2,
+            };
+
+            supported_levels = {
+                LEVEL_VP9_1, LEVEL_VP9_1_1,
+                LEVEL_VP9_2, LEVEL_VP9_2_1,
+                LEVEL_VP9_3, LEVEL_VP9_3_1,
+                LEVEL_VP9_4, LEVEL_VP9_4_1,
+                LEVEL_VP9_5,
+            };
+            pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
+                AllocUniqueString<C2PortMediaTypeSetting::output>("video/x-vnd.on2.vp9"));
+            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
+                std::make_unique<C2StreamProfileLevelInfo::input>(0u, PROFILE_VP9_0, LEVEL_VP9_5));
+            break;
+        };
     }
 
     pr.AddValue(C2_PARAMKEY_COMPONENT_DOMAIN,
@@ -181,14 +204,6 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
 
     pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
         AllocUniqueString<C2PortMediaTypeSetting::input>("video/raw"));
-
-    if (m_encoderType == ENCODER_H264) {
-        pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
-            AllocUniqueString<C2PortMediaTypeSetting::output>("video/avc"));
-    } else {
-        pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
-            AllocUniqueString<C2PortMediaTypeSetting::output>("video/hevc"));
-    }
 
     pr.AddValue(C2_PARAMKEY_BITRATE_MODE,
         std::make_unique<C2StreamBitrateModeTuning::output>(SINGLE_STREAM_ID, C2Config::bitrate_mode_t::BITRATE_CONST));
@@ -237,6 +252,8 @@ void MfxC2EncoderComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
         &MfxC2Component::Factory<MfxC2EncoderComponent, EncoderType>::Create<ENCODER_H264>);
     registry.RegisterMfxC2Component("c2.intel.hevc.encoder",
         &MfxC2Component::Factory<MfxC2EncoderComponent, EncoderType>::Create<ENCODER_H265>);
+    registry.RegisterMfxC2Component("c2.intel.vp9.encoder",
+        &MfxC2Component::Factory<MfxC2EncoderComponent, EncoderType>::Create<ENCODER_VP9>);
 }
 
 c2_status_t MfxC2EncoderComponent::Init()
@@ -530,8 +547,11 @@ mfxStatus MfxC2EncoderComponent::ResetSettings()
     case ENCODER_H264:
         m_mfxVideoParamsConfig.mfx.CodecId = MFX_CODEC_AVC;
         break;
-   case ENCODER_H265:
+    case ENCODER_H265:
         m_mfxVideoParamsConfig.mfx.CodecId = MFX_CODEC_HEVC;
+        break;
+    case ENCODER_VP9:
+        m_mfxVideoParamsConfig.mfx.CodecId = MFX_CODEC_VP9;
         break;
     default:
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
@@ -548,6 +568,14 @@ mfxStatus MfxC2EncoderComponent::ResetSettings()
         mfx_res = MFX_ERR_NULL_PTR;
     }
 
+    // reset ExtParam
+    m_mfxVideoParamsConfig.NumExtParam = 0;
+    m_mfxVideoParamsConfig.ExtParam = nullptr;
+
+    if (m_encoderType == ENCODER_VP9) {
+        mfxExtVP9Param* vp9param = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtVP9Param>();
+        vp9param->WriteIVFHeaders = MFX_CODINGOPTION_OFF;
+    }
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }
@@ -1133,7 +1161,9 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
             std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
 
             worklet->output.flags = work->input.flags;
-            if (!m_bHeaderSent) {
+
+            // VPX unsupport SPS PPS
+            if (!m_bHeaderSent && (m_encoderType == ENCODER_H264 || m_encoderType == ENCODER_H265)) {
 
                 mfxExtCodingOptionSPSPPS* spspps{};
                 mfxExtCodingOptionVPS* vps{};
@@ -1199,6 +1229,7 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
                     m_bHeaderSent = true;
                 }
             }
+
             worklet->output.ordinal = work->input.ordinal;
 
             worklet->output.buffers.push_back(std::make_shared<C2Buffer>(out_buffer));
@@ -1322,6 +1353,9 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
                         break;
                     case ENCODER_H265:
                         set_res = HevcProfileMfxToAndroid(m_mfxVideoParamsConfig.mfx.CodecProfile, &profile);
+                        break;
+                    case ENCODER_VP9:
+                        set_res = Vp9ProfileMfxToAndroid(m_mfxVideoParamsConfig.mfx.CodecProfile, &profile);
                         break;
                     default:
                         break;
@@ -1678,6 +1712,10 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                     case ENCODER_H265:
                         set_res = HevcLevelAndroidToMfx(level, &m_mfxVideoParamsConfig.mfx.CodecLevel);
                         break;
+                    // TODO: MediaSDK unsupport VP9 level?
+                    case ENCODER_VP9:
+                        set_res = true;
+                        break;
                     default:
                         break;
                 }
@@ -1697,6 +1735,9 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                     case ENCODER_H265:
                         HevcProfileAndroidToMfx(info->profile, &m_mfxVideoParamsConfig.mfx.CodecProfile);
                         HevcLevelAndroidToMfx(info->level, &m_mfxVideoParamsConfig.mfx.CodecLevel);
+                        break;
+                    case ENCODER_VP9:
+                        Vp9ProfileAndroidToMfx(info->profile, &m_mfxVideoParamsConfig.mfx.CodecProfile);
                         break;
                     default:
                         break;
@@ -1779,7 +1820,7 @@ c2_status_t MfxC2EncoderComponent::Queue(std::list<std::unique_ptr<C2Work>>* con
                 DoWork(std::move(work));
             } );
 
-            if(eos || !m_pendingWorks.empty()) {
+            if(eos /*|| !m_pendingWorks.empty()*/) {
                 m_workingQueue.Push( [this] () { Drain(nullptr); } );
             }
         }

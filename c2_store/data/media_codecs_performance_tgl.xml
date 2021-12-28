@@ -154,9 +154,11 @@
             <Limit name="measured-frame-rate-320x240" range="25-55" />
         </MediaCodec>
         <MediaCodec name="c2.intel.vp9.encoder" type="video/x-vnd.on2.vp9" update="true">
-            <Limit name="measured-frame-rate-320x180" range="96-106" />
-            <Limit name="measured-frame-rate-640x360" range="39-39" />
-            <Limit name="measured-frame-rate-1280x720" range="7-9" />
+            <Limit name="measured-frame-rate-320x180" range="200-400" />
+            <Limit name="measured-frame-rate-640x360" range="120-160" />
+            <Limit name="measured-frame-rate-1280x720" range="70-90" />
+            <Limit name="measured-frame-rate-1920x1080" range="35-45" />
+            <Limit name="measured-frame-rate-3840x2160" range="10-14" />
         </MediaCodec>
     </Encoders>
 </MediaCodecs>

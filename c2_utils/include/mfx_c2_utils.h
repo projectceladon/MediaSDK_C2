@@ -99,6 +99,10 @@ bool HevcLevelAndroidToMfx(C2Config::level_t android_value, mfxU16* mfx_value);
 
 bool HevcLevelMfxToAndroid(mfxU16 mfx_value, C2Config::level_t* android_value);
 
+bool Vp9ProfileAndroidToMfx(C2Config::profile_t android_value, mfxU16* mfx_value);
+
+bool Vp9ProfileMfxToAndroid(mfxU16 mfx_value, C2Config::profile_t* android_value);
+
 void InitNV12PlaneLayout(uint32_t pitches[C2PlanarLayout::MAX_NUM_PLANES], C2PlanarLayout* layout);
 
 void InitNV12PlaneData(int32_t pitch_y, int32_t alloc_height, uint8_t* base, uint8_t** plane_data);
@@ -187,6 +191,9 @@ template<>struct mfx_ext_buffer_id<mfxExtCodingOptionSPSPPS> {
 };
 template<>struct mfx_ext_buffer_id<mfxExtCodingOptionVPS> {
     enum {id = MFX_EXTBUFF_CODING_OPTION_VPS};
+};
+template<>struct mfx_ext_buffer_id<mfxExtVP9Param> {
+    enum {id = MFX_EXTBUFF_VP9_PARAM};
 };
 
 template <typename R>
