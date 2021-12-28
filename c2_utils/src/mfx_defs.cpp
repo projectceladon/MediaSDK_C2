@@ -80,7 +80,8 @@ mfxStatus MFXLoadSurfaceSW(uint8_t *data, uint32_t stride, const mfxFrameInfo& i
 
     if (!MFX_C2_IS_COPY_NEEDED(srf->Data.MemType, input_info, srf->Info)) {
         srf->Data.Y  = data;
-        srf->Data.UV = data + nOWidth * nOHeight;
+        srf->Data.U = data + nOWidth * nOHeight;
+        srf->Data.V = srf->Data.UV + 1;
         srf->Data.Pitch = nOPitch;
     } else {
         uint32_t i = 0;

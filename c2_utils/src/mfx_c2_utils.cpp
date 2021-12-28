@@ -384,6 +384,14 @@ static const std::pair<C2Config::level_t, mfxU16> g_h265_levels[] =
     { LEVEL_HEVC_MAIN_6_2, MFX_LEVEL_HEVC_62 }
 };
 
+static const std::pair<C2Config::profile_t, mfxU16> g_vp9_profiles[] =
+{
+    { PROFILE_VP9_0,  MFX_PROFILE_VP9_0 },
+    { PROFILE_VP9_1, MFX_PROFILE_VP9_1 },
+    { PROFILE_VP9_2, MFX_PROFILE_VP9_2 },
+    { PROFILE_VP9_3, MFX_PROFILE_VP9_3 }
+};
+
 bool AvcProfileAndroidToMfx(C2Config::profile_t android_value, mfxU16* mfx_value)
 {
     return FirstToSecond(g_h264_profiles, android_value, mfx_value);
@@ -422,6 +430,16 @@ bool HevcLevelAndroidToMfx(C2Config::level_t android_value, mfxU16* mfx_value)
 bool HevcLevelMfxToAndroid(mfxU16 mfx_value, C2Config::level_t* android_value)
 {
     return SecondToFirst(g_h265_levels, mfx_value, android_value);
+}
+
+bool Vp9ProfileAndroidToMfx(C2Config::profile_t android_value, mfxU16* mfx_value)
+{
+    return FirstToSecond(g_vp9_profiles, android_value, mfx_value);
+}
+
+bool Vp9ProfileMfxToAndroid(mfxU16 mfx_value, C2Config::profile_t* android_value)
+{
+    return SecondToFirst(g_vp9_profiles, mfx_value, android_value);
 }
 
 // Returns pointers to NV12 planes.

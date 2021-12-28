@@ -1258,33 +1258,33 @@ mfxStatus MfxC2DecoderComponent::DecodeFrameAsync(
     }
 
     do {
-      mfx_res = m_mfxDecoder->DecodeFrameAsync(bs, surface_work, surface_out, syncp);
-      ++trying_count;
+        mfx_res = m_mfxDecoder->DecodeFrameAsync(bs, surface_work, surface_out, syncp);
+        ++trying_count;
 
-      if (MFX_WRN_DEVICE_BUSY == mfx_res) {
+        if (MFX_WRN_DEVICE_BUSY == mfx_res) {
 
-        if (m_bFlushing) {
-            // break waiting as flushing in progress and return MFX_WRN_DEVICE_BUSY as sign of it
-            break;
+            if (m_bFlushing) {
+                // break waiting as flushing in progress and return MFX_WRN_DEVICE_BUSY as sign of it
+                break;
+            }
+
+            if (trying_count >= MAX_TRYING_COUNT) {
+                MFX_DEBUG_TRACE_MSG("Too many MFX_WRN_DEVICE_BUSY from DecodeFrameAsync");
+                mfx_res = MFX_ERR_DEVICE_FAILED;
+                break;
+            }
+
+            std::unique_lock<std::mutex> lock(m_devBusyMutex);
+            unsigned int synced_points_count = m_uSyncedPointsCount;
+            // wait for change of m_uSyncedPointsCount
+            // that might help with MFX_WRN_DEVICE_BUSY
+            m_devBusyCond.wait_for(lock, timeout, [this, synced_points_count] {
+                return m_uSyncedPointsCount < synced_points_count;
+            } );
+            if (m_bFlushing) { // do check flushing again after timeout to not call DecodeFrameAsync once more
+                break;
+            }
         }
-
-        if (trying_count >= MAX_TRYING_COUNT) {
-            MFX_DEBUG_TRACE_MSG("Too many MFX_WRN_DEVICE_BUSY from DecodeFrameAsync");
-            mfx_res = MFX_ERR_DEVICE_FAILED;
-            break;
-        }
-
-        std::unique_lock<std::mutex> lock(m_devBusyMutex);
-        unsigned int synced_points_count = m_uSyncedPointsCount;
-        // wait for change of m_uSyncedPointsCount
-        // that might help with MFX_WRN_DEVICE_BUSY
-        m_devBusyCond.wait_for(lock, timeout, [this, synced_points_count] {
-            return m_uSyncedPointsCount < synced_points_count;
-        } );
-        if (m_bFlushing) { // do check flushing again after timeout to not call DecodeFrameAsync once more
-            break;
-        }
-      }
     } while (MFX_WRN_DEVICE_BUSY == mfx_res);
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);

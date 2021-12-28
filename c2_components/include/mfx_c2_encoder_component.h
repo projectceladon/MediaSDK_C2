@@ -54,6 +54,7 @@ public:
     enum EncoderType {
         ENCODER_H264,
         ENCODER_H265,
+        ENCODER_VP9,
     };
 
 protected:
