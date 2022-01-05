@@ -31,6 +31,7 @@ public:
     virtual void Reset() = 0;
     virtual bool InCache(uint64_t id) = 0;
     virtual void SetBufferCount(unsigned int cnt) = 0;
+    virtual void SetConsumerUsage(uint64_t usage) = 0;
 
 protected: // virtual deletion prohibited
     virtual ~MfxFramePoolAllocator() = default;

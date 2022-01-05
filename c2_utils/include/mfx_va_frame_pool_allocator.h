@@ -56,16 +56,26 @@ private:
         MFX_DEBUG_TRACE_STREAM(res);
         return res;
     }
+
     // Forget about allocated resources.
     virtual void Reset() override
     {
+        MFX_DEBUG_TRACE_FUNC;
         m_pool = std::make_unique<MfxPool<C2GraphicBlock>>();
         m_cachedBufferId.clear();
     }
     virtual void SetBufferCount(unsigned int cnt) override
     {
+        MFX_DEBUG_TRACE_FUNC;
         m_uSuggestBufferCnt = cnt;
     }
+
+    virtual void SetConsumerUsage(uint64_t usage) override
+    {
+        MFX_DEBUG_TRACE_FUNC;
+        m_consumerUsage = usage;
+    }
+
     bool InCache(uint64_t id) {
         auto it = m_cachedBufferId.find(id);
         if (it == m_cachedBufferId.end()){
@@ -90,9 +100,9 @@ private:
 
     std::map<uint64_t, int> m_cachedBufferId;
 
-    std::vector<native_handle_t*> m_cachedHandle;
+    unsigned int m_uSuggestBufferCnt = 0;
 
-    unsigned int m_uSuggestBufferCnt=0;
+    uint64_t m_consumerUsage = 0;
 
 private:
     MFX_CLASS_NO_COPY(MfxVaFramePoolAllocator)

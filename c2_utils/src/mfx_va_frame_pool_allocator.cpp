@@ -30,6 +30,12 @@
 
 using namespace android;
 
+#undef MFX_DEBUG_MODULE_NAME
+#define MFX_DEBUG_MODULE_NAME "mfx_va_pool_allocator"
+
+const size_t kSmoothnessFactor = 4;
+const size_t kRenderingDepth = 3;
+
 mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
     mfxFrameAllocResponse *response)
 {
@@ -41,14 +47,24 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
     std::lock_guard<std::mutex> lock(m_mutex);
     // The max buffer needed is calculated from c2 framework (CCodecBufferChannel.cpp):
     // output->maxDequeueBuffers = numOutputSlots + reorderDepth.value(0) + kRenderingDepth(3);
-    // if (!secure) {
-    //      output->maxDequeueBuffers += numInputSlots;
-    // }
-    // numInputSlots = inputDelayValue(input_delay_) + pipelineDelayValue(0) + kSmoothnessFactor(4);
     // numOutputSlots = outputDelayValue(output_delay_) + kSmoothnessFactor(4);
-    // buffers_count = output_delay_ + kSmoothnessFactor(4) + kRenderingDepth(3) + input_delay_(2) + kSmoothnessFactor(4)
-    int max_buffers = m_uSuggestBufferCnt + 13;
+    // buffers_count = output_delay_ + kSmoothnessFactor(4) + kRenderingDepth(3)
+    int max_buffers = m_uSuggestBufferCnt + kSmoothnessFactor + kRenderingDepth;
+    int min_buffers = MFX_MAX(request->NumFrameSuggested, MFX_MAX(request->NumFrameMin, 1));
+    int opt_buffers = max_buffers; // optimal buffer count for better performance
     if (max_buffers < request->NumFrameMin) return MFX_ERR_MEMORY_ALLOC;
+
+    // For 4K or 8K videos, limit buffer count to save memory
+    if (IS_8K_VIDEO(request->Info.Width, request->Info.Height)) {
+        opt_buffers = MFX_MAX(min_buffers, 4) + kSmoothnessFactor;
+    } else if (IS_4K_VIDEO(request->Info.Width, request->Info.Height)) {
+        opt_buffers = MFX_MAX(min_buffers, 4) + kSmoothnessFactor + kRenderingDepth;
+    }
+    MFX_DEBUG_TRACE_I32(max_buffers);
+    MFX_DEBUG_TRACE_I32(opt_buffers);
+    MFX_DEBUG_TRACE_I32(request->NumFrameMin);
+    MFX_DEBUG_TRACE_I32(request->NumFrameSuggested);
+    MFX_DEBUG_TRACE_I64(m_consumerUsage);
 
     if (request->Type & MFX_MEMTYPE_VIDEO_MEMORY_DECODER_TARGET) {
 
@@ -70,7 +86,7 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                 mfx_res = MFX_ERR_UNSUPPORTED;
                 break;
             }
-            std::unique_ptr<mfxMemId[]> mids { new (std::nothrow)mfxMemId[max_buffers] };
+            std::unique_ptr<mfxMemId[]> mids { new (std::nothrow)mfxMemId[opt_buffers] };
             if (!mids) {
                 mfx_res = MFX_ERR_MEMORY_ALLOC;
                 break;
@@ -86,7 +102,7 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
 
             response->NumFrameActual = 0;
 #define RETRY_TIMES 5
-            for (int i = 0; i < max_buffers; ++i) {
+            for (int i = 0; i < opt_buffers; ++i) {
 
                 std::shared_ptr<C2GraphicBlock> new_block;
                 int retry_time_left = RETRY_TIMES;
@@ -94,7 +110,7 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                     res = m_c2Allocator->fetchGraphicBlock(
                         request->Info.Width, request->Info.Height,
                         MfxFourCCToGralloc(request->Info.FourCC),
-                        { C2AndroidMemoryUsage::CPU_READ|C2AndroidMemoryUsage::HW_COMPOSER_READ, C2AndroidMemoryUsage::HW_CODEC_WRITE },
+                        { m_consumerUsage, C2AndroidMemoryUsage::HW_CODEC_WRITE },
                         &new_block);
                     if (!retry_time_left--) {
                         if (request->NumFrameMin <= i) {
@@ -114,14 +130,14 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                 native_handle_t *hndl = android::UnwrapNativeCodec2GrallocHandle(new_block->handle());
                 m_grallocAllocator->GetBackingStore(hndl, &id);
                 m_cachedBufferId.emplace(id, i);
-
-                // deep copy to have unique_ptr as m_pool required unique_ptr
-                std::unique_ptr<C2GraphicBlock> unique_block = std::make_unique<C2GraphicBlock>(*new_block);
                 if (C2_OK != res) {
                     native_handle_delete(hndl);
                     mfx_res = MFX_ERR_MEMORY_ALLOC;
                     break;
                 }
+
+                // deep copy to have unique_ptr as m_pool required unique_ptr
+                std::unique_ptr<C2GraphicBlock> unique_block = std::make_unique<C2GraphicBlock>(*new_block);
 
                 bool decode_target = true;
                 mfx_res = ConvertGrallocToVa(hndl, decode_target, &mids[i]);
@@ -133,13 +149,12 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                 MFX_DEBUG_TRACE_STREAM(NAMED(unique_block->handle()) << NAMED(mids[i]));
 
                 m_pool->Append(std::move(unique_block));//tmp cache it, in case return it to system and alloc again at once.
-                m_cachedHandle.push_back(hndl);
+
+                native_handle_delete(hndl);
 
                 ++response->NumFrameActual;
             }
             MFX_DEBUG_TRACE_I32(response->NumFrameActual);
-            MFX_DEBUG_TRACE_I32(request->NumFrameMin);
-            MFX_DEBUG_TRACE_I32(max_buffers);
 
             if (response->NumFrameActual >= request->NumFrameMin) {
                 response->mids = mids.release();
@@ -167,13 +182,8 @@ mfxStatus MfxVaFramePoolAllocator::FreeFrames(mfxFrameAllocResponse *response)
 
     for (int i = 0; i < response->NumFrameActual; ++i) {
         FreeGrallocToVaMapping(response->mids[i]);
-
-        native_handle_t *hndl = m_cachedHandle[i];
-        native_handle_delete(hndl);
     }
     delete[] response->mids;
-
-    m_cachedHandle.clear();
 
     return MFX_ERR_NONE;
 }

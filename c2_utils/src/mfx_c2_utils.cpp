@@ -29,6 +29,9 @@
 
 using namespace android;
 
+#undef MFX_DEBUG_MODULE_NAME
+#define MFX_DEBUG_MODULE_NAME "mfx_c2_utils"
+
 c2_status_t MfxStatusToC2(mfxStatus mfx_status)
 {
     switch(mfx_status) {
@@ -234,6 +237,12 @@ c2_status_t MapLinearBlock(C2LinearBlock& lin_block, c2_nsecs_t /*timeout*/,
     } while(false);
 
     return res;
+}
+
+std::shared_ptr<C2Buffer> CreateGraphicBuffer(
+    const std::shared_ptr<C2GraphicBlock> &block, const C2Rect &crop)
+{
+    return C2Buffer::CreateGraphicBuffer(block->share(crop, ::C2Fence()));
 }
 
 std::unique_ptr<C2SettingResult> MakeC2SettingResult(

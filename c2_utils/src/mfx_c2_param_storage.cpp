@@ -24,8 +24,13 @@
 #include "mfx_c2_utils.h"
 #include <sstream>
 
+#undef MFX_DEBUG_MODULE_NAME
+#define MFX_DEBUG_MODULE_NAME "mfx_c2_param_storage"
+
 inline bool CheckRange(const C2FieldSupportedValues& supported, C2FieldDescriptor::type_t type, const uint8_t* ptr_val)
 {
+    MFX_DEBUG_TRACE_FUNC;
+
     if(supported.type != C2FieldSupportedValues::RANGE)
         return false;
     switch (type) {
@@ -62,6 +67,7 @@ inline bool CheckRange(const C2FieldSupportedValues& supported, C2FieldDescripto
         default: // other constraints not supported yet
             return false;
     }
+
     return true;
 }
 
