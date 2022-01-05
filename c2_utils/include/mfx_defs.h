@@ -64,6 +64,14 @@ extern mfxVersion g_required_mfx_version;
 #define WIDTH_2K 2048
 #define HEIGHT_2K 2048
 
+#define MIN_WIDTH_4K 3840
+#define MIN_HEIGHT_4K 2160
+#define MIN_WIDTH_8K 7680
+#define MIN_HEIGHT_8K 4320
+
+#define IS_4K_VIDEO(W, H) (((W) >= MIN_WIDTH_4K && (W) < MIN_WIDTH_8K) || ((H) >= MIN_HEIGHT_4K && (H) < MIN_HEIGHT_8K))
+#define IS_8K_VIDEO(W, H) (((W) >= MIN_WIDTH_8K) || ((H) >= MIN_HEIGHT_8K))
+
 #define MFX_TIMEOUT_INFINITE 0xEFFFFFFF
 
 #define MFX_MEM_ALIGN(X, N) ((X) & ((N)-1)) ? (((X)+(N)-1) & (~((N)-1))): (X)

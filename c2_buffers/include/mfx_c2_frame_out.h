@@ -40,9 +40,13 @@ public:
     static c2_status_t Create(const std::shared_ptr<MfxFrameConverter>& frame_converter,
                                     std::shared_ptr<C2GraphicBlock> block,
                                     const mfxFrameInfo& info,
-                                    c2_nsecs_t timeout,
                                     MfxC2FrameOut* wrapper,
                                     buffer_handle_t hndl);
+
+    static c2_status_t Create(std::shared_ptr<C2GraphicBlock> block,
+                               const mfxFrameInfo& info,
+                               c2_nsecs_t timeout,
+                               MfxC2FrameOut* wrapper);
 
     std::shared_ptr<C2GraphicBlock> GetC2GraphicBlock() const;
     std::shared_ptr<C2GraphicView> GetC2GraphicView() const;

@@ -558,6 +558,13 @@ mfxStatus MfxVaFrameAllocator::CreateSurfaceFromGralloc(const MfxGrallocModule::
         attribs, MFX_GET_ARRAY_SIZE(attribs));
     mfx_res = va_to_mfx_status(va_res);
 
+    if (MFX_ERR_NONE == mfx_res)
+    {
+        // workaround for a 4k/8k playback performance issue
+        if (info.width >= WIDTH_2K || info.height >= HEIGHT_2K)
+        mfx_res = TouchSurface(*surface);
+    }
+
     MFX_DEBUG_TRACE_I32(*surface);
     MFX_DEBUG_TRACE_I32(mfx_res);
     return mfx_res;
@@ -616,4 +623,25 @@ mfxStatus MfxVaFrameAllocator::MapGrallocBufferToSurface(buffer_handle_t gralloc
     return mfx_res;
 }
 
+mfxStatus MfxVaFrameAllocator::TouchSurface(VASurfaceID surface)
+{
+    VAImage image;
+    unsigned char* buffer;
+    VAStatus va_res;
+
+    if (VA_INVALID_ID == surface) return MFX_ERR_UNKNOWN;
+
+    va_res = vaDeriveImage(m_dpy, surface, &image);
+    if (VA_STATUS_SUCCESS == va_res)
+    {
+        va_res = vaMapBuffer(m_dpy, image.buf, (void **) &buffer);
+        if (VA_STATUS_SUCCESS == va_res)
+        {
+            *buffer = 0x0; // can have any value
+            vaUnmapBuffer(m_dpy, image.buf);
+        }
+        vaDestroyImage(m_dpy, image.image_id);
+     }
+    return MFX_ERR_NONE;
+}
 #endif // #if defined(LIBVA_SUPPORT)

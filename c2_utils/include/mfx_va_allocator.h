@@ -67,6 +67,8 @@ private:
         bool decode_target,
         VASurfaceID* surface);
 
+    mfxStatus TouchSurface(VASurfaceID surface);
+
     void FreeMemId();
 private:
     // This is extension of VaMemId having allocated VASurface.

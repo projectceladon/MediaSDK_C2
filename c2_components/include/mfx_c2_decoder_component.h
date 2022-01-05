@@ -113,6 +113,8 @@ private:
 
     void FreeDecoder();
 
+    void FreeSurfaces();
+
     mfxStatus HandleFormatChange();
 
     mfxStatus DecodeFrameAsync(
@@ -191,10 +193,11 @@ private:
     std::unique_ptr<MfxC2BitstreamIn> m_c2Bitstream;
     // Store raw pointers there as don't want to keep objects by shared_ptr
     std::map<uint64_t, std::shared_ptr<mfxFrameSurface1>> m_surfaces; // all ever send to Decoder
+    // Store all surfaces used for system memory
+    std::list<std::pair<mfxFrameSurface1*, std::shared_ptr<C2GraphicBlock>>> m_blocks;
 
     std::mutex m_lockedSurfacesMutex;
     std::list<MfxC2FrameOut> m_lockedSurfaces; // allocated, but cannot be re-used as Locked by Decoder
-    std::list<std::shared_ptr<C2GraphicBlock>> m_lockedBlocks; //locked block, don't use
 
     std::mutex m_pendingWorksMutex;
     std::map<decltype(C2WorkOrdinalStruct::timestamp), std::unique_ptr<C2Work>> m_pendingWorks;
@@ -215,6 +218,11 @@ private:
 
     std::vector<std::unique_ptr<C2Param>> m_updatingC2Configures;
 
+    uint64_t m_consumerUsage;
+
+    uint32_t m_surfaceNum;
+    std::list<std::shared_ptr<mfxFrameSurface1>> m_surfacePool; // used in case of system memory
+
     unsigned int m_uOutputDelay = 8u;
-    unsigned int m_uInputDelay = 1u;
+    unsigned int m_uInputDelay = 0u;
 };

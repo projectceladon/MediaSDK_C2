@@ -51,6 +51,9 @@ c2_status_t MapConstLinearBlock(const C2ConstLinearBlock& block, c2_nsecs_t time
 c2_status_t MapLinearBlock(C2LinearBlock& block, c2_nsecs_t timeout,
     std::unique_ptr<C2WriteView>* write_view);
 
+std::shared_ptr<C2Buffer> CreateGraphicBuffer(
+    const std::shared_ptr<C2GraphicBlock> &block, const C2Rect &crop);
+
 template<typename ParamType>
 C2ParamFieldValues MakeC2ParamField()
 {
