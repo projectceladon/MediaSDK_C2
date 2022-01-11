@@ -1262,6 +1262,15 @@ mfxStatus MfxC2DecoderComponent::DecodeFrameAsync(
         ++trying_count;
 
         if (MFX_WRN_DEVICE_BUSY == mfx_res) {
+            // If surface is locked, the last decoding task may have been submitted on oneVPL/MSDK.
+            // Calling again DecodeFrameAsync with this locked surface will cause the bs to be read
+            // and offset will be wrong.
+            // This issue will not happen on MSDK. Because MSDK will jugde whether surface is locked first,
+            // while oneVPL is oppsite.
+            if (surface_work->Data.Locked) {
+                mfx_res = MFX_ERR_MORE_SURFACE;
+                break;
+            }
 
             if (m_bFlushing) {
                 // break waiting as flushing in progress and return MFX_WRN_DEVICE_BUSY as sign of it
