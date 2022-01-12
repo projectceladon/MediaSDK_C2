@@ -1154,7 +1154,8 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
                 mfx_bitstream->DataOffset,
                 mfx_bitstream->DataLength, C2Fence()/*event.fence()*/);
             C2Buffer out_buffer = MakeC2Buffer( { const_linear } );
-            if ((mfx_bitstream->FrameType & MFX_FRAMETYPE_IDR) != 0) {
+            if ((mfx_bitstream->FrameType & MFX_FRAMETYPE_IDR) != 0 ||
+                (m_encoderType == ENCODER_VP9 && mfx_bitstream->FrameType & MFX_FRAMETYPE_I)) {
                 out_buffer.setInfo(std::make_shared<C2StreamPictureTypeMaskInfo::output>(0u/*stream id*/, C2Config::SYNC_FRAME));
             }
 
