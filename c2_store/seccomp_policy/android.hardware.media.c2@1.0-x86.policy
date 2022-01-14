@@ -70,4 +70,7 @@ gettid: 1
 getcwd: 1
 geteuid32: 1
 
+getpgid: 1
+sigkill: 1
+
 @include /system/etc/seccomp_policy/crash_dump.x86.policy
