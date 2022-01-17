@@ -51,13 +51,12 @@ cc_binary {
         "android.hardware.media.omx@1.0",
         "libavservices_minijail_vendor",
         "libbinder",
-        "libhidltransport",
-        "libhwbinder",
+        "libhidlbase",
         "libstagefright_omx",
         "libstagefright_xmlparser",
     ],
 
-    vintf_fragments: ["manifest_media_c2_V1_0_default.xml"],
+    //vintf_fragments: ["manifest_media_c2_V1_0_default.xml"],
 
     required: ["android.hardware.media.c2@1.0-vendor.policy"],
 
