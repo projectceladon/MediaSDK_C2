@@ -545,6 +545,10 @@ c2_status_t MfxC2DecoderComponent::Release()
 
     if (MFX_ERR_NONE != sts) res = MfxStatusToC2(sts);
 
+    if (m_allocator) {
+        m_allocator = nullptr;
+    }
+
     if (m_device) {
         m_device->Close();
         if (MFX_ERR_NONE != sts) res = MfxStatusToC2(sts);
@@ -954,7 +958,6 @@ void MfxC2DecoderComponent::FreeDecoder()
 
     if (m_allocator) {
         m_allocator->Reset();
-        m_allocator = nullptr;
     }
 }
 
@@ -1460,8 +1463,7 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
                 if (m_allocator && !m_allocator->InCache(id)) {
                     res = C2_BLOCKING;
                     usleep(1000);
-                    MFX_DEBUG_TRACE_PRINTF("fetchGraphicBlock: BLOCKING");
-                    ALOGE("fetchGraphicBlock a nocached block, please retune output blocks. id = %d", id);
+                    MFX_DEBUG_TRACE_PRINTF("fetchGraphicBlock a nocached block, please retune output blocks. id = %d", id);
                 }
             }
         } else if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
