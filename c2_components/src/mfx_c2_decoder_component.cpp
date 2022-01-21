@@ -1384,7 +1384,7 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
 
             // add output to waiting pool in case of Decode success only
             std::unique_lock<std::mutex> lock(m_lockedSurfacesMutex);
-            if (surface_work->Data.Locked) m_lockedSurfaces.push_back(std::move(frame_work));
+            m_lockedSurfaces.push_back(std::move(frame_work));
 
             MFX_DEBUG_TRACE_P(surface_out);
             if (nullptr != surface_out) {
@@ -1404,7 +1404,8 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
                         frame_out = *found;
                     } else {
                         MFX_DEBUG_TRACE_STREAM("Not found LOCKED!!!");
-                        // If not found pass empty frame_out to WaitWork, it will report an error.
+                        mfx_sts = MFX_ERR_UNKNOWN;
+                        break;
                     }
                     lock.unlock(); // unlock the mutex asap
 
