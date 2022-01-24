@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 Intel Corporation
+// Copyright (c) 2017-2022 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -51,9 +51,6 @@
 #include <dlfcn.h>
 
 #include <C2Component.h>
-
-// OmxStore is added for visibility by dumpstate.
-#include <media/stagefright/omx/1.0/OmxStore.h>
 
 // This is created by module "codec2.vendor.base.policy". This can be modified.
 static constexpr char kBaseSeccompPolicyPath[] =
@@ -108,18 +105,6 @@ int main(int /* argc */, char** /* argv */) {
 
     RegisterC2Service();
 
-    // Register IOmxStore service.
-    // Need this as MediaCodecList (libstagefright.so) creates
-    // IOmxStore before IComponentStore and stucks if no IOmxStore provided.
-    {
-        using namespace ::android::hardware::media::omx::V1_0;
-        android::sp<IOmxStore> omxStore = new implementation::OmxStore();
-        if (omxStore == nullptr) {
-            ALOGE("Cannot create IOmxStore HAL service.");
-        } else if (omxStore->registerAsService() != android::OK) {
-            ALOGE("Cannot register IOmxStore HAL service.");
-        }
-    }
     android::hardware::joinRpcThreadpool();
     return 0;
 }
