@@ -124,6 +124,8 @@ bool IsI420(const C2GraphicView &view);
 
 bool IsYV12(const C2GraphicView &view);
 
+void ParseGop(const C2StreamGopTuning &gop, uint32_t &syncInterval, uint32_t &iInterval, uint32_t &maxBframes);
+
 // Gives access to prorected constructors of C2Buffer.
 class C2BufferAccessor : public C2Buffer
 {

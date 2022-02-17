@@ -781,3 +781,34 @@ bool IsYV12(const C2GraphicView &view) {
             && layout.planes[layout.PLANE_V].rootIx == layout.PLANE_U
             && layout.planes[layout.PLANE_V].offset == 0);
 }
+
+void ParseGop(
+        const C2StreamGopTuning &gop,
+        uint32_t &syncInterval, uint32_t &iInterval, uint32_t &maxBframes) {
+    uint32_t syncInt = 1;
+    uint32_t iInt = 1;
+    for (size_t i = 0; i < gop.flexCount(); ++i) {
+        const C2GopLayerStruct &layer = gop.m.values[i];
+        if (layer.count == UINT32_MAX) {
+            syncInt = 0;
+        } else if (syncInt <= UINT32_MAX / (layer.count + 1)) {
+            syncInt *= (layer.count + 1);
+        }
+        if ((layer.type_ & I_FRAME) == 0) {
+            if (layer.count == UINT32_MAX) {
+                iInt = 0;
+            } else if (iInt <= UINT32_MAX / (layer.count + 1)) {
+                iInt *= (layer.count + 1);
+            }
+        }
+        if (layer.type_ == C2Config::picture_type_t(P_FRAME | B_FRAME) && maxBframes) {
+            maxBframes = layer.count;
+        }
+    }
+    if (syncInterval) {
+        syncInterval = syncInt;
+    }
+    if (iInterval) {
+        iInterval = iInt;
+    }
+}
