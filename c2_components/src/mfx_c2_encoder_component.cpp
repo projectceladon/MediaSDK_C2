@@ -208,6 +208,12 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
     pr.AddValue(C2_PARAMKEY_BITRATE_MODE,
         std::make_unique<C2StreamBitrateModeTuning::output>(SINGLE_STREAM_ID, C2Config::bitrate_mode_t::BITRATE_CONST));
 
+    pr.AddValue(C2_PARAMKEY_REQUEST_SYNC_FRAME, 
+        std::make_unique<C2StreamRequestSyncFrameTuning::output>(SINGLE_STREAM_ID, false));
+
+    pr.AddValue(C2_PARAMKEY_SYNC_FRAME_INTERVAL, 
+        std::make_unique<C2StreamSyncFrameIntervalTuning::output>(SINGLE_STREAM_ID, 0));
+
     pr.AddStreamInfo<C2StreamPictureSizeInfo::input>(
         C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
         [this] (C2StreamPictureSizeInfo::input* dst)->bool {
@@ -1154,8 +1160,7 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
                 mfx_bitstream->DataOffset,
                 mfx_bitstream->DataLength, C2Fence()/*event.fence()*/);
             C2Buffer out_buffer = MakeC2Buffer( { const_linear } );
-            if ((mfx_bitstream->FrameType & MFX_FRAMETYPE_IDR) != 0 ||
-                (m_encoderType == ENCODER_VP9 && mfx_bitstream->FrameType & MFX_FRAMETYPE_I)) {
+            if ((mfx_bitstream->FrameType & MFX_FRAMETYPE_IDR) != 0 || (mfx_bitstream->FrameType & MFX_FRAMETYPE_I) != 0 ) {
                 out_buffer.setInfo(std::make_shared<C2StreamPictureTypeMaskInfo::output>(0u/*stream id*/, C2Config::SYNC_FRAME));
             }
 
@@ -1425,6 +1430,15 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
 
                 C2MemoryTypeSetting* setting = static_cast<C2MemoryTypeSetting*>(*dst);
                 if (!MfxIOPatternToC2MemoryType(true, m_mfxVideoParamsConfig.IOPattern, &setting->value)) res = C2_CORRUPTED;
+                break;
+            }
+            case kParamIndexSyncFrameInterval: {
+                if (nullptr == *dst) {
+                    *dst = new C2StreamSyncFrameIntervalTuning();
+                }
+
+                C2StreamSyncFrameIntervalTuning* setting = static_cast<C2StreamSyncFrameIntervalTuning*>(*dst);
+                setting->value = m_mfxVideoParamsConfig.mfx.GopPicSize;
                 break;
             }
             default:
@@ -1755,8 +1769,46 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
             }
             case kParamIndexGop: {
                 const C2StreamGopTuning* setting = static_cast<const C2StreamGopTuning*>(param);
-                m_mfxVideoParamsConfig.mfx.GopPicSize = setting->m.values[0].count;
-                MFX_DEBUG_TRACE_I32(m_mfxVideoParamsConfig.mfx.GopPicSize);
+                uint32_t syncInterval = 1;
+                uint32_t iInterval = 1;   // unused
+                uint32_t maxBframes = 0;  // unused
+                ParseGop(*setting, syncInterval, iInterval, maxBframes);
+                if (syncInterval > 0) {
+                    MFX_DEBUG_TRACE_PRINTF("updating m_mfxVideoParamsConfig.mfx.IdrInterval from %d to %d",
+                        m_mfxVideoParamsConfig.mfx.IdrInterval, syncInterval);
+                    m_mfxVideoParamsConfig.mfx.IdrInterval = syncInterval;
+                }
+                break;
+            }
+            case kParamIndexRequestSyncFrame: {
+                const C2StreamRequestSyncFrameTuning* setting = static_cast<const C2StreamRequestSyncFrameTuning*>(param);
+                if (setting->value) {
+                    MFX_DEBUG_TRACE_MSG("Got sync request");
+                    auto update = [this] () {
+                        EncoderControl::ModifyFunction modify = [this] (mfxEncodeCtrl* ctrl) {
+                            if (m_encoderType == ENCODER_H264 || m_encoderType == ENCODER_H265)
+                                ctrl->FrameType = MFX_FRAMETYPE_IDR | MFX_FRAMETYPE_I;
+                            else
+                                ctrl->FrameType = MFX_FRAMETYPE_I;
+                        };
+                        m_encoderControl.Modify(modify);
+                    };
+
+                    if (queue_update) {
+                        m_workingQueue.Push(std::move(update));
+                    } else {
+                        update();
+                    }
+                }
+                break;
+            }
+            case kParamIndexSyncFrameInterval: {
+                const C2StreamSyncFrameIntervalTuning* setting = static_cast<const C2StreamSyncFrameIntervalTuning*>(param);
+                if (setting->value > 0) {
+                    MFX_DEBUG_TRACE_PRINTF("updating m_mfxVideoParamsConfig.mfx.GopPicSize from %d to %d",
+                        m_mfxVideoParamsConfig.mfx.GopPicSize, setting->value);
+                    m_mfxVideoParamsConfig.mfx.GopPicSize = setting->value;
+                }
                 break;
             }
             default:
