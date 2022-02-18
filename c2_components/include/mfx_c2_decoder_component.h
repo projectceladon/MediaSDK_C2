@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 Intel Corporation
+// Copyright (c) 2017-2022 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -210,6 +210,9 @@ private:
     std::atomic<bool> m_bFlushing{false};
 
     std::list<std::unique_ptr<C2Work>> m_flushedWorks;
+
+    std::mutex m_readViewMutex;
+    std::map<decltype(C2WorkOrdinalStruct::timestamp), std::unique_ptr<C2ReadView>> m_readViews;
 
     std::shared_ptr<C2StreamHdrStaticInfo::output> m_hdrStaticInfo;
     bool m_bSetHdrStatic;

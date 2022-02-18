@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 Intel Corporation
+// Copyright (c) 2017-2022 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -516,6 +516,8 @@ c2_status_t MfxC2DecoderComponent::DoStop(bool abort)
     }
 
     m_c2Allocator = nullptr;
+
+    m_readViews.clear();
 
     FreeDecoder();
 
@@ -1519,6 +1521,7 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
         auto pred_unlocked = [&](const MfxC2FrameOut &item) {
             return !item.GetMfxFrameSurface()->Data.Locked;
         };
+
         {
             std::lock_guard<std::mutex> lock(m_lockedSurfacesMutex);
             m_lockedSurfaces.remove_if(pred_unlocked);
@@ -1635,9 +1638,14 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
     bool flushing = false;
 
     do {
-        std::unique_ptr<MfxC2BitstreamIn::FrameView> bitstream_view;
-        res = m_c2Bitstream->AppendFrame(work->input, TIMEOUT_NS, &bitstream_view);
+        std::unique_ptr<C2ReadView> read_view;
+        res = m_c2Bitstream->AppendFrame(work->input, TIMEOUT_NS, &read_view);
         if (C2_OK != res) break;
+
+        {
+            std::lock_guard<std::mutex> lock(m_readViewMutex);
+            m_readViews.emplace(work->input.ordinal.timestamp, std::move(read_view));
+        }
 
         if (work->input.buffers.size() == 0) break;
 
@@ -1767,7 +1775,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             break;
         }
 
-        res = bitstream_view->Release();
+        res = m_c2Bitstream->Unload();
         if (C2_OK != res) break;
 
     } while(false); // fake loop to have a cleanup point there
@@ -1881,6 +1889,10 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
     std::shared_ptr<mfxFrameSurface1> mfx_surface = frame_out.GetMfxFrameSurface();
     MFX_DEBUG_TRACE_I32(mfx_surface->Data.Locked);
     MFX_DEBUG_TRACE_I64(mfx_surface->Data.TimeStamp);
+    MFX_DEBUG_TRACE_I32(mfx_surface->Info.CropW);
+    MFX_DEBUG_TRACE_I32(mfx_surface->Info.CropH);
+    MFX_DEBUG_TRACE_I32(m_mfxVideoParams.mfx.FrameInfo.CropW);
+    MFX_DEBUG_TRACE_I32(m_mfxVideoParams.mfx.FrameInfo.CropH);
 
 #if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
     static int frameIndex = 0;
@@ -1892,6 +1904,7 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
     decltype(C2WorkOrdinalStruct::timestamp) ready_timestamp{mfx_surface->Data.TimeStamp};
 
     std::unique_ptr<C2Work> work;
+    std::unique_ptr<C2ReadView> read_view;
 
     {
         std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
@@ -1903,6 +1916,18 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
         if (it != m_pendingWorks.end()) {
             work = std::move(it->second);
             m_pendingWorks.erase(it);
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(m_readViewMutex);
+
+        auto it = m_readViews.find(ready_timestamp);
+
+        if (it != m_readViews.end()) {
+            read_view = std::move(it->second);
+            read_view.reset();
+            m_readViews.erase(it);
         }
     }
 
@@ -2122,9 +2147,15 @@ c2_status_t MfxC2DecoderComponent::Flush(std::list<std::unique_ptr<C2Work>>* con
         }
         m_pendingWorks.clear();
     }
+
     {
         std::lock_guard<std::mutex> lock(m_lockedSurfacesMutex);
         m_lockedSurfaces.clear();
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(m_readViewMutex);
+        m_readViews.clear();
     }
 
     FreeSurfaces();

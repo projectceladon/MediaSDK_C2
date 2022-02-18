@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 Intel Corporation
+// Copyright (c) 2017-2022 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -338,6 +338,7 @@ std::shared_ptr<mfxBitstream> MfxC2FrameConstructor::GetMfxBitstream()
     MFX_DEBUG_TRACE_P(m_bstIn.get());
     MFX_DEBUG_TRACE_P(m_bstBuf.get());
     MFX_DEBUG_TRACE_P(bst.get());
+
     return bst;
 }
 
@@ -436,6 +437,9 @@ mfxStatus MfxC2AVCFrameConstructor::FindHeaders(const mfxU8* data, mfxU32 size, 
                 if (MFX_ERR_NONE != mfx_res) return mfx_res;
                 found_pps = true;
             }
+            if (isIDR(start_code.type)) {
+                MFX_DEBUG_TRACE_STREAM("Found IDR ");
+            }
             while (isSEI(start_code.type))
             {
                 mfxBitstream sei = {};
@@ -479,7 +483,7 @@ mfxStatus MfxC2AVCFrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, b
 
         mfx_res = FindHeaders(data, size, bFoundSps, bFoundPps, bFoundSei);
         if (MFX_ERR_NONE == mfx_res && bFoundSps && bFoundPps)
-            m_bsState = MfxC2BS_HeaderObtained;
+            m_bsState = bFoundSei ? MfxC2BS_HeaderObtained : MfxC2BS_HeaderWaitSei;
 
     } else if (MfxC2BS_Resetting == m_bsState) {
         mfx_res = FindHeaders(data, size, bFoundSps, bFoundPps, bFoundSei);
@@ -503,15 +507,11 @@ mfxStatus MfxC2AVCFrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, b
     } else if (MfxC2BS_HeaderCollecting == m_bsState) {
         // As soon as we are receving first non header data we are stopping collecting header
         m_bsState = MfxC2BS_HeaderObtained;
-    }
-
-    if (MfxC2BS_HeaderObtained == m_bsState) {
-        if (!header && data && size) {
-            // In case SEI comes in the second acess unit
-            mfx_res = FindHeaders(data, size, bFoundSps, bFoundPps, bFoundSei);
-            if (MFX_ERR_NONE == mfx_res && bFoundSei) {
-                MFX_DEBUG_TRACE_MSG("Found SEI info!");
-            }
+    } else if (MfxC2BS_HeaderWaitSei == m_bsState) {
+        mfx_res = FindHeaders(data, size, bFoundSps, bFoundPps, bFoundSei);
+        if (MFX_ERR_NONE == mfx_res && bFoundSps && bFoundPps)
+        {
+            m_bsState = bFoundSei ? MfxC2BS_HeaderObtained : MfxC2BS_HeaderWaitSei;
         }
     }
 

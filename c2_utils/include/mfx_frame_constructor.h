@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 Intel Corporation
+// Copyright (c) 2017-2022 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -40,8 +40,9 @@ enum MfxC2BitstreamState
 {
     MfxC2BS_HeaderAwaiting = 0,
     MfxC2BS_HeaderCollecting = 1,
-    MfxC2BS_HeaderObtained = 2,
-    MfxC2BS_Resetting = 3,
+    MfxC2BS_HeaderWaitSei = 2,
+    MfxC2BS_HeaderObtained = 3,
+    MfxC2BS_Resetting = 4,
 };
 
 class IMfxC2FrameConstructor
@@ -173,11 +174,13 @@ protected: // functions
     virtual bool      isSPS(mfxI32 code) { return NAL_UT_AVC_SPS == code; }
     virtual bool      isPPS(mfxI32 code) { return NAL_UT_AVC_PPS == code; }
     virtual bool      isSEI(mfxI32 /*code*/) {return false;}
+    virtual bool      isIDR(mfxI32 code) {return NAL_UT_AVC_SLICE_IDR == code;}
     virtual bool      needWaitSEI(mfxI32 /*code*/) {return false;}
 
 protected: // data
     const static mfxU32 NAL_UT_AVC_SPS = 7;
     const static mfxU32 NAL_UT_AVC_PPS = 8;
+    const static mfxU32 NAL_UT_AVC_SLICE_IDR = 5;
 
     mfxBitstream m_sps;
     mfxBitstream m_pps;
@@ -205,12 +208,15 @@ protected: // functions
     // save current SEI
     virtual mfxStatus SaveSEI(mfxBitstream *pSEI);
     virtual bool   isSEI(mfxI32 code) {return NAL_UT_HEVC_SEI == code;}
+    virtual bool   isIDR(mfxI32 code) {return NAL_UT_HEVC_IDR_W_RADL == code || NAL_UT_HEVC_IDR_N_LP == code;}
     virtual bool   needWaitSEI(mfxI32 code) { return NAL_UT_CODED_SLICEs.end() == std::find(NAL_UT_CODED_SLICEs.begin(), NAL_UT_CODED_SLICEs.end(), code);}
 
 protected: // data
     const static mfxU32 NAL_UT_HEVC_SPS = 33;
     const static mfxU32 NAL_UT_HEVC_PPS = 34;
     const static mfxU32 NAL_UT_HEVC_SEI = 39;
+    const static mfxU32 NAL_UT_HEVC_IDR_W_RADL = 19;
+    const static mfxU32 NAL_UT_HEVC_IDR_N_LP  = 20;
     const static std::vector<mfxU32> NAL_UT_CODED_SLICEs;
 
     std::map<mfxU32, mfxPayload> m_SEIMap;
