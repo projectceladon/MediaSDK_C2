@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 Intel Corporation
+// Copyright (c) 2017-2022 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -57,8 +57,25 @@ c2_status_t MfxC2BitstreamIn::Reset()
     return res;
 }
 
+c2_status_t MfxC2BitstreamIn::Unload()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    c2_status_t res = C2_OK;
+
+    do {
+        mfxStatus mfx_res = m_frameConstructor->Unload();
+        res = MfxStatusToC2(mfx_res);
+        if(C2_OK != res) break;
+    } while(false);
+
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
+    return res;
+}
+
+
 c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_t timeout,
-    std::unique_ptr<FrameView>* frame_view)
+    std::unique_ptr<C2ReadView>* frame_view)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -102,22 +119,10 @@ c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_
         res = MfxStatusToC2(mfx_res);
         if(C2_OK != res) break;
 
-        *frame_view = std::make_unique<FrameView>(m_frameConstructor, std::move(read_view));
+        *frame_view = std::move(read_view);
 
     } while(false);
 
     MFX_DEBUG_TRACE__android_c2_status_t(res);
-    return res;
-}
-
-c2_status_t MfxC2BitstreamIn::FrameView::Release()
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    c2_status_t res = C2_OK;
-    if (m_readView) {
-        res = MfxStatusToC2(m_frameConstructor->Unload());
-        m_readView.reset();
-    }
     return res;
 }

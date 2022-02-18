@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 Intel Corporation
+// Copyright (c) 2017-2022 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -64,6 +64,8 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
     MFX_DEBUG_TRACE_I32(opt_buffers);
     MFX_DEBUG_TRACE_I32(request->NumFrameMin);
     MFX_DEBUG_TRACE_I32(request->NumFrameSuggested);
+    MFX_DEBUG_TRACE_I32(request->Info.Width);
+    MFX_DEBUG_TRACE_I32(request->Info.Height);
     MFX_DEBUG_TRACE_I64(m_consumerUsage);
 
     if (request->Type & MFX_MEMTYPE_VIDEO_MEMORY_DECODER_TARGET) {

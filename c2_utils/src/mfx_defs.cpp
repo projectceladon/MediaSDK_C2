@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 Intel Corporation
+// Copyright (c) 2017-2022 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -137,7 +137,9 @@ uint32_t MFXGetSurfaceSize(uint32_t FourCC, uint32_t width, uint32_t height)
     mfxU32 nbytes = 0;
 
     switch (FourCC) {
+#ifdef USE_ONEVPL
         case MFX_FOURCC_I420:
+#endif
         case MFX_FOURCC_NV12:
             nbytes = width * height + (width >> 1) * (height >> 1) + (width >> 1) * (height >> 1);
             break;

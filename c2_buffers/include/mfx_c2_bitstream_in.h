@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 Intel Corporation
+// Copyright (c) 2017-2022 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,35 +29,18 @@
 class MfxC2BitstreamIn
 {
 public:
-    class FrameView
-    {
-    public:
-        FrameView(std::shared_ptr<IMfxC2FrameConstructor> frame_constructor,
-            std::unique_ptr<C2ReadView>&& read_view):
-                m_frameConstructor(frame_constructor), m_readView(std::move(read_view)) {}
-        ~FrameView() { Release(); }
-
-        c2_status_t Release();
-
-    private:
-        std::shared_ptr<IMfxC2FrameConstructor> m_frameConstructor;
-        std::unique_ptr<C2ReadView> m_readView;
-
-    private:
-        MFX_CLASS_NO_COPY(FrameView)
-    };
-
-public:
     MfxC2BitstreamIn(MfxC2FrameConstructorType fc_type);
     virtual ~MfxC2BitstreamIn();
 
     virtual c2_status_t Reset();
 
+    virtual c2_status_t Unload();
+
     virtual std::shared_ptr<IMfxC2FrameConstructor> GetFrameConstructor() { return m_frameConstructor; }
     // Maps c2 linear block and can leave it in mapped state until
     // frame_view freed or frame_view->Release is called.
     virtual c2_status_t AppendFrame(const C2FrameData& buf_pack, c2_nsecs_t timeout,
-        std::unique_ptr<FrameView>* frame_view);
+        std::unique_ptr<C2ReadView>* view);
 
 protected: // variables
     std::shared_ptr<IMfxC2FrameConstructor> m_frameConstructor;
