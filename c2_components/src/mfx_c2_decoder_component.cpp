@@ -100,10 +100,6 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     pr.AddValue(C2_PARAMKEY_INPUT_MAX_BUFFER_SIZE,
         std::make_unique<C2StreamMaxBufferSizeInfo::input>(SINGLE_STREAM_ID, kMinInputBufferSize));
 
-    // Supported output format
-    pr.AddValue(C2_PARAMKEY_PIXEL_FORMAT,
-        std::make_unique<C2StreamPixelFormatInfo::output>(SINGLE_STREAM_ID, HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL));
-
     pr.AddStreamInfo<C2StreamPictureSizeInfo::output>(
         C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
         [this] (C2StreamPictureSizeInfo::output* dst)->bool {
@@ -363,6 +359,9 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::primaries, PRIMARIES_UNSPECIFIED, PRIMARIES_OTHER);
     pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::transfer, TRANSFER_UNSPECIFIED, TRANSFER_OTHER);
     pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::matrix, MATRIX_UNSPECIFIED, MATRIX_OTHER);
+
+    // Pixel format info. Set to NV12 by default
+    m_pixelFormat = std::make_unique<C2StreamPixelFormatInfo::output>(SINGLE_STREAM_ID, HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL);
 
     // HDR static with BT2020 by default
     m_hdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
@@ -1702,15 +1701,8 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
                 {
                     // Update pixel format info after decoder initialized
-                    uint32_t yuvType = MfxFourCCToGralloc(m_mfxVideoParams.mfx.FrameInfo.FourCC, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY);
-                    C2StreamPixelFormatInfo::output format(0, yuvType);
-                    std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
-                    auto it = m_pendingWorks.find(incoming_frame_index);
-                    if (it != m_pendingWorks.end()) {
-                        it->second->worklets.front()->output.configUpdate.push_back(C2Param::Copy(format));
-                    } else {
-                        MFX_DEBUG_TRACE_MSG("Cannot find the Work in Pending works");
-                    }
+                    m_pixelFormat->value =
+                            MfxFourCCToGralloc(m_mfxVideoParams.mfx.FrameInfo.FourCC, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY);
                 }
             }
 
@@ -1983,8 +1975,13 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             // set static hdr info
             out_buffer->setInfo(m_hdrStaticInfo);
 
+            // set pixel info
+            out_buffer->setInfo(m_pixelFormat);
+
+            // set color aspects info
+            out_buffer->setInfo(getColorAspects_l());
+
             if (m_colorAspects.IsColorAspectsChanged()) {
-                out_buffer->setInfo(getColorAspects_l());
                 m_colorAspects.SignalChangedColorAspectsIsSent();
             }
 
