@@ -219,6 +219,8 @@ private:
 
     MfxC2ColorAspectsWrapper m_colorAspects;
 
+    std::shared_ptr<C2StreamPixelFormatInfo::output> m_pixelFormat;
+
     std::vector<std::unique_ptr<C2Param>> m_updatingC2Configures;
 
     uint64_t m_consumerUsage;
