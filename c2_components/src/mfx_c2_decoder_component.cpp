@@ -105,8 +105,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         [this] (C2StreamPictureSizeInfo::output* dst)->bool {
             MFX_DEBUG_TRACE("GetPictureSize");
             // Called from Query, m_mfxVideoParams is already protected there with lock on m_initDecoderMutex
-            dst->width = m_mfxVideoParams.mfx.FrameInfo.Width;
-            dst->height = m_mfxVideoParams.mfx.FrameInfo.Height;
+            dst->width = m_mfxVideoParams.mfx.FrameInfo.CropW;
+            dst->height = m_mfxVideoParams.mfx.FrameInfo.CropH;
             MFX_DEBUG_TRACE_STREAM(NAMED(dst->width) << NAMED(dst->height));
             return true;
         },
@@ -116,6 +116,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             // Called from Config, m_mfxVideoParams is already protected there with lock on m_initDecoderMutex
             m_mfxVideoParams.mfx.FrameInfo.Width = src.width;
             m_mfxVideoParams.mfx.FrameInfo.Height = src.height;
+            m_mfxVideoParams.mfx.FrameInfo.CropW = src.width;
+            m_mfxVideoParams.mfx.FrameInfo.CropH = src.height;
             return true;
         }
     );
@@ -125,8 +127,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         [this] (C2StreamCropRectInfo::output* dst)->bool {
             MFX_DEBUG_TRACE("GetCropRect");
             // Called from Query, m_mfxVideoParams is already protected there with lock on m_initDecoderMutex
-            dst->width = m_mfxVideoParams.mfx.FrameInfo.CropW = 640; // default width
-            dst->height = m_mfxVideoParams.mfx.FrameInfo.CropH = 480; // default height
+            dst->width = m_mfxVideoParams.mfx.FrameInfo.CropW; // default width
+            dst->height = m_mfxVideoParams.mfx.FrameInfo.CropH; // default height
             dst->left = m_mfxVideoParams.mfx.FrameInfo.CropX = 0;
             dst->top = m_mfxVideoParams.mfx.FrameInfo.CropY = 0;
             MFX_DEBUG_TRACE_STREAM(NAMED(dst->left) << NAMED(dst->top) <<
@@ -846,6 +848,8 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             m_mfxVideoParams.IOPattern = (C2MemoryUsage::CPU_READ == m_consumerUsage) ?
                     MFX_IOPATTERN_OUT_SYSTEM_MEMORY : MFX_IOPATTERN_OUT_VIDEO_MEMORY;
             MFX_DEBUG_TRACE_I32(m_mfxVideoParams.IOPattern);
+            MFX_DEBUG_TRACE_I32(m_mfxVideoParams.mfx.FrameInfo.Width);
+            MFX_DEBUG_TRACE_I32(m_mfxVideoParams.mfx.FrameInfo.Height);
 
             // Query required surfaces number for decoder
             mfxFrameAllocRequest decRequest = {};
