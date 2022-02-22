@@ -1647,7 +1647,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
         {
             std::lock_guard<std::mutex> lock(m_readViewMutex);
-            m_readViews.emplace(work->input.ordinal.timestamp, std::move(read_view));
+            m_readViews.emplace(incoming_frame_index, std::move(read_view));
         }
 
         if (work->input.buffers.size() == 0) break;
@@ -1918,12 +1918,13 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
     {
         std::lock_guard<std::mutex> lock(m_readViewMutex);
 
-        auto it = m_readViews.find(ready_timestamp);
-
-        if (it != m_readViews.end()) {
-            read_view = std::move(it->second);
-            read_view.reset();
-            m_readViews.erase(it);
+        if (work) {
+            auto it = m_readViews.find(work->input.ordinal.frameIndex);
+            if (it != m_readViews.end()) {
+                read_view = std::move(it->second);
+                read_view.reset();
+                m_readViews.erase(it);
+            }
         }
     }
 
