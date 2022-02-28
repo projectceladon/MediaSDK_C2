@@ -199,3 +199,6 @@ uint32_t MFXGetFreeSurfaceIdx(mfxFrameSurface1 *SurfacesPool, uint32_t nPoolSize
 
 mfxStatus MFXAllocSystemMemorySurfacePool(uint8_t **buf, mfxFrameSurface1 *surfpool, mfxFrameInfo frame_info, uint32_t surfnum);
 void MFXFreeSystemMemorySurfacePool(uint8_t *buf, mfxFrameSurface1 *surfpool);
+
+uint32_t MFXGetSurfaceWidth(mfxFrameInfo info);
+uint32_t MFXGetSurfaceHeight(mfxFrameInfo info);

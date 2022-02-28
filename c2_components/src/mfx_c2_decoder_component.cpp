@@ -127,10 +127,10 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         [this] (C2StreamCropRectInfo::output* dst)->bool {
             MFX_DEBUG_TRACE("GetCropRect");
             // Called from Query, m_mfxVideoParams is already protected there with lock on m_initDecoderMutex
-            dst->width = m_mfxVideoParams.mfx.FrameInfo.CropW; // default width
-            dst->height = m_mfxVideoParams.mfx.FrameInfo.CropH; // default height
-            dst->left = m_mfxVideoParams.mfx.FrameInfo.CropX = 0;
-            dst->top = m_mfxVideoParams.mfx.FrameInfo.CropY = 0;
+            dst->width = m_mfxVideoParams.mfx.FrameInfo.CropW;
+            dst->height = m_mfxVideoParams.mfx.FrameInfo.CropH;
+            dst->left = m_mfxVideoParams.mfx.FrameInfo.CropX;
+            dst->top = m_mfxVideoParams.mfx.FrameInfo.CropY;
             MFX_DEBUG_TRACE_STREAM(NAMED(dst->left) << NAMED(dst->top) <<
                 NAMED(dst->width) << NAMED(dst->height));
             return true;
@@ -1531,7 +1531,7 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
         }
 
         std::shared_ptr<C2GraphicBlock> out_block;
-        res = AllocateC2Block(m_mfxVideoParams.mfx.FrameInfo.Width, m_mfxVideoParams.mfx.FrameInfo.Height,
+        res = AllocateC2Block(MFXGetSurfaceWidth(m_mfxVideoParams.mfx.FrameInfo), MFXGetSurfaceHeight(m_mfxVideoParams.mfx.FrameInfo),
                               m_mfxVideoParams.mfx.FrameInfo.FourCC, &out_block);
         if (C2_TIMED_OUT == res) continue;
 

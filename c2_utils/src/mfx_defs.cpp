@@ -29,6 +29,12 @@ static void InitMfxFrameHeader(
     uint32_t width, uint32_t height, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
 {
     MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_I32(width);
+    MFX_DEBUG_TRACE_I32(height);
+    MFX_DEBUG_TRACE_I32(info.Width);
+    MFX_DEBUG_TRACE_I32(info.Height);
+    MFX_DEBUG_TRACE_I32(info.CropW);
+    MFX_DEBUG_TRACE_I32(info.CropH);
 
     mfx_frame->Info = info;//apply component's mfxFrameInfo
     mfx_frame->Info.CropW = width;
@@ -222,4 +228,30 @@ void MFXFreeSystemMemorySurfacePool(uint8_t *buf, mfxFrameSurface1 *surfpool)
 
     if (surfpool)
         free(surfpool);
+}
+
+uint32_t MFXGetSurfaceWidth(mfxFrameInfo info)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    uint32_t width = info.Width;
+    if (info.CropW % 16) {
+        width = (info.Width == MFX_MEM_ALIGN(info.CropW, 16)) ? info.CropW : info.Width;
+    }
+
+    MFX_DEBUG_TRACE_I32(width);
+    return width;
+}
+
+uint32_t  MFXGetSurfaceHeight(mfxFrameInfo info)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    uint32_t height = info.Height;
+    if (info.CropW % 16) {
+        height = (info.Height == MFX_MEM_ALIGN(info.CropH, 16)) ? info.CropH : info.Height;
+    }
+
+    MFX_DEBUG_TRACE_I32(height);
+    return height;
 }
