@@ -66,6 +66,8 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
     MFX_DEBUG_TRACE_I32(request->NumFrameSuggested);
     MFX_DEBUG_TRACE_I32(request->Info.Width);
     MFX_DEBUG_TRACE_I32(request->Info.Height);
+    MFX_DEBUG_TRACE_I32(request->Info.CropW);
+    MFX_DEBUG_TRACE_I32(request->Info.CropH);
     MFX_DEBUG_TRACE_I64(m_consumerUsage);
 
     if (request->Type & MFX_MEMTYPE_VIDEO_MEMORY_DECODER_TARGET) {
@@ -110,7 +112,7 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                 int retry_time_left = RETRY_TIMES;
                 do {
                     res = m_c2Allocator->fetchGraphicBlock(
-                        request->Info.Width, request->Info.Height,
+                        MFXGetSurfaceWidth(request->Info), MFXGetSurfaceHeight(request->Info),
                         MfxFourCCToGralloc(request->Info.FourCC),
                         { m_consumerUsage, C2AndroidMemoryUsage::HW_CODEC_WRITE },
                         &new_block);

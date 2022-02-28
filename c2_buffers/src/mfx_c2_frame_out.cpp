@@ -43,12 +43,6 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
             break;
         }
 
-        if ( (info.Width && info.Width > block->width()) ||
-             (info.Height && info.Height > block->height()) ) {
-            res = C2_BAD_VALUE;
-            break;
-        }
-
         uint64_t timestamp = 0;
         uint64_t frame_index = 0;
 
