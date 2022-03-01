@@ -1389,6 +1389,13 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
             break;
         }
 
+        // Set surface CropW and CropH ZERO for VP8 as oneVPL
+        // doesn't do real crop if CropW and CropH is set for VP8
+        if (m_mfxVideoParams.mfx.CodecId == MFX_CODEC_VP8) {
+            surface_work->Info.CropW = 0;
+            surface_work->Info.CropH = 0;
+        }
+
         mfxSyncPoint sync_point;
         mfx_sts = DecodeFrameAsync(bs,
                                    surface_work,
@@ -1531,7 +1538,8 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
         }
 
         std::shared_ptr<C2GraphicBlock> out_block;
-        res = AllocateC2Block(MFXGetSurfaceWidth(m_mfxVideoParams.mfx.FrameInfo), MFXGetSurfaceHeight(m_mfxVideoParams.mfx.FrameInfo),
+        res = AllocateC2Block(MFXGetSurfaceWidth(m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
+                              MFXGetSurfaceHeight(m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
                               m_mfxVideoParams.mfx.FrameInfo.FourCC, &out_block);
         if (C2_TIMED_OUT == res) continue;
 
@@ -1885,6 +1893,7 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
     std::shared_ptr<mfxFrameSurface1> mfx_surface = frame_out.GetMfxFrameSurface();
     MFX_DEBUG_TRACE_I32(mfx_surface->Data.Locked);
     MFX_DEBUG_TRACE_I64(mfx_surface->Data.TimeStamp);
+    MFX_DEBUG_TRACE_I64(mfx_surface->Data.PitchLow);
     MFX_DEBUG_TRACE_I32(mfx_surface->Info.CropW);
     MFX_DEBUG_TRACE_I32(mfx_surface->Info.CropH);
     MFX_DEBUG_TRACE_I32(m_mfxVideoParams.mfx.FrameInfo.CropW);

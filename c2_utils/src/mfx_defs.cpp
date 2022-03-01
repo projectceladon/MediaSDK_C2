@@ -62,7 +62,7 @@ mfxStatus InitMfxFrameSW(
     InitMfxFrameHeader(timestamp, frame_index, width, height, fourcc, info, mfx_frame);
 
     mfx_frame->Data.MemType = MFX_MEMTYPE_SYSTEM_MEMORY;
-    mfx_frame->Data.Pitch = MFX_ALIGN_32(stride);
+    mfx_frame->Data.PitchLow = MFX_ALIGN_32(stride);
 
     res = MFXLoadSurfaceSW(data, stride, input_info, mfx_frame);
 
@@ -82,12 +82,12 @@ mfxStatus MFXLoadSurfaceSW(uint8_t *data, uint32_t stride, const mfxFrameInfo& i
     uint32_t nCropY = srf->Info.CropY;
     uint32_t nCropW = srf->Info.CropW;
     uint32_t nCropH = srf->Info.CropH;
-    uint32_t nPitch = srf->Data.Pitch;
+    uint32_t nPitch = srf->Data.PitchLow;
 
     if (!MFX_C2_IS_COPY_NEEDED(srf->Data.MemType, input_info, srf->Info)) {
         srf->Data.Y  = data;
-        srf->Data.U = data + nOWidth * nOHeight;
-        srf->Data.V = srf->Data.UV + 1;
+        srf->Data.U = data + nOPitch * nOHeight;
+        srf->Data.V = srf->Data.U + 1;
         srf->Data.Pitch = nOPitch;
     } else {
         uint32_t i = 0;
@@ -131,6 +131,7 @@ mfxStatus InitMfxFrameHW(
 
     MFX_ZERO_MEMORY(mfx_frame->Data);
     mfx_frame->Data.MemType = MFX_MEMTYPE_EXTERNAL_FRAME;
+    mfx_frame->Data.PitchLow = MFX_ALIGN_32(width);
     mfx_frame->Data.MemId = mem_id;
 
     return res;
@@ -230,26 +231,30 @@ void MFXFreeSystemMemorySurfacePool(uint8_t *buf, mfxFrameSurface1 *surfpool)
         free(surfpool);
 }
 
-uint32_t MFXGetSurfaceWidth(mfxFrameInfo info)
+uint32_t MFXGetSurfaceWidth(mfxFrameInfo info, bool using_video_memory)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     uint32_t width = info.Width;
-    if (info.CropW % 16) {
-        width = (info.Width == MFX_MEM_ALIGN(info.CropW, 16)) ? info.CropW : info.Width;
+    if (using_video_memory) {
+        if (info.CropW % 16) {
+            width = (info.Width == MFX_ALIGN_16(info.CropW)) ? info.CropW : info.Width;
+        }
     }
 
     MFX_DEBUG_TRACE_I32(width);
     return width;
 }
 
-uint32_t  MFXGetSurfaceHeight(mfxFrameInfo info)
+uint32_t  MFXGetSurfaceHeight(mfxFrameInfo info, bool using_video_memory)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     uint32_t height = info.Height;
-    if (info.CropW % 16) {
-        height = (info.Height == MFX_MEM_ALIGN(info.CropH, 16)) ? info.CropH : info.Height;
+    if (using_video_memory) {
+        if (info.CropW % 16) {
+            height = (info.Height == MFX_ALIGN_16(info.CropH)) ? info.CropH : info.Height;
+        }
     }
 
     MFX_DEBUG_TRACE_I32(height);
