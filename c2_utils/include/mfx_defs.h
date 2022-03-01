@@ -76,7 +76,8 @@ extern mfxVersion g_required_mfx_version;
 
 #define MFX_MEM_ALIGN(X, N) ((X) & ((N)-1)) ? (((X)+(N)-1) & (~((N)-1))): (X)
 
-#define MFX_ALIGN_32(X) (((mfxU32)((X)+31)) & (~ (mfxU32)31))
+#define MFX_ALIGN_16(X) ((((X) + 15) >> 4) << 4)
+#define MFX_ALIGN_32(X) ((((X) + 31) >> 5) << 5)
 
 #define MFX_GET_ARRAY_SIZE(_array) \
     (sizeof(_array) / sizeof(_array[0]))
@@ -200,5 +201,5 @@ uint32_t MFXGetFreeSurfaceIdx(mfxFrameSurface1 *SurfacesPool, uint32_t nPoolSize
 mfxStatus MFXAllocSystemMemorySurfacePool(uint8_t **buf, mfxFrameSurface1 *surfpool, mfxFrameInfo frame_info, uint32_t surfnum);
 void MFXFreeSystemMemorySurfacePool(uint8_t *buf, mfxFrameSurface1 *surfpool);
 
-uint32_t MFXGetSurfaceWidth(mfxFrameInfo info);
-uint32_t MFXGetSurfaceHeight(mfxFrameInfo info);
+uint32_t MFXGetSurfaceWidth(mfxFrameInfo info, bool using_video_memory = true);
+uint32_t MFXGetSurfaceHeight(mfxFrameInfo info, bool using_video_memory = true);

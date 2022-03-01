@@ -43,6 +43,16 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
             break;
         }
 
+        if ( (info.Width && info.Width > MFX_ALIGN_16(block->width())) ||
+             (info.Height && info.Height > MFX_ALIGN_16(block->height())) ) {
+            MFX_DEBUG_TRACE_I32(info.Width);
+            MFX_DEBUG_TRACE_I32(info.Height);
+            MFX_DEBUG_TRACE_I32(block->width());
+            MFX_DEBUG_TRACE_I32(block->height());
+            res = C2_BAD_VALUE;
+            break;
+        }
+
         uint64_t timestamp = 0;
         uint64_t frame_index = 0;
 
@@ -95,8 +105,12 @@ c2_status_t MfxC2FrameOut::Create(std::shared_ptr<C2GraphicBlock> block,
             break;
         }
 
-        if ( (info.Width && info.Width > block->width()) ||
-             (info.Height && info.Height > block->height()) ) {
+        if ( (info.Width && info.Width > MFX_ALIGN_16(block->width())) ||
+             (info.Height && info.Height > MFX_ALIGN_16(block->height())) ) {
+            MFX_DEBUG_TRACE_I32(info.Width);
+            MFX_DEBUG_TRACE_I32(info.Height);
+            MFX_DEBUG_TRACE_I32(block->width());
+            MFX_DEBUG_TRACE_I32(block->height());
             res = C2_BAD_VALUE;
             break;
         }
