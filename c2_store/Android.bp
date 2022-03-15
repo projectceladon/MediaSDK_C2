@@ -49,7 +49,7 @@ cc_binary {
 
     shared_libs: [
         "android.hardware.media.omx@1.0",
-        "libavservices_minijail_vendor",
+        "libavservices_minijail",
         "libbinder",
         "libhidltransport",
         "libhwbinder",
