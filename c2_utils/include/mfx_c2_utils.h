@@ -126,6 +126,17 @@ bool IsYV12(const C2GraphicView &view);
 
 void ParseGop(const C2StreamGopTuning &gop, uint32_t &syncInterval, uint32_t &iInterval, uint32_t &maxBframes);
 
+inline mfxU16 av1_mfx_profile_to_native_profile(mfxU16 profile)
+{
+    switch (profile)
+    {
+    case MFX_PROFILE_AV1_MAIN: return 0;
+    case MFX_PROFILE_AV1_HIGH: return 1;
+    case MFX_PROFILE_AV1_PRO: return 2;
+    default: return 0;
+    }
+}
+
 // Gives access to prorected constructors of C2Buffer.
 class C2BufferAccessor : public C2Buffer
 {
