@@ -836,7 +836,7 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             mfx_res = m_mfxDecoder->DecodeHeader(m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get(), &m_mfxVideoParams);
             // MSDK will call the function av1_native_profile_to_mfx_profile to change CodecProfile in DecodeHeader while 
             // decoder type is av1. So after calling DecodeHeader, we have to revert this value to avoid unexpected behavior.
-            if (m_decoderType = DECODER_AV1)
+            if (m_decoderType == DECODER_AV1)
                 m_mfxVideoParams.mfx.CodecProfile = av1_mfx_profile_to_native_profile(m_mfxVideoParams.mfx.CodecProfile);
 
             m_extBuffers.pop_back();
@@ -890,6 +890,33 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         m_mfxVideoParams.AsyncDepth = GetAsyncDepth();
     }
 
+    // We need check whether the BQ allocator has a surface, if No we cannot use MFX_IOPATTERN_OUT_VIDEO_MEMORY mode.
+    if (MFX_ERR_NONE == mfx_res && m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
+        std::shared_ptr<C2GraphicBlock> out_block;
+        c2_status_t res = C2_OK;
+        C2MemoryUsage mem_usage = {C2AndroidMemoryUsage::CPU_READ | C2AndroidMemoryUsage::HW_COMPOSER_READ,
+                                C2AndroidMemoryUsage::HW_CODEC_WRITE};
+
+        res = m_c2Allocator->fetchGraphicBlock(m_mfxVideoParams.mfx.FrameInfo.Width,
+                                            m_mfxVideoParams.mfx.FrameInfo.Height,
+                                            MfxFourCCToGralloc(m_mfxVideoParams.mfx.FrameInfo.FourCC),
+                                            mem_usage, &out_block);
+
+        if (res == C2_OK)
+        {
+            uint32_t width, height, format, stride, igbp_slot, generation;
+            uint64_t usage, igbp_id;
+            android::_UnwrapNativeCodec2GrallocMetadata(out_block->handle(), &width, &height, &format, &usage,
+                                                        &stride, &generation, &igbp_id, &igbp_slot);
+            if (!igbp_id && !igbp_slot)
+            {
+                // No surface & BQ
+                m_mfxVideoParams.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
+                m_allocator = nullptr;
+            }
+        }
+    }
+
     if (MFX_ERR_NONE == mfx_res && m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
 #ifdef USE_ONEVPL
         mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, nullptr);
@@ -914,6 +941,12 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         MFX_DEBUG_TRACE_MSG("Decoder initializing...");
         mfx_res = m_mfxDecoder->Init(&m_mfxVideoParams);
         MFX_DEBUG_TRACE_PRINTF("Decoder initialized, sts = %d", mfx_res);
+
+        // Same as DecodeHeader, MSDK will call the function av1_native_profile_to_mfx_profile to change CodecProfile
+        // in Init().
+        if (m_decoderType == DECODER_AV1)
+            m_mfxVideoParams.mfx.CodecProfile = av1_mfx_profile_to_native_profile(m_mfxVideoParams.mfx.CodecProfile);
+
         // c2 allocator is needed to handle mfxAllocRequest coming from m_mfxDecoder->Init,
         // not needed after that.
         if (m_allocator) m_allocator->SetC2Allocator(nullptr);
