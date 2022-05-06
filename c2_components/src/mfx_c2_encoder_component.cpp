@@ -218,8 +218,8 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
         C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
         [this] (C2StreamPictureSizeInfo::input* dst)->bool {
             MFX_DEBUG_TRACE("GetPictureSize");
-            dst->width = m_mfxVideoParamsConfig.mfx.FrameInfo.Width;
-            dst->height = m_mfxVideoParamsConfig.mfx.FrameInfo.Height;
+            dst->width = m_mfxVideoParamsConfig.mfx.FrameInfo.CropW;
+            dst->height = m_mfxVideoParamsConfig.mfx.FrameInfo.CropH;
             MFX_DEBUG_TRACE_STREAM(NAMED(dst->width) << NAMED(dst->height));
             return true;
         },
@@ -664,19 +664,23 @@ mfxStatus MfxC2EncoderComponent::InitVPP(C2FrameData& buf_pack)
     m_mfxInputInfo = m_mfxVideoParamsConfig.mfx.FrameInfo;
     m_mfxInputInfo.Width = c_graph_block->width();
     m_mfxInputInfo.Height = c_graph_block->height();
+    MFX_DEBUG_TRACE_I32(c_graph_block->width());
+    MFX_DEBUG_TRACE_I32(c_graph_block->height());
 
     res = MapConstGraphicBlock(*c_graph_block, TIMEOUT_NS, &c2_graphic_view_);
 
     if(c2_graphic_view_->layout().type == C2PlanarLayout::TYPE_RGB) {
         // need color convert to YUV
         MfxC2VppWrappParam param;
+        mfxFrameInfo frame_info;
 
 #ifdef USE_ONEVPL
         param.session = m_mfxSession;
 #else
         param.session = &m_mfxSession;
 #endif
-        param.frame_info = &m_mfxInputInfo;
+        frame_info = m_mfxVideoParamsConfig.mfx.FrameInfo;
+        param.frame_info = &frame_info;
         param.frame_info->FourCC = MFX_FOURCC_RGB4;
         param.allocator = m_device->GetFrameAllocator();
         param.conversion = ARGB_TO_NV12;
@@ -957,8 +961,8 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             }
 
             InitMfxFrameHW(input.ordinal.timestamp.peeku(), input.ordinal.frameIndex.peeku(),
-                mem_id, c_graph_block->width(), c_graph_block->height(), MFX_FOURCC_RGB4, m_mfxInputInfo,
-                unique_mfx_frame.get());
+                mem_id, c_graph_block->width(), c_graph_block->height(), MFX_FOURCC_RGB4,
+                m_mfxVideoParamsConfig.mfx.FrameInfo, unique_mfx_frame.get());
 
             m_vpp.ProcessFrameVpp(unique_mfx_frame.get(), &pSurfaceToEncode);
             res = mfx_frame_in.init(NULL, std::move(c_graph_view), input, pSurfaceToEncode);
