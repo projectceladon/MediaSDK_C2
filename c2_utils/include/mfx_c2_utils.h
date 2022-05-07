@@ -202,6 +202,9 @@ private:
 //declare used extension buffers
 template<class T>
 struct mfx_ext_buffer_id{};
+template<>struct mfx_ext_buffer_id<mfxExtCodingOption> {
+    enum {id = MFX_EXTBUFF_CODING_OPTION};
+};
 template<>struct mfx_ext_buffer_id<mfxExtCodingOptionSPSPPS> {
     enum {id = MFX_EXTBUFF_CODING_OPTION_SPSPPS};
 };
