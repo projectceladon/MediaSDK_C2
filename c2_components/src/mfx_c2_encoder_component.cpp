@@ -1593,16 +1593,33 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 m_mfxVideoParamsConfig.mfx.FrameInfo.FrameRateExtD = 1000;
                 break;
             }
-            case kParamIndexBitrate:
+            case kParamIndexBitrate: {
+                // MFX_RATECONTROL_CQP parameter is valid only during initialization.
                 if (m_mfxVideoParamsConfig.mfx.RateControlMethod != MFX_RATECONTROL_CQP) {
                     uint32_t bitrate_value = static_cast<const C2BitrateTuning*>(param)->value;
                     if (m_state == State::STOPPED) {
                         m_mfxVideoParamsConfig.mfx.TargetKbps = bitrate_value / 1000; // Convert from bps to Kbps
-                    } else if (m_mfxVideoParamsConfig.mfx.RateControlMethod == MFX_RATECONTROL_VBR) {
+                    } else {
                         auto update_bitrate_value = [this, bitrate_value, queue_update, failures, param] () {
-                            MFX_DEBUG_TRACE("update_bitrate_value");
-                            MFX_DEBUG_TRACE_I32(bitrate_value);
+                            MFX_DEBUG_TRACE_FUNC;
+                            // MDSK strongly recommended to retrieve the actual working parameters by MFXVideoENCODE_GetVideoParam
+                            // function before making any changes to bitrate settings.
+                            mfxStatus mfx_res = m_mfxEncoder->GetVideoParam(&m_mfxVideoParamsConfig);
+                            if (MFX_ERR_NONE != mfx_res) {
+                                MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+                                return;
+                            }
                             m_mfxVideoParamsConfig.mfx.TargetKbps = bitrate_value / 1000; // Convert from bps to Kbps
+                            // If application sets NalHrdConformance option in mfxExtCodingOption structure to ON, the only allowed bitrate control mode is VBR.
+                            // If OFF, all bitrate control modes are available.In CBR and AVBR modes the application can
+                            // change TargetKbps, in VBR mode the application can change TargetKbps and MaxKbps values.
+                            // Such change in bitrate will not result in generation of a new key-frame or sequence header.
+                            if ((m_encoderType == ENCODER_H264 || m_encoderType == ENCODER_H265) &&
+                                m_mfxVideoParamsConfig.mfx.RateControlMethod != MFX_RATECONTROL_VBR) {
+                                mfxExtCodingOption* codingOption = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtCodingOption>();
+                                codingOption->NalHrdConformance = MFX_CODINGOPTION_OFF;
+                            }
+
                             if (nullptr != m_mfxEncoder) {
                                 {   // waiting for encoding completion of all enqueued frames
                                     std::unique_lock<std::mutex> lock(m_devBusyMutex);
@@ -1624,6 +1641,8 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                             }
                         };
 
+                        MFX_DEBUG_TRACE_PRINTF("updating bitrate from %d to %d.",
+                                m_mfxVideoParamsConfig.mfx.TargetKbps, bitrate_value / 1000);
                         Drain(nullptr);
 
                         if (queue_update) {
@@ -1631,17 +1650,13 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                         } else {
                             update_bitrate_value();
                         }
-                    } else {
-                        // If state is executing and rate control is not VBR, Reset will not update bitrate,
-                        // so report an error.
-                        failures->push_back(MakeC2SettingResult(C2ParamField(param),
-                            C2SettingResult::CONFLICT, MakeVector(MakeC2ParamField<C2RateControlSetting>())));
                     }
                 } else {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param),
                         C2SettingResult::CONFLICT, MakeVector(MakeC2ParamField<C2RateControlSetting>())));
                 }
                 break;
+            }
             case kParamIndexBitrateMode: {
                 C2Config::bitrate_mode_t c2_bitmode = static_cast<const C2StreamBitrateModeTuning*>(param)->value;
                 int32_t bitrate_mode = -1;
