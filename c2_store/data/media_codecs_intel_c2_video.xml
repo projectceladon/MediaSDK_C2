@@ -62,7 +62,7 @@ and updated to vendor media codecs.
             <Limit name="performance-point-3840x2160" value="30" />
             <Feature name="adaptive-playback" />
         </MediaCodec>
-        <MediaCodec name="c2.intel.mp2.decoder" type="video/mpeg2">
+        <!--MediaCodec name="c2.intel.mp2.decoder" type="video/mpeg2">
             <Limit name="size" min="64x64" max="2048x2048" />
             <Limit name="alignment" value="2x2" />
             <Limit name="block-size" value="16x16" />
@@ -71,7 +71,7 @@ and updated to vendor media codecs.
             <Limit name="bitrate" range="1-40000000" />
             <Limit name="performance-point-1920x1080" value="30" />
             <Feature name="adaptive-playback" />
-        </MediaCodec>
+        </MediaCodec-->
         <MediaCodec name="c2.intel.av1.decoder" type="video/av01">
             <Limit name="size" min="64x64" max="4096x4096" />
             <Limit name="alignment" value="2x2" />
