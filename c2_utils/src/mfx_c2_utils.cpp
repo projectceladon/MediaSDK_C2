@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022 Intel Corporation
+// Copyright (c) 2017-2021 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -526,9 +526,6 @@ bool MfxIOPatternToC2MemoryType(bool input, mfxU16 io_pattern, C2MemoryType* mem
 
 int MfxFourCCToGralloc(mfxU32 fourcc, bool using_video_memory)
 {
-    MFX_DEBUG_TRACE_FUNC;
-    MFX_DEBUG_TRACE_U32(fourcc);
-
     switch (fourcc)
     {
         case MFX_FOURCC_NV12:
