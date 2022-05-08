@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022 Intel Corporation
+// Copyright (c) 2018-2021 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,9 +19,6 @@
 // SOFTWARE.
 
 #include "mfx_c2_color_aspects_wrapper.h"
-
-#undef MFX_DEBUG_MODULE_NAME
-#define MFX_DEBUG_MODULE_NAME "mfx_c2_color_aspects_wrapper"
 
 MfxC2ColorAspectsWrapper::MfxC2ColorAspectsWrapper()
     : m_bIsColorAspectsChanged(false)

@@ -1239,30 +1239,6 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 break;
             }
             case kParamIndexColorAspects: {
-                const C2StreamColorAspectsInfo* settings = static_cast<const C2StreamColorAspectsInfo*>(param);
-                android::ColorAspects ca;
-                MFX_DEBUG_TRACE_U32(settings->range);
-                MFX_DEBUG_TRACE_U32(settings->primaries);
-                MFX_DEBUG_TRACE_U32(settings->transfer);
-                MFX_DEBUG_TRACE_U32(settings->matrix);
-
-                ca.mRange = (android::ColorAspects::Range)settings->range;
-                ca.mTransfer = (android::ColorAspects::Transfer)settings->transfer;
-                ca.mMatrixCoeffs = (android::ColorAspects::MatrixCoeffs)settings->matrix;
-                ca.mPrimaries = (android::ColorAspects::Primaries)settings->primaries;
-
-                mfxExtVideoSignalInfo signal_info;
-                MFX_ZERO_MEMORY(signal_info);
-                signal_info.VideoFullRange = settings->range;
-                signal_info.ColourPrimaries = settings->primaries;
-                signal_info.TransferCharacteristics = settings->transfer;
-                signal_info.MatrixCoefficients = settings->matrix;
-
-                m_colorAspects.UpdateBitstreamColorAspects(signal_info);
-                m_colorAspects.SetFrameworkColorAspects(ca);
-                break;
-            }
-            case kParamIndexDefaultColorAspects: {
                 const C2StreamColorAspectsTuning* settings = static_cast<const C2StreamColorAspectsTuning*>(param);
                 android::ColorAspects ca;
                 MFX_DEBUG_TRACE_U32(settings->range);
