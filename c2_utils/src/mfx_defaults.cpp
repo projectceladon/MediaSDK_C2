@@ -145,7 +145,6 @@ mfxStatus mfx_set_defaults_mfxVideoParam_enc(mfxVideoParam* params)
         memset(params, 0, sizeof(mfxVideoParam));
         params->mfx.CodecId = CodecId;
         params->mfx.NumThread = 0;
-        params->AsyncDepth = 1;
 
         mfx_set_defaults_mfxFrameInfo(&params->mfx.FrameInfo);
 
