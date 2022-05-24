@@ -430,7 +430,9 @@ mfxStatus MfxC2EncoderComponent::InitSession()
     mfxConfig cfg[2];
     mfxVariant cfgVal[2];
 
-    m_mfxLoader = MFXLoad();
+    if (nullptr == m_mfxLoader)
+        m_mfxLoader = MFXLoad();
+
     if (nullptr == m_mfxLoader) {
         ALOGE("MFXLoad failed...is implementation in path?");
         return MFX_ERR_UNKNOWN;
