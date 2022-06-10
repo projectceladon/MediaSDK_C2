@@ -135,6 +135,14 @@ private:
 
     void DoWork(std::unique_ptr<C2Work>&& work);
 
+    void ReleaseReadViews(uint64_t incoming_frame_index);
+
+    void EmptyReadViews(uint64_t timestamp, uint64_t frame_index);
+
+    bool IsPartialFrame(uint64_t frame_index);
+
+    bool IsDuplicatedTimeStamp(uint64_t timestamp);
+
     void Drain(std::unique_ptr<C2Work>&& work);
     // waits for the sync_point and update work with decoder output then
     void WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint sync_point);
@@ -212,7 +220,8 @@ private:
     std::list<std::unique_ptr<C2Work>> m_flushedWorks;
 
     std::mutex m_readViewMutex;
-    std::map<decltype(C2WorkOrdinalStruct::timestamp), std::unique_ptr<C2ReadView>> m_readViews;
+    std::map<const uint64_t, std::unique_ptr<C2ReadView>> m_readViews;
+    std::list<std::pair<uint64_t, uint64_t>> m_duplicatedTimeStamp;
 
     std::shared_ptr<C2StreamHdrStaticInfo::output> m_hdrStaticInfo;
     bool m_bSetHdrStatic;
