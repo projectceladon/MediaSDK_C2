@@ -143,6 +143,8 @@ private:
 
     bool IsDuplicatedTimeStamp(uint64_t timestamp);
 
+    void FillEmptyWork(std::unique_ptr<C2Work>&& work, c2_status_t res);
+
     void Drain(std::unique_ptr<C2Work>&& work);
     // waits for the sync_point and update work with decoder output then
     void WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint sync_point);
