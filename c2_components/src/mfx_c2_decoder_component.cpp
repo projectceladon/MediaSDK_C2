@@ -313,7 +313,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
                     AllocUniqueString<C2PortMediaTypeSetting::input>("video/av01"));
 
-            m_uOutputDelay = /*max_dpb_size*/9 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+            m_uOutputDelay = /*max_dpb_size*/18 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
             break;
         }
 
@@ -787,17 +787,23 @@ mfxU16 MfxC2DecoderComponent::GetAsyncDepth(void)
 
     mfxU16 asyncDepth;
 
+    // AV1 decoder requires more reference frame buffers.
 #ifdef USE_ONEVPL
-    asyncDepth = (MFX_IMPL_BASETYPE(m_mfxImplementation) == MFX_IMPL_SOFTWARE) ? 0 : 1;
+    if (MFX_CODEC_AV1 == m_mfxVideoParams.mfx.CodecId)
+        asyncDepth = (MFX_IMPL_BASETYPE(m_mfxImplementation) == MFX_IMPL_SOFTWARE) ? 0 : 10;
+    else
+        asyncDepth = (MFX_IMPL_BASETYPE(m_mfxImplementation) == MFX_IMPL_SOFTWARE) ? 0 : 1;
 #else
     if ((MFX_IMPL_HARDWARE == MFX_IMPL_BASETYPE(m_mfxImplementation)) &&
         ((MFX_CODEC_AVC == m_mfxVideoParams.mfx.CodecId) ||
          (MFX_CODEC_HEVC == m_mfxVideoParams.mfx.CodecId) ||
          (MFX_CODEC_VP9 == m_mfxVideoParams.mfx.CodecId) ||
          (MFX_CODEC_VP8 == m_mfxVideoParams.mfx.CodecId) ||
-         (MFX_CODEC_AV1 == m_mfxVideoParams.mfx.CodecId) ||
          (MFX_CODEC_MPEG2 == m_mfxVideoParams.mfx.CodecId)))
         asyncDepth = 1;
+    else if ((MFX_IMPL_HARDWARE == MFX_IMPL_BASETYPE(m_mfxImplementation)) &&
+         (MFX_CODEC_AV1 == m_mfxVideoParams.mfx.CodecId))
+        asyncDepth = 10;
     else
         asyncDepth = 0;
 #endif
