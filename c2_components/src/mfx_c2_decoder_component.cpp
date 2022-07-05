@@ -198,6 +198,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 LEVEL_HEVC_MAIN_5_2, LEVEL_HEVC_HIGH_4,
                 LEVEL_HEVC_HIGH_4_1, LEVEL_HEVC_HIGH_5,
                 LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
+                LEVEL_HEVC_HIGH_6, LEVEL_HEVC_HIGH_6_1, LEVEL_HEVC_HIGH_6_2,
             };
 
             pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
@@ -1072,6 +1073,7 @@ c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
     c2_status_t res = C2_OK;
 
     res = m_paramStorage.QueryParam(index, dst);
+    ALOGI("%s, index = 0x%x, res = %d", __func__, index, res);
     if (C2_NOT_FOUND == res) {
         switch (index) {
             case kParamIndexMemoryType: {
@@ -1260,14 +1262,20 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 ca.mMatrixCoeffs = (android::ColorAspects::MatrixCoeffs)settings->matrix;
                 ca.mPrimaries = (android::ColorAspects::Primaries)settings->primaries;
 
+#if 1
                 mfxExtVideoSignalInfo signal_info;
                 MFX_ZERO_MEMORY(signal_info);
+                //C2ToMfxVideoRange(settings->range, signal_info.VideoFullRange);
+                //C2ToMfxColourPrimaries(settings->primaries, signal_info.ColourPrimaries);
+                //C2ToMfxTransferCharacteristics(settings->transfer, signal_info.TransferCharacteristics);
+                //C2ToMfxMatrixCoefficients(settings->matrix, signal_info.MatrixCoefficients);
                 signal_info.VideoFullRange = settings->range;
                 signal_info.ColourPrimaries = settings->primaries;
                 signal_info.TransferCharacteristics = settings->transfer;
                 signal_info.MatrixCoefficients = settings->matrix;
 
                 m_colorAspects.UpdateBitstreamColorAspects(signal_info);
+#endif
                 m_colorAspects.SetFrameworkColorAspects(ca);
                 break;
             }
@@ -1284,14 +1292,20 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 ca.mMatrixCoeffs = (android::ColorAspects::MatrixCoeffs)settings->matrix;
                 ca.mPrimaries = (android::ColorAspects::Primaries)settings->primaries;
 
+#if 1
                 mfxExtVideoSignalInfo signal_info;
                 MFX_ZERO_MEMORY(signal_info);
+                //C2ToMfxVideoRange(settings->range, signal_info.VideoFullRange);
+                //C2ToMfxColourPrimaries(settings->primaries, signal_info.ColourPrimaries);
+                //C2ToMfxTransferCharacteristics(settings->transfer, signal_info.TransferCharacteristics);
+                //C2ToMfxMatrixCoefficients(settings->matrix, signal_info.MatrixCoefficients);
                 signal_info.VideoFullRange = settings->range;
                 signal_info.ColourPrimaries = settings->primaries;
                 signal_info.TransferCharacteristics = settings->transfer;
                 signal_info.MatrixCoefficients = settings->matrix;
 
                 m_colorAspects.UpdateBitstreamColorAspects(signal_info);
+#endif
                 m_colorAspects.SetFrameworkColorAspects(ca);
                 break;
             }

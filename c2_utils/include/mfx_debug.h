@@ -23,7 +23,7 @@
 #define MFX_DEBUG_NO  0
 #define MFX_DEBUG_YES 1
 
-#define MFX_DEBUG MFX_DEBUG_NO // enables DEBUG output
+#define MFX_DEBUG MFX_DEBUG_YES // enables DEBUG output
 #define MFX_PERF MFX_DEBUG_NO // enables PERF output, doesn't depends on MFX_DEBUG
 #define MFX_ATRACE MFX_DEBUG_NO // enables systrace
 #define MFX_DEBUG_DUMP_FRAME MFX_DEBUG_NO // enables write frame to file

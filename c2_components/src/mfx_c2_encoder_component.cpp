@@ -37,6 +37,7 @@
 #include <C2AllocatorGralloc.h>
 #include <C2Config.h>
 #include <Codec2Mapper.h>
+#include "utils/CallStack.h"
 
 using namespace android;
 
@@ -160,6 +161,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
                 LEVEL_HEVC_MAIN_5_2, LEVEL_HEVC_HIGH_4,
                 LEVEL_HEVC_HIGH_4_1, LEVEL_HEVC_HIGH_5,
                 LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
+                LEVEL_HEVC_HIGH_6, LEVEL_HEVC_HIGH_6_1, LEVEL_HEVC_HIGH_6_2,
             };
             pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
                 AllocUniqueString<C2PortMediaTypeSetting::output>("video/hevc"));
@@ -240,6 +242,31 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
     pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::profile, supported_profiles);
     pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::level, supported_levels);
 
+#if 0
+	// Color aspects
+	pr.AddValue(C2_PARAMKEY_COLOR_ASPECTS, std::make_unique<C2StreamColorAspectsInfo::input>(0u, C2Color::RANGE_UNSPECIFIED, C2Color::PRIMARIES_UNSPECIFIED,
+					C2Color::TRANSFER_UNSPECIFIED, C2Color::MATRIX_UNSPECIFIED));
+	pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::range, RANGE_UNSPECIFIED, RANGE_OTHER);
+	pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::primaries, PRIMARIES_UNSPECIFIED, PRIMARIES_OTHER);
+	pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::transfer, TRANSFER_UNSPECIFIED, TRANSFER_OTHER);
+	pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::matrix, MATRIX_UNSPECIFIED, MATRIX_OTHER);
+#endif
+
+    // Color aspects
+    pr.RegisterParam<C2StreamColorAspectsInfo::input>(C2_PARAMKEY_COLOR_ASPECTS);
+    pr.RegisterParam<C2StreamColorAspectsInfo::output>(C2_PARAMKEY_VUI_COLOR_ASPECTS);
+    mColorAspects = std::make_shared<C2StreamColorAspectsInfo::input>();
+    mColorAspects->range = C2Color::RANGE_UNSPECIFIED;
+    mColorAspects->primaries = C2Color::PRIMARIES_UNSPECIFIED;
+    mColorAspects->transfer = C2Color::TRANSFER_UNSPECIFIED;
+    mColorAspects->matrix = C2Color::MATRIX_UNSPECIFIED;
+
+    mCodedColorAspects = std::make_shared<C2StreamColorAspectsInfo::output>();
+    mCodedColorAspects->range = C2Color::RANGE_UNSPECIFIED;
+    mCodedColorAspects->transfer = C2Color::TRANSFER_UNSPECIFIED;
+    mCodedColorAspects->matrix = C2Color::MATRIX_UNSPECIFIED;
+    mCodedColorAspects->primaries = C2Color::PRIMARIES_UNSPECIFIED;
+
     m_paramStorage.DumpParams();
 }
 
@@ -282,6 +309,7 @@ c2_status_t MfxC2EncoderComponent::DoStart()
     m_uSyncedPointsCount = 0;
     mfxStatus mfx_res = MFX_ERR_NONE;
     m_bHeaderSent = false;
+    m_bColorAspectSent = false;
 
     do {
         bool allocator_required = (m_mfxVideoParamsConfig.IOPattern == MFX_IOPATTERN_IN_VIDEO_MEMORY);
@@ -566,6 +594,8 @@ mfxStatus MfxC2EncoderComponent::ResetSettings()
         break;
     }
 
+    //m_colorAspects.SetCodecID(m_mfxVideoParamsConfig.mfx.CodecId);
+
     mfx_res = mfx_set_defaults_mfxVideoParam_enc(&m_mfxVideoParamsConfig);
 
     if (m_device) {
@@ -584,8 +614,63 @@ mfxStatus MfxC2EncoderComponent::ResetSettings()
         mfxExtVP9Param* vp9param = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtVP9Param>();
         vp9param->WriteIVFHeaders = MFX_CODINGOPTION_OFF;
     }
+
+    if (m_encoderType == ENCODER_H264 || m_encoderType == ENCODER_H265) {
+#if 0
+        m_codingOption = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtCodingOption>();
+        m_codingOption->AUDelimiter = MFX_CODINGOPTION_OFF;
+        m_codingOption->VuiNalHrdParameters = MFX_CODINGOPTION_OFF;
+        m_codingOption->PicTimingSEI = MFX_CODINGOPTION_OFF;
+
+        m_codingOption2 = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtCodingOption2>();
+        m_codingOption2->RepeatPPS = MFX_CODINGOPTION_OFF;
+
+        m_codingOption3 = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtCodingOption3>();
+        m_codingOption3->TimingInfoPresent = MFX_CODINGOPTION_OFF;
+#endif
+
+        //m_signalInfo = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtVideoSignalInfo>();
+        MFX_ZERO_MEMORY(m_signalInfo);
+        m_signalInfo.Header.BufferId = MFX_EXTBUFF_VIDEO_SIGNAL_INFO;
+        m_signalInfo.Header.BufferSz = sizeof(mfxExtVideoSignalInfo);
+        m_signalInfo.VideoFormat = 5;
+        m_signalInfo.VideoFullRange = 0;
+        m_signalInfo.ColourDescriptionPresent = 0;
+    }
+
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
+}
+
+void MfxC2EncoderComponent::AttachExtBuffer()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    if (m_encoderType == ENCODER_H264 || m_encoderType == ENCODER_H265) {
+#if 0
+        mfxExtCodingOption *opt = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtCodingOption>();
+        opt->AUDelimiter = MFX_CODINGOPTION_OFF;
+        opt->VuiNalHrdParameters = MFX_CODINGOPTION_OFF;
+        opt->PicTimingSEI = MFX_CODINGOPTION_OFF;
+
+        mfxExtCodingOption2 *opt2 = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtCodingOption2>();
+        opt2->RepeatPPS = MFX_CODINGOPTION_OFF;
+#endif
+        mfxExtVideoSignalInfo *vsi = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtVideoSignalInfo>();
+        //memcpy(vsi, &m_signalInfo, sizeof(mfxExtVideoSignalInfo));
+        vsi->VideoFormat = m_signalInfo.VideoFormat;
+        vsi->VideoFullRange = (m_signalInfo.VideoFullRange == 0xFF) ? 0 : m_signalInfo.VideoFullRange;
+        vsi->ColourPrimaries = m_signalInfo.ColourPrimaries;
+        vsi->TransferCharacteristics = m_signalInfo.TransferCharacteristics;
+        vsi->MatrixCoefficients = m_signalInfo.MatrixCoefficients;
+		vsi->ColourDescriptionPresent = m_signalInfo.ColourDescriptionPresent;
+        MFX_DEBUG_TRACE_U32(vsi->VideoFormat);
+        MFX_DEBUG_TRACE_U32(vsi->VideoFullRange);
+        MFX_DEBUG_TRACE_U32(vsi->ColourPrimaries);
+        MFX_DEBUG_TRACE_U32(vsi->TransferCharacteristics);
+        MFX_DEBUG_TRACE_U32(vsi->MatrixCoefficients);
+		MFX_DEBUG_TRACE_U32(vsi->ColourDescriptionPresent);
+    }
 }
 
 mfxStatus MfxC2EncoderComponent::InitEncoder()
@@ -606,6 +691,8 @@ mfxStatus MfxC2EncoderComponent::InitEncoder()
         }
 
         if (MFX_ERR_NONE == mfx_res) {
+
+            AttachExtBuffer();
 
             MFX_DEBUG_TRACE_MSG("Encoder initializing...");
             MFX_DEBUG_TRACE__mfxVideoParam_enc(m_mfxVideoParamsConfig);
@@ -725,6 +812,10 @@ void MfxC2EncoderComponent::FreeEncoder()
 
     if(nullptr != m_mfxEncoder) {
         m_mfxEncoder->Close();
+        
+		android::CallStack stack;
+		stack.update();
+		stack.log("tianmi");
         m_mfxEncoder = nullptr;
     }
 }
@@ -1242,6 +1333,45 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
                 }
             }
 
+            if (!m_bColorAspectSent && (m_encoderType == ENCODER_H264 || m_encoderType == ENCODER_H265)) {
+
+                mfxExtVideoSignalInfo* vsi{};
+                MfxVideoParamsWrapper video_param {};
+
+                try {
+                    vsi = video_param.AddExtBuffer<mfxExtVideoSignalInfo>();
+
+                    mfx_res = m_mfxEncoder->GetVideoParam(&video_param);
+                    MFX_DEBUG_TRACE_U32(vsi->VideoFormat);
+			        MFX_DEBUG_TRACE_U32(vsi->VideoFullRange);
+			        MFX_DEBUG_TRACE_U32(vsi->ColourPrimaries);
+			        MFX_DEBUG_TRACE_U32(vsi->TransferCharacteristics);
+			        MFX_DEBUG_TRACE_U32(vsi->MatrixCoefficients);
+					MFX_DEBUG_TRACE_U32(vsi->ColourDescriptionPresent);
+                } catch(std::exception err) {
+                    MFX_DEBUG_TRACE_STREAM("Error:" << err.what());
+                    mfx_res = MFX_ERR_MEMORY_ALLOC;
+                }
+
+                if (MFX_ERR_NONE == mfx_res) {
+                    C2StreamColorAspectsInfo::output codedColorAspects;
+
+                    MfxToC2VideoRange(vsi->VideoFullRange, codedColorAspects.range);
+                    MfxToC2TransferCharacteristics(vsi->TransferCharacteristics, codedColorAspects.transfer);
+                    MfxToC2MatrixCoefficients(vsi->MatrixCoefficients, codedColorAspects.matrix);
+                    MfxToC2ColourPrimaries(vsi->ColourPrimaries,  codedColorAspects.primaries);
+
+                    MFX_DEBUG_TRACE_U32(codedColorAspects.range);
+                    MFX_DEBUG_TRACE_U32(codedColorAspects.primaries);
+                    MFX_DEBUG_TRACE_U32(codedColorAspects.transfer);
+                    MFX_DEBUG_TRACE_U32(codedColorAspects.matrix);
+
+                    //work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(codedColorAspects));
+
+                    m_bColorAspectSent = true;
+                }
+            }
+
             worklet->output.ordinal = work->input.ordinal;
 
             worklet->output.buffers.push_back(std::make_shared<C2Buffer>(out_buffer));
@@ -1265,7 +1395,46 @@ std::unique_ptr<mfxVideoParam> MfxC2EncoderComponent::GetParamsView() const
 
     std::unique_ptr<mfxVideoParam> res = std::make_unique<mfxVideoParam>();
     mfxStatus sts = MFX_ERR_NONE;
+#if 0
+    if (0/*m_encoderType == ENCODER_H264*/) {
+#if 1
+        std::vector<mfxExtBuffer*> extBuffers;
+        mfxExtBuffer *buf = reinterpret_cast<mfxExtBuffer*>(m_codingOption);
+        extBuffers.push_back(buf);
+        buf->BufferId = MFX_EXTBUFF_CODING_OPTION;
+        buf->BufferSz = sizeof(mfxExtCodingOption);
 
+        buf = reinterpret_cast<mfxExtBuffer*>(m_codingOption2);
+        extBuffers.push_back(buf);
+        buf->BufferId = MFX_EXTBUFF_CODING_OPTION2;
+        buf->BufferSz = sizeof(mfxExtCodingOption2);
+
+        buf = reinterpret_cast<mfxExtBuffer*>(m_codingOption3);
+        extBuffers.push_back(buf);
+        buf->BufferId = MFX_EXTBUFF_CODING_OPTION3;
+        buf->BufferSz = sizeof(mfxExtCodingOption3);
+
+        buf = reinterpret_cast<mfxExtBuffer*>(m_signalInfo);
+        extBuffers.push_back(buf);
+        buf->BufferId = MFX_EXTBUFF_VIDEO_SIGNAL_INFO;
+        buf->BufferSz = sizeof(mfxExtVideoSignalInfo);
+
+        res->NumExtParam = extBuffers.size();
+        res->ExtParam = extBuffers.data();
+#else
+        mfxU32 id = MFX_EXTBUFF_VIDEO_SIGNAL_INFO;
+        mfxU32 size = sizeof(mfxExtVideoSignalInfo);
+        //std::shared_ptr<mfxExtBuffer> buf =
+            //std::shared_ptr<mfxExtBuffer>(new (std::nothrow)mfxExtBuffer());
+        auto buf = (mfxExtBuffer*)new mfxU8[size];
+        memset(buf, 0, size);
+        buf->BufferId = id;
+        buf->BufferSz = size;
+        res->NumExtParam = 1;
+        res->ExtParam = &buf;
+#endif
+    }
+#endif
     if(nullptr == m_mfxEncoder) {
         MfxVideoParamsWrapper* in_params = const_cast<MfxVideoParamsWrapper*>(&m_mfxVideoParamsConfig);
 
@@ -1300,9 +1469,52 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
     c2_status_t res = C2_OK;
 
     res = m_paramStorage.QueryParam(index, dst);
+    ALOGI("%s, index = 0x%x, res = %d", __func__, index, res);
     if (C2_NOT_FOUND == res) {
         res = C2_OK; // suppress error as second pass to find param
+#if 0
+        switch (index) {
+			case C2StreamColorAspectsInfo::input::PARAM_TYPE: {
+				if (nullptr == *dst) {
+                    *dst = new C2StreamColorAspectsInfo::input();
+                }
 
+                C2StreamColorAspectsInfo::input* setting = static_cast<C2StreamColorAspectsInfo::input*>(*dst);
+
+				setting->range = mColorAspects->range;
+                setting->transfer = mColorAspects->transfer;
+                setting->matrix = mColorAspects->matrix;
+                setting->primaries = mColorAspects->primaries;
+
+				MFX_DEBUG_TRACE_U32(setting->range);
+                MFX_DEBUG_TRACE_U32(setting->primaries);
+                MFX_DEBUG_TRACE_U32(setting->transfer);
+                MFX_DEBUG_TRACE_U32(setting->matrix);
+				break;
+			}
+			case C2StreamColorAspectsInfo::output::PARAM_TYPE: {
+				if (nullptr == *dst) {
+                    *dst = new C2StreamColorAspectsInfo::output();
+                }
+
+                C2StreamColorAspectsInfo::output* setting = static_cast<C2StreamColorAspectsInfo::output*>(*dst);
+
+				setting->range = mCodedColorAspects->range;
+                setting->transfer = mCodedColorAspects->transfer;
+                setting->matrix = mCodedColorAspects->matrix;
+                setting->primaries = mCodedColorAspects->primaries;
+
+				MFX_DEBUG_TRACE_U32(setting->range);
+                MFX_DEBUG_TRACE_U32(setting->primaries);
+                MFX_DEBUG_TRACE_U32(setting->transfer);
+                MFX_DEBUG_TRACE_U32(setting->matrix);
+				break;
+			}
+			default:
+				res = C2_OK;
+				break;
+        }
+#endif
         switch (index.typeIndex()) {
             case kParamIndexRateControl: {
                 if (nullptr == *dst) {
@@ -1447,6 +1659,79 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
                 setting->value = m_mfxVideoParamsConfig.mfx.GopPicSize;
                 break;
             }
+#if 0
+            case kParamIndexColorAspects: {
+                if (nullptr == *dst) {
+                    *dst = new C2StreamColorAspectsInfo::output();
+                }
+
+                C2StreamColorAspectsInfo::output* setting = static_cast<C2StreamColorAspectsInfo::output*>(*dst);
+#if 0
+                if (1) {
+                    MfxToC2VideoRange(m_signalInfo.VideoFullRange, setting->range);
+                    MfxToC2TransferCharacteristics(m_signalInfo.TransferCharacteristics, setting->transfer);
+                    MfxToC2MatrixCoefficients(m_signalInfo.MatrixCoefficients, setting->matrix);
+                    MfxToC2ColourPrimaries(m_signalInfo.ColourPrimaries, setting->primaries);
+                } else {
+                    setting->range = C2Color::RANGE_UNSPECIFIED;
+                    setting->transfer = C2Color::TRANSFER_UNSPECIFIED;
+                    setting->matrix = C2Color::MATRIX_UNSPECIFIED;
+                    setting->primaries = C2Color::PRIMARIES_UNSPECIFIED;
+                }
+#else
+                setting->range = mCodedColorAspects->range;
+                setting->transfer = mCodedColorAspects->transfer;
+                setting->matrix = mCodedColorAspects->matrix;
+                setting->primaries = mCodedColorAspects->primaries;
+#endif
+			    MFX_DEBUG_TRACE_U32(m_signalInfo.VideoFullRange);
+                MFX_DEBUG_TRACE_U32(m_signalInfo.ColourPrimaries);
+                MFX_DEBUG_TRACE_U32(m_signalInfo.TransferCharacteristics);
+                MFX_DEBUG_TRACE_U32(m_signalInfo.MatrixCoefficients);
+                MFX_DEBUG_TRACE_U32(setting->range);
+                MFX_DEBUG_TRACE_U32(setting->primaries);
+                MFX_DEBUG_TRACE_U32(setting->transfer);
+                MFX_DEBUG_TRACE_U32(setting->matrix);
+                break;
+            }
+#else
+            case kParamIndexColorAspects: {
+				if (C2StreamColorAspectsInfo::input::PARAM_TYPE == index) {
+					if (nullptr == *dst) {
+	                    *dst = new C2StreamColorAspectsInfo::input();
+	                }
+
+	                C2StreamColorAspectsInfo::input* setting = static_cast<C2StreamColorAspectsInfo::input*>(*dst);
+
+					setting->range = mColorAspects->range;
+	                setting->transfer = mColorAspects->transfer;
+	                setting->matrix = mColorAspects->matrix;
+	                setting->primaries = mColorAspects->primaries;
+
+					MFX_DEBUG_TRACE_U32(setting->range);
+	                MFX_DEBUG_TRACE_U32(setting->primaries);
+	                MFX_DEBUG_TRACE_U32(setting->transfer);
+	                MFX_DEBUG_TRACE_U32(setting->matrix);
+				} else {
+				    if (nullptr == *dst) {
+	                    *dst = new C2StreamColorAspectsInfo::output();
+	                }
+
+	                C2StreamColorAspectsInfo::output* setting = static_cast<C2StreamColorAspectsInfo::output*>(*dst);
+
+					setting->range = mCodedColorAspects->range;
+	                setting->transfer = mCodedColorAspects->transfer;
+	                setting->matrix = mCodedColorAspects->matrix;
+	                setting->primaries = mCodedColorAspects->primaries;
+
+					MFX_DEBUG_TRACE_U32(setting->range);
+	                MFX_DEBUG_TRACE_U32(setting->primaries);
+	                MFX_DEBUG_TRACE_U32(setting->transfer);
+	                MFX_DEBUG_TRACE_U32(setting->matrix);
+				}
+				break;
+            }
+#endif
             default:
                 res = C2_BAD_INDEX;
                 break;
@@ -1553,7 +1838,54 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
         if(!m_paramStorage.ValidateParam(param, failures)) {
             continue;
         }
+        ALOGI("%s, idx = 0x%x, index = 0x%x", __func__, param->index(), C2Param::Type(param->type()).typeIndex());
+#if 0
+        switch (param->index()) {
+			case C2StreamColorAspectsInfo::input::PARAM_TYPE: {
+                const C2StreamColorAspectsInfo::input* setting = static_cast<const C2StreamColorAspectsInfo::input*>(param);
 
+				mColorAspects->range = setting->range;
+                mColorAspects->transfer = setting->transfer;
+                mColorAspects->matrix = setting->matrix;
+                mColorAspects->primaries = setting->primaries;
+
+				C2ToMfxVideoRange(setting->range, m_signalInfo.VideoFullRange);
+                C2ToMfxColourPrimaries(setting->primaries, m_signalInfo.ColourPrimaries);
+                C2ToMfxTransferCharacteristics(setting->transfer, m_signalInfo.TransferCharacteristics);
+                C2ToMfxMatrixCoefficients(setting->matrix, m_signalInfo.MatrixCoefficients);
+                m_signalInfo.ColourDescriptionPresent = setting->primaries != C2Color::PRIMARIES_UNSPECIFIED ||
+                                                             setting->transfer != C2Color::TRANSFER_UNSPECIFIED ||
+                                                             setting->matrix != C2Color::MATRIX_UNSPECIFIED;
+
+                MFX_DEBUG_TRACE_U32(m_signalInfo.VideoFullRange);
+                MFX_DEBUG_TRACE_U32(m_signalInfo.ColourPrimaries);
+                MFX_DEBUG_TRACE_U32(m_signalInfo.TransferCharacteristics);
+                MFX_DEBUG_TRACE_U32(m_signalInfo.MatrixCoefficients);
+
+				MFX_DEBUG_TRACE_U32(mColorAspects->range);
+                MFX_DEBUG_TRACE_U32(mColorAspects->primaries);
+                MFX_DEBUG_TRACE_U32(mColorAspects->transfer);
+                MFX_DEBUG_TRACE_U32(mColorAspects->matrix);
+				break;
+			}
+			case C2StreamColorAspectsInfo::output::PARAM_TYPE: {
+				const C2StreamColorAspectsInfo::output* setting = static_cast<const C2StreamColorAspectsInfo::output*>(param);
+
+				mCodedColorAspects->range = setting->range;
+                mCodedColorAspects->transfer = setting->transfer;
+                mCodedColorAspects->matrix = setting->matrix;
+                mCodedColorAspects->primaries = setting->primaries;
+
+				MFX_DEBUG_TRACE_U32(mCodedColorAspects->range);
+                MFX_DEBUG_TRACE_U32(mCodedColorAspects->primaries);
+                MFX_DEBUG_TRACE_U32(mCodedColorAspects->transfer);
+                MFX_DEBUG_TRACE_U32(mCodedColorAspects->matrix);
+				break;
+			}
+			default:
+				break;
+        }
+#endif
         // applying parameter
         switch (C2Param::Type(param->type()).typeIndex()) {
             case kParamIndexRateControl: {
@@ -1832,6 +2164,90 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 }
                 break;
             }
+#if 0
+            case kParamIndexColorAspects: {
+                const C2StreamColorAspectsInfo* settings = static_cast<const C2StreamColorAspectsInfo*>(param);
+				android::ColorAspects ca;
+                MFX_DEBUG_TRACE_U32(settings->range);
+                MFX_DEBUG_TRACE_U32(settings->primaries);
+                MFX_DEBUG_TRACE_U32(settings->transfer);
+                MFX_DEBUG_TRACE_U32(settings->matrix);
+#if 1
+                ca.mRange = (android::ColorAspects::Range)settings->range;
+                ca.mTransfer = (android::ColorAspects::Transfer)settings->transfer;
+                ca.mMatrixCoeffs = (android::ColorAspects::MatrixCoeffs)settings->matrix;
+                ca.mPrimaries = (android::ColorAspects::Primaries)settings->primaries;
+
+                //mColorAspects->range = settings->range;
+                //mColorAspects->primaries = settings->primaries;
+                //mColorAspects->transfer = settings->transfer;
+                //mColorAspects->matrix = settings->matrix;
+                mCodedColorAspects->range = settings->range;
+                mCodedColorAspects->primaries = settings->primaries;
+                mCodedColorAspects->transfer = settings->transfer;
+                mCodedColorAspects->matrix = settings->matrix;
+#else
+                if (1) {
+                    C2ToMfxVideoRange(settings->range, m_signalInfo.VideoFullRange);
+                    C2ToMfxColourPrimaries(settings->primaries, m_signalInfo.ColourPrimaries);
+                    C2ToMfxTransferCharacteristics(settings->transfer, m_signalInfo.TransferCharacteristics);
+                    C2ToMfxMatrixCoefficients(settings->matrix, m_signalInfo.MatrixCoefficients);
+                    m_signalInfo.ColourDescriptionPresent = settings->primaries != C2Color::PRIMARIES_UNSPECIFIED ||
+                                                             settings->transfer != C2Color::TRANSFER_UNSPECIFIED ||
+                                                             settings->matrix != C2Color::MATRIX_UNSPECIFIED;
+
+                    MFX_DEBUG_TRACE_U32(m_signalInfo.VideoFullRange);
+                    MFX_DEBUG_TRACE_U32(m_signalInfo.ColourPrimaries);
+                    MFX_DEBUG_TRACE_U32(m_signalInfo.TransferCharacteristics);
+                    MFX_DEBUG_TRACE_U32(m_signalInfo.MatrixCoefficients);
+                }
+#endif
+                break;
+#else
+		   case kParamIndexColorAspects: {
+		        if (C2StreamColorAspectsInfo::input::PARAM_TYPE == param->index()) {
+					const C2StreamColorAspectsInfo::input* setting = static_cast<const C2StreamColorAspectsInfo::input*>(param);
+
+					mColorAspects->range = setting->range;
+	                mColorAspects->transfer = setting->transfer;
+	                mColorAspects->matrix = setting->matrix;
+	                mColorAspects->primaries = setting->primaries;
+#if 0
+					C2ToMfxVideoRange(setting->range, m_signalInfo.VideoFullRange);
+	                C2ToMfxColourPrimaries(setting->primaries, m_signalInfo.ColourPrimaries);
+	                C2ToMfxTransferCharacteristics(setting->transfer, m_signalInfo.TransferCharacteristics);
+	                C2ToMfxMatrixCoefficients(setting->matrix, m_signalInfo.MatrixCoefficients);
+
+					m_signalInfo.ColourDescriptionPresent = 1;
+
+	                MFX_DEBUG_TRACE_U32(m_signalInfo.VideoFullRange);
+	                MFX_DEBUG_TRACE_U32(m_signalInfo.ColourPrimaries);
+	                MFX_DEBUG_TRACE_U32(m_signalInfo.TransferCharacteristics);
+	                MFX_DEBUG_TRACE_U32(m_signalInfo.MatrixCoefficients);
+#else
+                    setColorAspects_l();
+#endif
+
+					MFX_DEBUG_TRACE_U32(mColorAspects->range);
+	                MFX_DEBUG_TRACE_U32(mColorAspects->primaries);
+	                MFX_DEBUG_TRACE_U32(mColorAspects->transfer);
+	                MFX_DEBUG_TRACE_U32(mColorAspects->matrix);
+		        } else {
+		            const C2StreamColorAspectsInfo::output* setting = static_cast<const C2StreamColorAspectsInfo::output*>(param);
+
+					mCodedColorAspects->range = setting->range;
+	                mCodedColorAspects->transfer = setting->transfer;
+	                mCodedColorAspects->matrix = setting->matrix;
+	                mCodedColorAspects->primaries = setting->primaries;
+
+					MFX_DEBUG_TRACE_U32(mCodedColorAspects->range);
+	                MFX_DEBUG_TRACE_U32(mCodedColorAspects->primaries);
+	                MFX_DEBUG_TRACE_U32(mCodedColorAspects->transfer);
+	                MFX_DEBUG_TRACE_U32(mCodedColorAspects->matrix);
+		        }
+		   	    break;
+		    }
+#endif
             default:
                 m_paramStorage.ConfigParam(*param, m_state == State::STOPPED, failures);
                 break;
@@ -1902,3 +2318,93 @@ c2_status_t MfxC2EncoderComponent::Queue(std::list<std::unique_ptr<C2Work>>* con
 
     return C2_OK;
 }
+
+#if 0
+void MfxC2EncoderComponent::getCodedColorAspects_l(C2StreamColorAspectsInfo::output* colorAspects){
+    MFX_DEBUG_TRACE_FUNC;
+
+    if (m_signalInfo) {
+        android::ColorAspects ca;
+        m_colorAspects.GetColorAspectsFromVideoSignal(*m_signalInfo, ca);
+
+        colorAspects->range = (C2Color::range_t)ca.mRange;
+        colorAspects->transfer = (C2Color::transfer_t)ca.mTransfer;
+        colorAspects->matrix = (C2Color::matrix_t)ca.mMatrixCoeffs;
+        colorAspects->primaries = (C2Color::primaries_t)ca.mPrimaries;
+    } else {
+        colorAspects->range = C2Color::RANGE_UNSPECIFIED;
+        colorAspects->transfer = C2Color::TRANSFER_UNSPECIFIED;
+        colorAspects->matrix = C2Color::MATRIX_UNSPECIFIED;
+        colorAspects->primaries = C2Color::PRIMARIES_UNSPECIFIED;
+    }
+
+    MFX_DEBUG_TRACE_U32(colorAspects->range);
+    MFX_DEBUG_TRACE_U32(colorAspects->primaries);
+    MFX_DEBUG_TRACE_U32(colorAspects->transfer);
+    MFX_DEBUG_TRACE_U32(colorAspects->matrix);
+}
+#else
+void MfxC2EncoderComponent::setColorAspects_l()
+{
+    MFX_DEBUG_TRACE_FUNC;
+	
+	android::ColorAspects sfAspects;
+#if 0
+	if (!C2Mapper::map(setting->range, &sfAspects.mRange)) {
+	    m_signalInfo.VideoFullRange = 0;
+	} else {
+	    m_signalInfo.VideoFullRange = sfAspects.mRange;
+	}
+
+	if (!C2Mapper::map(setting->transfer, &sfAspects.mTransfer)) {
+	    m_signalInfo.TransferCharacteristics = 0;
+	} else {
+	    m_signalInfo.TransferCharacteristics = sfAspects.mTransfer;
+	}
+
+	if (!C2Mapper::map(setting->matrix, &sfAspects.mMatrixCoeffs)) {
+	    m_signalInfo.MatrixCoefficients = 0;
+	} else {
+	    m_signalInfo.MatrixCoefficients = sfAspects.mMatrixCoeffs;
+	}
+
+	if (!C2Mapper::map(setting->primaries, &sfAspects.mPrimaries)) {
+	    m_signalInfo.ColourPrimaries = 0;
+	} else {
+	    m_signalInfo.ColourPrimaries = sfAspects.mPrimaries;
+	}
+#endif
+    if (!C2Mapper::map(mColorAspects->primaries, &sfAspects.mPrimaries)) {
+        sfAspects.mPrimaries = android::ColorAspects::PrimariesUnspecified;
+    }
+    if (!C2Mapper::map(mColorAspects->range, &sfAspects.mRange)) {
+        sfAspects.mRange = android::ColorAspects::RangeUnspecified;
+    }
+    if (!C2Mapper::map(mColorAspects->matrix, &sfAspects.mMatrixCoeffs)) {
+        sfAspects.mMatrixCoeffs = android::ColorAspects::MatrixUnspecified;
+    }
+    if (!C2Mapper::map(mColorAspects->transfer, &sfAspects.mTransfer)) {
+        sfAspects.mTransfer = android::ColorAspects::TransferUnspecified;
+    }
+	
+    int32_t primaries, transfer, matrixCoeffs;
+    bool range;
+    ColorUtils::convertCodecColorAspectsToIsoAspects(sfAspects,
+            &primaries,
+            &transfer,
+            &matrixCoeffs,
+            &range);
+
+    m_signalInfo.ColourDescriptionPresent = 1;
+	m_signalInfo.VideoFullRange = range;
+	m_signalInfo.TransferCharacteristics = transfer;
+	m_signalInfo.MatrixCoefficients= matrixCoeffs;
+	m_signalInfo.ColourPrimaries = primaries;
+
+    MFX_DEBUG_TRACE_U32(m_signalInfo.VideoFullRange);
+    MFX_DEBUG_TRACE_U32(m_signalInfo.ColourPrimaries);
+    MFX_DEBUG_TRACE_U32(m_signalInfo.TransferCharacteristics);
+    MFX_DEBUG_TRACE_U32(m_signalInfo.MatrixCoefficients);
+	MFX_DEBUG_TRACE_U32(m_signalInfo.ColourDescriptionPresent);
+}
+#endif

@@ -122,6 +122,10 @@ void MfxC2ColorAspectsWrapper::GetOutputColorAspects(android::ColorAspects &outC
     MFX_DEBUG_TRACE_I32(m_bitstreamColorAspects.mPrimaries);
     MFX_DEBUG_TRACE_I32(m_bitstreamColorAspects.mTransfer);
     MFX_DEBUG_TRACE_I32(m_bitstreamColorAspects.mMatrixCoeffs);
+    MFX_DEBUG_TRACE_I32(m_frameworkColorAspects.mRange);
+    MFX_DEBUG_TRACE_I32(m_frameworkColorAspects.mPrimaries);
+    MFX_DEBUG_TRACE_I32(m_frameworkColorAspects.mTransfer);
+    MFX_DEBUG_TRACE_I32(m_frameworkColorAspects.mMatrixCoeffs);
 
     if (m_bitstreamColorAspects.mRange != android::ColorAspects::RangeUnspecified)
         outColorAspects.mRange = m_bitstreamColorAspects.mRange;
@@ -149,7 +153,7 @@ void MfxC2ColorAspectsWrapper::GetOutputColorAspects(android::ColorAspects &outC
     MFX_DEBUG_TRACE_I32(outColorAspects.mMatrixCoeffs);
 }
 
-void MfxC2ColorAspectsWrapper::GetColorAspectsFromVideoSignal(const mfxExtVideoSignalInfo &signalInfo, android::ColorAspects &outColorAspects)
+void MfxC2ColorAspectsWrapper::GetColorAspectsFromVideoSignal(mfxExtVideoSignalInfo &signalInfo, android::ColorAspects &outColorAspects)
 {
     MFX_DEBUG_TRACE_FUNC;
     bool video_signal_type_present_flag = signalInfo.VideoFormat != 5 ||
@@ -387,15 +391,12 @@ void MfxC2ColorAspectsWrapper::C2ToMfxVideoRange(android::ColorAspects::Range vi
     switch (videoRange)
     {
         case android::ColorAspects::RangeLimited:
+        case android::ColorAspects::RangeUnspecified:
             out = 0;
             break;
 
         case android::ColorAspects::RangeFull:
             out = 1;
-            break;
-
-        case android::ColorAspects::RangeUnspecified:
-            out = 0xFF;
             break;
 
         default:

@@ -126,6 +126,22 @@ bool IsYV12(const C2GraphicView &view);
 
 void ParseGop(const C2StreamGopTuning &gop, uint32_t &syncInterval, uint32_t &iInterval, uint32_t &maxBframes);
 
+void MfxToC2MatrixCoefficients(mfxU16 matrixCoefficients, C2Color::matrix_t &out);
+
+void MfxToC2TransferCharacteristics(mfxU16 transferCharacteristics, C2Color::transfer_t &out);
+
+void MfxToC2ColourPrimaries(mfxU16 colourPrimaries, C2Color::primaries_t &out);
+
+void MfxToC2VideoRange(mfxU16 videoRange, C2Color::range_t &out);
+
+void C2ToMfxColourPrimaries(C2Color::primaries_t colourPrimaries, mfxU16 &out);
+
+void C2ToMfxVideoRange(C2Color::range_t videoRange, mfxU16 &out);
+
+void C2ToMfxTransferCharacteristics(C2Color::transfer_t transferCharacteristics, mfxU16 &out);
+
+void C2ToMfxMatrixCoefficients(C2Color::matrix_t matrixCoefficients, mfxU16 &out);
+
 inline mfxU16 av1_mfx_profile_to_native_profile(mfxU16 profile)
 {
     switch (profile)
@@ -205,6 +221,12 @@ struct mfx_ext_buffer_id{};
 template<>struct mfx_ext_buffer_id<mfxExtCodingOption> {
     enum {id = MFX_EXTBUFF_CODING_OPTION};
 };
+template<>struct mfx_ext_buffer_id<mfxExtCodingOption2> {
+    enum {id = MFX_EXTBUFF_CODING_OPTION2};
+};
+template<>struct mfx_ext_buffer_id<mfxExtCodingOption3> {
+    enum {id = MFX_EXTBUFF_CODING_OPTION3};
+};
 template<>struct mfx_ext_buffer_id<mfxExtCodingOptionSPSPPS> {
     enum {id = MFX_EXTBUFF_CODING_OPTION_SPSPPS};
 };
@@ -213,6 +235,9 @@ template<>struct mfx_ext_buffer_id<mfxExtCodingOptionVPS> {
 };
 template<>struct mfx_ext_buffer_id<mfxExtVP9Param> {
     enum {id = MFX_EXTBUFF_VP9_PARAM};
+};
+template<>struct mfx_ext_buffer_id<mfxExtVideoSignalInfo> {
+    enum {id = MFX_EXTBUFF_VIDEO_SIGNAL_INFO };
 };
 
 template <typename R>
@@ -403,6 +428,7 @@ private:
             MFX_EXTBUFF_CODING_OPTION3,
             MFX_EXTBUFF_HEVC_PARAM,
             MFX_EXTBUFF_VP9_PARAM,
+            MFX_EXTBUFF_VIDEO_SIGNAL_INFO,
         };
 
         auto it = std::find_if(std::begin(allowed), std::end(allowed),
