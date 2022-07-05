@@ -198,6 +198,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 LEVEL_HEVC_MAIN_5_2, LEVEL_HEVC_HIGH_4,
                 LEVEL_HEVC_HIGH_4_1, LEVEL_HEVC_HIGH_5,
                 LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
+                LEVEL_HEVC_HIGH_6, LEVEL_HEVC_HIGH_6_1, LEVEL_HEVC_HIGH_6_2,
             };
 
             pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
@@ -1066,6 +1067,7 @@ c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
     c2_status_t res = C2_OK;
 
     res = m_paramStorage.QueryParam(index, dst);
+    ALOGI("%s, index = 0x%x, res = %d", __func__, index, res);
     if (C2_NOT_FOUND == res) {
         switch (index) {
             case kParamIndexMemoryType: {
@@ -1254,14 +1256,20 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 ca.mMatrixCoeffs = (android::ColorAspects::MatrixCoeffs)settings->matrix;
                 ca.mPrimaries = (android::ColorAspects::Primaries)settings->primaries;
 
+#if 1
                 mfxExtVideoSignalInfo signal_info;
                 MFX_ZERO_MEMORY(signal_info);
+                //C2ToMfxVideoRange(settings->range, signal_info.VideoFullRange);
+                //C2ToMfxColourPrimaries(settings->primaries, signal_info.ColourPrimaries);
+                //C2ToMfxTransferCharacteristics(settings->transfer, signal_info.TransferCharacteristics);
+                //C2ToMfxMatrixCoefficients(settings->matrix, signal_info.MatrixCoefficients);
                 signal_info.VideoFullRange = settings->range;
                 signal_info.ColourPrimaries = settings->primaries;
                 signal_info.TransferCharacteristics = settings->transfer;
                 signal_info.MatrixCoefficients = settings->matrix;
 
                 m_colorAspects.UpdateBitstreamColorAspects(signal_info);
+#endif
                 m_colorAspects.SetFrameworkColorAspects(ca);
                 break;
             }
@@ -1278,14 +1286,20 @@ void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
                 ca.mMatrixCoeffs = (android::ColorAspects::MatrixCoeffs)settings->matrix;
                 ca.mPrimaries = (android::ColorAspects::Primaries)settings->primaries;
 
+#if 1
                 mfxExtVideoSignalInfo signal_info;
                 MFX_ZERO_MEMORY(signal_info);
+                //C2ToMfxVideoRange(settings->range, signal_info.VideoFullRange);
+                //C2ToMfxColourPrimaries(settings->primaries, signal_info.ColourPrimaries);
+                //C2ToMfxTransferCharacteristics(settings->transfer, signal_info.TransferCharacteristics);
+                //C2ToMfxMatrixCoefficients(settings->matrix, signal_info.MatrixCoefficients);
                 signal_info.VideoFullRange = settings->range;
                 signal_info.ColourPrimaries = settings->primaries;
                 signal_info.TransferCharacteristics = settings->transfer;
                 signal_info.MatrixCoefficients = settings->matrix;
 
                 m_colorAspects.UpdateBitstreamColorAspects(signal_info);
+#endif
                 m_colorAspects.SetFrameworkColorAspects(ca);
                 break;
             }
@@ -1919,20 +1933,35 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             }
         }
         if (work) {
-            if (C2_OK == res) {
-                std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
-                // Pass end of stream flag only.
-                worklet->output.flags = (C2FrameData::flags_t)(work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
-                worklet->output.ordinal = work->input.ordinal;
-            }
             if (flushing) {
                 m_flushedWorks.push_back(std::move(work));
             } else {
-                NotifyWorkDone(std::move(work), res);
+                FillEmptyWork(std::move(work), res);
             }
         }
     }
 }
+
+void MfxC2DecoderComponent::FillEmptyWork(std::unique_ptr<C2Work>&& work, c2_status_t res)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    uint32_t flags = 0;
+    // Pass end of stream flag only
+    if (work->input.flags & C2FrameData::FLAG_END_OF_STREAM) {
+        flags |= C2FrameData::FLAG_END_OF_STREAM;
+        MFX_DEBUG_TRACE_MSG("signalling eos");
+    }
+
+    std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
+    worklet->output.flags = (C2FrameData::flags_t)flags;
+    // No output buffers
+    worklet->output.buffers.clear();
+    worklet->output.ordinal = work->input.ordinal;
+
+    NotifyWorkDone(std::move(work), res);
+}
+
 
 void MfxC2DecoderComponent::Drain(std::unique_ptr<C2Work>&& work)
 {
@@ -1970,12 +1999,7 @@ void MfxC2DecoderComponent::Drain(std::unique_ptr<C2Work>&& work)
         if (work) {
             m_waitingQueue.Push([work = std::move(work), this]() mutable {
 
-                std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
-
-                worklet->output.flags = (C2FrameData::flags_t)(work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
-                worklet->output.ordinal = work->input.ordinal;
-
-                NotifyWorkDone(std::move(work), C2_OK);
+                FillEmptyWork(std::move(work), C2_OK);
             });
         }
 
@@ -1985,6 +2009,10 @@ void MfxC2DecoderComponent::Drain(std::unique_ptr<C2Work>&& work)
             m_devBusyCond.wait_for(lock, timeout, [this] { return m_uSyncedPointsCount == 0; } );
         if (!cv_res) {
             MFX_DEBUG_TRACE_MSG("Timeout on drain completion");
+        }
+    } else {
+        if (work) {
+            FillEmptyWork(std::move(work), C2_OK);
         }
     }
 }

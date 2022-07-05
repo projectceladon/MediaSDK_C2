@@ -28,6 +28,7 @@
 #include "mfx_c2_bitstream_out.h"
 #include "mfx_c2_utils.h"
 #include "mfx_c2_vpp_wrapp.h"
+#include "mfx_c2_color_aspects_wrapper.h"
 
 // Assumes all calls are done from one (working) thread, no sync is needed.
 // m_ctrlOnce accumulates subsequent changes for one next frame.
@@ -103,6 +104,8 @@ private:
 
     mfxStatus ResetSettings();
 
+    void AttachExtBuffer();
+
     mfxStatus InitEncoder();
     mfxStatus InitVPP(C2FrameData& buf_pack);
     // Allocate external system memory surface pool
@@ -135,6 +138,9 @@ private:
     void WaitWork(std::unique_ptr<C2Work>&& work,
         std::unique_ptr<mfxEncodeCtrl>&& encode_ctrl,
         MfxC2BitstreamOut&& bit_stream, mfxSyncPoint sync_point);
+
+    //void getCodedColorAspects_l(C2StreamColorAspectsInfo::output* colorAspects);
+    void setColorAspects_l(/*const C2StreamColorAspectsInfo::input* setting*/);
 
 private:
     EncoderType m_encoderType;
@@ -201,6 +207,19 @@ private:
     bool m_bVppDetermined;
     MfxC2VppWrapp m_vpp;
     MfxC2Conversion m_inputVppType;
+
+    //std::shared_ptr<C2StreamColorAspectsInfo::input> mColorAspects;
+    //std::shared_ptr<C2StreamColorAspectsInfo::output> mCodedColorAspects;
+
+    mfxExtCodingOption     m_codingOption;
+    mfxExtCodingOption2    m_codingOption2;
+    mfxExtCodingOption3    m_codingOption3;
+    mfxExtVideoSignalInfo  m_signalInfo;
+
+    //MfxC2ColorAspectsWrapper m_colorAspects;
+    bool m_bColorAspectSent{false};
+    std::shared_ptr<C2StreamColorAspectsInfo::input> mColorAspects;
+    std::shared_ptr<C2StreamColorAspectsInfo::output> mCodedColorAspects;
 
     // Input frame info with width or height not 16byte aligned
     mfxFrameInfo m_mfxInputInfo;

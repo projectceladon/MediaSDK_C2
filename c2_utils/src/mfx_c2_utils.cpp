@@ -628,7 +628,7 @@ std::string FormatHex(const uint8_t* data, size_t len)
     std::ostringstream ss;
     ss << std::hex;
     for (size_t i = 0; i < len; ++i) {
-        if (i > 40) {
+        if (i > 60) {
             ss << std::dec << std::setw(0) << "... [" << len << "]";
             break;
         }
@@ -813,5 +813,354 @@ void ParseGop(
     }
     if (iInterval) {
         iInterval = iInt;
+    }
+}
+
+void MfxToC2VideoRange(mfxU16 videoRange, C2Color::range_t &out)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_I32(videoRange);
+
+    switch (videoRange)
+    {
+        case 0:
+            out = C2Color::RANGE_LIMITED;
+            break;
+
+        case 1:
+            out = C2Color::RANGE_FULL;
+            break;
+
+        default:
+            out = C2Color::RANGE_UNSPECIFIED;
+            break;
+    }
+
+    MFX_DEBUG_TRACE_I32(out);
+}
+
+void C2ToMfxVideoRange(C2Color::range_t videoRange, mfxU16 &out)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    switch (videoRange)
+    {
+        case C2Color::RANGE_LIMITED:
+            out = 0;
+            break;
+
+        case C2Color::RANGE_FULL:
+            out = 1;
+            break;
+
+        default:
+            out = 0xFF;
+            break;
+    }
+}
+
+
+void MfxToC2ColourPrimaries(mfxU16 colourPrimaries, C2Color::primaries_t &out)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_I32(colourPrimaries);
+
+    switch (colourPrimaries)
+    {
+        case 1:
+            out = C2Color::PRIMARIES_BT709;
+            break;
+
+        case 2:
+            out = C2Color::PRIMARIES_UNSPECIFIED;
+            break;
+
+        case 4:
+            out = C2Color::PRIMARIES_BT470_M;
+            break;
+
+        case 5:
+            out = C2Color::PRIMARIES_BT601_625;
+            break;
+
+        case 6:
+            out = C2Color::PRIMARIES_BT601_525;
+            break;
+
+        case 8:
+            out = C2Color::PRIMARIES_GENERIC_FILM;
+            break;
+
+        case 9:
+            out = C2Color::PRIMARIES_BT2020;
+            break;
+
+        default:
+            out = C2Color::PRIMARIES_UNSPECIFIED;
+            break;
+    }
+
+    MFX_DEBUG_TRACE_I32(out);
+}
+
+void C2ToMfxColourPrimaries(C2Color::primaries_t colourPrimaries, mfxU16 &out)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    switch (colourPrimaries)
+    {
+        case C2Color::PRIMARIES_BT709:
+            out = 1;
+            break;
+
+        case C2Color::PRIMARIES_UNSPECIFIED:
+            out = 2;
+            break;
+
+        case C2Color::PRIMARIES_BT470_M:
+            out = 4;
+            break;
+
+        case C2Color::PRIMARIES_BT601_625:
+            out = 5;
+            break;
+
+        case C2Color::PRIMARIES_BT601_525:
+            out = 6;
+            break;
+
+        case C2Color::PRIMARIES_GENERIC_FILM:
+            out = 8;
+            break;
+
+        case C2Color::PRIMARIES_BT2020:
+            out = 9;
+            break;
+
+        default:
+            out = 0;
+            ALOGE("Unsupported colour primaries");
+            break;
+    }
+}
+
+void MfxToC2TransferCharacteristics(mfxU16 transferCharacteristics, C2Color::transfer_t &out)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_I32(transferCharacteristics);
+
+    switch (transferCharacteristics)
+    {
+        case 1:
+            out = C2Color::TRANSFER_170M;
+            break;
+
+        case 2:
+            out = C2Color::TRANSFER_UNSPECIFIED;
+            break;
+
+        case 4:
+            out = C2Color::TRANSFER_GAMMA22;
+            break;
+
+        case 5:
+            out = C2Color::TRANSFER_GAMMA28;
+            break;
+
+        case 6:
+            out = C2Color::TRANSFER_170M;
+            break;
+
+        case 7:
+            out = C2Color::TRANSFER_240M;
+            break;
+
+        case 8:
+            out = C2Color::TRANSFER_LINEAR;
+            break;
+
+        case 11:
+            out = C2Color::TRANSFER_XVYCC;
+            break;
+
+        case 12:
+            out = C2Color::TRANSFER_BT1361;
+            break;
+
+        case 13:
+            out = C2Color::TRANSFER_SRGB;
+            break;
+
+        case 14:
+        case 15:
+            out = C2Color::TRANSFER_170M;
+            break;
+
+        case 16:
+            out = C2Color::TRANSFER_ST2084;
+            break;
+
+        case 17:
+            out = C2Color::TRANSFER_ST428;
+            break;
+
+        case 18:
+            out = C2Color::TRANSFER_HLG;
+            break;
+
+        default:
+            out = C2Color::TRANSFER_UNSPECIFIED;
+            break;
+    }
+
+    MFX_DEBUG_TRACE_I32(out);
+}
+
+void C2ToMfxTransferCharacteristics(C2Color::transfer_t transferCharacteristics, mfxU16 &out)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    switch (transferCharacteristics)
+    {
+        case C2Color::TRANSFER_170M:
+            out = 1;
+            break;
+
+        case C2Color::TRANSFER_UNSPECIFIED:
+            out = 2;
+            break;
+
+        case C2Color::TRANSFER_GAMMA22:
+            out = 4;
+            break;
+
+        case C2Color::TRANSFER_GAMMA28:
+            out = 5;
+            break;
+
+        case C2Color::TRANSFER_240M:
+            out = 7;
+            break;
+
+        case C2Color::TRANSFER_LINEAR:
+            out = 8;
+            break;
+
+        case C2Color::TRANSFER_XVYCC:
+            out = 11;
+            break;
+
+        case C2Color::TRANSFER_BT1361:
+            out = 12;
+            break;
+
+        case C2Color::TRANSFER_SRGB:
+            out = 13;
+            break;
+
+        case C2Color::TRANSFER_ST2084:
+            out = 16;
+            break;
+
+        case C2Color::TRANSFER_ST428:
+            out = 17;
+            break;
+
+        case C2Color::TRANSFER_HLG:
+            out = 18;
+            break;
+
+        default:
+            // should never happen there
+            out = 0;
+            ALOGE("Unsupported transfer characteristic");
+            break;
+    }
+}
+
+
+void MfxToC2MatrixCoefficients(mfxU16 matrixCoefficients, C2Color::matrix_t &out)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_I32(matrixCoefficients);
+
+    switch (matrixCoefficients)
+    {
+        case 1:
+            out = C2Color::MATRIX_BT709;
+            break;
+
+        case 2:
+            out = C2Color::MATRIX_UNSPECIFIED;
+            break;
+
+        case 4:
+            out = C2Color::MATRIX_FCC47_73_682;
+            break;
+
+        case 5:
+        case 6:
+            out = C2Color::MATRIX_BT601;
+            break;
+
+        case 7:
+            out = C2Color::MATRIX_240M;
+            break;
+
+        case 9:
+            out = C2Color::MATRIX_BT2020;
+            break;
+
+        case 10:
+            out = C2Color::MATRIX_BT2020_CONSTANT;
+            break;
+
+        default:
+            out = C2Color::MATRIX_UNSPECIFIED;
+            break;
+    }
+
+    MFX_DEBUG_TRACE_I32(out);
+}
+
+void C2ToMfxMatrixCoefficients(C2Color::matrix_t matrixCoefficients, mfxU16 &out)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    switch (matrixCoefficients)
+    {
+        case C2Color::MATRIX_BT709:
+            out = 1;
+            break;
+
+        case C2Color::MATRIX_UNSPECIFIED:
+            out = 2;
+            break;
+
+        case C2Color::MATRIX_FCC47_73_682:
+            out = 4;
+            break;
+
+        case C2Color::MATRIX_BT601:
+            out = 5;
+            break;
+
+        case C2Color::MATRIX_240M:
+            out = 7;
+            break;
+
+        case C2Color::MATRIX_BT2020:
+            out = 9;
+            break;
+
+        case C2Color::MATRIX_BT2020_CONSTANT:
+            out = 10;
+            break;
+
+        default:
+            // should never happen there
+            out = 0;
+            ALOGE("Unsupported matrix coefficients");
+            break;
     }
 }
