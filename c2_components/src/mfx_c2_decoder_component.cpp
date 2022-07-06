@@ -198,6 +198,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 LEVEL_HEVC_MAIN_5_2, LEVEL_HEVC_HIGH_4,
                 LEVEL_HEVC_HIGH_4_1, LEVEL_HEVC_HIGH_5,
                 LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
+                LEVEL_HEVC_HIGH_6, LEVEL_HEVC_HIGH_6_1, LEVEL_HEVC_HIGH_6_2,
             };
 
             pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
@@ -668,7 +669,7 @@ mfxStatus MfxC2DecoderComponent::InitSession()
             idx++;
             continue;
         }
-        ALOGI("%s. Idx = %d. ApiVersion: %d.%d. Implementation type: %s. AccelerationMode via: %d",
+        MFX_LOG_INFO("%s. Idx = %d. ApiVersion: %d.%d. Implementation type: %s. AccelerationMode via: %d",
                  __func__, idx, idesc->ApiVersion.Major, idesc->ApiVersion.Minor,
                 (idesc->Impl == MFX_IMPL_TYPE_SOFTWARE) ? "SW" : "HW",
                 idesc->AccelerationMode);
@@ -688,7 +689,7 @@ mfxStatus MfxC2DecoderComponent::InitSession()
         if (!m_mfxLoader)
             MFXUnload(m_mfxLoader);
 
-        ALOGE("Failed to create a MFX session (%d)", mfx_res);
+        MFX_LOG_ERROR("Failed to create a MFX session (%d)", mfx_res);
         return mfx_res;
     }
 
