@@ -103,6 +103,8 @@ private:
 
     mfxStatus ResetSettings();
 
+    void AttachExtBuffer();
+
     mfxStatus InitEncoder();
     mfxStatus InitVPP(C2FrameData& buf_pack);
     // Allocate external system memory surface pool
@@ -135,6 +137,12 @@ private:
     void WaitWork(std::unique_ptr<C2Work>&& work,
         std::unique_ptr<mfxEncodeCtrl>&& encode_ctrl,
         MfxC2BitstreamOut&& bit_stream, mfxSyncPoint sync_point);
+
+    void setColorAspects_l();
+
+    std::shared_ptr<C2StreamColorAspectsInfo::output> getCodedColorAspects_l();
+
+    bool CodedColorAspectsDiffer(std::shared_ptr<C2StreamColorAspectsInfo::output> vuiColorAspects);
 
 private:
     EncoderType m_encoderType;
@@ -201,6 +209,10 @@ private:
     bool m_bVppDetermined;
     MfxC2VppWrapp m_vpp;
     MfxC2Conversion m_inputVppType;
+
+    mfxExtVideoSignalInfo m_signalInfo;
+    std::shared_ptr<C2StreamColorAspectsInfo::input> m_colorAspects;
+    std::shared_ptr<C2StreamColorAspectsInfo::output> m_codedColorAspects;
 
     // Input frame info with width or height not 16byte aligned
     mfxFrameInfo m_mfxInputInfo;
