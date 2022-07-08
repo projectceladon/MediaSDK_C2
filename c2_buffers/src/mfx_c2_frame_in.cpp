@@ -66,6 +66,16 @@ c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converte
         res = GetC2ConstGraphicBlock(buf_pack, &c_graph_block);
         if(C2_OK != res) break;
 
+        if ( (info.Width && info.Width > MFX_ALIGN_16(c_graph_block->width())) ||
+             (info.Height && info.Height > MFX_ALIGN_16(c_graph_block->height())) ) {
+            MFX_DEBUG_TRACE_I32(info.Width);
+            MFX_DEBUG_TRACE_I32(info.Height);
+            MFX_DEBUG_TRACE_I32(c_graph_block->width());
+            MFX_DEBUG_TRACE_I32(c_graph_block->height());
+            res = C2_BAD_VALUE;
+            break;
+        }
+
         m_frameConverter = frame_converter;
         if (nullptr != m_frameConverter) {
             res = MfxC2LoadSurfaceInHW(*c_graph_block, buf_pack);
@@ -117,28 +127,31 @@ c2_status_t MfxC2FrameIn::MfxC2LoadSurfaceInSW(C2ConstGraphicBlock& c_graph_bloc
     c2_status_t res = C2_OK;
     mfxStatus mfx_sts = MFX_ERR_NONE;
 
-	res = MapConstGraphicBlock(c_graph_block, timeout, &m_c2GraphicView);
+    res = MapConstGraphicBlock(c_graph_block, timeout, &m_c2GraphicView);
     if(C2_OK != res) {
         return res;
     }
 
-	const uint8_t *pY = m_c2GraphicView->data()[C2PlanarLayout::PLANE_Y];
-	const uint8_t *pU = m_c2GraphicView->data()[C2PlanarLayout::PLANE_U];
-	const uint8_t *pV = m_c2GraphicView->data()[C2PlanarLayout::PLANE_V];
+    const uint8_t *pY = m_c2GraphicView->data()[C2PlanarLayout::PLANE_Y];
+    const uint8_t *pU = m_c2GraphicView->data()[C2PlanarLayout::PLANE_U];
+    const uint8_t *pV = m_c2GraphicView->data()[C2PlanarLayout::PLANE_V];
 
-	uint32_t width = c_graph_block.width();
-	uint32_t height = c_graph_block.height();
-	uint32_t stride = m_c2GraphicView->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
-	uint32_t y_plane_size = stride * height;
+    uint32_t width = c_graph_block.width();
+    uint32_t height = c_graph_block.height();
+    uint32_t stride = m_c2GraphicView->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
+    uint32_t y_plane_size = stride * height;
+    MFX_DEBUG_TRACE_I32(width);
+    MFX_DEBUG_TRACE_I32(height);
+    MFX_DEBUG_TRACE_I32(stride);
 
     if (IsNV12(*m_c2GraphicView)) {
         mfx_sts = InitMfxFrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
             const_cast<uint8_t*>(m_c2GraphicView->data()[0]),
             width, height, stride, MFX_FOURCC_NV12, m_mfxFrameInfo,
             m_pMfxFrameSurface);
-		if (MFX_ERR_NONE != mfx_sts) {
+        if (MFX_ERR_NONE != mfx_sts) {
             res = MfxStatusToC2(mfx_sts);
-			return res;
+            return res;
         }
     } else if (IsI420(*m_c2GraphicView) || IsYV12(*m_c2GraphicView)) {
 
@@ -176,11 +189,11 @@ c2_status_t MfxC2FrameIn::MfxC2LoadSurfaceInSW(C2ConstGraphicBlock& c_graph_bloc
                                 m_pMfxFrameSurface);
         if (MFX_ERR_NONE != mfx_sts) {
             res = MfxStatusToC2(mfx_sts);
-			return res;
+            return res;
         }
    } else {
        MFX_DEBUG_TRACE_PRINTF("unsupported format");
-	   return C2_BAD_VALUE;
+       return C2_BAD_VALUE;
    }
 
    return res;

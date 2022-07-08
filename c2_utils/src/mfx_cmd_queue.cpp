@@ -119,8 +119,7 @@ void MfxCmdQueue::Process()
         WaitingPop(&mfx_cmd);
         if(mfx_cmd == nullptr) {
             break;
-        }
-        else {
+        } else {
             mfx_cmd();
         }
     }

@@ -384,7 +384,7 @@ c2_status_t MfxC2Component::stop()
 c2_status_t MfxC2Component::reset()
 {
     MFX_DEBUG_TRACE_FUNC;
-    return C2_OMITTED;
+    return C2_OK;
 }
 
 c2_status_t MfxC2Component::release()

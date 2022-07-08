@@ -132,7 +132,7 @@ private:
 
     void Drain(std::unique_ptr<C2Work>&& work);
 
-    void ReturnEmptyWork(std::unique_ptr<C2Work>&& work);
+    void ReturnEmptyWork(std::unique_ptr<C2Work>&& work, c2_status_t res);
     // waits for the sync_point and update work with encoder output then
     void WaitWork(std::unique_ptr<C2Work>&& work,
         std::unique_ptr<mfxEncodeCtrl>&& encode_ctrl,
@@ -143,6 +143,8 @@ private:
     std::shared_ptr<C2StreamColorAspectsInfo::output> getCodedColorAspects_l();
 
     bool CodedColorAspectsDiffer(std::shared_ptr<C2StreamColorAspectsInfo::output> vuiColorAspects);
+
+    void getMaxMinResolutionSupported(uint32_t *min_w, uint32_t *min_h, uint32_t *max_w, uint32_t *max_h);
 
 private:
     EncoderType m_encoderType;
