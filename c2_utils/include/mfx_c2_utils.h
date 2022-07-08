@@ -217,7 +217,9 @@ template<>struct mfx_ext_buffer_id<mfxExtVP9Param> {
 template<>struct mfx_ext_buffer_id<mfxExtVideoSignalInfo> {
     enum {id = MFX_EXTBUFF_VIDEO_SIGNAL_INFO };
 };
-
+template<>struct mfx_ext_buffer_id<mfxExtEncoderResetOption> {
+    enum {id = MFX_EXTBUFF_ENCODER_RESET_OPTION };
+};
 
 template <typename R>
 struct ExtParamAccessor
@@ -408,6 +410,7 @@ private:
             MFX_EXTBUFF_HEVC_PARAM,
             MFX_EXTBUFF_VP9_PARAM,
             MFX_EXTBUFF_VIDEO_SIGNAL_INFO,
+            MFX_EXTBUFF_ENCODER_RESET_OPTION
         };
 
         auto it = std::find_if(std::begin(allowed), std::end(allowed),

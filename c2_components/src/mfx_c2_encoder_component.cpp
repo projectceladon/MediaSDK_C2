@@ -120,6 +120,14 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
 
     const unsigned int SINGLE_STREAM_ID = 0u;
 
+    uint32_t MIN_W = 176;
+    uint32_t MIN_H = 144;
+    uint32_t MAX_W = 4096;
+    uint32_t MAX_H = 4096;
+    getMaxMinResolutionSupported(&MIN_W, &MIN_H, &MAX_W, &MAX_H);
+    pr.RegisterSupportedRange<C2StreamPictureSizeInfo>(&C2StreamPictureSizeInfo::width, MIN_W, MAX_W);
+    pr.RegisterSupportedRange<C2StreamPictureSizeInfo>(&C2StreamPictureSizeInfo::height, MIN_H, MAX_H);
+
     switch(m_encoderType) {
         case ENCODER_H264: {
             supported_profiles = {
@@ -276,6 +284,36 @@ void MfxC2EncoderComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
         &MfxC2Component::Factory<MfxC2EncoderComponent, EncoderType>::Create<ENCODER_H265>);
     registry.RegisterMfxC2Component("c2.intel.vp9.encoder",
         &MfxC2Component::Factory<MfxC2EncoderComponent, EncoderType>::Create<ENCODER_VP9>);
+}
+
+void MfxC2EncoderComponent::getMaxMinResolutionSupported(
+        uint32_t *min_w, uint32_t *min_h, uint32_t *max_w, uint32_t *max_h)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    switch(m_encoderType) {
+        case ENCODER_H264: {
+            *min_w = 176;
+            *min_h = 144;
+            *max_w = 4096;
+            *max_h = 4096;
+            break;
+        }
+        case ENCODER_H265: {
+            *min_w = 176;
+            *min_h = 144;
+            *max_w = 8192;
+            *max_h = 8192;
+            break;
+        }
+        case ENCODER_VP9: {
+            *min_w = 128;
+            *min_h = 96;
+            *max_w = 8192;
+            *max_h = 8192;
+            break;
+        }
+    }
 }
 
 c2_status_t MfxC2EncoderComponent::Init()
@@ -615,6 +653,9 @@ void MfxC2EncoderComponent::AttachExtBuffer()
     MFX_DEBUG_TRACE_FUNC;
 
     if (m_encoderType == ENCODER_H264 || m_encoderType == ENCODER_H265) {
+        mfxExtCodingOption* codingOption = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtCodingOption>();
+        codingOption->NalHrdConformance = MFX_CODINGOPTION_OFF;
+
         mfxExtVideoSignalInfo *vsi = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtVideoSignalInfo>();
         memcpy(vsi, &m_signalInfo, sizeof(mfxExtVideoSignalInfo));
 
@@ -1089,7 +1130,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
     } while(false); // fake loop to have a cleanup point there
 
     if(C2_OK != res) { // notify listener in case of failure only
-        NotifyWorkDone(std::move(work), res);
+        ReturnEmptyWork(std::move(work), res);
     }
 }
 
@@ -1156,16 +1197,25 @@ void MfxC2EncoderComponent::Drain(std::unique_ptr<C2Work>&& work)
     }
 }
 
-void MfxC2EncoderComponent::ReturnEmptyWork(std::unique_ptr<C2Work>&& work)
+void MfxC2EncoderComponent::ReturnEmptyWork(std::unique_ptr<C2Work>&& work, c2_status_t res)
 {
     MFX_DEBUG_TRACE_FUNC;
 
+    uint32_t flags = 0;
+    // Pass end of stream flag only
+    if (work->input.flags & C2FrameData::FLAG_END_OF_STREAM) {
+        flags |= C2FrameData::FLAG_END_OF_STREAM;
+        MFX_DEBUG_TRACE_MSG("signalling eos");
+    }
+
     if (work->worklets.size() > 0) {
         std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
-        worklet->output.flags = work->input.flags;
+        worklet->output.flags = (C2FrameData::flags_t)flags;
+        worklet->output.buffers.clear();
         worklet->output.ordinal = work->input.ordinal;
     }
-    NotifyWorkDone(std::move(work), C2_OK);
+
+    NotifyWorkDone(std::move(work), res);
 }
 
 void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
@@ -1700,22 +1750,22 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
                             MFX_DEBUG_TRACE_FUNC;
                             // MDSK strongly recommended to retrieve the actual working parameters by MFXVideoENCODE_GetVideoParam
                             // function before making any changes to bitrate settings.
-                            mfxStatus mfx_res = m_mfxEncoder->GetVideoParam(&m_mfxVideoParamsConfig);
-                            if (MFX_ERR_NONE != mfx_res) {
-                                MFX_DEBUG_TRACE__mfxStatus(mfx_res);
-                                return;
+                            if (nullptr != m_mfxEncoder) {
+                                mfxStatus mfx_res = m_mfxEncoder->GetVideoParam(&m_mfxVideoParamsConfig);
+                                if (MFX_ERR_NONE != mfx_res) {
+                                    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+                                    return;
+                                }
                             }
                             m_mfxVideoParamsConfig.mfx.TargetKbps = bitrate_value / 1000; // Convert from bps to Kbps
                             // If application sets NalHrdConformance option in mfxExtCodingOption structure to ON, the only allowed bitrate control mode is VBR.
                             // If OFF, all bitrate control modes are available.In CBR and AVBR modes the application can
                             // change TargetKbps, in VBR mode the application can change TargetKbps and MaxKbps values.
                             // Such change in bitrate will not result in generation of a new key-frame or sequence header.
-                            if ((m_encoderType == ENCODER_H264 || m_encoderType == ENCODER_H265) &&
-                                m_mfxVideoParamsConfig.mfx.RateControlMethod != MFX_RATECONTROL_VBR) {
-                                mfxExtCodingOption* codingOption = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtCodingOption>();
-                                codingOption->NalHrdConformance = MFX_CODINGOPTION_OFF;
+                            if (m_encoderType == ENCODER_H265 && m_mfxVideoParamsConfig.mfx.RateControlMethod == MFX_RATECONTROL_CBR) {
+                                mfxExtEncoderResetOption* resetOption = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtEncoderResetOption>();
+                                resetOption->StartNewSequence = MFX_CODINGOPTION_ON;
                             }
-
                             if (nullptr != m_mfxEncoder) {
                                 {   // waiting for encoding completion of all enqueued frames
                                     std::unique_lock<std::mutex> lock(m_devBusyMutex);
@@ -2012,7 +2062,7 @@ c2_status_t MfxC2EncoderComponent::Queue(std::list<std::unique_ptr<C2Work>>* con
                 });
             } else {
                 MFX_DEBUG_TRACE_MSG("Empty work without EOS flag, return back.");
-                ReturnEmptyWork(std::move(work));
+                ReturnEmptyWork(std::move(work), C2_OK);
             }
         } else {
             m_workingQueue.Push( [ work = std::move(work), this ] () mutable {
