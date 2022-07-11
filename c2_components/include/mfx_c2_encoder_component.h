@@ -146,6 +146,8 @@ private:
 
     void getMaxMinResolutionSupported(uint32_t *min_w, uint32_t *min_h, uint32_t *max_w, uint32_t *max_h);
 
+    uint32_t getSyncFramePeriod_l(int32_t sync_frame_period) const;
+
 private:
     EncoderType m_encoderType;
 
