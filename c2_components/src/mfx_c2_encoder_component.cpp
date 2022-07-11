@@ -1970,9 +1970,10 @@ void MfxC2EncoderComponent::DoConfig(const std::vector<C2Param*> &params,
             case kParamIndexSyncFrameInterval: {
                 const C2StreamSyncFrameIntervalTuning* setting = static_cast<const C2StreamSyncFrameIntervalTuning*>(param);
                 if (setting->value > 0) {
+                    uint32_t gop_size = getSyncFramePeriod_l(setting->value);
                     MFX_DEBUG_TRACE_PRINTF("updating m_mfxVideoParamsConfig.mfx.GopPicSize from %d to %d",
-                        m_mfxVideoParamsConfig.mfx.GopPicSize, setting->value);
-                    m_mfxVideoParamsConfig.mfx.GopPicSize = setting->value;
+                        m_mfxVideoParamsConfig.mfx.GopPicSize, gop_size);
+                    m_mfxVideoParamsConfig.mfx.GopPicSize = gop_size;
                 }
                 break;
             }
@@ -2198,4 +2199,20 @@ bool MfxC2EncoderComponent::CodedColorAspectsDiffer(std::shared_ptr<C2StreamColo
 
     MFX_DEBUG_TRACE_U32(differ);
     return differ;
+}
+
+uint32_t MfxC2EncoderComponent::getSyncFramePeriod_l(int32_t sync_frame_period) const
+{
+     MFX_DEBUG_TRACE_FUNC;
+
+    if (sync_frame_period < 0 || sync_frame_period == INT64_MAX) {
+        return 0;
+    }
+
+    double frame_rate = m_mfxVideoParamsConfig.mfx.FrameInfo.FrameRateExtN / m_mfxVideoParamsConfig.mfx.FrameInfo.FrameRateExtD;
+    double period = sync_frame_period / 1e6 * frame_rate;
+
+    MFX_DEBUG_TRACE_F64(frame_rate);
+    MFX_DEBUG_TRACE_F64(period);
+    return (uint32_t)c2_max(c2_min(period + 0.5, double(UINT32_MAX)), 1.);
 }
