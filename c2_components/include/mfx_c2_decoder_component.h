@@ -240,5 +240,5 @@ private:
     std::list<std::shared_ptr<mfxFrameSurface1>> m_surfacePool; // used in case of system memory
 
     unsigned int m_uOutputDelay = 8u;
-    unsigned int m_uInputDelay = 0u;
+    unsigned int m_uInputDelay = 12u;
 };
