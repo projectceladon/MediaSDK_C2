@@ -1859,6 +1859,16 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
             if (MFX_ERR_MORE_DATA == mfx_sts) {
                 mfx_sts = MFX_ERR_NONE; // valid result of DecodeFrame
+
+                // Some frames reference multiple frames when decoding,
+                // avoid msdk holding too many frames blocking the input buffer queue,
+                // release input buffers ealier.
+                std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
+                auto it = m_pendingWorks.find(incoming_frame_index);
+                if (it != m_pendingWorks.end()) {
+                    MFX_DEBUG_TRACE_MSG("clear input buffers");
+                    it->second->input.buffers.clear();
+                }
             }
 
             resolution_change = (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == mfx_sts);
