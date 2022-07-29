@@ -140,8 +140,6 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                     break;
                 }
 
-                // deep copy to have unique_ptr as m_pool required unique_ptr
-                std::unique_ptr<C2GraphicBlock> unique_block = std::make_unique<C2GraphicBlock>(*new_block);
 
                 bool decode_target = true;
                 mfx_res = ConvertGrallocToVa(hndl, decode_target, &mids[i]);
@@ -150,9 +148,9 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                     break;
                 }
 
-                MFX_DEBUG_TRACE_STREAM(NAMED(unique_block->handle()) << NAMED(mids[i]));
+                MFX_DEBUG_TRACE_STREAM(NAMED(new_block.get()) << NAMED(new_block->handle()) << NAMED(mids[i]));
 
-                m_pool->Append(std::move(unique_block));//tmp cache it, in case return it to system and alloc again at once.
+                m_pool->Append(new_block);
 
                 native_handle_delete(hndl);
 
@@ -162,7 +160,6 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
 
             if (response->NumFrameActual >= request->NumFrameMin) {
                 response->mids = mids.release();
-                m_pool = std::make_unique<MfxPool<C2GraphicBlock>>(); //release graphic buffer
                 mfx_res = MFX_ERR_NONE; // suppress the error if allocated enough
             } else {
                 response->NumFrameActual = 0;
@@ -174,6 +171,7 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
             }
         } while(false);
     } else {
+        // TODO: Actually will it be run here?
         mfx_res = AllocFrames(request, response);
     }
 
@@ -188,6 +186,7 @@ mfxStatus MfxVaFramePoolAllocator::FreeFrames(mfxFrameAllocResponse *response)
         FreeGrallocToVaMapping(response->mids[i]);
     }
     delete[] response->mids;
+    m_pool = std::make_unique<MfxPool<C2GraphicBlock>>();
 
     return MFX_ERR_NONE;
 }

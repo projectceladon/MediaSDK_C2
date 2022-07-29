@@ -25,13 +25,7 @@
 #include <memory>
 #include <list>
 
-// Generic pool resource management providing allocated resource through
-// std::shared_ptr.
-// Keeps unique_ptr inside pool and provides shared_ptr outside.
-// Returned shared_ptr has custom deleter to return freed object back to the pool.
-// Automatically tracks returned shared_ptrs and
-// returns released resources back to the pool.
-// Raw pointers of the same objects are retained.
+// Generic pool resource management providing allocated resource through std::shared_ptr.
 template<typename T>
 class MfxPool
 {
@@ -54,14 +48,19 @@ public:
     MFX_CLASS_NO_COPY(MfxPool<T>)
 
 public:
-    void Append(std::unique_ptr<T>&& free_item)
+    void Append(std::shared_ptr<T>& free_item)
     {
-        m_poolImpl->Append(std::move(free_item));
+        m_poolImpl->Append(free_item);
     }
 
     std::shared_ptr<T> Alloc()
     {
         return m_poolImpl->Alloc();
+    }
+
+    std::shared_ptr<T> GetNextOne()
+    {
+        return m_poolImpl->GetNextOne();
     }
 
 private:
@@ -74,19 +73,27 @@ private:
         // Signals new free resource added to the pool.
         std::condition_variable m_condition;
         // Collection of free resources.
-        std::list<std::unique_ptr<T>> m_free;
+        std::list<std::shared_ptr<T>> m_free;
         // Signal when instance destroyed
         std::promise<void> m_destroyed;
+        // Save current iterator position
+        typename std::list<std::shared_ptr<T>>::iterator m_curItr;
     public:
+        MfxPoolImpl()
+        {
+            // Make that returns first element when first call GetOneBlock().
+            m_curItr = m_free.end();
+        }
+
         ~MfxPoolImpl()
         {
             m_destroyed.set_value();
         }
 
-        void Append(std::unique_ptr<T>&& free_item)
+        void Append(std::shared_ptr<T>& free_item)
         {
             std::lock_guard<std::mutex> lock(m_mutex);
-            m_free.push_back(std::move(free_item));
+            m_free.push_back(free_item);
             m_condition.notify_one();
         }
         // Returns allocated resource through shared_ptr.
@@ -101,21 +108,24 @@ private:
                 if (!success) return nullptr;
             }
 
-            std::weak_ptr<MfxPoolImpl> weak_this { this->shared_from_this() };
-            auto deleter = [weak_this] (T* item) {
-                // weak_ptr and its lock needed to make possible allocated resources
-                // live longer than this pool
-                std::shared_ptr<MfxPoolImpl> shared_this = weak_this.lock();
-                if (shared_this) {
-                    shared_this->Append(std::unique_ptr<T>(item));
-                } else {
-                    delete item;
-                }
-            };
-
-            std::unique_ptr<T> free_block = std::move(m_free.front());
             m_free.pop_front();
-            return std::shared_ptr<T>(free_block.release(), deleter);
+            auto res = m_free.front();
+            return res;
+        }
+
+        // always return next element.
+        std::shared_ptr<T> GetNextOne()
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            if (0 == m_free.size()) {
+                return nullptr;
+            }
+
+            std::advance(m_curItr, 1);
+            if(m_free.end() == m_curItr)
+                m_curItr = m_free.begin();
+
+            return *m_curItr;
         }
 
         std::future<void> Destroyed()

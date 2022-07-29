@@ -316,7 +316,8 @@ TEST(MfxPool, Alloc)
         MfxPool<int> pool;
         // append range of numbers
         for (int i = 0; i < COUNT; ++i) {
-            pool.Append(std::make_unique<int>(i));
+            auto p = std::make_shared<int>(i);
+            pool.Append(p);
         }
 
         std::shared_ptr<int> allocated[COUNT];

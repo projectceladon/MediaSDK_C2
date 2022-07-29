@@ -124,8 +124,6 @@ private:
     mfxStatus DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& frame_out,
         bool* flushing, bool* expect_output);
 
-    c2_status_t AllocateC2Block(uint32_t width, uint32_t height, uint32_t fourcc, std::shared_ptr<C2GraphicBlock>* out_block);
-
     c2_status_t AllocateFrame(MfxC2FrameOut* frame_out);
 
     mfxU16 GetAsyncDepth();

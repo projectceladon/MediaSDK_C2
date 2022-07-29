@@ -84,6 +84,12 @@ private:
 
         return true;
     }
+
+    std::shared_ptr<C2GraphicBlock> GetOneBlock() override
+    {
+        return m_pool->GetNextOne();
+    }
+
 private:
     virtual mfxStatus AllocFrames(mfxFrameAllocRequest *request, mfxFrameAllocResponse *response) override;
 
