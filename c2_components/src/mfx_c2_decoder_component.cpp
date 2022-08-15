@@ -1501,9 +1501,7 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
                         ++m_uSyncedPointsCount;
                     }
                 }
-	    } else {
-		*expect_output = false;
-	      }
+            }
         } else if (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == mfx_sts) {
             MFX_DEBUG_TRACE_MSG("MFX_ERR_INCOMPATIBLE_VIDEO_PARAM: resolution was changed");
         }
