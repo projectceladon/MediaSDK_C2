@@ -817,7 +817,8 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
 {
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
-
+    // Workaround for MSDK issue which would change crop size on AV1.
+    mfxU16 cropW = 0, cropH = 0;
     std::lock_guard<std::mutex> lock(m_initDecoderMutex);
 
     {
@@ -941,6 +942,8 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         MFX_DEBUG_TRACE_MSG("InitDecoder: Init");
 
         MFX_DEBUG_TRACE__mfxVideoParam_dec(m_mfxVideoParams);
+        cropW = m_mfxVideoParams.mfx.FrameInfo.CropW;
+        cropH = m_mfxVideoParams.mfx.FrameInfo.CropH;
 
         if (m_allocator) {
             m_allocator->SetC2Allocator(c2_allocator);
@@ -952,10 +955,6 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         mfx_res = m_mfxDecoder->Init(&m_mfxVideoParams);
         MFX_DEBUG_TRACE_PRINTF("Decoder initialized, sts = %d", mfx_res);
 
-        // Same as DecodeHeader, MSDK will call the function av1_native_profile_to_mfx_profile to change CodecProfile
-        // in Init().
-        if (m_decoderType == DECODER_AV1)
-            m_mfxVideoParams.mfx.CodecProfile = av1_mfx_profile_to_native_profile(m_mfxVideoParams.mfx.CodecProfile);
 
         // c2 allocator is needed to handle mfxAllocRequest coming from m_mfxDecoder->Init,
         // not needed after that.
@@ -979,6 +978,13 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
 
         if (MFX_ERR_NONE == mfx_res) {
             m_bInitialized = true;
+        }
+        // Same as DecodeHeader, MSDK will call the function av1_native_profile_to_mfx_profile to change CodecProfile
+        // in Init().
+        if (m_decoderType == DECODER_AV1) {
+            m_mfxVideoParams.mfx.CodecProfile = av1_mfx_profile_to_native_profile(m_mfxVideoParams.mfx.CodecProfile);
+            m_mfxVideoParams.mfx.FrameInfo.CropW = cropW;
+            m_mfxVideoParams.mfx.FrameInfo.CropH = cropH;
         }
     }
     if (MFX_ERR_NONE != mfx_res) {
@@ -1547,6 +1553,8 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
                 if (m_allocator && !m_allocator->InCache(id)) {
                     res = C2_BLOCKING;
                     usleep(1000);
+                    // If always fetch a nocached block, check if width or height have changed
+                    // compare to when it was initialized.
                     MFX_DEBUG_TRACE_PRINTF("fetchGraphicBlock a nocached block, please retune output blocks. id = %d", id);
                 }
             }
@@ -1768,6 +1776,20 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
     bool expect_output = false;
     bool flushing = false;
+    bool codecConfig = ((incoming_flags & C2FrameData::FLAG_CODEC_CONFIG) != 0);
+    // Av1 don't need the bs which flag is config.
+    if (codecConfig && DECODER_AV1 == m_decoderType) {
+        FillEmptyWork(std::move(work), C2_OK);
+        if (true == m_bInitialized) {
+            mfxStatus format_change_sts = HandleFormatChange();
+            MFX_DEBUG_TRACE__mfxStatus(format_change_sts);
+            mfx_sts = format_change_sts;
+            if (MFX_ERR_NONE != mfx_sts) {
+                FreeDecoder();
+            }
+        }
+        return;
+    }
 
     do {
         std::unique_ptr<C2ReadView> read_view;
