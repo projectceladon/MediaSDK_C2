@@ -42,12 +42,7 @@ MFX_C2_CFLAGS += \
 
 ifeq ($(BOARD_USES_GRALLOC1),true)
   # plugins should use PRIME buffer descriptor since Android P
-  ifneq ($(filter MFX_S ,$(MFX_ANDROID_VERSION)),)
-      MFX_C2_CFLAGS += -DMFX_C2_USE_PRIME
-  endif
-  ifneq ($(filter MFX_R ,$(MFX_ANDROID_VERSION)),)
-      MFX_C2_CFLAGS += -DMFX_C2_USE_PRIME
-  endif
+  MFX_C2_CFLAGS += -DMFX_C2_USE_PRIME
 else
   $(error "Required GRALLOC1 support")
 endif
