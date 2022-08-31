@@ -78,7 +78,7 @@ void MfxC2ColorAspectsWrapper::UpdateBitstreamColorAspects(const mfxExtVideoSign
                                             signalInfo.VideoFullRange != 0 ||
                                             signalInfo.ColourDescriptionPresent != 0;
 
-    if (MFX_CODEC_VP9 == m_uCodecId || MFX_CODEC_VP8 == m_uCodecId)
+    if (MFX_CODEC_VP9 == m_uCodecId || MFX_CODEC_VP8 == m_uCodecId || MFX_CODEC_AV1 == m_uCodecId)
     {
         video_signal_type_present_flag = false;
     }
@@ -156,7 +156,7 @@ void MfxC2ColorAspectsWrapper::GetColorAspectsFromVideoSignal(const mfxExtVideoS
                                             signalInfo.VideoFullRange != 0 ||
                                             signalInfo.ColourDescriptionPresent != 0;
 
-    if (MFX_CODEC_VP9 == m_uCodecId || MFX_CODEC_VP8 == m_uCodecId)
+    if (MFX_CODEC_VP9 == m_uCodecId || MFX_CODEC_VP8 == m_uCodecId || MFX_CODEC_AV1 == m_uCodecId)
     {
         // No video signal info present in vpx bitstream.
         video_signal_type_present_flag = false;
