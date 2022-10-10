@@ -487,13 +487,15 @@ c2_status_t MfxC2DecoderComponent::DoStart()
 
     } while(false);
 
+    m_OperationState = OperationState::RUNNING;
+
     return C2_OK;
 }
 
 c2_status_t MfxC2DecoderComponent::DoStop(bool abort)
 {
     MFX_DEBUG_TRACE_FUNC;
-
+    m_OperationState = OperationState::STOPPING;
     // Working queue should stop first otherwise race condition
     // is possible when waiting queue is stopped (first), but working
     // queue is pushing tasks into it (via DecodeFrameAsync). As a
@@ -529,6 +531,7 @@ c2_status_t MfxC2DecoderComponent::DoStop(bool abort)
         m_c2Bitstream->GetFrameConstructor()->Close();
     }
 
+    m_OperationState = OperationState::STOPPED;
     return C2_OK;
 }
 
@@ -1531,6 +1534,14 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
 
         if (!m_c2Allocator) {
             res = C2_NOT_FOUND;
+            break;
+        }
+
+        // From Android T, Surfaces are no longer used when MediaCodec#stop() is called.
+        // https://android-review.googlesource.com/c/platform/frameworks/av/+/2098075
+        // Exit the loop when the surface may not be available.
+        if (OperationState::STOPPING == m_OperationState) {
+            res = C2_CANCELED;
             break;
         }
 

@@ -42,6 +42,13 @@ public:
         DECODER_AV1,
     };
 
+    enum class OperationState {
+        INITIALIZATION,
+        RUNNING,
+        STOPPING,
+        STOPPED,
+    };
+
 protected:
     MfxC2DecoderComponent(const C2String name, const CreateConfig& config,
         std::shared_ptr<MfxC2ParamReflector> reflector, DecoderType decoder_type);
@@ -173,6 +180,8 @@ private:
     bool m_bAllocatorSet { false };
 
     bool m_bInitialized;
+
+    OperationState m_OperationState { OperationState::INITIALIZATION };
 
     MfxCmdQueue m_workingQueue;
     MFX_TRACEABLE(m_workingQueue);
