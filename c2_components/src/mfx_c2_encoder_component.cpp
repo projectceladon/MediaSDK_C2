@@ -214,7 +214,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
         AllocUniqueString<C2PortMediaTypeSetting::input>("video/raw"));
 
     pr.AddValue(C2_PARAMKEY_BITRATE_MODE,
-        std::make_unique<C2StreamBitrateModeTuning::output>(SINGLE_STREAM_ID, C2Config::bitrate_mode_t::BITRATE_CONST));
+        std::make_unique<C2StreamBitrateModeTuning::output>(SINGLE_STREAM_ID, C2Config::bitrate_mode_t::BITRATE_VARIABLE));
 
     pr.AddValue(C2_PARAMKEY_REQUEST_SYNC_FRAME, 
         std::make_unique<C2StreamRequestSyncFrameTuning::output>(SINGLE_STREAM_ID, false));
@@ -1589,6 +1589,26 @@ c2_status_t MfxC2EncoderComponent::QueryParam(const mfxVideoParam* src, C2Param:
                     MFX_DEBUG_TRACE_U32(setting->transfer);
                     MFX_DEBUG_TRACE_U32(setting->matrix);
                 }
+                break;
+            }
+            case kParamIndexBitrateMode: {
+                if (nullptr == *dst) {
+                    *dst = new C2StreamBitrateModeTuning::output();
+                }
+
+                C2StreamBitrateModeTuning::output* setting = static_cast<C2StreamBitrateModeTuning::output*>(*dst);
+                switch (m_mfxVideoParamsConfig.mfx.RateControlMethod) {
+                    case MFX_RATECONTROL_CBR:
+                        setting->value = C2Config::bitrate_mode_t::BITRATE_CONST;
+                        break;
+                    case MFX_RATECONTROL_VBR:
+                        setting->value = C2Config::bitrate_mode_t::BITRATE_VARIABLE;
+                        break;
+                    default:
+                        setting->value = C2Config::bitrate_mode_t::BITRATE_IGNORE;
+                        break;
+                }
+                MFX_DEBUG_TRACE_STREAM("QueryParam BitrateMode = " << setting->value);
                 break;
             }
             default:
