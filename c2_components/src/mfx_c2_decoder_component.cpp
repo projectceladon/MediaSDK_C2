@@ -1038,39 +1038,24 @@ mfxStatus MfxC2DecoderComponent::HandleFormatChange()
 
     if (!m_mfxDecoder) return MFX_ERR_NULL_PTR;
 
-    bool need_realloc = false;
     mfx_res = m_mfxDecoder->DecodeHeader(m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get(), &m_mfxVideoParams);
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
-    if (MFX_ERR_NONE == mfx_res) {
-        // Query required surfaces number for decoder
-        mfxFrameAllocRequest decRequest = {};
-        mfx_res = m_mfxDecoder->QueryIOSurf(&m_mfxVideoParams, &decRequest);
-        if (MFX_ERR_NONE == mfx_res) {
-            if (m_mfxVideoParams.mfx.FrameInfo.Width != m_uMaxWidth ||
-                m_mfxVideoParams.mfx.FrameInfo.Height != m_uMaxHeight) {
-                need_realloc = true;
-            } else if (m_uOutputDelay < decRequest.NumFrameSuggested){
-                // This should never happen here as buffers with the maximum count are allocated
-                return MFX_ERR_MEMORY_ALLOC;
-            }
+    // when oneVPL returns an error of resolution change, it is not necessarily the width or height has changed,
+    // it may be the profile or other SPS paramters.
 
-            if (need_realloc) {
-                // Free all the surfaces
-                mfx_res = m_mfxDecoder->Close();
-                if (MFX_ERR_NONE == mfx_res) {
-                    // De-allocate all the surfaces
-                    m_lockedSurfaces.clear();
-                    FreeSurfaces();
-                    if (m_allocator) {
-                        m_allocator->Reset();
-                    }
-                    // Re-init decoder
-                    m_bInitialized = false;
-                    m_uMaxWidth = m_mfxVideoParams.mfx.FrameInfo.Width;
-                    m_uMaxHeight = m_mfxVideoParams.mfx.FrameInfo.Height;
-                }
-            }
+    // Free all the surfaces
+    mfx_res = m_mfxDecoder->Close();
+    if (MFX_ERR_NONE == mfx_res) {
+        // De-allocate all the surfaces
+        m_lockedSurfaces.clear();
+        FreeSurfaces();
+        if (m_allocator) {
+            m_allocator->Reset();
         }
+        // Re-init decoder
+        m_bInitialized = false;
+        m_uMaxWidth = m_mfxVideoParams.mfx.FrameInfo.Width;
+        m_uMaxHeight = m_mfxVideoParams.mfx.FrameInfo.Height;
     }
 
     return mfx_res;
@@ -1741,6 +1726,7 @@ void MfxC2DecoderComponent::EmptyReadViews(uint64_t timestamp, uint64_t frame_in
 
     if (!IsDuplicatedTimeStamp(timestamp)) {
         ReleaseReadViews(frame_index);
+        return;
     }
 
     auto it = m_duplicatedTimeStamp.begin();
@@ -1964,8 +1950,9 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 work = std::move(it->second);
                 m_pendingWorks.erase(it);
             } else {
-                MFX_DEBUG_TRACE_STREAM("Not found C2Work to return error result!!!");
-                FatalError(C2_CORRUPTED);
+                MFX_DEBUG_TRACE_STREAM("Not found C2Work, index = " << incoming_frame_index.peeku());
+                // If not found, it might be removed by WaitWork. We don't need to return an error.
+                // FatalError(C2_CORRUPTED);
             }
         }
         if (work) {
@@ -2103,6 +2090,7 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
 
         if (it != m_pendingWorks.end()) {
             work = std::move(it->second);
+            MFX_DEBUG_TRACE_STREAM("Work removed: " << NAMED(work->input.ordinal.frameIndex.peeku()));
             m_pendingWorks.erase(it);
         }
     }
@@ -2232,6 +2220,7 @@ void MfxC2DecoderComponent::PushPending(std::unique_ptr<C2Work>&& work)
     auto it = m_pendingWorks.find(incoming_frame_index);
     if (it != m_pendingWorks.end()) { // Shouldn't be the same index there
         NotifyWorkDone(std::move(it->second), C2_CORRUPTED);
+        MFX_DEBUG_TRACE_STREAM("Work removed: " << NAMED(it->second->input.ordinal.frameIndex.peeku()));
         m_pendingWorks.erase(it);
     }
     m_pendingWorks.emplace(incoming_frame_index, std::move(work));
