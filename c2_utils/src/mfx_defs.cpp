@@ -167,10 +167,11 @@ uint32_t MFXGetSurfaceSize(uint32_t FourCC, uint32_t width, uint32_t height)
 uint32_t MFXGetFreeSurfaceIdx(mfxFrameSurface1 *SurfacesPool, uint32_t nPoolSize)
 {
     MFX_DEBUG_TRACE_FUNC;
-
-    for (uint32_t i = 0; i < nPoolSize; i++) {
-        if (0 == SurfacesPool[i].Data.Locked)
-            return i;
+    if ( SurfacesPool ){
+        for (uint32_t i = 0; i < nPoolSize; i++) {
+            if (0 == SurfacesPool[i].Data.Locked)
+                return i;
+        }
     }
     return MFX_ERR_NOT_FOUND;
 }
