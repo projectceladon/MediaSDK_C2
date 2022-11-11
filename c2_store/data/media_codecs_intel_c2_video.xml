@@ -95,7 +95,6 @@ and updated to vendor media codecs.
             <Limit name="bitrate" range="1-12000000" />
             <Limit name="performance-point-3840x2160" value="30" />
             <!--Feature name="intra-refresh" /-->
-            <Diagnostics dumpOutput="false" />
         </MediaCodec>
         <MediaCodec name="c2.intel.hevc.encoder" type="video/hevc" >
             <Limit name="size" min="176x144" max="8192x8192" />
