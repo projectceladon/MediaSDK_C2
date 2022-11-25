@@ -39,9 +39,11 @@ using namespace android;
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_decoder_component"
 
-const c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
-const uint64_t kMinInputBufferSize = 2 * WIDTH_2K * HEIGHT_2K;
-const uint64_t kDefaultConsumerUsage =
+constexpr uint32_t MIN_W = 176;
+constexpr uint32_t MIN_H = 144;
+constexpr c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
+constexpr uint64_t kMinInputBufferSize = 2 * WIDTH_2K * HEIGHT_2K;
+constexpr uint64_t kDefaultConsumerUsage =
     (GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_HW_COMPOSER);
 
 
@@ -56,8 +58,111 @@ enum VP8_LEVEL {
     LEVEL_VP8_Version0 = C2_PROFILE_LEVEL_VENDOR_START,
 };
 
+
+C2R MfxC2DecoderComponent::OutputSurfaceAllocatorSetter(bool mayBlock, C2P<C2PortSurfaceAllocatorTuning::output> &me) {
+    (void)mayBlock;
+    (void)me;
+    C2R res = C2R::Ok();
+
+    return res;
+}
+
+C2R MfxC2DecoderComponent::SizeSetter(bool mayBlock, const C2P<C2StreamPictureSizeInfo::output> &oldMe,
+                                    C2P<C2StreamPictureSizeInfo::output> &me) {
+    (void)mayBlock;
+    C2R res = C2R::Ok();
+    if (!me.F(me.v.width).supportsAtAll(me.v.width)) {
+        res = res.plus(C2SettingResultBuilder::BadValue(me.F(me.v.width)));
+        me.set().width = oldMe.v.width;
+    }
+    if (!me.F(me.v.height).supportsAtAll(me.v.height)) {
+        res = res.plus(C2SettingResultBuilder::BadValue(me.F(me.v.height)));
+        me.set().height = oldMe.v.height;
+    }
+    return res;
+}
+
+C2R MfxC2DecoderComponent::MaxPictureSizeSetter(bool mayBlock, C2P<C2StreamMaxPictureSizeTuning::output> &me,
+                                            const C2P<C2StreamPictureSizeInfo::output> &size) {
+    (void)mayBlock;
+    // TODO: get max width/height from the size's field helpers vs. hardcoding
+    me.set().width = c2_min(c2_max(me.v.width, size.v.width), uint32_t(WIDTH_8K));
+    me.set().height = c2_min(c2_max(me.v.height, size.v.height), uint32_t(HEIGHT_8K));
+    ALOGD("zyc, max.w = %d, h = %d", me.set().width, me.set().height);
+    return C2R::Ok();
+}
+
+C2R MfxC2DecoderComponent::MaxInputSizeSetter(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input> &me,
+                                const C2P<C2StreamMaxPictureSizeTuning::output> &maxSize) {
+    (void)mayBlock;
+    // assume compression ratio of 2
+    me.set().value = c2_max((((maxSize.v.width + 15) / 16)
+            * ((maxSize.v.height + 15) / 16) * 192), kMinInputBufferSize);
+    ALOGD("zyc, input size = %d", me.set().value);
+    me.set().value = kMinInputBufferSize;
+    return C2R::Ok();
+}
+
+C2R MfxC2DecoderComponent::ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::input> &me,
+                                  const C2P<C2StreamPictureSizeInfo::output> &size) {
+    (void)mayBlock;
+    (void)size;
+    (void)me;  // TODO: validate
+    return C2R::Ok();
+}
+
+C2R MfxC2DecoderComponent::DefaultColorAspectsSetter(bool mayBlock,
+                                            C2P<C2StreamColorAspectsTuning::output> &me) {
+    (void)mayBlock;
+    if (me.v.range > C2Color::RANGE_OTHER) {
+            me.set().range = C2Color::RANGE_OTHER;
+    }
+    if (me.v.primaries > C2Color::PRIMARIES_OTHER) {
+            me.set().primaries = C2Color::PRIMARIES_OTHER;
+    }
+    if (me.v.transfer > C2Color::TRANSFER_OTHER) {
+            me.set().transfer = C2Color::TRANSFER_OTHER;
+    }
+    if (me.v.matrix > C2Color::MATRIX_OTHER) {
+            me.set().matrix = C2Color::MATRIX_OTHER;
+    }
+    return C2R::Ok();
+}
+
+C2R MfxC2DecoderComponent::CodedColorAspectsSetter(bool mayBlock,
+                                            C2P<C2StreamColorAspectsInfo::input> &me) {
+    (void)mayBlock;
+    if (me.v.range > C2Color::RANGE_OTHER) {
+            me.set().range = C2Color::RANGE_OTHER;
+    }
+    if (me.v.primaries > C2Color::PRIMARIES_OTHER) {
+            me.set().primaries = C2Color::PRIMARIES_OTHER;
+    }
+    if (me.v.transfer > C2Color::TRANSFER_OTHER) {
+            me.set().transfer = C2Color::TRANSFER_OTHER;
+    }
+    if (me.v.matrix > C2Color::MATRIX_OTHER) {
+            me.set().matrix = C2Color::MATRIX_OTHER;
+    }
+    return C2R::Ok();
+}
+
+C2R MfxC2DecoderComponent::ColorAspectsSetter(bool mayBlock, C2P<C2StreamColorAspectsInfo::output> &me,
+                                const C2P<C2StreamColorAspectsTuning::output> &def,
+                                const C2P<C2StreamColorAspectsInfo::input> &coded) {
+    (void)mayBlock;
+    // take default values for all unspecified fields, and coded values for specified ones
+    me.set().range = coded.v.range == RANGE_UNSPECIFIED ? def.v.range : coded.v.range;
+    me.set().primaries = coded.v.primaries == PRIMARIES_UNSPECIFIED
+            ? def.v.primaries : coded.v.primaries;
+    me.set().transfer = coded.v.transfer == TRANSFER_UNSPECIFIED
+            ? def.v.transfer : coded.v.transfer;
+    me.set().matrix = coded.v.matrix == MATRIX_UNSPECIFIED ? def.v.matrix : coded.v.matrix;
+    return C2R::Ok();
+}
+
 MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateConfig& config,
-    std::shared_ptr<MfxC2ParamReflector> reflector, DecoderType decoder_type) :
+    std::shared_ptr<C2ReflectorHelper> reflector, DecoderType decoder_type) :
         MfxC2Component(name, config, std::move(reflector)),
         m_decoderType(decoder_type),
 #ifdef USE_ONEVPL
@@ -70,298 +175,446 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         m_surfaceNum(0)
 {
     MFX_DEBUG_TRACE_FUNC;
-
-    MfxC2ParamStorage& pr = m_paramStorage;
-
-    pr.RegisterParam<C2MemoryTypeSetting>("MemoryType");
-    pr.RegisterParam<C2PortAllocatorsTuning::output>(C2_PARAMKEY_OUTPUT_ALLOCATORS);
-    pr.RegisterParam<C2PortSurfaceAllocatorTuning::output>(C2_PARAMKEY_OUTPUT_SURFACE_ALLOCATOR);
-    pr.RegisterParam<C2PortBlockPoolsTuning::output>(C2_PARAMKEY_OUTPUT_BLOCK_POOLS);
-    pr.RegisterParam<C2StreamUsageTuning::output>(C2_PARAMKEY_OUTPUT_STREAM_USAGE);
-
-    pr.AddValue(C2_PARAMKEY_COMPONENT_DOMAIN,
-        std::make_unique<C2ComponentDomainSetting>(C2Component::DOMAIN_VIDEO));
-
-    pr.AddValue(C2_PARAMKEY_COMPONENT_KIND,
-        std::make_unique<C2ComponentKindSetting>(C2Component::KIND_DECODER));
-
-    pr.AddValue(C2_PARAMKEY_COMPONENT_NAME,
-        AllocUniqueString<C2ComponentNameSetting>(name.c_str()));
-
-    pr.AddValue(C2_PARAMKEY_OUTPUT_MEDIA_TYPE,
-        AllocUniqueString<C2PortMediaTypeSetting::output>("video/raw"));
-
     const unsigned int SINGLE_STREAM_ID = 0u;
-    pr.AddValue(C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE,
-        std::make_unique<C2StreamBufferTypeSetting::input>(SINGLE_STREAM_ID, C2BufferData::LINEAR));
-    pr.AddValue(C2_PARAMKEY_OUTPUT_STREAM_BUFFER_TYPE,
-        std::make_unique<C2StreamBufferTypeSetting::output>(SINGLE_STREAM_ID, C2BufferData::GRAPHIC));
+    uint32_t max_w = 0u;
+    uint32_t max_h = 0u;
 
-    pr.AddValue(C2_PARAMKEY_INPUT_MAX_BUFFER_SIZE,
-        std::make_unique<C2StreamMaxBufferSizeInfo::input>(SINGLE_STREAM_ID, kMinInputBufferSize));
+    addParameter(
+        DefineParam(m_kind, C2_PARAMKEY_COMPONENT_KIND)
+        .withConstValue(new C2ComponentKindSetting(C2Component::KIND_DECODER))
+        .build());
 
-    pr.AddStreamInfo<C2StreamPictureSizeInfo::output>(
-        C2_PARAMKEY_PICTURE_SIZE, SINGLE_STREAM_ID,
-        [this] (C2StreamPictureSizeInfo::output* dst)->bool {
-            MFX_DEBUG_TRACE("GetPictureSize");
-            // Called from Query, m_mfxVideoParams is already protected there with lock on m_initDecoderMutex
-            dst->width = m_mfxVideoParams.mfx.FrameInfo.CropW;
-            dst->height = m_mfxVideoParams.mfx.FrameInfo.CropH;
-            MFX_DEBUG_TRACE_STREAM(NAMED(dst->width) << NAMED(dst->height));
-            return true;
-        },
-        [this] (const C2StreamPictureSizeInfo::output& src)->bool {
-            MFX_DEBUG_TRACE("SetPictureSize");
-            MFX_DEBUG_TRACE_STREAM(NAMED(src.width) << NAMED(src.height));
-            // Called from Config, m_mfxVideoParams is already protected there with lock on m_initDecoderMutex
-            m_mfxVideoParams.mfx.FrameInfo.Width = src.width;
-            m_mfxVideoParams.mfx.FrameInfo.Height = src.height;
-            m_mfxVideoParams.mfx.FrameInfo.CropW = src.width;
-            m_mfxVideoParams.mfx.FrameInfo.CropH = src.height;
-            return true;
-        }
-    );
+    addParameter(
+        DefineParam(m_domain, C2_PARAMKEY_COMPONENT_DOMAIN)
+        .withConstValue(new C2ComponentDomainSetting(C2Component::DOMAIN_VIDEO))
+        .build());
 
-    pr.AddStreamInfo<C2StreamCropRectInfo::output>(
-        C2_PARAMKEY_CROP_RECT, SINGLE_STREAM_ID,
-        [this] (C2StreamCropRectInfo::output* dst)->bool {
-            MFX_DEBUG_TRACE("GetCropRect");
-            // Called from Query, m_mfxVideoParams is already protected there with lock on m_initDecoderMutex
-            dst->width = m_mfxVideoParams.mfx.FrameInfo.CropW;
-            dst->height = m_mfxVideoParams.mfx.FrameInfo.CropH;
-            dst->left = m_mfxVideoParams.mfx.FrameInfo.CropX;
-            dst->top = m_mfxVideoParams.mfx.FrameInfo.CropY;
-            MFX_DEBUG_TRACE_STREAM(NAMED(dst->left) << NAMED(dst->top) <<
-                NAMED(dst->width) << NAMED(dst->height));
-            return true;
-        },
-        [this] (const C2StreamCropRectInfo::output& src)->bool {
-            MFX_DEBUG_TRACE("SetCropRect");
-            // Called from Config, m_mfxVideoParams is already protected there with lock on m_initDecoderMutex
-            MFX_DEBUG_TRACE_STREAM(NAMED(src.left) << NAMED(src.top) <<
-                NAMED(src.width) << NAMED(src.height));
-            m_mfxVideoParams.mfx.FrameInfo.CropW = src.width;
-            m_mfxVideoParams.mfx.FrameInfo.CropH = src.height;
-            m_mfxVideoParams.mfx.FrameInfo.CropX = src.left;
-            m_mfxVideoParams.mfx.FrameInfo.CropY = src.top;
-            return true;
-        }
-    );
+    addParameter(
+        DefineParam(m_name, C2_PARAMKEY_COMPONENT_NAME)
+        .withConstValue(AllocSharedString<C2ComponentNameSetting>(name.c_str()))
+        .build());
 
-    std::vector<C2Config::profile_t> supported_profiles = {};
-    std::vector<C2Config::level_t> supported_levels = {};
+    addParameter(
+        DefineParam(m_surfaceAllocator, C2_PARAMKEY_OUTPUT_SURFACE_ALLOCATOR)
+        .withConstValue(new C2PortSurfaceAllocatorTuning::output(C2PlatformAllocatorStore::BUFFERQUEUE))
+        .withSetter(OutputSurfaceAllocatorSetter)
+        .build());
+
+    C2Allocator::id_t outputAllocators[1] = { C2PlatformAllocatorStore::GRALLOC };
+    addParameter(
+        DefineParam(m_outputAllocators, C2_PARAMKEY_OUTPUT_ALLOCATORS)
+        .withDefault(C2PortAllocatorsTuning::output::AllocShared(outputAllocators))
+        .withFields({ C2F(m_outputAllocators, m.values[0]).any(),
+                      C2F(m_outputAllocators, m.values).inRange(0, 1) })
+        .withSetter(Setter<C2PortAllocatorsTuning::output>::NonStrictValuesWithNoDeps)
+        .build());
+
+    addParameter(
+        DefineParam(m_inputFormat, C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE)
+        .withConstValue(new C2StreamBufferTypeSetting::input(
+                    SINGLE_STREAM_ID, C2BufferData::LINEAR))
+        .build());
+
+    addParameter(
+        DefineParam(m_outputFormat, C2_PARAMKEY_OUTPUT_STREAM_BUFFER_TYPE)
+        .withConstValue(new C2StreamBufferTypeSetting::output(
+                    SINGLE_STREAM_ID, C2BufferData::GRAPHIC))
+        .build());
+
+    addParameter(
+        DefineParam(m_outputMediaType, C2_PARAMKEY_OUTPUT_MEDIA_TYPE)
+        .withConstValue(AllocSharedString<C2PortMediaTypeSetting::output>("video/raw"))
+        .build());
 
     switch(m_decoderType) {
         case DECODER_H264: {
-            supported_profiles = {
-                PROFILE_AVC_CONSTRAINED_BASELINE,
-                PROFILE_AVC_BASELINE,
-                PROFILE_AVC_MAIN,
-                PROFILE_AVC_CONSTRAINED_HIGH,
-                PROFILE_AVC_PROGRESSIVE_HIGH,
-                PROFILE_AVC_HIGH,
-            };
-            supported_levels = {
-                LEVEL_AVC_1, LEVEL_AVC_1B, LEVEL_AVC_1_1,
-                LEVEL_AVC_1_2, LEVEL_AVC_1_3,
-                LEVEL_AVC_2, LEVEL_AVC_2_1, LEVEL_AVC_2_2,
-                LEVEL_AVC_3, LEVEL_AVC_3_1, LEVEL_AVC_3_2,
-                LEVEL_AVC_4, LEVEL_AVC_4_1, LEVEL_AVC_4_2,
-                LEVEL_AVC_5, LEVEL_AVC_5_1, LEVEL_AVC_5_2,
-            };
-
-            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
-                std::make_unique<C2StreamProfileLevelInfo::input>(0u, PROFILE_AVC_CONSTRAINED_BASELINE, LEVEL_AVC_5_2));
-
-            pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
-                std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_4K, HEIGHT_4K));
-
-            pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
-                    AllocUniqueString<C2PortMediaTypeSetting::input>("video/avc"));
-
             m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+
+            addParameter(
+                DefineParam(m_inputMediaType, C2_PARAMKEY_INPUT_MEDIA_TYPE)
+                .withConstValue(AllocSharedString<C2PortMediaTypeSetting::input>("video/avc"))
+                .build());
+
+            addParameter(
+                DefineParam(m_size, C2_PARAMKEY_PICTURE_SIZE)
+                .withDefault(new C2StreamPictureSizeInfo::output(SINGLE_STREAM_ID, MIN_W, MIN_H))
+                .withFields({
+                    C2F(m_size, width).inRange(MIN_W, WIDTH_4K, 2),
+                    C2F(m_size, height).inRange(MIN_H, HEIGHT_4K, 2),})
+                .withSetter(SizeSetter)
+                .build());
+
+            addParameter(
+                DefineParam(m_maxSize, C2_PARAMKEY_MAX_PICTURE_SIZE)
+                .withDefault(new C2StreamMaxPictureSizeTuning::output(SINGLE_STREAM_ID, MIN_W, MIN_H))
+                .withFields({
+                    C2F(m_size, width).inRange(2, WIDTH_4K, 2),
+                    C2F(m_size, height).inRange(2, HEIGHT_4K, 2),
+                })
+                .withSetter(MaxPictureSizeSetter, m_size)
+                .build());
+            
+            addParameter(DefineParam(m_profileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                .withDefault(new C2StreamProfileLevelInfo::input(
+                    SINGLE_STREAM_ID, PROFILE_AVC_CONSTRAINED_BASELINE, LEVEL_AVC_5_2))
+                .withFields({
+                    C2F(m_profileLevel, C2ProfileLevelStruct::profile)
+                        .oneOf({
+                            PROFILE_AVC_BASELINE,
+                            PROFILE_AVC_CONSTRAINED_BASELINE,
+                            PROFILE_AVC_MAIN,
+                            PROFILE_AVC_CONSTRAINED_HIGH,
+                            PROFILE_AVC_PROGRESSIVE_HIGH,
+                            PROFILE_AVC_HIGH,
+                        }),
+                    C2F(m_profileLevel, C2ProfileLevelStruct::level)
+                        .oneOf({
+                            LEVEL_AVC_1, LEVEL_AVC_1B, LEVEL_AVC_1_1,
+                            LEVEL_AVC_1_2, LEVEL_AVC_1_3,
+                            LEVEL_AVC_2, LEVEL_AVC_2_1, LEVEL_AVC_2_2,
+                            LEVEL_AVC_3, LEVEL_AVC_3_1, LEVEL_AVC_3_2,
+                            LEVEL_AVC_4, LEVEL_AVC_4_1, LEVEL_AVC_4_2,
+                            LEVEL_AVC_5, LEVEL_AVC_5_1, LEVEL_AVC_5_2,
+                        }),})
+                .withSetter(ProfileLevelSetter, m_size)
+                .build());
             break;
         }
         case DECODER_H265: {
-            supported_profiles = {
-                PROFILE_HEVC_MAIN,
-                PROFILE_HEVC_MAIN_STILL,
-                PROFILE_HEVC_MAIN_10,
-            };
-
-            supported_levels = {
-                LEVEL_HEVC_MAIN_1,
-                LEVEL_HEVC_MAIN_2, LEVEL_HEVC_MAIN_2_1,
-                LEVEL_HEVC_MAIN_3, LEVEL_HEVC_MAIN_3_1,
-                LEVEL_HEVC_MAIN_4, LEVEL_HEVC_MAIN_4_1,
-                LEVEL_HEVC_MAIN_5, LEVEL_HEVC_MAIN_5_1,
-                LEVEL_HEVC_MAIN_5_2, LEVEL_HEVC_HIGH_4,
-                LEVEL_HEVC_HIGH_4_1, LEVEL_HEVC_HIGH_5,
-                LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
-                LEVEL_HEVC_HIGH_6, LEVEL_HEVC_HIGH_6_1, LEVEL_HEVC_HIGH_6_2,
-            };
-
-            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
-                std::make_unique<C2StreamProfileLevelInfo::input>(0u, PROFILE_HEVC_MAIN, LEVEL_HEVC_MAIN_5_1));
-
-            pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
-                std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_8K, HEIGHT_8K));
-
-            pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
-                    AllocUniqueString<C2PortMediaTypeSetting::input>("video/hevc"));
-
             m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+
+            addParameter(
+                DefineParam(m_inputMediaType, C2_PARAMKEY_INPUT_MEDIA_TYPE)
+                .withConstValue(AllocSharedString<C2PortMediaTypeSetting::input>("video/hevc"))
+                .build());
+
+            addParameter(
+                DefineParam(m_size, C2_PARAMKEY_PICTURE_SIZE)
+                .withDefault(new C2StreamPictureSizeInfo::output(SINGLE_STREAM_ID, MIN_W, MIN_H))
+                .withFields({
+                    C2F(m_size, width).inRange(MIN_W, WIDTH_8K, 2),
+                    C2F(m_size, height).inRange(MIN_H, HEIGHT_8K, 2),})
+                .withSetter(SizeSetter)
+                .build());
+
+            addParameter(
+                DefineParam(m_maxSize, C2_PARAMKEY_MAX_PICTURE_SIZE)
+                .withDefault(new C2StreamMaxPictureSizeTuning::output(SINGLE_STREAM_ID, MIN_W, MIN_H))
+                .withFields({
+                    C2F(m_size, width).inRange(2, WIDTH_8K, 2),
+                    C2F(m_size, height).inRange(2, HEIGHT_8K, 2),
+                })
+                .withSetter(MaxPictureSizeSetter, m_size)
+                .build());
+
+            addParameter(DefineParam(m_profileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                .withDefault(new C2StreamProfileLevelInfo::input(
+                    SINGLE_STREAM_ID, PROFILE_HEVC_MAIN, LEVEL_HEVC_MAIN_5_1))
+                .withFields({
+                    C2F(m_profileLevel, C2ProfileLevelStruct::profile)
+                        .oneOf({
+                            PROFILE_HEVC_MAIN,
+                            PROFILE_HEVC_MAIN_STILL,
+                            PROFILE_HEVC_MAIN_10,
+                        }),
+                    C2F(m_profileLevel, C2ProfileLevelStruct::level)
+                        .oneOf({
+                            LEVEL_HEVC_MAIN_1,
+                            LEVEL_HEVC_MAIN_2, LEVEL_HEVC_MAIN_2_1,
+                            LEVEL_HEVC_MAIN_3, LEVEL_HEVC_MAIN_3_1,
+                            LEVEL_HEVC_MAIN_4, LEVEL_HEVC_MAIN_4_1,
+                            LEVEL_HEVC_MAIN_5, LEVEL_HEVC_MAIN_5_1,
+                            LEVEL_HEVC_MAIN_5_2, LEVEL_HEVC_HIGH_4,
+                            LEVEL_HEVC_HIGH_4_1, LEVEL_HEVC_HIGH_5,
+                            LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
+                            LEVEL_HEVC_MAIN_6, LEVEL_HEVC_MAIN_6_1,
+                            LEVEL_HEVC_MAIN_6_2,
+                        }),})
+                .withSetter(ProfileLevelSetter, m_size)
+                .build());
             break;
         }
         case DECODER_VP9: {
-            supported_profiles = {
-                PROFILE_VP9_0,
-                PROFILE_VP9_2,
-            };
-
-            supported_levels = {
-                LEVEL_VP9_1, LEVEL_VP9_1_1,
-                LEVEL_VP9_2, LEVEL_VP9_2_1,
-                LEVEL_VP9_3, LEVEL_VP9_3_1,
-                LEVEL_VP9_4, LEVEL_VP9_4_1,
-                LEVEL_VP9_5,
-            };
-
-            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
-                std::make_unique<C2StreamProfileLevelInfo::input>(0u, PROFILE_VP9_0, LEVEL_VP9_5));
-
-            pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
-                std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_8K, HEIGHT_8K));
-
-            pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
-                    AllocUniqueString<C2PortMediaTypeSetting::input>("video/x-vnd.on2.vp9"));
-
             m_uOutputDelay = /*max_dpb_size*/9 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+
+            addParameter(
+                DefineParam(m_inputMediaType, C2_PARAMKEY_INPUT_MEDIA_TYPE)
+                .withConstValue(AllocSharedString<C2PortMediaTypeSetting::input>("video/x-vnd.on2.vp9"))
+                .build());
+
+            addParameter(
+                DefineParam(m_size, C2_PARAMKEY_PICTURE_SIZE)
+                .withDefault(new C2StreamPictureSizeInfo::output(SINGLE_STREAM_ID, MIN_W, MIN_H))
+                .withFields({
+                    C2F(m_size, width).inRange(MIN_W, WIDTH_8K, 2),
+                    C2F(m_size, height).inRange(MIN_H, HEIGHT_8K, 2),})
+                .withSetter(SizeSetter)
+                .build());
+
+            addParameter(
+                DefineParam(m_maxSize, C2_PARAMKEY_MAX_PICTURE_SIZE)
+                .withDefault(new C2StreamMaxPictureSizeTuning::output(SINGLE_STREAM_ID, MIN_W, MIN_H))
+                .withFields({
+                    C2F(m_size, width).inRange(2, WIDTH_8K, 2),
+                    C2F(m_size, height).inRange(2, HEIGHT_8K, 2),
+                })
+                .withSetter(MaxPictureSizeSetter, m_size)
+                .build());
+
+            addParameter(DefineParam(m_profileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                .withDefault(new C2StreamProfileLevelInfo::input(
+                    SINGLE_STREAM_ID, PROFILE_VP9_0, LEVEL_VP9_5))
+                .withFields({
+                    C2F(m_profileLevel, C2ProfileLevelStruct::profile)
+                        .oneOf({
+                            PROFILE_VP9_0,
+                            PROFILE_VP9_1,
+                            PROFILE_VP9_2,
+                            PROFILE_VP9_3,
+                        }),
+                    C2F(m_profileLevel, C2ProfileLevelStruct::level)
+                        .oneOf({
+                            LEVEL_VP9_1, LEVEL_VP9_1_1,
+                            LEVEL_VP9_2, LEVEL_VP9_2_1,
+                            LEVEL_VP9_3, LEVEL_VP9_3_1,
+                            LEVEL_VP9_4, LEVEL_VP9_4_1,
+                            LEVEL_VP9_5,
+                        }),})
+                .withSetter(ProfileLevelSetter, m_size)
+                .build());
             break;
         }
         case DECODER_VP8: {
-            supported_profiles = {
-#if MFX_ANDROID_VERSION <= MFX_R
-                (C2Config::profile_t)PROFILE_VP8_0,
-#else
-                PROFILE_VP8_0,
-#endif
-            };
-
-            supported_levels = {
-                (C2Config::level_t)LEVEL_VP8_Version0,
-            };
-
-#if MFX_ANDROID_VERSION <= MFX_R
-            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
-                std::make_unique<C2StreamProfileLevelInfo::input>(0u, (C2Config::profile_t)PROFILE_VP8_0, (C2Config::level_t)LEVEL_VP8_Version0));
-#else
-            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
-                std::make_unique<C2StreamProfileLevelInfo::input>(0u, PROFILE_VP8_0, (C2Config::level_t)LEVEL_VP8_Version0));
-#endif
-
-            pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
-                std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_4K, HEIGHT_4K));
-
-            pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
-                    AllocUniqueString<C2PortMediaTypeSetting::input>("video/x-vnd.on2.vp8"));
-
             m_uOutputDelay = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+
+            addParameter(
+                DefineParam(m_inputMediaType, C2_PARAMKEY_INPUT_MEDIA_TYPE)
+                .withConstValue(AllocSharedString<C2PortMediaTypeSetting::input>("video/x-vnd.on2.vp8"))
+                .build());
+
+            addParameter(
+                DefineParam(m_size, C2_PARAMKEY_PICTURE_SIZE)
+                .withDefault(new C2StreamPictureSizeInfo::output(SINGLE_STREAM_ID, MIN_W, MIN_H))
+                .withFields({
+                    C2F(m_size, width).inRange(MIN_W, WIDTH_4K, 2),
+                    C2F(m_size, height).inRange(MIN_H, HEIGHT_4K, 2),})
+                .withSetter(SizeSetter)
+                .build());
+
+            addParameter(
+                DefineParam(m_maxSize, C2_PARAMKEY_MAX_PICTURE_SIZE)
+                .withDefault(new C2StreamMaxPictureSizeTuning::output(SINGLE_STREAM_ID, MIN_W, MIN_H))
+                .withFields({
+                    C2F(m_size, width).inRange(2, WIDTH_4K, 2),
+                    C2F(m_size, height).inRange(2, HEIGHT_4K, 2),
+                })
+                .withSetter(MaxPictureSizeSetter, m_size)
+                .build());
+
+            addParameter(DefineParam(m_profileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                .withDefault(new C2StreamProfileLevelInfo::input(
+#if MFX_ANDROID_VERSION <= MFX_R
+                    SINGLE_STREAM_ID, PROFILE_VP8_0, C2Config::LEVEL_UNUSED))
+                .withFields({
+                    C2F(m_profileLevel, profile).equalTo(
+                        PROFILE_VP8_0),
+#else
+                    SINGLE_STREAM_ID, C2Config::profile_t::PROFILE_VP8_0, C2Config::LEVEL_UNUSED))
+                .withFields({
+                    C2F(m_profileLevel, profile).equalTo(
+                        C2Config::profile_t::PROFILE_VP8_0),
+#endif
+                    C2F(m_profileLevel, level).equalTo(
+                        C2Config::LEVEL_UNUSED),
+                })
+                .withSetter(ProfileLevelSetter, m_size)
+                .build());
             break;
         }
         case DECODER_MPEG2: {
-            supported_profiles = {
-                PROFILE_MP2V_SIMPLE,
-                PROFILE_MP2V_MAIN,
-            };
-
-            supported_levels = {
-               LEVEL_MP2V_LOW, LEVEL_MP2V_MAIN,
-               LEVEL_MP2V_HIGH_1440,
-            };
-
-            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
-                std::make_unique<C2StreamProfileLevelInfo::input>(0u, PROFILE_MP2V_MAIN, LEVEL_MP2V_MAIN));
-
-            pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
-                std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_2K, HEIGHT_2K));
-
-            pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
-                    AllocUniqueString<C2PortMediaTypeSetting::input>("video/mpeg2"));
-
             m_uOutputDelay = /*max_dpb_size*/4 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+
+            addParameter(
+                DefineParam(m_inputMediaType, C2_PARAMKEY_INPUT_MEDIA_TYPE)
+                .withConstValue(AllocSharedString<C2PortMediaTypeSetting::input>("video/mpeg2"))
+                .build());
+
+            addParameter(
+                DefineParam(m_size, C2_PARAMKEY_PICTURE_SIZE)
+                .withDefault(new C2StreamPictureSizeInfo::output(SINGLE_STREAM_ID, MIN_W, MIN_H))
+                .withFields({
+                    C2F(m_size, width).inRange(MIN_W, WIDTH_2K, 2),
+                    C2F(m_size, height).inRange(MIN_H, HEIGHT_2K, 2),})
+                .withSetter(SizeSetter)
+                .build());
+
+            addParameter(
+                DefineParam(m_maxSize, C2_PARAMKEY_MAX_PICTURE_SIZE)
+                .withDefault(new C2StreamMaxPictureSizeTuning::output(SINGLE_STREAM_ID, MIN_W, MIN_H))
+                .withFields({
+                    C2F(m_size, width).inRange(2, WIDTH_2K, 2),
+                    C2F(m_size, height).inRange(2, HEIGHT_2K, 2),
+                })
+                .withSetter(MaxPictureSizeSetter, m_size)
+                .build());
+
+            addParameter(DefineParam(m_profileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                .withDefault(new C2StreamProfileLevelInfo::input(
+                    SINGLE_STREAM_ID, PROFILE_MP2V_MAIN, LEVEL_MP2V_MAIN))
+                .withFields({
+                    C2F(m_profileLevel, C2ProfileLevelStruct::profile)
+                        .oneOf({
+                            PROFILE_MP2V_SIMPLE,
+                            PROFILE_MP2V_MAIN,
+                        }),
+                    C2F(m_profileLevel, C2ProfileLevelStruct::level)
+                        .oneOf({
+                            LEVEL_MP2V_LOW, LEVEL_MP2V_MAIN,
+                            LEVEL_MP2V_HIGH_1440,
+                        }),})
+                .withSetter(ProfileLevelSetter, m_size)
+                .build());
             break;
         }
         case DECODER_AV1: {
-            supported_profiles = {
-                PROFILE_AV1_0,
-                PROFILE_AV1_1,
-            };
-
-            supported_levels = {
-                LEVEL_AV1_2, LEVEL_AV1_2_1,
-                LEVEL_AV1_2_1, LEVEL_AV1_2_3,
-                LEVEL_AV1_3, LEVEL_AV1_3_1,
-                LEVEL_AV1_3_2,
-            };
-
-            pr.AddValue(C2_PARAMKEY_PROFILE_LEVEL,
-                std::make_unique<C2StreamProfileLevelInfo::input>(0u, PROFILE_AV1_0, LEVEL_AV1_2_1));
-
-            pr.AddValue(C2_PARAMKEY_MAX_PICTURE_SIZE,
-                std::make_unique<C2StreamMaxPictureSizeTuning::output>(0u, WIDTH_8K, HEIGHT_8K));
-
-            pr.AddValue(C2_PARAMKEY_INPUT_MEDIA_TYPE,
-                    AllocUniqueString<C2PortMediaTypeSetting::input>("video/av01"));
-
             m_uOutputDelay = /*max_dpb_size*/18 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+
+            addParameter(
+                DefineParam(m_inputMediaType, C2_PARAMKEY_INPUT_MEDIA_TYPE)
+                .withConstValue(AllocSharedString<C2PortMediaTypeSetting::input>("video/av01"))
+                .build());
+
+            addParameter(
+                DefineParam(m_size, C2_PARAMKEY_PICTURE_SIZE)
+                .withDefault(new C2StreamPictureSizeInfo::output(SINGLE_STREAM_ID, MIN_W, MIN_H))
+                .withFields({
+                    C2F(m_size, width).inRange(MIN_W, WIDTH_8K, 2),
+                    C2F(m_size, height).inRange(MIN_H, HEIGHT_8K, 2),})
+                .withSetter(SizeSetter)
+                .build());
+
+            addParameter(
+                DefineParam(m_maxSize, C2_PARAMKEY_MAX_PICTURE_SIZE)
+                .withDefault(new C2StreamMaxPictureSizeTuning::output(SINGLE_STREAM_ID, WIDTH_8K, HEIGHT_8K))
+                .withFields({
+                    C2F(m_size, width).inRange(2, WIDTH_8K, 2),
+                    C2F(m_size, height).inRange(2, HEIGHT_8K, 2),
+                })
+                .withSetter(MaxPictureSizeSetter, m_size)
+                .build());
+
+            addParameter(DefineParam(m_profileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                .withDefault(new C2StreamProfileLevelInfo::input(
+                    SINGLE_STREAM_ID, PROFILE_AV1_0, LEVEL_AV1_2))
+                .withFields({
+                    C2F(m_profileLevel, C2ProfileLevelStruct::profile)
+                        .oneOf({
+                            PROFILE_AV1_0,
+                            PROFILE_AV1_1,
+                        }),
+                    C2F(m_profileLevel, C2ProfileLevelStruct::level)
+                        .oneOf({
+                            LEVEL_AV1_2, LEVEL_AV1_2_1,
+                            LEVEL_AV1_2_1, LEVEL_AV1_2_3,
+                            LEVEL_AV1_3, LEVEL_AV1_3_1,
+                            LEVEL_AV1_3_2,
+                        }),})
+                .withSetter(ProfileLevelSetter, m_size)
+                .build());
             break;
         }
-
         default:
-            MFX_DEBUG_TRACE_STREAM("C2PortDelayTuning::output value is not customized which can lead to hangs:" << m_uOutputDelay);
-            MFX_DEBUG_TRACE_STREAM("C2PortDelayTuning::input value is not customized which can lead to hangs:" << m_uInputDelay);
-            break;
+        break;
     }
+
+    addParameter(
+        DefineParam(m_maxInputSize, C2_PARAMKEY_INPUT_MAX_BUFFER_SIZE)
+        .withDefault(new C2StreamMaxBufferSizeInfo::input(SINGLE_STREAM_ID, kMinInputBufferSize))
+        .withFields({
+            C2F(m_maxInputSize, value).any(),
+        })
+        .calculatedAs(MaxInputSizeSetter, m_maxSize)
+        .build());
+
+    C2BlockPool::local_id_t outputPoolIds[1] = { C2BlockPool::PLATFORM_START };
+    addParameter(
+        DefineParam(m_outputPoolIds, C2_PARAMKEY_OUTPUT_BLOCK_POOLS)
+        .withDefault(C2PortBlockPoolsTuning::output::AllocShared(outputPoolIds))
+        .withFields({ C2F(m_outputPoolIds, m.values[0]).any(),
+                        C2F(m_outputPoolIds, m.values).inRange(0, 1) })
+        .withSetter(Setter<C2PortBlockPoolsTuning::output>::NonStrictValuesWithNoDeps)
+        .build());
 
     // C2PortDelayTuning::output parameter is needed to say framework about the max delay expressed in
     // decoded frames. If parameter is set too low, framework will stop sanding new portions
     // of bitstream and will wait for decoded frames.
     // The parameter value is differet for codecs and must be equal the DPD value is gotten
     // form QueryIOSurf function call result.
-    pr.AddValue(C2_PARAMKEY_OUTPUT_DELAY, std::make_unique<C2PortDelayTuning::output>(m_uOutputDelay));
+    addParameter(
+        DefineParam(m_actualOutputDelay, C2_PARAMKEY_OUTPUT_DELAY)
+        .withDefault(new C2PortActualDelayTuning::output(m_uOutputDelay))
+        .withFields({C2F(m_actualOutputDelay, value).inRange(0, m_uOutputDelay)})
+        .withSetter(Setter<decltype(*m_actualOutputDelay)>::StrictValueWithNoDeps)
+        .build());
 
-    // The numInputSlots = inputDelayValue + pipelineDelayValue + kSmoothnessFactor;
-    // pipelineDelayValue is 0, and kSmoothnessFactor is 4, for 4k video the first frame need 6 input
-    pr.AddValue(C2_PARAMKEY_INPUT_DELAY, std::make_unique<C2PortDelayTuning::input>(m_uInputDelay));
+    addParameter(
+        DefineParam(m_inputDelay, C2_PARAMKEY_INPUT_DELAY)
+        .withConstValue(new C2PortDelayTuning::input(m_uInputDelay))
+        .build());
 
-    // List all the supported profiles and levels
-    pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::profile, supported_profiles);
-    pr.RegisterSupportedValues<C2StreamProfileLevelInfo>(&C2StreamProfileLevelInfo::C2ProfileLevelStruct::level, supported_levels);
+    addParameter(
+        DefineParam(m_defaultColorAspects, C2_PARAMKEY_DEFAULT_COLOR_ASPECTS)
+        .withDefault(new C2StreamColorAspectsTuning::output(
+                SINGLE_STREAM_ID, C2Color::RANGE_UNSPECIFIED, C2Color::PRIMARIES_UNSPECIFIED,
+                C2Color::TRANSFER_UNSPECIFIED, C2Color::MATRIX_UNSPECIFIED))
+        .withFields({
+            C2F(m_defaultColorAspects, range).inRange(
+                        C2Color::RANGE_UNSPECIFIED,     C2Color::RANGE_OTHER),
+            C2F(m_defaultColorAspects, primaries).inRange(
+                        C2Color::PRIMARIES_UNSPECIFIED, C2Color::PRIMARIES_OTHER),
+            C2F(m_defaultColorAspects, transfer).inRange(
+                        C2Color::TRANSFER_UNSPECIFIED,  C2Color::TRANSFER_OTHER),
+            C2F(m_defaultColorAspects, matrix).inRange(
+                        C2Color::MATRIX_UNSPECIFIED,    C2Color::MATRIX_OTHER)
+        })
+        .withSetter(DefaultColorAspectsSetter)
+        .build());
 
-    // Default color aspects
-    pr.AddValue(C2_PARAMKEY_DEFAULT_COLOR_ASPECTS, std::make_unique<C2StreamColorAspectsTuning::output>(0u, C2Color::RANGE_UNSPECIFIED, C2Color::PRIMARIES_UNSPECIFIED,
-                C2Color::TRANSFER_UNSPECIFIED, C2Color::MATRIX_UNSPECIFIED));
-    pr.RegisterSupportedRange<C2StreamColorAspectsTuning>(&C2StreamColorAspectsTuning::C2ColorAspectsStruct::range, RANGE_UNSPECIFIED, RANGE_OTHER);
-    pr.RegisterSupportedRange<C2StreamColorAspectsTuning>(&C2StreamColorAspectsTuning::C2ColorAspectsStruct::primaries, PRIMARIES_UNSPECIFIED, PRIMARIES_OTHER);
-    pr.RegisterSupportedRange<C2StreamColorAspectsTuning>(&C2StreamColorAspectsTuning::C2ColorAspectsStruct::transfer, TRANSFER_UNSPECIFIED, TRANSFER_OTHER);
-    pr.RegisterSupportedRange<C2StreamColorAspectsTuning>(&C2StreamColorAspectsTuning::C2ColorAspectsStruct::matrix, MATRIX_UNSPECIFIED, MATRIX_OTHER);
+    addParameter(
+        DefineParam(m_codedColorAspects, C2_PARAMKEY_VUI_COLOR_ASPECTS)
+        .withDefault(new C2StreamColorAspectsInfo::input(
+                SINGLE_STREAM_ID, C2Color::RANGE_LIMITED, C2Color::PRIMARIES_UNSPECIFIED,
+                C2Color::TRANSFER_UNSPECIFIED, C2Color::MATRIX_UNSPECIFIED))
+        .withFields({
+            C2F(m_codedColorAspects, range).inRange(
+                        C2Color::RANGE_UNSPECIFIED,     C2Color::RANGE_OTHER),
+            C2F(m_codedColorAspects, primaries).inRange(
+                        C2Color::PRIMARIES_UNSPECIFIED, C2Color::PRIMARIES_OTHER),
+            C2F(m_codedColorAspects, transfer).inRange(
+                        C2Color::TRANSFER_UNSPECIFIED,  C2Color::TRANSFER_OTHER),
+            C2F(m_codedColorAspects, matrix).inRange(
+                        C2Color::MATRIX_UNSPECIFIED,    C2Color::MATRIX_OTHER)
+        })
+        .withSetter(CodedColorAspectsSetter)
+        .build());
 
-    // VUI color aspects
-    pr.AddValue(C2_PARAMKEY_VUI_COLOR_ASPECTS, std::make_unique<C2StreamColorAspectsInfo::input>(0u, C2Color::RANGE_UNSPECIFIED, C2Color::PRIMARIES_UNSPECIFIED,
-                C2Color::TRANSFER_UNSPECIFIED, C2Color::MATRIX_UNSPECIFIED));
-    pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::range, RANGE_UNSPECIFIED, RANGE_OTHER);
-    pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::primaries, PRIMARIES_UNSPECIFIED, PRIMARIES_OTHER);
-    pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::transfer, TRANSFER_UNSPECIFIED, TRANSFER_OTHER);
-    pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::matrix, MATRIX_UNSPECIFIED, MATRIX_OTHER);
-
-    // Color aspects
-    pr.AddValue(C2_PARAMKEY_COLOR_ASPECTS, std::make_unique<C2StreamColorAspectsInfo::output>(0u, C2Color::RANGE_UNSPECIFIED, C2Color::PRIMARIES_UNSPECIFIED,
-                C2Color::TRANSFER_UNSPECIFIED, C2Color::MATRIX_UNSPECIFIED));
-    pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::range, RANGE_UNSPECIFIED, RANGE_OTHER);
-    pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::primaries, PRIMARIES_UNSPECIFIED, PRIMARIES_OTHER);
-    pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::transfer, TRANSFER_UNSPECIFIED, TRANSFER_OTHER);
-    pr.RegisterSupportedRange<C2StreamColorAspectsInfo>(&C2StreamColorAspectsInfo::C2ColorAspectsStruct::matrix, MATRIX_UNSPECIFIED, MATRIX_OTHER);
+    addParameter(
+        DefineParam(m_colorAspects, C2_PARAMKEY_COLOR_ASPECTS)
+        .withDefault(new C2StreamColorAspectsInfo::output(
+                SINGLE_STREAM_ID, C2Color::RANGE_UNSPECIFIED, C2Color::PRIMARIES_UNSPECIFIED,
+                C2Color::TRANSFER_UNSPECIFIED, C2Color::MATRIX_UNSPECIFIED))
+        .withFields({
+            C2F(m_colorAspects, range).inRange(
+                        C2Color::RANGE_UNSPECIFIED,     C2Color::RANGE_OTHER),
+            C2F(m_colorAspects, primaries).inRange(
+                        C2Color::PRIMARIES_UNSPECIFIED, C2Color::PRIMARIES_OTHER),
+            C2F(m_colorAspects, transfer).inRange(
+                        C2Color::TRANSFER_UNSPECIFIED,  C2Color::TRANSFER_OTHER),
+            C2F(m_colorAspects, matrix).inRange(
+                        C2Color::MATRIX_UNSPECIFIED,    C2Color::MATRIX_OTHER)
+        })
+        .withSetter(ColorAspectsSetter, m_defaultColorAspects, m_codedColorAspects)
+        .build());
 
     // Pixel format info. Set to NV12 by default
     m_pixelFormat = std::make_unique<C2StreamPixelFormatInfo::output>(SINGLE_STREAM_ID, HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL);
@@ -382,7 +635,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     // By default prepare buffer to be displayed on any of the common surfaces
     m_consumerUsage = kDefaultConsumerUsage;
 
-    m_paramStorage.DumpParams();
+    //m_paramStorage.DumpParams();
 }
 
 MfxC2DecoderComponent::~MfxC2DecoderComponent()
@@ -766,7 +1019,7 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
         break;
     }
 
-    m_colorAspects.SetCodecID(m_mfxVideoParams.mfx.CodecId);
+    m_colorAspectsWrapper.SetCodecID(m_mfxVideoParams.mfx.CodecId);
 
     mfx_set_defaults_mfxVideoParam_dec(&m_mfxVideoParams);
 
@@ -898,7 +1151,7 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
 
     if (MFX_ERR_NONE == mfx_res) {
         MFX_DEBUG_TRACE_MSG("InitDecoder: UpdateBitstreamColorAspects");
-        m_colorAspects.UpdateBitstreamColorAspects(m_signalInfo);
+        m_colorAspectsWrapper.UpdateBitstreamColorAspects(m_signalInfo);
 
         MFX_DEBUG_TRACE_MSG("InitDecoder: GetAsyncDepth");
         m_mfxVideoParams.AsyncDepth = GetAsyncDepth();
@@ -1061,69 +1314,70 @@ mfxStatus MfxC2DecoderComponent::HandleFormatChange()
     return mfx_res;
 }
 
-c2_status_t MfxC2DecoderComponent::QueryParam(const mfxVideoParam* src, C2Param::Index index, C2Param** dst) const
+c2_status_t MfxC2DecoderComponent::UpdateC2Param(const mfxVideoParam* src, C2Param::Index index) const
 {
     MFX_DEBUG_TRACE_FUNC;
     c2_status_t res = C2_OK;
 
-    res = m_paramStorage.QueryParam(index, dst);
-    if (C2_NOT_FOUND == res) {
-        switch (index) {
-            case kParamIndexMemoryType: {
-                if (nullptr == *dst) {
-                    *dst = new C2MemoryTypeSetting();
-                }
+    if (C2PortSurfaceAllocatorTuning::output::PARAM_TYPE == index) {
+        m_surfaceAllocator->value = C2PlatformAllocatorStore::BUFFERQUEUE;
+        MFX_DEBUG_TRACE_PRINTF("Set output port surface alloctor to: %d", m_surfaceAllocator->value);
+    }
 
-                C2MemoryTypeSetting* setting = static_cast<C2MemoryTypeSetting*>(*dst);
-                if (!MfxIOPatternToC2MemoryType(false, src->IOPattern, &setting->value)) res = C2_CORRUPTED;
-                break;
-            }
-            case C2PortAllocatorsTuning::output::PARAM_TYPE: {
-                if (nullptr == *dst) {
-                    std::unique_ptr<C2PortAllocatorsTuning::output> outAlloc =
-                        C2PortAllocatorsTuning::output::AllocUnique(1);
-                    if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
-#ifdef MFX_BUFFER_QUEUE
-                        outAlloc->m.values[0] = MFX_BUFFERQUEUE;
-#else
-                        outAlloc->m.values[0] = C2PlatformAllocatorStore::GRALLOC;
-#endif
-                    else
-                        outAlloc->m.values[0] = C2PlatformAllocatorStore::GRALLOC;
-                    MFX_DEBUG_TRACE_PRINTF("Set output port alloctor to: %d", outAlloc->m.values[0]);
-                    *dst = outAlloc.release();
-                    res = C2_OK;
-                } else {
-                    // It is not possible to return flexible params through stack
-                    res = C2_NO_MEMORY;
-                }
-                break;
-            }
-            case C2PortSurfaceAllocatorTuning::output::PARAM_TYPE: {
-                if (nullptr == *dst) {
-                    std::unique_ptr<C2PortSurfaceAllocatorTuning::output> outAlloc =
-                        std::make_unique<C2PortSurfaceAllocatorTuning::output>();
-
-                    outAlloc->value = C2PlatformAllocatorStore::BUFFERQUEUE;
-                    MFX_DEBUG_TRACE_PRINTF("Set output port surface alloctor to: %d", outAlloc->value);
-                    *dst = outAlloc.release();
-                    res = C2_OK;
-                } else {
-                    // It is not possible to return flexible params through stack
-                    res = C2_NO_MEMORY;
-                }
-                break;
-            }
-            default:
-                res = C2_BAD_INDEX;
-                break;
+    switch (index.typeIndex()) {
+        case kParamIndexBlockPools: {
+            m_outputPoolIds->m.values[0] = m_outputPoolId;
+            break;
         }
+        case kParamIndexPictureSize: {
+            if (C2StreamPictureSizeInfo::output::PARAM_TYPE == index) {
+                MFX_DEBUG_TRACE("GetPictureSize");
+                m_size->width = src->mfx.FrameInfo.CropW;
+                m_size->height = src->mfx.FrameInfo.CropH;
+                MFX_DEBUG_TRACE_STREAM(NAMED(m_size->width) << NAMED(m_size->height));
+            }
+            break;
+        }
+        case kParamIndexAllocators: {
+            if (C2PortAllocatorsTuning::output::PARAM_TYPE == index) {
+                if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
+#ifdef MFX_BUFFER_QUEUE
+                    m_outputAllocators->m.values[0] = MFX_BUFFERQUEUE;
+#else
+                    m_outputAllocators->m.values[0] = C2PlatformAllocatorStore::GRALLOC;
+#endif
+                else
+                    m_outputAllocators->m.values[0] = C2PlatformAllocatorStore::GRALLOC;
+                MFX_DEBUG_TRACE_PRINTF("Set output port alloctor to: %d", m_outputAllocators->m.values[0]);
+            }
+            break;
+        }
+        case kParamIndexColorAspects: {
+            auto color = getColorAspects_l();
+            m_colorAspects->range = color->range;
+            m_colorAspects->primaries = color->primaries;
+            m_colorAspects->transfer = color->transfer;
+            m_colorAspects->matrix = color->matrix;
+            break;
+        }
+        case kParamIndexDefaultColorAspects: {
+            auto color = getColorAspects_l();
+            m_defaultColorAspects->range = color->range;
+            m_defaultColorAspects->primaries = color->primaries;
+            m_defaultColorAspects->transfer = color->transfer;
+            m_defaultColorAspects->matrix = color->matrix;
+            break;
+        }
+        default:
+            MFX_DEBUG_TRACE_STREAM("attempt to query "
+                            << index.typeIndex() << " type, but not found.");
+            break;
     }
 
     return res;
 }
 
-c2_status_t MfxC2DecoderComponent::Query(
+c2_status_t MfxC2DecoderComponent::UpdateMfxParamToC2(
     std::unique_lock<std::mutex> state_lock,
     const std::vector<C2Param*> &stackParams,
     const std::vector<C2Param::Index> &heapParamIndices,
@@ -1138,34 +1392,25 @@ c2_status_t MfxC2DecoderComponent::Query(
     std::lock_guard<std::mutex> lock(m_initDecoderMutex);
 
     c2_status_t res = C2_OK;
+    c2_status_t param_res = C2_OK;
 
     // determine source, update it if needed
     const mfxVideoParam* params_view = &m_mfxVideoParams;
     if (nullptr != params_view) {
         // 1st cycle on stack params
         for (C2Param* param : stackParams) {
-            c2_status_t param_res = C2_OK;
-            if (m_paramStorage.FindParam(param->index())) {
-                param_res = QueryParam(params_view, param->index(), &param);
-            } else {
-                param_res =  C2_BAD_INDEX;
-            }
+            param_res = UpdateC2Param(params_view, param->index());
             if (param_res != C2_OK) {
                 param->invalidate();
                 res = param_res;
             }
         }
+        param_res = C2_OK;
         // 2nd cycle on heap params
         for (C2Param::Index param_index : heapParamIndices) {
-            // allocate in QueryParam
+            // allocate in UpdateC2Param
             C2Param* param = nullptr;
-            // check on presence
-            c2_status_t param_res = C2_OK;
-            if (m_paramStorage.FindParam(param_index.type())) {
-                param_res = QueryParam(params_view, param_index, &param);
-            } else {
-                param_res = C2_BAD_INDEX;
-            }
+            param_res = UpdateC2Param(params_view, param_index);
             if (param_res == C2_OK) {
                 if(nullptr != heapParams) {
                     heapParams->push_back(std::unique_ptr<C2Param>(param));
@@ -1190,127 +1435,90 @@ c2_status_t MfxC2DecoderComponent::Query(
     return res;
 }
 
-void MfxC2DecoderComponent::DoConfig(const std::vector<C2Param*> &params,
+void MfxC2DecoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures,
-    bool /*queue_update*/)
+    bool )
 {
     MFX_DEBUG_TRACE_FUNC;
 
     for (const C2Param* param : params) {
-
-        // check whether plugin supports this parameter
-        std::unique_ptr<C2SettingResult> find_res = m_paramStorage.FindParam(param);
-        if(nullptr != find_res) {
-            MFX_DEBUG_TRACE_PRINTF("cannot found param: %X02", param->index());
-            failures->push_back(std::move(find_res));
-            continue;
-        }
-        // check whether plugin is in a correct state to apply this parameter
-        bool modifiable = ((param->kind() & C2Param::TUNING) != 0) ||
-            m_state == State::STOPPED; /* all kinds, even INFO might be set by stagefright */
-
-        if (!modifiable) {
-            MFX_DEBUG_TRACE_PRINTF("cannot modify param: %X02", param->index());
-            failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::READ_ONLY));
-            continue;
-        }
-
-        // check ranges
-        if(!m_paramStorage.ValidateParam(param, failures)) {
-            continue;
-        }
-
         // applying parameter
         switch (C2Param::Type(param->type()).typeIndex()) {
-            case kParamIndexMemoryType: {
-                const C2MemoryTypeSetting* setting = static_cast<const C2MemoryTypeSetting*>(param);
-                bool set_res = C2MemoryTypeToMfxIOPattern(false, setting->value, &m_mfxVideoParams.IOPattern);
-                if (!set_res) {
-                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
+            case kParamIndexPictureSize: {
+                if (C2StreamPictureSizeInfo::output::PARAM_TYPE == param->index()) {
+                    MFX_DEBUG_TRACE("SetPictureSize");
+                    MFX_DEBUG_TRACE_STREAM(NAMED(m_size->width) << NAMED(m_size->height));
+                    m_mfxVideoParams.mfx.FrameInfo.Width = m_size->width;
+                    m_mfxVideoParams.mfx.FrameInfo.Height = m_size->height;
+                    m_mfxVideoParams.mfx.FrameInfo.CropW = m_size->width;
+                    m_mfxVideoParams.mfx.FrameInfo.CropH = m_size->height;
                 }
                 break;
             }
             case kParamIndexBlockPools: {
-                const C2PortBlockPoolsTuning::output* outputPools =
-                                static_cast<const C2PortBlockPoolsTuning::output*>(param);
-
-                if (outputPools && outputPools->flexCount() >= 1) {
-                    m_outputPoolId = outputPools->m.values[0];
-                    MFX_DEBUG_TRACE_PRINTF("config kParamIndexBlockPools to %lu", m_outputPoolId);
+                if (m_outputPoolIds && m_outputPoolIds->flexCount() >= 1) {
+                    m_outputPoolId = m_outputPoolIds->m.values[0];
+                    MFX_DEBUG_TRACE_STREAM("config kParamIndexBlockPools to " << m_outputPoolId);
                 } else {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
                 }
                 break;
             }
             case kParamIndexColorAspects: {
-                const C2StreamColorAspectsInfo* settings = static_cast<const C2StreamColorAspectsInfo*>(param);
                 android::ColorAspects ca;
-                MFX_DEBUG_TRACE_U32(settings->range);
-                MFX_DEBUG_TRACE_U32(settings->primaries);
-                MFX_DEBUG_TRACE_U32(settings->transfer);
-                MFX_DEBUG_TRACE_U32(settings->matrix);
+                MFX_DEBUG_TRACE_U32(m_colorAspects->range);
+                MFX_DEBUG_TRACE_U32(m_colorAspects->primaries);
+                MFX_DEBUG_TRACE_U32(m_colorAspects->transfer);
+                MFX_DEBUG_TRACE_U32(m_colorAspects->matrix);
 
-                ca.mRange = (android::ColorAspects::Range)settings->range;
-                ca.mTransfer = (android::ColorAspects::Transfer)settings->transfer;
-                ca.mMatrixCoeffs = (android::ColorAspects::MatrixCoeffs)settings->matrix;
-                ca.mPrimaries = (android::ColorAspects::Primaries)settings->primaries;
+                ca.mRange = (android::ColorAspects::Range)m_colorAspects->range;
+                ca.mTransfer = (android::ColorAspects::Transfer)m_colorAspects->transfer;
+                ca.mMatrixCoeffs = (android::ColorAspects::MatrixCoeffs)m_colorAspects->matrix;
+                ca.mPrimaries = (android::ColorAspects::Primaries)m_colorAspects->primaries;
 
                 mfxExtVideoSignalInfo signal_info;
                 MFX_ZERO_MEMORY(signal_info);
-                signal_info.VideoFullRange = settings->range;
-                signal_info.ColourPrimaries = settings->primaries;
-                signal_info.TransferCharacteristics = settings->transfer;
-                signal_info.MatrixCoefficients = settings->matrix;
+                signal_info.VideoFullRange = m_colorAspects->range;
+                signal_info.ColourPrimaries = m_colorAspects->primaries;
+                signal_info.TransferCharacteristics = m_colorAspects->transfer;
+                signal_info.MatrixCoefficients = m_colorAspects->matrix;
 
-                m_colorAspects.UpdateBitstreamColorAspects(signal_info);
-                m_colorAspects.SetFrameworkColorAspects(ca);
+                m_colorAspectsWrapper.UpdateBitstreamColorAspects(signal_info);
+                m_colorAspectsWrapper.SetFrameworkColorAspects(ca);
                 break;
             }
             case kParamIndexDefaultColorAspects: {
-                const C2StreamColorAspectsTuning* settings = static_cast<const C2StreamColorAspectsTuning*>(param);
                 android::ColorAspects ca;
-                MFX_DEBUG_TRACE_U32(settings->range);
-                MFX_DEBUG_TRACE_U32(settings->primaries);
-                MFX_DEBUG_TRACE_U32(settings->transfer);
-                MFX_DEBUG_TRACE_U32(settings->matrix);
+                MFX_DEBUG_TRACE_U32(m_defaultColorAspects->range);
+                MFX_DEBUG_TRACE_U32(m_defaultColorAspects->primaries);
+                MFX_DEBUG_TRACE_U32(m_defaultColorAspects->transfer);
+                MFX_DEBUG_TRACE_U32(m_defaultColorAspects->matrix);
 
-                ca.mRange = (android::ColorAspects::Range)settings->range;
-                ca.mTransfer = (android::ColorAspects::Transfer)settings->transfer;
-                ca.mMatrixCoeffs = (android::ColorAspects::MatrixCoeffs)settings->matrix;
-                ca.mPrimaries = (android::ColorAspects::Primaries)settings->primaries;
+                ca.mRange = (android::ColorAspects::Range)m_defaultColorAspects->range;
+                ca.mTransfer = (android::ColorAspects::Transfer)m_defaultColorAspects->transfer;
+                ca.mMatrixCoeffs = (android::ColorAspects::MatrixCoeffs)m_defaultColorAspects->matrix;
+                ca.mPrimaries = (android::ColorAspects::Primaries)m_defaultColorAspects->primaries;
 
                 mfxExtVideoSignalInfo signal_info;
                 MFX_ZERO_MEMORY(signal_info);
-                signal_info.VideoFullRange = settings->range;
-                signal_info.ColourPrimaries = settings->primaries;
-                signal_info.TransferCharacteristics = settings->transfer;
-                signal_info.MatrixCoefficients = settings->matrix;
+                signal_info.VideoFullRange = m_defaultColorAspects->range;
+                signal_info.ColourPrimaries = m_defaultColorAspects->primaries;
+                signal_info.TransferCharacteristics = m_defaultColorAspects->transfer;
+                signal_info.MatrixCoefficients = m_defaultColorAspects->matrix;
 
-                m_colorAspects.UpdateBitstreamColorAspects(signal_info);
-                m_colorAspects.SetFrameworkColorAspects(ca);
-                break;
-            }
-            case kParamIndexUsage: {
-                const C2StreamUsageTuning::output* outputUsage =
-                                static_cast<const C2StreamUsageTuning::output*>(param);
-
-                if (outputUsage) {
-                    m_consumerUsage = outputUsage->value;
-                    MFX_DEBUG_TRACE_I64(m_consumerUsage);
-                } else {
-                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
-                }
+                m_colorAspectsWrapper.UpdateBitstreamColorAspects(signal_info);
+                m_colorAspectsWrapper.SetFrameworkColorAspects(ca);
                 break;
             }
             default:
-                MFX_DEBUG_TRACE_PRINTF("applying default parameter: %X02", param->index());
-                m_paramStorage.ConfigParam(*param, m_state == State::STOPPED, failures);
+                MFX_DEBUG_TRACE_STREAM("attempt to configure " 
+                                    << C2Param::Type(param->type()).typeIndex() << " type, but not found");
                 break;
         }
     }
 }
 
-c2_status_t MfxC2DecoderComponent::Config(std::unique_lock<std::mutex> state_lock,
+c2_status_t MfxC2DecoderComponent::UpdateC2ParamToMfx(std::unique_lock<std::mutex> state_lock,
     const std::vector<C2Param*> &params,
     c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures) {
@@ -1331,7 +1539,7 @@ c2_status_t MfxC2DecoderComponent::Config(std::unique_lock<std::mutex> state_loc
 
         std::lock_guard<std::mutex> lock(m_initDecoderMutex);
 
-        DoConfig(params, failures, true);
+        DoUpdateMfxParam(params, failures, true);
 
         res = GetAggregateStatus(failures);
 
@@ -1551,7 +1759,7 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
                     usleep(1000);
                     // If always fetch a nocached block, check if width or height have changed
                     // compare to when it was initialized.
-                    MFX_DEBUG_TRACE_PRINTF("fetchGraphicBlock a nocached block, please retune output blocks. id = %d", id);
+                    MFX_DEBUG_TRACE_STREAM("fetchGraphicBlock a nocached block, please retune output blocks. id = " << id);
                 }
             }
         } else if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
@@ -2161,8 +2369,8 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             // set color aspects info
             out_buffer->setInfo(getColorAspects_l());
 
-            if (m_colorAspects.IsColorAspectsChanged()) {
-                m_colorAspects.SignalChangedColorAspectsIsSent();
+            if (m_colorAspectsWrapper.IsColorAspectsChanged()) {
+                m_colorAspectsWrapper.SignalChangedColorAspectsIsSent();
             }
 
             std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
@@ -2400,13 +2608,13 @@ void MfxC2DecoderComponent::UpdateHdrStaticInfo()
     MFX_DEBUG_TRACE__hdrStaticInfo(m_hdrStaticInfo);
 }
 
-std::shared_ptr<C2StreamColorAspectsInfo::output> MfxC2DecoderComponent::getColorAspects_l(){
+std::shared_ptr<C2StreamColorAspectsInfo::output> MfxC2DecoderComponent::getColorAspects_l() const {
     MFX_DEBUG_TRACE_FUNC;
     android::ColorAspects sfAspects;
     std::shared_ptr<C2StreamColorAspectsInfo::output> codedAspects = std::make_shared<C2StreamColorAspectsInfo::output>(0u);
     if (!codedAspects) return nullptr;
 
-    m_colorAspects.GetOutputColorAspects(sfAspects);
+    m_colorAspectsWrapper.GetOutputColorAspects(sfAspects);
 
     if (!C2Mapper::map(sfAspects.mPrimaries, &codedAspects->primaries)) {
             codedAspects->primaries = C2Color::PRIMARIES_UNSPECIFIED;

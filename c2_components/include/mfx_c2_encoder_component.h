@@ -28,6 +28,7 @@
 #include "mfx_c2_bitstream_out.h"
 #include "mfx_c2_utils.h"
 #include "mfx_c2_vpp_wrapp.h"
+#include "mfx_c2_setters.h"
 
 // Assumes all calls are done from one (working) thread, no sync is needed.
 // m_ctrlOnce accumulates subsequent changes for one next frame.
@@ -59,7 +60,7 @@ public:
 
 protected:
     MfxC2EncoderComponent(const C2String name, const CreateConfig& config,
-        std::shared_ptr<MfxC2ParamReflector> reflector, EncoderType encoder_type);
+        std::shared_ptr<C2ReflectorHelper> reflector, EncoderType encoder_type);
 
     MFX_CLASS_NO_COPY(MfxC2EncoderComponent)
 
@@ -78,14 +79,14 @@ protected:
 
     c2_status_t Release() override;
 
-    c2_status_t Query(
+    c2_status_t UpdateMfxParamToC2(
         std::unique_lock<std::mutex> state_lock,
         const std::vector<C2Param*> &stackParams,
         const std::vector<C2Param::Index> &heapParamIndices,
         c2_blocking_t mayBlock,
         std::vector<std::unique_ptr<C2Param>>* const heapParams) const override;
 
-    c2_status_t Config(
+    c2_status_t UpdateC2ParamToMfx(
         std::unique_lock<std::mutex> state_lock,
         const std::vector<C2Param*> &params,
         c2_blocking_t mayBlock,
@@ -94,8 +95,7 @@ protected:
     c2_status_t Queue(std::list<std::unique_ptr<C2Work>>* const items) override;
 
 private:
-    c2_status_t QueryParam(const mfxVideoParam* src,
-        C2Param::Index index, C2Param** dst) const;
+    c2_status_t UpdateC2Param(C2Param::Index index) const;
 
     std::unique_ptr<mfxVideoParam> GetParamsView() const;
 
@@ -122,7 +122,7 @@ private:
     c2_status_t AllocateBitstream(const std::unique_ptr<C2Work>& work,
         MfxC2BitstreamOut* mfx_bitstream);
 
-    void DoConfig(const std::vector<C2Param*> &params,
+    void DoUpdateMfxParam(const std::vector<C2Param*> &params,
         std::vector<std::unique_ptr<C2SettingResult>>* const failures,
         bool queue_update);
 
@@ -215,9 +215,42 @@ private:
     MfxC2Conversion m_inputVppType;
 
     mfxExtVideoSignalInfo m_signalInfo;
-    std::shared_ptr<C2StreamColorAspectsInfo::input> m_colorAspects;
-    std::shared_ptr<C2StreamColorAspectsInfo::output> m_codedColorAspects;
 
     // Input frame info with width or height not 16byte aligned
     mfxFrameInfo m_mfxInputInfo;
+
+    /* -----------------------C2Parameters--------------------------- */
+    std::mutex m_c2ParameterMutex;
+    std::shared_ptr<C2ComponentNameSetting> m_name;
+    std::shared_ptr<C2ComponentKindSetting> m_kind;
+    std::shared_ptr<C2ComponentDomainSetting> m_domain;
+    std::shared_ptr<C2StreamBufferTypeSetting::input> m_inputFormat;
+    std::shared_ptr<C2StreamBufferTypeSetting::output> m_outputFormat;
+    std::shared_ptr<C2PortMediaTypeSetting::input> m_inputMediaType;
+    std::shared_ptr<C2PortMediaTypeSetting::output> m_outputMediaType;
+    std::shared_ptr<C2StreamProfileLevelInfo::output> m_profileLevel;
+    std::shared_ptr<C2StreamPictureSizeInfo::input> m_size;
+    std::shared_ptr<C2StreamFrameRateInfo::output> m_frameRate;
+    std::shared_ptr<C2StreamBitrateInfo::output> m_bitrate;
+    std::shared_ptr<C2StreamBitrateModeTuning::output> m_bitrateMode;
+    std::shared_ptr<C2StreamGopTuning::output> m_gop;
+    std::shared_ptr<C2StreamRequestSyncFrameTuning::output> m_requestSync;
+    std::shared_ptr<C2StreamSyncFrameIntervalTuning::output> m_syncFramePeriod;
+    std::shared_ptr<C2StreamIntraRefreshTuning::output> m_intraRefresh;
+    std::shared_ptr<C2StreamColorAspectsInfo::input> m_colorAspects;
+    std::shared_ptr<C2StreamColorAspectsInfo::output> m_codedColorAspects;
+    /* ---------------------------------Setters------------------------------------------- */
+    static C2R SizeSetter(bool mayBlock, const C2P<C2StreamPictureSizeInfo::input> &oldMe,
+                        C2P<C2StreamPictureSizeInfo::input> &me);
+    
+    static C2R AVC_ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::output> &me);
+    static C2R HEVC_ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::output> &me);
+    static C2R VP9_ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::output> &me);
+
+    static C2R BitrateSetter(bool mayBlock, C2P<C2StreamBitrateInfo::output> &me);
+    static C2R GopSetter(bool mayBlock, C2P<C2StreamGopTuning::output> &me);
+    static C2R IntraRefreshSetter(bool mayBlock, C2P<C2StreamIntraRefreshTuning::output> &me);
+    static C2R ColorAspectsSetter(bool mayBlock, C2P<C2StreamColorAspectsInfo::input> &me);
+    static C2R CodedColorAspectsSetter(bool mayBlock, C2P<C2StreamColorAspectsInfo::output> &me,
+                                    const C2P<C2StreamColorAspectsInfo::input> &coded);
 };

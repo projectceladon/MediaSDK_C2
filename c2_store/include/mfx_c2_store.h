@@ -90,6 +90,6 @@ private: // data
 
     MfxXmlParser m_xmlParser;
 
-    std::shared_ptr<MfxC2ParamReflector> m_reflector = std::make_shared<MfxC2ParamReflector>();
+    std::shared_ptr<C2ReflectorHelper> m_reflector = std::make_shared<C2ReflectorHelper>();
     mutable std::mutex m_reflectorMutex;
 };

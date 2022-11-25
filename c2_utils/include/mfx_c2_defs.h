@@ -21,7 +21,7 @@
 #pragma once
 
 #include <C2Component.h>
-#include "mfx_c2_params.h"
+#include <C2Config.h>
 #include "mfx_c2_param_reflector.h"
 
 #define MFX_C2_COMPONENT_STORE_NAME "MfxC2ComponentStore"
