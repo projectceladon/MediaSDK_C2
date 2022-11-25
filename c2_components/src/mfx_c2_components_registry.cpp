@@ -42,7 +42,7 @@ using namespace android;
 extern "C" EXPORT MfxC2Component* MfxCreateC2Component(
     const char* name,
     const MfxC2Component::CreateConfig& config,
-    std::shared_ptr<MfxC2ParamReflector> reflector,
+    std::shared_ptr<C2ReflectorHelper> reflector,
     c2_status_t* status)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -78,7 +78,7 @@ MfxC2ComponentsRegistry& MfxC2ComponentsRegistry::getInstance()
 
 c2_status_t MfxC2ComponentsRegistry::CreateMfxC2Component(const char* name,
     const MfxC2Component::CreateConfig& config,
-    std::shared_ptr<MfxC2ParamReflector> reflector, MfxC2Component** component)
+    std::shared_ptr<C2ReflectorHelper> reflector, MfxC2Component** component)
 {
     MFX_DEBUG_TRACE_FUNC;
 

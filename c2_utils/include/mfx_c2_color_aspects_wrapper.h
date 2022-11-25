@@ -33,7 +33,7 @@ public:
 
     void SetFrameworkColorAspects(const android::ColorAspects &colorAspects);
     void UpdateBitstreamColorAspects(const mfxExtVideoSignalInfo &signalInfo);
-    void GetOutputColorAspects(android::ColorAspects &outColorAspects);
+    void GetOutputColorAspects(android::ColorAspects &outColorAspects) const;
     void GetColorAspectsFromVideoSignal(const mfxExtVideoSignalInfo &signalInfo, android::ColorAspects &outColorAspects);
 
     bool IsColorAspectsChanged();
