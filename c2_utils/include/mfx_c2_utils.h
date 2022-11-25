@@ -110,10 +110,6 @@ void InitNV12PlaneLayout(uint32_t pitches[C2PlanarLayout::MAX_NUM_PLANES], C2Pla
 
 void InitNV12PlaneData(int32_t pitch_y, int32_t alloc_height, uint8_t* base, uint8_t** plane_data);
 
-bool C2MemoryTypeToMfxIOPattern(bool input, C2MemoryType memory_type, mfxU16* io_pattern);
-
-bool MfxIOPatternToC2MemoryType(bool input, mfxU16 io_pattern, C2MemoryType* memory_type);
-
 int MfxFourCCToGralloc(mfxU32 fourcc, bool using_video_memory = true);
 
 bool IsYUV420(const C2GraphicView &view);
@@ -124,7 +120,8 @@ bool IsI420(const C2GraphicView &view);
 
 bool IsYV12(const C2GraphicView &view);
 
-void ParseGop(const C2StreamGopTuning &gop, uint32_t &syncInterval, uint32_t &iInterval, uint32_t &maxBframes);
+void ParseGop(const std::shared_ptr<C2StreamGopTuning::output> gop, 
+    uint32_t &syncInterval, uint32_t &iInterval, uint32_t &maxBframes);
 
 inline mfxU16 av1_mfx_profile_to_native_profile(mfxU16 profile)
 {

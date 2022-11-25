@@ -110,7 +110,7 @@ void MfxC2ColorAspectsWrapper::UpdateBitstreamColorAspects(const mfxExtVideoSign
     MFX_DEBUG_TRACE_I32(m_bitstreamColorAspects.mMatrixCoeffs);
 }
 
-void MfxC2ColorAspectsWrapper::GetOutputColorAspects(android::ColorAspects &outColorAspects)
+void MfxC2ColorAspectsWrapper::GetOutputColorAspects(android::ColorAspects &outColorAspects) const
 {
     MFX_DEBUG_TRACE_FUNC;
 
