@@ -20,7 +20,6 @@
 
 #include "mfx_defs.h"
 #include "mfx_c2_defs.h"
-#include "mfx_c2_params.h"
 
 using namespace android;
 

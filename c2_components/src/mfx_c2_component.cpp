@@ -28,10 +28,10 @@ using namespace android;
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_component"
 
-MfxC2Component::MfxC2Component(const C2String& name, const CreateConfig& config, std::shared_ptr<MfxC2ParamReflector> reflector) :
+MfxC2Component::MfxC2Component(const C2String& name, const CreateConfig& config, std::shared_ptr<C2ReflectorHelper> reflector) :
+    C2InterfaceHelper(reflector),
     m_name(name),
     m_createConfig(config),
-    m_paramStorage(std::move(reflector)),
     m_mfxImplementation(MFX_IMPLEMENTATION)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -126,16 +126,27 @@ c2_status_t MfxC2Component::query_vb(
         lock.try_lock();
     }
 
+    // Func query will return c2 params to framework, so we must update MFX params to c2 before calling it.
     if (lock.owns_lock()) {
         if (State::RELEASED != m_state) {
-            res = Query(std::move(lock), stackParams, heapParamIndices, mayBlock, heapParams);
+            res = UpdateMfxParamToC2(std::move(lock), stackParams, heapParamIndices, mayBlock, heapParams);
         } else {
             res = C2_BAD_STATE;
         }
     } else {
         res = C2_BLOCKING;
     }
-    return res;
+    
+    if (C2_OK != res)
+    {
+        MFX_DEBUG_TRACE__android_c2_status_t(res);
+        return res;
+    }
+    
+    res = query(stackParams, heapParamIndices, mayBlock, heapParams);
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
+    
+    return C2_OK;
 }
 
 c2_status_t MfxC2Component::config_vb(
@@ -144,19 +155,23 @@ c2_status_t MfxC2Component::config_vb(
     std::vector<std::unique_ptr<C2SettingResult>>* const failures)
 {
     MFX_DEBUG_TRACE_FUNC;
-
     c2_status_t res = C2_OK;
+    res = config(params, mayBlock, failures);
 
     std::unique_lock<std::mutex> lock = AcquireStableStateLock(mayBlock == C2_MAY_BLOCK);
+
+    // Func config brings us the updated values which we have to sync to MFX params.
     if (lock.owns_lock()) {
         if (State::RELEASED != m_state) {
-            res = Config(std::move(lock), params, mayBlock, failures);
+            res = UpdateC2ParamToMfx(std::move(lock), params, mayBlock, failures);
         } else {
             res = C2_BAD_STATE;
         }
     } else {
         res = C2_BLOCKING;
     }
+
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
 
@@ -182,8 +197,10 @@ c2_status_t MfxC2Component::querySupportedParams_nb(
     std::vector<std::shared_ptr<C2ParamDescriptor>>* const params) const
 {
     MFX_DEBUG_TRACE_FUNC;
-
-    return m_paramStorage.getSupportedParams(params);
+    c2_status_t res = C2_OK;
+    res = querySupportedParams(params);
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
+    return res;
 }
 
 c2_status_t MfxC2Component::querySupportedValues_vb(
@@ -192,18 +209,7 @@ c2_status_t MfxC2Component::querySupportedValues_vb(
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
-
-    std::unique_lock<std::mutex> lock = AcquireStableStateLock(mayBlock == C2_MAY_BLOCK);
-    if (lock.owns_lock()) {
-        if (State::RELEASED != m_state) {
-            res = m_paramStorage.querySupportedValues_vb(queries, mayBlock);
-        } else {
-            res = C2_BAD_STATE;
-        }
-    } else {
-        res = C2_BLOCKING;
-    }
-
+    res = querySupportedValues(queries, mayBlock);
     MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }

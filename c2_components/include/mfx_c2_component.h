@@ -24,11 +24,13 @@
 
 #include "mfx_defs.h"
 #include "mfx_c2_param_storage.h"
+#include "util/C2InterfaceHelper.h"
 #include <mutex>
 
 class MfxC2Component : public C2ComponentInterface,
                        public C2Component,
-                       public std::enable_shared_from_this<MfxC2Component>
+                       public std::enable_shared_from_this<MfxC2Component>,
+                       public C2InterfaceHelper
 {
 public:
     struct CreateConfig
@@ -72,7 +74,7 @@ protected:
     };
 
 protected:
-    MfxC2Component(const C2String& name, const CreateConfig& config, std::shared_ptr<MfxC2ParamReflector> reflector);
+    MfxC2Component(const C2String& name, const CreateConfig& config, std::shared_ptr<C2ReflectorHelper> reflector);
     MFX_CLASS_NO_COPY(MfxC2Component)
 
     // provides static Create method to registrate in components registry
@@ -96,13 +98,13 @@ private: // Non-virtual interface methods optionally overridden in descendants
 
     virtual c2_status_t Release() { return C2_OK; }
 
-    virtual c2_status_t Query(std::unique_lock<std::mutex>/*state_lock*/,
+    virtual c2_status_t UpdateMfxParamToC2(std::unique_lock<std::mutex>/*state_lock*/,
         const std::vector<C2Param*>&/*stackParams*/,
         const std::vector<C2Param::Index> &/*heapParamIndices*/,
         c2_blocking_t /*mayBlock*/,
         std::vector<std::unique_ptr<C2Param>>* const /*heapParams*/) const { return C2_OMITTED; }
 
-    virtual c2_status_t Config(std::unique_lock<std::mutex>/*state_lock*/,
+    virtual c2_status_t UpdateC2ParamToMfx(std::unique_lock<std::mutex>/*state_lock*/,
         const std::vector<C2Param*> &/*params*/,
         c2_blocking_t /*mayBlock*/,
         std::vector<std::unique_ptr<C2SettingResult>>* const /*failures*/) { return C2_OMITTED; }
@@ -192,8 +194,6 @@ protected: // variables
 
     CreateConfig m_createConfig;
 
-    MfxC2ParamStorage m_paramStorage;
-
     mfxIMPL m_mfxImplementation;
 
 private:
@@ -204,7 +204,7 @@ private:
 
 typedef MfxC2Component* (CreateMfxC2ComponentFunc)(const char* name,
     const MfxC2Component::CreateConfig& config,
-    std::shared_ptr<MfxC2ParamReflector> reflector, c2_status_t* status);
+    std::shared_ptr<C2ReflectorHelper> reflector, c2_status_t* status);
 
 template<typename ComponentClass, typename... ArgTypes>
 struct MfxC2Component::Factory
@@ -213,7 +213,7 @@ struct MfxC2Component::Factory
     // variadic args are passed to constructor
     template<ArgTypes... arg_values>
     static MfxC2Component* Create(const char* name, const CreateConfig& config,
-        std::shared_ptr<MfxC2ParamReflector> reflector, c2_status_t* status)
+        std::shared_ptr<C2ReflectorHelper> reflector, c2_status_t* status)
     {
         c2_status_t result = C2_OK;
         // class to make constructor public and get access to new operator
@@ -221,7 +221,7 @@ struct MfxC2Component::Factory
         {
         public:
             ConstructedClass(const char* name, const CreateConfig& config,
-                std::shared_ptr<MfxC2ParamReflector> reflector, ArgTypes... constructor_args) :
+                std::shared_ptr<C2ReflectorHelper> reflector, ArgTypes... constructor_args) :
                     ComponentClass(name, config, std::move(reflector), constructor_args...) { }
         };
 
