@@ -29,6 +29,7 @@
 #include "mfx_frame_pool_allocator.h"
 #include "mfx_gralloc_allocator.h"
 #include "mfx_c2_color_aspects_wrapper.h"
+#include "mfx_c2_setters.h"
 
 class MfxC2DecoderComponent : public MfxC2Component
 {
@@ -44,7 +45,7 @@ public:
 
 protected:
     MfxC2DecoderComponent(const C2String name, const CreateConfig& config,
-        std::shared_ptr<MfxC2ParamReflector> reflector, DecoderType decoder_type);
+        std::shared_ptr<C2ReflectorHelper> reflector, DecoderType decoder_type);
 
     MFX_CLASS_NO_COPY(MfxC2DecoderComponent)
 
@@ -63,14 +64,14 @@ protected:
 
     c2_status_t Release() override;
 
-    c2_status_t Query(
+    c2_status_t UpdateMfxParamToC2(
         std::unique_lock<std::mutex> state_lock,
         const std::vector<C2Param*> &stackParams,
         const std::vector<C2Param::Index> &heapParamIndices,
         c2_blocking_t mayBlock,
         std::vector<std::unique_ptr<C2Param>>* const heapParams) const override;
 
-    c2_status_t Config(
+    c2_status_t UpdateC2ParamToMfx(
         std::unique_lock<std::mutex> state_lock,
         const std::vector<C2Param*> &params,
         c2_blocking_t mayBlock,
@@ -96,10 +97,9 @@ protected:
     c2_status_t Flush(std::list<std::unique_ptr<C2Work>>* const flushedWork) override;
 
 private:
-    c2_status_t QueryParam(const mfxVideoParam* src,
-        C2Param::Index index, C2Param** dst) const;
+    c2_status_t UpdateC2Param(const mfxVideoParam* src, C2Param::Index index) const;
 
-    void DoConfig(const std::vector<C2Param*> &params,
+    void DoUpdateMfxParam(const std::vector<C2Param*> &params,
         std::vector<std::unique_ptr<C2SettingResult>>* const failures,
         bool queue_update);
 
@@ -153,7 +153,7 @@ private:
 
     void UpdateHdrStaticInfo();
 
-    std::shared_ptr<C2StreamColorAspectsInfo::output> getColorAspects_l();
+    std::shared_ptr<C2StreamColorAspectsInfo::output> getColorAspects_l() const;
 
 private:
     DecoderType m_decoderType;
@@ -215,7 +215,7 @@ private:
     std::shared_ptr<MfxFramePoolAllocator> m_allocator; // used when Video memory output
     // for pre-allocation when Video memory is chosen and always when System memory output
     std::shared_ptr<C2BlockPool> m_c2Allocator;
-    C2BlockPool::local_id_t m_outputPoolId = C2BlockPool::BASIC_GRAPHIC;
+    C2BlockPool::local_id_t m_outputPoolId = C2BlockPool::PLATFORM_START;
     std::unique_ptr<MfxGrallocAllocator> m_grallocAllocator;
     std::atomic<bool> m_bFlushing{false};
 
@@ -228,7 +228,7 @@ private:
     std::shared_ptr<C2StreamHdrStaticInfo::output> m_hdrStaticInfo;
     bool m_bSetHdrStatic;
 
-    MfxC2ColorAspectsWrapper m_colorAspects;
+    MfxC2ColorAspectsWrapper m_colorAspectsWrapper;
 
     std::shared_ptr<C2StreamPixelFormatInfo::output> m_pixelFormat;
 
@@ -241,4 +241,44 @@ private:
 
     unsigned int m_uOutputDelay = 8u;
     unsigned int m_uInputDelay = 0u;
+
+    /* -----------------------C2Parameters--------------------------- */
+    std::shared_ptr<C2ComponentNameSetting> m_name;
+    std::shared_ptr<C2ComponentKindSetting> m_kind;
+    std::shared_ptr<C2ComponentDomainSetting> m_domain;
+    std::shared_ptr<C2StreamPictureSizeInfo::output> m_size;
+    std::shared_ptr<C2PortSurfaceAllocatorTuning::output> m_surfaceAllocator;
+    std::shared_ptr<C2PortAllocatorsTuning::input> m_inputAllocators;
+    std::shared_ptr<C2PortAllocatorsTuning::output> m_outputAllocators;
+    std::shared_ptr<C2StreamMaxPictureSizeTuning::output> m_maxSize;
+    std::shared_ptr<C2StreamMaxBufferSizeInfo::input> m_maxInputSize;
+    std::shared_ptr<C2PortMediaTypeSetting::output> m_outputMediaType;
+    std::shared_ptr<C2PortRequestedDelayTuning::output> m_requestedOutputDelay;
+    std::shared_ptr<C2PortBlockPoolsTuning::output> m_outputPoolIds;
+    std::shared_ptr<C2PortMediaTypeSetting::input> m_inputMediaType;
+    std::shared_ptr<C2StreamBufferTypeSetting::input> m_inputFormat;
+    std::shared_ptr<C2StreamBufferTypeSetting::output> m_outputFormat;
+    std::shared_ptr<C2StreamProfileLevelInfo::input> m_profileLevel;
+    std::shared_ptr<C2PortActualDelayTuning::output> m_actualOutputDelay;
+    std::shared_ptr<C2PortRequestedDelayTuning::input> m_requestedInputDelay;
+    std::shared_ptr<C2PortActualDelayTuning::input> m_actualInputDelay;
+    std::shared_ptr<C2PortDelayTuning::input> m_inputDelay;
+    std::shared_ptr<C2StreamColorAspectsTuning::output> m_defaultColorAspects;
+    std::shared_ptr<C2StreamColorAspectsInfo::input> m_codedColorAspects;
+    std::shared_ptr<C2StreamColorAspectsInfo::output> m_colorAspects;
+    /* ----------------------------------------Setters------------------------------------------- */
+    static C2R OutputSurfaceAllocatorSetter(bool mayBlock, C2P<C2PortSurfaceAllocatorTuning::output> &me);
+    static C2R SizeSetter(bool mayBlock, const C2P<C2StreamPictureSizeInfo::output> &oldMe,
+                        C2P<C2StreamPictureSizeInfo::output> &me);
+    static C2R MaxPictureSizeSetter(bool mayBlock, C2P<C2StreamMaxPictureSizeTuning::output> &me,
+                                const C2P<C2StreamPictureSizeInfo::output> &size);
+    static C2R MaxInputSizeSetter(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input> &me,
+                                const C2P<C2StreamMaxPictureSizeTuning::output> &maxSize);
+    static C2R ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::input> &me,
+                                  const C2P<C2StreamPictureSizeInfo::output> &size);
+    static C2R DefaultColorAspectsSetter(bool mayBlock, C2P<C2StreamColorAspectsTuning::output> &me);
+    static C2R CodedColorAspectsSetter(bool mayBlock, C2P<C2StreamColorAspectsInfo::input> &me);
+    static C2R ColorAspectsSetter(bool mayBlock, C2P<C2StreamColorAspectsInfo::output> &me,
+                                const C2P<C2StreamColorAspectsTuning::output> &def,
+                                const C2P<C2StreamColorAspectsInfo::input> &coded);
 };

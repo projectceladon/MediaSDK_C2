@@ -340,9 +340,11 @@ std::unique_ptr<C2SettingResult> FindC2Param(
 
 static const std::pair<C2Config::profile_t, mfxU16> g_h264_profiles[] =
 {
-    { PROFILE_AVC_BASELINE, MFX_PROFILE_AVC_CONSTRAINED_BASELINE },
+    { PROFILE_AVC_BASELINE, MFX_PROFILE_AVC_BASELINE },
+    { PROFILE_AVC_CONSTRAINED_BASELINE, MFX_PROFILE_AVC_CONSTRAINED_BASELINE },
     { PROFILE_AVC_MAIN, MFX_PROFILE_AVC_MAIN },
-    { PROFILE_AVC_EXTENDED, MFX_PROFILE_AVC_EXTENDED },
+    { PROFILE_AVC_CONSTRAINED_HIGH, MFX_PROFILE_AVC_CONSTRAINED_HIGH },
+    { PROFILE_AVC_PROGRESSIVE_HIGH, MFX_PROFILE_AVC_PROGRESSIVE_HIGH },
     { PROFILE_AVC_HIGH, MFX_PROFILE_AVC_HIGH }
     /* PROFILE_AVC_HIGH_10, PROFILE_AVC_HIGH_422, PROFILE_AVC_HIGH_444
     are not supported */
@@ -371,7 +373,9 @@ static const std::pair<C2Config::level_t, mfxU16> g_h264_levels[] =
 static const std::pair<C2Config::profile_t, mfxU16> g_h265_profiles[] =
 {
     { PROFILE_HEVC_MAIN,  MFX_PROFILE_HEVC_MAIN },
+    { PROFILE_HEVC_MAIN_STILL, MFX_PROFILE_HEVC_MAINSP },
     { PROFILE_HEVC_MAIN_10, MFX_PROFILE_HEVC_MAIN10 }
+
     /* PROFILE_HEVC_MAINSP, PROFILE_HEVC_REXT, PROFILE_HEVC_SCC
     are not supported */
 };
@@ -498,30 +502,6 @@ void InitNV12PlaneLayout(uint32_t pitches[C2PlanarLayout::MAX_NUM_PLANES], C2Pla
         plane.endianness = C2PlaneInfo::NATIVE;
         plane.rootIx = C2PlanarLayout::PLANE_U;
     }
-}
-
-static const std::pair<C2MemoryType, mfxU16> g_input_memory_types[] =
-{
-    { C2MemoryTypeSystem, MFX_IOPATTERN_IN_SYSTEM_MEMORY },
-    { C2MemoryTypeGraphics, MFX_IOPATTERN_IN_VIDEO_MEMORY }
-};
-
-static const std::pair<C2MemoryType, mfxU16> g_output_memory_types[] =
-{
-    { C2MemoryTypeSystem, MFX_IOPATTERN_OUT_SYSTEM_MEMORY },
-    { C2MemoryTypeGraphics, MFX_IOPATTERN_OUT_VIDEO_MEMORY }
-};
-
-bool C2MemoryTypeToMfxIOPattern(bool input, C2MemoryType memory_type, mfxU16* io_pattern)
-{
-    return FirstToSecond(input ? g_input_memory_types : g_output_memory_types,
-        memory_type, io_pattern);
-}
-
-bool MfxIOPatternToC2MemoryType(bool input, mfxU16 io_pattern, C2MemoryType* memory_type)
-{
-    return SecondToFirst(input ? g_input_memory_types : g_output_memory_types,
-        io_pattern, memory_type);
 }
 
 int MfxFourCCToGralloc(mfxU32 fourcc, bool using_video_memory)
@@ -786,12 +766,12 @@ bool IsYV12(const C2GraphicView &view) {
 }
 
 void ParseGop(
-        const C2StreamGopTuning &gop,
+        const std::shared_ptr<C2StreamGopTuning::output> gop,
         uint32_t &syncInterval, uint32_t &iInterval, uint32_t &maxBframes) {
     uint32_t syncInt = 1;
     uint32_t iInt = 1;
-    for (size_t i = 0; i < gop.flexCount(); ++i) {
-        const C2GopLayerStruct &layer = gop.m.values[i];
+    for (size_t i = 0; i < gop->flexCount(); ++i) {
+        const C2GopLayerStruct &layer = gop->m.values[i];
         if (layer.count == UINT32_MAX) {
             syncInt = 0;
         } else if (syncInt <= UINT32_MAX / (layer.count + 1)) {

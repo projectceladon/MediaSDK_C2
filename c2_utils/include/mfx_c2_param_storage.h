@@ -22,6 +22,7 @@
 
 #include "mfx_c2_param_reflector.h"
 
+// deprecated
 class MfxC2ParamStorage
 {
 public:

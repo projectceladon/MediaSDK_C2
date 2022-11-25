@@ -93,7 +93,7 @@ c2_status_t MfxC2ComponentStore::createComponent(C2String name, std::shared_ptr<
                     reinterpret_cast<CreateMfxC2ComponentFunc*>(dlsym(dso.get(), CREATE_MFX_C2_COMPONENT_FUNC_NAME));
                 if(create_func != nullptr) {
 
-                    std::shared_ptr<MfxC2ParamReflector> reflector;
+                    std::shared_ptr<C2ReflectorHelper> reflector;
                     {
                         std::lock_guard<std::mutex> lock(m_reflectorMutex);
                         reflector = m_reflector; // safe copy
@@ -208,10 +208,10 @@ c2_status_t MfxC2ComponentStore::config_sm(
 std::shared_ptr<C2ParamReflector> MfxC2ComponentStore::getParamReflector() const
 {
     MFX_DEBUG_TRACE_FUNC;
-    std::shared_ptr<MfxC2ParamReflector> reflector;
+    std::shared_ptr<C2ParamReflector> reflector;
     {
         std::lock_guard<std::mutex> lock(m_reflectorMutex);
-        reflector = m_reflector; // safe copy
+        reflector = dynamic_pointer_cast<C2ParamReflector>(m_reflector); // safe copy
     }
     return reflector;
 }

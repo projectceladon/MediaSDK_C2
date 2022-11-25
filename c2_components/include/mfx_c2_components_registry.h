@@ -45,7 +45,7 @@ public:
     static MfxC2ComponentsRegistry& getInstance();
 
     c2_status_t CreateMfxC2Component(const char* name, const MfxC2Component::CreateConfig& config,
-        std::shared_ptr<MfxC2ParamReflector> reflector, MfxC2Component** component);
+        std::shared_ptr<C2ReflectorHelper> reflector, MfxC2Component** component);
 
     void RegisterMfxC2Component(const std::string& name, CreateMfxC2ComponentFunc* createFunc);
 
