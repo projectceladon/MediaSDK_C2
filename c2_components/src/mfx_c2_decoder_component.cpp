@@ -2377,6 +2377,15 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             // Pass end of stream flag only.
             worklet->output.flags = (C2FrameData::flags_t)(work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
             worklet->output.ordinal = work->input.ordinal;
+	    if (m_mfxVideoParams.mfx.FrameInfo.Width != m_size->width || m_mfxVideoParams.mfx.FrameInfo.Height != m_size->height) {
+                MFX_DEBUG_TRACE_MSG("Buffer size is changed! inform framework to update Config.");
+                m_size->width = m_mfxVideoParams.mfx.FrameInfo.Width;
+                m_size->height = m_mfxVideoParams.mfx.FrameInfo.Height;
+                MFX_DEBUG_TRACE_STREAM("find m_size different from m_mfxVideoParams, update width to " << m_size->width
+                                        << ", height to " << m_size->height);
+                C2StreamPictureSizeInfo::output new_size(0u, m_size->width, m_size->height);
+                m_updatingC2Configures.push_back(C2Param::Copy(new_size));
+            }
             // Update codec's configure
             for (int i = 0; i < m_updatingC2Configures.size(); i++) {
                 worklet->output.configUpdate.push_back(std::move(m_updatingC2Configures[i]));
