@@ -338,7 +338,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
 
             addParameter(DefineParam(m_profileLevel, C2_PARAMKEY_PROFILE_LEVEL)
                 .withDefault(new C2StreamProfileLevelInfo::output(
-                    SINGLE_STREAM_ID, PROFILE_HEVC_MAIN, LEVEL_HEVC_MAIN_5_1))
+                    SINGLE_STREAM_ID, PROFILE_HEVC_MAIN, LEVEL_HEVC_MAIN_6))
                 .withFields({
                     C2F(m_profileLevel, C2ProfileLevelStruct::profile)
                         .oneOf({
@@ -897,8 +897,14 @@ mfxStatus MfxC2EncoderComponent::InitEncoder()
             MFX_DEBUG_TRACE_MSG("Encoder initialized");
             MFX_DEBUG_TRACE__mfxStatus(mfx_res);
 
+            // ignore warnings
             if (MFX_WRN_PARTIAL_ACCELERATION == mfx_res) {
                 MFX_DEBUG_TRACE_MSG("InitEncoder returns MFX_WRN_PARTIAL_ACCELERATION");
+                mfx_res = MFX_ERR_NONE;
+            }
+
+            if (MFX_WRN_INCOMPATIBLE_VIDEO_PARAM == mfx_res) {
+                MFX_DEBUG_TRACE_MSG("InitEncoder returns MFX_WRN_INCOMPATIBLE_VIDEO_PARAM");
                 mfx_res = MFX_ERR_NONE;
             }
 
