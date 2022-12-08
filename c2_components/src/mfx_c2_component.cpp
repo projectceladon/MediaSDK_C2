@@ -210,6 +210,13 @@ c2_status_t MfxC2Component::querySupportedValues_vb(
 
     c2_status_t res = C2_OK;
     res = querySupportedValues(queries, mayBlock);
+    for (C2FieldSupportedValuesQuery &query : queries) {
+        if (C2_OK != query.status) {
+            C2Param::Index ix = _C2ParamInspector::getIndex(query.field());
+            MFX_DEBUG_TRACE_STREAM("param " << ix.typeIndex() << " query failed, status = "
+                                << (int)query.status);
+        }
+    }
     MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
