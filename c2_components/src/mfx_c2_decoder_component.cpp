@@ -2277,13 +2277,6 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
     MFX_DEBUG_TRACE_I32(m_mfxVideoParams.mfx.FrameInfo.CropW);
     MFX_DEBUG_TRACE_I32(m_mfxVideoParams.mfx.FrameInfo.CropH);
 
-#if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
-    static int frameIndex = 0;
-    uint8_t stride = frame_out.GetC2GraphicView()->layout().planes[C2PlanarLayout::PLANE_Y].rowInc;
-    static YUVWriter writer("/data/local/tmp",std::vector<std::string>({}),"decoder_frame.log");
-    writer.Write(mfx_surface->Data.Y, stride, frame_out.GetC2GraphicBlock()->height(), frameIndex++);
-#endif
-
     decltype(C2WorkOrdinalStruct::timestamp) ready_timestamp{mfx_surface->Data.TimeStamp};
 
     std::unique_ptr<C2Work> work;
@@ -2391,6 +2384,40 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
                 worklet->output.configUpdate.push_back(std::move(m_updatingC2Configures[i]));
             }
             m_updatingC2Configures.clear();
+
+#if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
+            static FILE* m_f = 0;
+            static int count = 0;
+	    MFX_DEBUG_TRACE_MSG("################## dumping decoded buffer #############################");
+	    MFX_DEBUG_TRACE_I64(count);
+
+	    const C2GraphicView& output_view = block->map().get();
+	    if (count < 200) {
+		    const uint8_t* srcY = output_view.data()[C2PlanarLayout::PLANE_Y];
+                    const uint8_t* srcU = output_view.data()[C2PlanarLayout::PLANE_U];
+                    const uint8_t* srcV = output_view.data()[C2PlanarLayout::PLANE_V];
+		    if (!m_f) {
+			    m_f = fopen("/data/local/traces/dec.yuv", "w+");
+                            MFX_DEBUG_TRACE_MSG("/data/local/traces/dec.yuv: created");
+                            MFX_DEBUG_TRACE_I64(m_f);
+                    }
+                    if (m_f) {
+			    MFX_DEBUG_TRACE_I64(count);
+			    size_t copied_size = 0;
+			    copied_size = fwrite(srcY, m_mfxVideoParams.mfx.FrameInfo.CropW * m_mfxVideoParams.mfx.FrameInfo.CropH, 1, m_f);
+			    MFX_DEBUG_TRACE_I64(copied_size);
+			    copied_size = fwrite(srcU, m_mfxVideoParams.mfx.FrameInfo.CropW * m_mfxVideoParams.mfx.FrameInfo.CropH / 2, 1, m_f);
+			    MFX_DEBUG_TRACE_I64(copied_size);
+			    count++;
+                    }
+            } else {
+                    if (m_f) {
+			    fclose(m_f);
+			    MFX_DEBUG_TRACE_MSG("stang23 dump closed");
+			    m_f = NULL;
+                    }
+	    }
+#endif
 
             worklet->output.buffers.push_back(out_buffer);
             block = nullptr;
