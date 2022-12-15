@@ -31,6 +31,10 @@
 #include "mfx_c2_color_aspects_wrapper.h"
 #include "mfx_c2_setters.h"
 
+#include <cutils/properties.h>
+
+#define MAX_DUMP_BUFFER 200
+
 class MfxC2DecoderComponent : public MfxC2Component
 {
 public:
@@ -250,6 +254,13 @@ private:
 
     unsigned int m_uOutputDelay = 8u;
     unsigned int m_uInputDelay = 0u;
+
+//#if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
+#if 1
+    int m_count = 0;
+    std::mutex m_count_lock;
+    bool NeedDumpBuffer();
+#endif
 
     /* -----------------------C2Parameters--------------------------- */
     std::shared_ptr<C2ComponentNameSetting> m_name;

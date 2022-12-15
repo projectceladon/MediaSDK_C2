@@ -2248,6 +2248,45 @@ void MfxC2DecoderComponent::Drain(std::unique_ptr<C2Work>&& work)
     }
 }
 
+//#if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
+#if 1
+bool MfxC2DecoderComponent::NeedDumpBuffer() {
+    MFX_DEBUG_TRACE_FUNC;
+    const char* key = "mediacodec2.dump.buffer";
+    char* value = new char[20];
+    int len = property_get(key, value, "0");
+
+#include <iostream>
+#include <sstream>
+
+    std::stringstream strValue;
+    strValue << value;
+
+    unsigned int m_frame_number;
+    strValue >> m_frame_number;
+
+    if (m_frame_number)
+        MFX_DEBUG_TRACE_U32(m_frame_number);
+    m_count_lock.lock();
+    if (m_count) {
+        delete[] value;
+	m_count_lock.unlock();
+        return true;
+    } else {
+        delete[] value;
+	if (len > 0 && m_frame_number > 0) {
+            m_count = m_frame_number;
+	    MFX_DEBUG_TRACE_PRINTF("--------triggered to dump %d buffers---------", m_frame_number);
+	    property_set(key, "0");
+	    m_count_lock.unlock();
+	    return true;
+	}
+	m_count_lock.unlock();
+	return false;
+    }
+}
+#endif
+
 void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint sync_point)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -2385,38 +2424,39 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             }
             m_updatingC2Configures.clear();
 
-#if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
-            static FILE* m_f = 0;
-            static int count = 0;
-	    MFX_DEBUG_TRACE_MSG("################## dumping decoded buffer #############################");
-	    MFX_DEBUG_TRACE_I64(count);
-
-	    const C2GraphicView& output_view = block->map().get();
-	    if (count < 200) {
+//#if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
+#if 1
+	    static FILE* m_f = 0;
+	    if (NeedDumpBuffer()) {
+	        const C2GraphicView& output_view = block->map().get();
+		m_count_lock.lock();
+	        if (m_count) {
 		    const uint8_t* srcY = output_view.data()[C2PlanarLayout::PLANE_Y];
                     const uint8_t* srcU = output_view.data()[C2PlanarLayout::PLANE_U];
                     const uint8_t* srcV = output_view.data()[C2PlanarLayout::PLANE_V];
 		    if (!m_f) {
-			    m_f = fopen("/data/local/traces/dec.yuv", "w+");
-                            MFX_DEBUG_TRACE_MSG("/data/local/traces/dec.yuv: created");
-                            MFX_DEBUG_TRACE_I64(m_f);
+			    m_f = fopen("/data/local/traces/decoder_frame.yuv", "w+");
+                            MFX_DEBUG_TRACE_STREAM("/data/local/traces/decoder_frame.yuv: create:" << m_f);
                     }
                     if (m_f) {
-			    MFX_DEBUG_TRACE_I64(count);
-			    size_t copied_size = 0;
-			    copied_size = fwrite(srcY, m_mfxVideoParams.mfx.FrameInfo.CropW * m_mfxVideoParams.mfx.FrameInfo.CropH, 1, m_f);
-			    MFX_DEBUG_TRACE_I64(copied_size);
-			    copied_size = fwrite(srcU, m_mfxVideoParams.mfx.FrameInfo.CropW * m_mfxVideoParams.mfx.FrameInfo.CropH / 2, 1, m_f);
-			    MFX_DEBUG_TRACE_I64(copied_size);
-			    count++;
+			    size_t copied_Y = 0, copied_U = 0;
+			    copied_Y = fwrite(srcY, mfx_surface->Data.PitchLow * m_mfxVideoParams.mfx.FrameInfo.CropH, 1, m_f);
+			    copied_U = fwrite(srcU, mfx_surface->Data.PitchLow * m_mfxVideoParams.mfx.FrameInfo.CropH / 2, 1, m_f);
+			    MFX_DEBUG_TRACE_PRINTF("############# dumping #%d decoded buffer in size: %dx%d, Y:%zu, U:%zu #################",
+					    m_count, mfx_surface->Data.PitchLow, m_mfxVideoParams.mfx.FrameInfo.CropH, copied_Y, copied_U);
+			    if (copied_Y > 0 || copied_U > 0)
+                                m_count--;
                     }
-            } else {
-                    if (m_f) {
-			    fclose(m_f);
-			    MFX_DEBUG_TRACE_MSG("stang23 dump closed");
-			    m_f = NULL;
-                    }
+                }
+		m_count_lock.unlock();
 	    }
+	    m_count_lock.lock();
+	    if (m_count == 0 && m_f) {
+                fclose(m_f);
+                MFX_DEBUG_TRACE_MSG("dump file is closed");
+                m_f = NULL;
+            }
+	    m_count_lock.unlock();
 #endif
 
             worklet->output.buffers.push_back(out_buffer);
