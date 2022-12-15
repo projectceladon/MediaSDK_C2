@@ -30,6 +30,7 @@
 #include "mfx_gralloc_allocator.h"
 #include "mfx_c2_color_aspects_wrapper.h"
 #include "mfx_c2_setters.h"
+#include <cutils/properties.h>
 
 class MfxC2DecoderComponent : public MfxC2Component
 {
@@ -250,6 +251,12 @@ private:
 
     unsigned int m_uOutputDelay = 8u;
     unsigned int m_uInputDelay = 0u;
+
+#if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
+    int m_count = 0;
+    std::mutex m_count_lock;
+    bool NeedDumpBuffer();
+#endif
 
     /* -----------------------C2Parameters--------------------------- */
     std::shared_ptr<C2ComponentNameSetting> m_name;
