@@ -397,7 +397,22 @@ c2_status_t MfxC2Component::stop()
 c2_status_t MfxC2Component::reset()
 {
     MFX_DEBUG_TRACE_FUNC;
-    return C2_OK;
+
+    c2_status_t res = C2_OK;
+
+    res = DoStop(true);
+
+    {
+	 std::lock_guard<std::mutex> lock(m_stateMutex);
+	 if (C2_OK == res) { // DoStop succeeded
+		 m_state = m_nextState = State::STOPPED;
+	 } else {
+		 m_nextState = m_state;
+	 }
+	 m_condStateStable.notify_all();
+    }
+
+    return res;
 }
 
 c2_status_t MfxC2Component::release()
