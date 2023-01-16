@@ -42,7 +42,7 @@ using namespace android;
 constexpr uint32_t MIN_W = 176;
 constexpr uint32_t MIN_H = 144;
 constexpr c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
-constexpr uint64_t kMinInputBufferSize = 2 * WIDTH_2K * HEIGHT_2K;
+constexpr uint64_t kMinInputBufferSize = 2 * WIDTH_1K * HEIGHT_1K;
 constexpr uint64_t kDefaultConsumerUsage =
     (GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_HW_COMPOSER);
 
