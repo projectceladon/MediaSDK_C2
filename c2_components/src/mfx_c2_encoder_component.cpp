@@ -942,6 +942,7 @@ mfxStatus MfxC2EncoderComponent::InitVPP(C2FrameData& buf_pack)
 
     std::unique_ptr<C2ConstGraphicBlock> c_graph_block;
     std::unique_ptr<const C2GraphicView> c2_graphic_view_;
+
     res = GetC2ConstGraphicBlock(buf_pack, &c_graph_block);
     if(C2_OK != res) return MFX_ERR_NONE;
 
@@ -976,7 +977,7 @@ mfxStatus MfxC2EncoderComponent::InitVPP(C2FrameData& buf_pack)
         uint64_t usage, igbp_id;
         android::_UnwrapNativeCodec2GrallocMetadata(c_graph_block->handle(), &width, &height, &format, &usage,
                                                 &stride, &generation, &igbp_id, &igbp_slot);
-        if (!igbp_id && !igbp_slot) {
+        if ((!igbp_id && !igbp_slot) || (!igbp_id && igbp_slot == 0xffffffff)) {
             //No surface & BQ
             m_mfxVideoParamsConfig.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY;
 #ifdef USE_ONEVPL
