@@ -215,7 +215,7 @@ private:
     std::shared_ptr<MfxFramePoolAllocator> m_allocator; // used when Video memory output
     // for pre-allocation when Video memory is chosen and always when System memory output
     std::shared_ptr<C2BlockPool> m_c2Allocator;
-    C2BlockPool::local_id_t m_outputPoolId = C2BlockPool::PLATFORM_START;
+    C2BlockPool::local_id_t m_outputPoolId = C2BlockPool::BASIC_GRAPHIC;
     std::unique_ptr<MfxGrallocAllocator> m_grallocAllocator;
     std::atomic<bool> m_bFlushing{false};
 
