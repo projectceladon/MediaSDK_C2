@@ -1175,7 +1175,7 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             uint64_t usage, igbp_id;
             android::_UnwrapNativeCodec2GrallocMetadata(out_block->handle(), &width, &height, &format, &usage,
                                                         &stride, &generation, &igbp_id, &igbp_slot);
-            if (!igbp_id && !igbp_slot)
+            if ((!igbp_id && !igbp_slot) || (!igbp_id && igbp_slot == 0xffffffff))
             {
                 // No surface & BQ
                 m_mfxVideoParams.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
