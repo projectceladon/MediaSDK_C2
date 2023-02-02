@@ -344,7 +344,6 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
                         .oneOf({
                             PROFILE_HEVC_MAIN,
                             PROFILE_HEVC_MAIN_STILL,
-                            PROFILE_HEVC_MAIN_10,
                         }),
                     C2F(m_profileLevel, C2ProfileLevelStruct::level)
                         .oneOf({
