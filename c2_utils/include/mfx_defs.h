@@ -64,6 +64,9 @@ extern mfxVersion g_required_mfx_version;
 #define WIDTH_2K 2048
 #define HEIGHT_2K 2048
 
+#define WIDTH_1K 1024
+#define HEIGHT_1K 1024
+
 #define MIN_WIDTH_4K 3840
 #define MIN_HEIGHT_4K 2160
 #define MIN_WIDTH_8K 7680

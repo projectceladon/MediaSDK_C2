@@ -42,7 +42,7 @@ using namespace android;
 constexpr uint32_t MIN_W = 176;
 constexpr uint32_t MIN_H = 144;
 constexpr c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
-constexpr uint64_t kMinInputBufferSize = 2 * WIDTH_2K * HEIGHT_2K;
+constexpr uint64_t kMinInputBufferSize = 1 * WIDTH_1K * HEIGHT_1K;
 constexpr uint64_t kDefaultConsumerUsage =
     (GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_HW_COMPOSER);
 
@@ -96,10 +96,8 @@ C2R MfxC2DecoderComponent::MaxInputSizeSetter(bool mayBlock, C2P<C2StreamMaxBuff
                                 const C2P<C2StreamMaxPictureSizeTuning::output> &maxSize) {
     (void)mayBlock;
     // assume compression ratio of 2
-    me.set().value = c2_max((((maxSize.v.width + 15) / 16)
-            * ((maxSize.v.height + 15) / 16) * 192), kMinInputBufferSize);
-    ALOGD("zyc, input size = %d", me.set().value);
-    me.set().value = kMinInputBufferSize;
+    me.set().value = c2_max((((maxSize.v.width + 63) / 64) * ((maxSize.v.height + 63) / 64) * 3072),
+		   kMinInputBufferSize);
     return C2R::Ok();
 }
 
