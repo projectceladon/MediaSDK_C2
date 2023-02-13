@@ -1712,10 +1712,6 @@ void MfxC2EncoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
                 else if (m_encoderType == ENCODER_H265 && framerate_value > MFX_MAX_H265_FRAMERATE) {
                     framerate_value = MFX_MAX_H265_FRAMERATE;
                 }
-                else {
-                    failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_TYPE));
-                    break;
-                }
 
                 m_mfxVideoParamsConfig.mfx.FrameInfo.FrameRateExtN = uint64_t(framerate_value * 1000); // keep 3 sign after dot
                 m_mfxVideoParamsConfig.mfx.FrameInfo.FrameRateExtD = 1000;
