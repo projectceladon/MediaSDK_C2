@@ -40,6 +40,7 @@ MfxC2VppWrapp::MfxC2VppWrapp(void):
     MFX_ZERO_MEMORY(m_vppParam);
     MFX_ZERO_MEMORY(m_allocator);
     MFX_ZERO_MEMORY(m_responses);
+    MFX_ZERO_MEMORY(m_vppSrf);
 }
 
 MfxC2VppWrapp::~MfxC2VppWrapp(void)
