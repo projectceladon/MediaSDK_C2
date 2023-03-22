@@ -1811,6 +1811,9 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
             hndl = nullptr;
         };
 
+        if(nullptr == out_block)
+            break;
+
         std::unique_ptr<native_handle_t, decltype(hndl_deleter)> hndl(
             android::UnwrapNativeCodec2GrallocHandle(out_block->handle()), hndl_deleter);
 

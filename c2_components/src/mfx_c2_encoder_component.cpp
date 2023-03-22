@@ -1877,11 +1877,6 @@ void MfxC2EncoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
             }
             case kParamIndexColorAspects: {
                 if (C2StreamColorAspectsInfo::input::PARAM_TYPE == param->index()) {
-                    m_colorAspects->range = m_colorAspects->range;
-                    m_colorAspects->transfer = m_colorAspects->transfer;
-                    m_colorAspects->matrix = m_colorAspects->matrix;
-                    m_colorAspects->primaries = m_colorAspects->primaries;
-
                     // set video signal info
                     setColorAspects_l();
 
@@ -1890,11 +1885,6 @@ void MfxC2EncoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
                     MFX_DEBUG_TRACE_U32(m_colorAspects->transfer);
                     MFX_DEBUG_TRACE_U32(m_colorAspects->matrix);
                 } else {
-                    m_codedColorAspects->range = m_codedColorAspects->range;
-                    m_codedColorAspects->transfer = m_codedColorAspects->transfer;
-                    m_codedColorAspects->matrix = m_codedColorAspects->matrix;
-                    m_codedColorAspects->primaries = m_codedColorAspects->primaries;
-
                     MFX_DEBUG_TRACE_U32(m_codedColorAspects->range);
                     MFX_DEBUG_TRACE_U32(m_codedColorAspects->primaries);
                     MFX_DEBUG_TRACE_U32(m_codedColorAspects->transfer);
