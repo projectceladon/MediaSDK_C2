@@ -174,6 +174,8 @@ private:
 
     bool m_bInitialized;
 
+    bool m_sizeChanged { false };
+
     MfxCmdQueue m_workingQueue;
     MFX_TRACEABLE(m_workingQueue);
     MfxCmdQueue m_waitingQueue;
