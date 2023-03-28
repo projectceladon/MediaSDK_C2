@@ -19,7 +19,7 @@ MFX_C2_CFLAGS := -DANDROID
 # Use oneVPL API
 USE_ONEVPL := true
 ifeq ($(USE_ONEVPL), true)
-MFX_C2_CFLAGS += -DMFX_VERSION=2003
+MFX_C2_CFLAGS += -DMFX_VERSION=2008
 endif
 
 # Android version preference:
