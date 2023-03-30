@@ -134,11 +134,11 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                 native_handle_t *hndl = android::UnwrapNativeCodec2GrallocHandle(new_block->handle());
                 m_grallocAllocator->GetBackingStore(hndl, &id);
                 m_cachedBufferId.emplace(id, i);
-                if (C2_OK != res) {
-                    native_handle_delete(hndl);
-                    mfx_res = MFX_ERR_MEMORY_ALLOC;
-                    break;
-                }
+                // if (C2_OK != res) { //TODO dead code not need.
+                //     native_handle_delete(hndl);
+                //     mfx_res = MFX_ERR_MEMORY_ALLOC;
+                //     break;
+                // }
 
                 // deep copy to have unique_ptr as m_pool required unique_ptr
                 std::unique_ptr<C2GraphicBlock> unique_block = std::make_unique<C2GraphicBlock>(*new_block);
