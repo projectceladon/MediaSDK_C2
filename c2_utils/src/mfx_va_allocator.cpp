@@ -76,6 +76,7 @@ static unsigned int ConvertGrallocFourccToVAFormat(int fourcc)
     {
         case HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL:
         case HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL:
+        case HAL_PIXEL_FORMAT_NV12_X_TILED_INTEL:
             return VA_FOURCC_NV12;
         case HAL_PIXEL_FORMAT_P010_INTEL:
             return VA_FOURCC_P010;
@@ -600,6 +601,7 @@ mfxStatus MfxVaFrameAllocator::MapGrallocBufferToSurface(buffer_handle_t gralloc
 
         if (buffer_details.format == HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL ||
             buffer_details.format == HAL_PIXEL_FORMAT_NV12_LINEAR_CAMERA_INTEL ||
+            buffer_details.format == HAL_PIXEL_FORMAT_NV12_X_TILED_INTEL ||
             buffer_details.format == HAL_PIXEL_FORMAT_P010_INTEL ||
             buffer_details.format == HAL_PIXEL_FORMAT_RGBA_8888 ||
             buffer_details.format == HAL_PIXEL_FORMAT_RGBX_8888 ||

@@ -218,7 +218,7 @@ c2_status_t MfxGrallocAllocator::Alloc(const uint16_t width, const uint16_t heig
         gr1_err = (*m_grSetDimensionsFunc)(m_gralloc1_dev, descriptor, width, height);
         if (GRALLOC1_ERROR_NONE != gr1_err) break;
 
-        gr1_err = (*m_grSetFormatFunc)(m_gralloc1_dev, descriptor, HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL);
+        gr1_err = (*m_grSetFormatFunc)(m_gralloc1_dev, descriptor, HAL_PIXEL_FORMAT_NV12_X_TILED_INTEL);
         if (GRALLOC1_ERROR_NONE != gr1_err) break;
 
         gr1_err = (*m_grAllocateFunc)(m_gralloc1_dev, 1, &descriptor, handle);
