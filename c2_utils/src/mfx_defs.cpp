@@ -62,32 +62,33 @@ mfxStatus InitMfxFrameSW(
     InitMfxFrameHeader(timestamp, frame_index, width, height, fourcc, info, mfx_frame);
 
     mfx_frame->Data.MemType = MFX_MEMTYPE_SYSTEM_MEMORY;
+    mfx_frame->Data.PitchLow = MFX_ALIGN_32(stride);
 
-    res = MFXLoadSurfaceSW(data, GetMinPitch(fourcc, stride), input_info, mfx_frame);
+    res = MFXLoadSurfaceSW(data, stride, input_info, mfx_frame);
 
     return res;
 }
 
-mfxStatus MFXLoadSurfaceSW(uint8_t *data, uint32_t pitch, const mfxFrameInfo& input_info, mfxFrameSurface1* srf)
+mfxStatus MFXLoadSurfaceSW(uint8_t *data, uint32_t stride, const mfxFrameInfo& input_info, mfxFrameSurface1* srf)
 {
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus res = MFX_ERR_NONE;
 
+    uint32_t nOWidth = input_info.Width;
     uint32_t nOHeight = input_info.Height;
-    uint32_t nOPitch = pitch;
+    uint32_t nOPitch = stride;
 
     uint32_t nCropX = srf->Info.CropX;
     uint32_t nCropY = srf->Info.CropY;
     uint32_t nCropW = srf->Info.CropW;
     uint32_t nCropH = srf->Info.CropH;
-    uint32_t nPitch = MFX_ALIGN_32(pitch);
-    srf->Data.PitchLow = nPitch;
+    uint32_t nPitch = srf->Data.PitchLow;
 
     if (!MFX_C2_IS_COPY_NEEDED(srf->Data.MemType, input_info, srf->Info)) {
         srf->Data.Y  = data;
         srf->Data.U = data + nOPitch * nOHeight;
         srf->Data.V = srf->Data.U + 1;
-        srf->Data.PitchLow = nOPitch;
+        srf->Data.Pitch = nOPitch;
     } else {
         uint32_t i = 0;
         uint8_t* Y  = data;
