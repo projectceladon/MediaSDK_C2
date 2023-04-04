@@ -55,7 +55,7 @@ private:
 private:
     std::shared_ptr<C2Buffer> m_c2Buffer;
     std::unique_ptr<const C2GraphicView> m_c2GraphicView;
-    mfxFrameSurface1 *m_pMfxFrameSurface;
+    mfxFrameSurface1 *m_pMfxFrameSurface = nullptr;
     std::shared_ptr<uint8_t> m_yuvData; //only for sw frame
     std::shared_ptr<MfxFrameConverter> m_frameConverter;
     mfxFrameInfo m_mfxFrameInfo; //va surface info with width and height 16byte aligned
