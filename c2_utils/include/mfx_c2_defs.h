@@ -29,10 +29,10 @@
 #define CREATE_MFX_C2_COMPONENT_FUNC_NAME "MfxCreateC2Component"
 
 #define MFX_C2_CONFIG_FILE_NAME "mfx_c2_store.conf"
-#define MFX_C2_CONFIG_FILE_PATH "/vendor/etc"
+#define MFX_C2_CONFIG_FILE_PATH "/system/vendor/etc"
 
 #define MFX_C2_CONFIG_XML_FILE_NAME "media_codecs_intel_c2_video.xml"
-#define MFX_C2_CONFIG_XML_FILE_PATH "/vendor/etc"
+#define MFX_C2_CONFIG_XML_FILE_PATH "/system/vendor/etc"
 
 #define MFX_C2_DUMP_DIR "/data/local/tmp"
 #define MFX_C2_DUMP_OUTPUT_SUB_DIR "c2-output"
