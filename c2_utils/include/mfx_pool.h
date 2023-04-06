@@ -50,13 +50,13 @@ public:
         try
         {
             std::future<void> destroyed = m_poolImpl->Destroyed();
+            m_poolImpl.reset();
             destroyed.wait();
         }
         catch(const std::exception& e)
         {
             // ALOGE("Destroyed function execution error");
         }
-        m_poolImpl.reset();
     }
 
     MFX_CLASS_NO_COPY(MfxPool<T>)
