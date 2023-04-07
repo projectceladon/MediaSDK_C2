@@ -492,7 +492,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
 
             addParameter(
                 DefineParam(m_maxSize, C2_PARAMKEY_MAX_PICTURE_SIZE)
-                .withDefault(new C2StreamMaxPictureSizeTuning::output(SINGLE_STREAM_ID, WIDTH_8K, HEIGHT_8K))
+                .withDefault(new C2StreamMaxPictureSizeTuning::output(SINGLE_STREAM_ID, MIN_W, MIN_H))
                 .withFields({
                     C2F(m_size, width).inRange(2, WIDTH_8K, 2),
                     C2F(m_size, height).inRange(2, HEIGHT_8K, 2),
