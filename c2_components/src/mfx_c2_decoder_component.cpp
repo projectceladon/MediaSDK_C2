@@ -227,6 +227,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         case DECODER_H264: {
             m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
 
+	    m_uInputDelay = 15;
+
             addParameter(
                 DefineParam(m_inputMediaType, C2_PARAMKEY_INPUT_MEDIA_TYPE)
                 .withConstValue(AllocSharedString<C2PortMediaTypeSetting::input>("video/avc"))
@@ -279,6 +281,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         }
         case DECODER_H265: {
             m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+
+	    m_uInputDelay = 15;
 
             addParameter(
                 DefineParam(m_inputMediaType, C2_PARAMKEY_INPUT_MEDIA_TYPE)
@@ -334,6 +338,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         case DECODER_VP9: {
             m_uOutputDelay = /*max_dpb_size*/9 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
 
+	    m_uInputDelay = 15;
+
             addParameter(
                 DefineParam(m_inputMediaType, C2_PARAMKEY_INPUT_MEDIA_TYPE)
                 .withConstValue(AllocSharedString<C2PortMediaTypeSetting::input>("video/x-vnd.on2.vp9"))
@@ -384,6 +390,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         case DECODER_VP8: {
             m_uOutputDelay = /*max_dpb_size*/8 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
 
+	    m_uInputDelay = 15;
+
             addParameter(
                 DefineParam(m_inputMediaType, C2_PARAMKEY_INPUT_MEDIA_TYPE)
                 .withConstValue(AllocSharedString<C2PortMediaTypeSetting::input>("video/x-vnd.on2.vp8"))
@@ -431,6 +439,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         case DECODER_MPEG2: {
             m_uOutputDelay = /*max_dpb_size*/4 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
 
+	    m_uInputDelay = 15;
+
             addParameter(
                 DefineParam(m_inputMediaType, C2_PARAMKEY_INPUT_MEDIA_TYPE)
                 .withConstValue(AllocSharedString<C2PortMediaTypeSetting::input>("video/mpeg2"))
@@ -475,6 +485,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         }
         case DECODER_AV1: {
             m_uOutputDelay = /*max_dpb_size*/18 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
+
+	    m_uInputDelay = 15;
 
             addParameter(
                 DefineParam(m_inputMediaType, C2_PARAMKEY_INPUT_MEDIA_TYPE)
@@ -2087,16 +2099,6 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
             if (MFX_ERR_MORE_DATA == mfx_sts) {
                 mfx_sts = MFX_ERR_NONE; // valid result of DecodeFrame
-
-                // Some frames reference multiple frames when decoding,
-                // avoid msdk holding too many frames blocking the input buffer queue,
-                // release input buffers ealier.
-                std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
-                auto it = m_pendingWorks.find(incoming_frame_index);
-                if (it != m_pendingWorks.end()) {
-                    MFX_DEBUG_TRACE_MSG("clear input buffers");
-                    it->second->input.buffers.clear();
-                }
             }
 
             resolution_change = (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == mfx_sts);
