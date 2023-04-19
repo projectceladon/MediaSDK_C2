@@ -35,6 +35,25 @@
 
 #define IS_PRIME_VALID(prime) ((prime >= 0) ? true : false)
 
+#define DRM_FORMAT_MOD_VENDOR_INTEL 0x01
+
+#define fourcc_mod_code(vendor, val) \
+    ((((__u64)DRM_FORMAT_MOD_VENDOR_## vendor) << 56) | ((val) & 0x00ffffffffffffffULL))
+
+#define I915_FORMAT_MOD_4_TILED fourcc_mod_code(INTEL, 9)
+#define I915_FORMAT_MOD_Y_TILED	fourcc_mod_code(INTEL, 2)
+
+#define fourcc_code(a, b, c, d) ((__u32)(a) | ((__u32)(b) << 8) | \
+   ((__u32)(c) << 16) | ((__u32)(d) << 24))
+
+#define DRM_FORMAT_NV12   fourcc_code('N', 'V', '1', '2') /* 2x2 subsampled Cr:Cb plane */
+#define DRM_FORMAT_NV21   fourcc_code('N', 'V', '2', '1') /* 2x2 subsampled Cb:Cr plane */
+#define DRM_FORMAT_YVU420 fourcc_code('Y', 'V', '1', '2') /* 2x2 subsampled Cr (1) and Cb (2) planes */
+#define DRM_FORMAT_P010   fourcc_code('P', '0', '1', '0') /* 2x2 subsampled Cr:Cb plane 10 bits per channel */
+#define DRM_FORMAT_RGBA8888	fourcc_code('R', 'A', '2', '4') /* [31:0] R:G:B:A 8:8:8:8 little endian */
+#define DRM_FORMAT_RGBX8888	fourcc_code('R', 'X', '2', '4') /* [31:0] R:G:B:x 8:8:8:8 little endian */
+#define DRM_FORMAT_BGRA8888	fourcc_code('B', 'A', '2', '4') /* [31:0] B:G:R:A 8:8:8:8 little endian */
+
 static unsigned int ConvertMfxFourccToVAFormat(mfxU32 fourcc)
 {
     switch (fourcc) {
@@ -106,6 +125,27 @@ static mfxU32 ConvertVAFourccToVARTFormat(mfxU32 va_fourcc)
             return VA_RT_FORMAT_RGB32;
         case VA_FOURCC_P010:
             return VA_RT_FORMAT_YUV420_10;
+        default:
+            return 0;
+    }
+}
+
+static mfxU32 ConvertVAFourccToDrmFormat(mfxU32 va_fourcc)
+{
+    switch (va_fourcc)
+    {
+        case VA_FOURCC_NV12:
+            return DRM_FORMAT_NV12;
+        case VA_FOURCC_YV12:
+            return DRM_FORMAT_YVU420;
+        case VA_FOURCC_RGBA:
+            return DRM_FORMAT_RGBA8888;
+        case VA_FOURCC_BGRA:
+            return DRM_FORMAT_BGRA8888;
+        case VA_FOURCC_RGBX:
+            return DRM_FORMAT_RGBX8888;
+        case VA_FOURCC_P010:
+            return DRM_FORMAT_P010;
         default:
             return 0;
     }
@@ -515,7 +555,6 @@ mfxStatus MfxVaFrameAllocator::CreateSurfaceFromGralloc(const MfxGrallocModule::
         MFX_DEBUG_TRACE_U32(info.pitches[i]);
     }
 
-
     mfxU32 width = decode_target ? info.allocWidth : info.width;
     mfxU32 height = decode_target ? info.allocHeight : info.height;
 
@@ -525,6 +564,7 @@ mfxStatus MfxVaFrameAllocator::CreateSurfaceFromGralloc(const MfxGrallocModule::
     VASurfaceAttrib attribs[2];
     MFX_ZERO_MEMORY(attribs);
 
+#if 0
     VASurfaceAttribExternalBuffers surfExtBuf;
     MFX_ZERO_MEMORY(surfExtBuf);
 
@@ -563,6 +603,40 @@ mfxStatus MfxVaFrameAllocator::CreateSurfaceFromGralloc(const MfxGrallocModule::
     attribs[1].flags = VA_SURFACE_ATTRIB_SETTABLE;
     attribs[1].value.type = VAGenericValueTypePointer;
     attribs[1].value.value.p = (void *)&surfExtBuf;
+#else
+    VADRMPRIMESurfaceDescriptor desc;
+    MFX_ZERO_MEMORY(desc);
+
+    desc.fourcc = va_fourcc;
+    desc.width = width;
+    desc.height = height;
+    desc.num_objects = 1;
+    desc.objects[0].fd = info.prime;
+    desc.objects[0].size = decode_target ? info.pitches[0] * ((height + 31) & ~31) * 1.5 : info.pitches[0] * ((height + 15) & ~15) * 1.5;
+    desc.objects[0].drm_format_modifier = I915_FORMAT_MOD_Y_TILED;
+    //desc.objects[0].drm_format_modifier = I915_FORMAT_MOD_4_TILED;
+    desc.num_layers = 1;
+    desc.layers[0].drm_format = ConvertVAFourccToDrmFormat(va_fourcc);
+    desc.layers[0].num_planes = info.planes_count;
+    desc.layers[0].object_index[0] = 0;
+    desc.layers[0].offset[0] = 0;
+    desc.layers[0].offset[1] = decode_target ? info.pitches[0] * ((height + 31) & ~31) : info.pitches[0] * ((height + 15) & ~15);
+    desc.layers[0].offset[2] = 0;
+    desc.layers[0].offset[3] = 0;
+    desc.layers[0].pitch[0] = info.pitches[0];
+    desc.layers[0].pitch[1] = info.pitches[1];
+    desc.layers[0].pitch[2] = 0;
+    desc.layers[0].pitch[3] = 0;
+
+    attribs[0].type = (VASurfaceAttribType)VASurfaceAttribMemoryType;
+    attribs[0].flags = VA_SURFACE_ATTRIB_SETTABLE;
+    attribs[0].value.type = VAGenericValueTypeInteger;
+    attribs[0].value.value.i = VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2;
+    attribs[1].type = VASurfaceAttribExternalBufferDescriptor;
+    attribs[1].flags = VA_SURFACE_ATTRIB_SETTABLE;
+    attribs[1].value.type = VAGenericValueTypePointer;
+    attribs[1].value.value.p = (void *)&desc;
+#endif
 
     VAStatus va_res = vaCreateSurfaces(m_dpy, rt_format,
         width, height,
