@@ -179,7 +179,6 @@ public:
 
 private:
     std::ofstream stream_;
-    std::mutex m_mutex;
 };
 
 // Writes YUV format frame to file.It useful for debug.
@@ -194,7 +193,6 @@ public:
     void Write(const uint8_t* yuv_data, int stride, int height, int frameIndex/*, int fourCC*/);
 
 private:
-    std::mutex m_mutex;
     std::ofstream stream_;
 };
 

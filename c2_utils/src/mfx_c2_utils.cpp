@@ -625,8 +625,6 @@ BinaryWriter::BinaryWriter(const std::string& dir,
     std::stringstream full_name;
     full_name << dir << "/";
 
-    std::lock_guard<std::mutex> lock(m_mutex);
-
     for(const std::string& sub_dir : sub_dirs) {
         full_name << sub_dir;
 
@@ -640,10 +638,7 @@ BinaryWriter::BinaryWriter(const std::string& dir,
 
         if (!dir_exists) {
             MFX_DEBUG_TRACE_STREAM(NAMED(full_name.str()));
-            if(mkdir(full_name.str().c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)) {
-                MFX_DEBUG_TRACE_MSG("cannot create the path");
-                return;
-            }
+            mkdir(full_name.str().c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
         }
 
         full_name << "/";
@@ -661,8 +656,6 @@ YUVWriter::YUVWriter(const std::string& dir,
     std::stringstream full_name;
     full_name << dir << "/";
 
-    std::lock_guard<std::mutex> lock(m_mutex);
-
     for(const std::string& sub_dir : sub_dirs) {
         full_name << sub_dir;
 
@@ -676,10 +669,7 @@ YUVWriter::YUVWriter(const std::string& dir,
 
         if (!dir_exists) {
             MFX_DEBUG_TRACE_STREAM(NAMED(full_name.str()));
-            if(mkdir(full_name.str().c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)) {
-                MFX_DEBUG_TRACE_MSG("cannot create the path");
-                return;
-            }
+            mkdir(full_name.str().c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
         }
 
         full_name << "/";

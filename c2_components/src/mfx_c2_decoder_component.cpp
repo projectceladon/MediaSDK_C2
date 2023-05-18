@@ -492,7 +492,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
 
             addParameter(
                 DefineParam(m_maxSize, C2_PARAMKEY_MAX_PICTURE_SIZE)
-                .withDefault(new C2StreamMaxPictureSizeTuning::output(SINGLE_STREAM_ID, MIN_W, MIN_H))
+                .withDefault(new C2StreamMaxPictureSizeTuning::output(SINGLE_STREAM_ID, WIDTH_8K, HEIGHT_8K))
                 .withFields({
                     C2F(m_size, width).inRange(2, WIDTH_8K, 2),
                     C2F(m_size, height).inRange(2, HEIGHT_8K, 2),
@@ -632,7 +632,6 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     // By default prepare buffer to be displayed on any of the common surfaces
     m_consumerUsage = kDefaultConsumerUsage;
 
-    MFX_ZERO_MEMORY(m_signalInfo);
     //m_paramStorage.DumpParams();
 }
 
@@ -800,9 +799,9 @@ c2_status_t MfxC2DecoderComponent::Release()
     }
 #else
     sts = m_mfxSession.Close();
-    if (MFX_ERR_NONE != sts) res = MfxStatusToC2(sts);
 #endif
 
+    if (MFX_ERR_NONE != sts) res = MfxStatusToC2(sts);
 
     if (m_allocator) {
         m_allocator = nullptr;
@@ -810,6 +809,7 @@ c2_status_t MfxC2DecoderComponent::Release()
 
     if (m_device) {
         m_device->Close();
+        if (MFX_ERR_NONE != sts) res = MfxStatusToC2(sts);
 
         m_device = nullptr;
     }
@@ -1809,10 +1809,6 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
         std::unique_ptr<native_handle_t, decltype(hndl_deleter)> hndl(
             android::UnwrapNativeCodec2GrallocHandle(out_block->handle()), hndl_deleter);
 
-        if(hndl == nullptr)
-        {
-            return C2_NO_MEMORY;
-        }
         auto it = m_surfaces.end();
         if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
 
@@ -1850,7 +1846,7 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
                     m_surfacePool.push_back(frame_out->GetMfxFrameSurface());
                 } else {
                     auto it = m_surfacePool.begin();
-                    for(auto& mfx_frame: m_surfacePool) {
+                    for(auto mfx_frame: m_surfacePool) {
                         // Check if there is avaiable surface in the pool
                         if (!mfx_frame->Data.Locked) {
                             auto blk = m_blocks.begin();
