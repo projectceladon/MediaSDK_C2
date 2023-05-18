@@ -350,23 +350,11 @@ mfxStatus MfxVaFrameAllocator::UnlockFrame(mfxMemId mid, mfxFrameData *frame_dat
     if (va_mid && va_mid->surface_) {
 
         if (MFX_FOURCC_P8 == va_mid->fourcc_) { // bitstream processing
-            VAStatus va_res = vaUnmapBuffer(m_dpy, *(va_mid->surface_));
-            if (VA_STATUS_SUCCESS != va_res) {
-                mfx_res = va_to_mfx_status(va_res);
-                return mfx_res;
-            }
+            vaUnmapBuffer(m_dpy, *(va_mid->surface_));
         }
         else { // Image processing
-            VAStatus va_res = vaUnmapBuffer(m_dpy, va_mid->image_.buf);
-            if (VA_STATUS_SUCCESS != va_res) {
-                mfx_res = va_to_mfx_status(va_res);
-                return mfx_res;
-            }
-            va_res = vaDestroyImage(m_dpy, va_mid->image_.image_id);
-            if (VA_STATUS_SUCCESS != va_res) {
-                mfx_res = va_to_mfx_status(va_res);
-                return mfx_res;
-            }
+            vaUnmapBuffer(m_dpy, va_mid->image_.buf);
+            vaDestroyImage(m_dpy, va_mid->image_.image_id);
 
             if (nullptr != frame_data) {
                 frame_data->Pitch = 0;
@@ -640,7 +628,6 @@ mfxStatus MfxVaFrameAllocator::TouchSurface(VASurfaceID surface)
     VAImage image;
     unsigned char* buffer;
     VAStatus va_res;
-    mfxStatus mfx_res = MFX_ERR_NONE;
 
     if (VA_INVALID_ID == surface) return MFX_ERR_UNKNOWN;
 
@@ -651,18 +638,10 @@ mfxStatus MfxVaFrameAllocator::TouchSurface(VASurfaceID surface)
         if (VA_STATUS_SUCCESS == va_res)
         {
             *buffer = 0x0; // can have any value
-            va_res = vaUnmapBuffer(m_dpy, image.buf);
-            if (VA_STATUS_SUCCESS != va_res) {
-                mfx_res = va_to_mfx_status(va_res);
-                return mfx_res;
-            }
+            vaUnmapBuffer(m_dpy, image.buf);
         }
-        va_res = vaDestroyImage(m_dpy, image.image_id);
-        if (VA_STATUS_SUCCESS != va_res) {
-            mfx_res = va_to_mfx_status(va_res);
-            return mfx_res;
-        }
-    }
-    return mfx_res;
+        vaDestroyImage(m_dpy, image.image_id);
+     }
+    return MFX_ERR_NONE;
 }
 #endif // #if defined(LIBVA_SUPPORT)

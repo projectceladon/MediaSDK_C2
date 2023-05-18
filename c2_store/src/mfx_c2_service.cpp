@@ -90,21 +90,14 @@ void RegisterC2Service()
 
 
 int main(int /* argc */, char** /* argv */) {
-    // ALOGD("hardware.intel.media.c2@1.0-service starting...");
+    ALOGD("hardware.intel.media.c2@1.0-service starting...");
 
     signal(SIGPIPE, SIG_IGN);
-    try
-    {
-        android::SetUpMinijail(kBaseSeccompPolicyPath, kExtSeccompPolicyPath);
-        // vndbinder is needed by BufferQueue.
-        android::ProcessState::initWithDriver("/dev/vndbinder");
-        android::ProcessState::self()->startThreadPool();
-    }
-    catch(const std::exception& e)
-    {
-        // ALOGE("SetUpMinijail function execution error");
-    }
+    android::SetUpMinijail(kBaseSeccompPolicyPath, kExtSeccompPolicyPath);
 
+    // vndbinder is needed by BufferQueue.
+    android::ProcessState::initWithDriver("/dev/vndbinder");
+    android::ProcessState::self()->startThreadPool();
 
     // Extra threads may be needed to handle a stacked IPC sequence that
     // contains alternating binder and hwbinder calls. (See b/35283480.)

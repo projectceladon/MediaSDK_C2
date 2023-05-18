@@ -20,7 +20,6 @@
 
 #pragma once
 
-#include <utils/Log.h>
 #include <mutex>
 #include <future>
 #include <memory>
@@ -47,16 +46,9 @@ public:
         // Correct method to free pool instance.
         // This waiting for destroyed is needed as module with pool could be unloaded from
         // memory while some resource could try to add itself back to the pool.
-        try
-        {
-            std::future<void> destroyed = m_poolImpl->Destroyed();
-            destroyed.wait();
-        }
-        catch(const std::exception& e)
-        {
-            // ALOGE("Destroyed function execution error");
-        }
+        std::future<void> destroyed = m_poolImpl->Destroyed();
         m_poolImpl.reset();
+        destroyed.wait();
     }
 
     MFX_CLASS_NO_COPY(MfxPool<T>)
@@ -88,14 +80,7 @@ private:
     public:
         ~MfxPoolImpl()
         {
-            try
-            {
-                m_destroyed.set_value();
-            }
-            catch(const std::exception& e)
-            {
-                // ALOGE("set_value function execution error");
-            }
+            m_destroyed.set_value();
         }
 
         void Append(std::unique_ptr<T>&& free_item)

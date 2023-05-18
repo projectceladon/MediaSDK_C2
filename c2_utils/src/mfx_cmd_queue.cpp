@@ -28,14 +28,7 @@
 MfxCmdQueue::~MfxCmdQueue()
 {
     MFX_DEBUG_TRACE(MFX_PTR_NAME(this));
-    try
-    {
-        Abort();
-    }
-    catch(const std::exception& e)
-    {
-        // ALOGE("Abort function execution error");
-    }
+    Abort();
 }
 
 void MfxCmdQueue::Start()

@@ -22,7 +22,6 @@
 
 #include <C2Work.h>
 
-#include <utils/Log.h>
 #include <functional>
 #include <queue>
 #include <thread>
