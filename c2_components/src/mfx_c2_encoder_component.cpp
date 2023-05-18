@@ -1308,10 +1308,8 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             break;
         }
 
-        // XXX: "Big parameter passed by value(PASS_BY_VALUE)" by Coverity scanning.
-        // mfx_frame of type size 136 bytes.
-        m_waitingQueue.Push( [ mfx_frame = std::move(mfx_frame_in), this ] () mutable {
-            RetainLockedFrame(std::move(mfx_frame));
+        m_waitingQueue.Push( [&mfx_frame_in, this ] () mutable {
+            RetainLockedFrame(std::move(mfx_frame_in));
         } );
 
         m_pendingWorks.push(std::move(work));
