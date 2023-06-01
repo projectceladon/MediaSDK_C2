@@ -630,22 +630,14 @@ BinaryWriter::BinaryWriter(const std::string& dir,
     for(const std::string& sub_dir : sub_dirs) {
         full_name << sub_dir;
 
-        bool dir_exists = false;
+        int ret = mkdir(full_name.str().c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 
-        struct stat info;
-
-        if (stat(full_name.str().c_str(), &info) == 0) {
-            dir_exists = (info.st_mode & S_IFDIR) != 0;
+        if (ret != 0 && errno != EEXIST) {
+            MFX_DEBUG_TRACE_MSG("cannot create the path");
+            return;
         }
 
-        if (!dir_exists) {
-            MFX_DEBUG_TRACE_STREAM(NAMED(full_name.str()));
-            if(mkdir(full_name.str().c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)) {
-                MFX_DEBUG_TRACE_MSG("cannot create the path");
-                return;
-            }
-        }
-
+        MFX_DEBUG_TRACE_STREAM(NAMED(full_name.str()));
         full_name << "/";
     }
 
@@ -666,22 +658,14 @@ YUVWriter::YUVWriter(const std::string& dir,
     for(const std::string& sub_dir : sub_dirs) {
         full_name << sub_dir;
 
-        bool dir_exists = false;
+        int ret = mkdir(full_name.str().c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 
-        struct stat info;
-
-        if (stat(full_name.str().c_str(), &info) == 0) {
-            dir_exists = (info.st_mode & S_IFDIR) != 0;
+        if (ret != 0 && errno != EEXIST) {
+            MFX_DEBUG_TRACE_MSG("cannot create the path");
+            return;
         }
 
-        if (!dir_exists) {
-            MFX_DEBUG_TRACE_STREAM(NAMED(full_name.str()));
-            if(mkdir(full_name.str().c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)) {
-                MFX_DEBUG_TRACE_MSG("cannot create the path");
-                return;
-            }
-        }
-
+        MFX_DEBUG_TRACE_STREAM(NAMED(full_name.str()));
         full_name << "/";
     }
 
