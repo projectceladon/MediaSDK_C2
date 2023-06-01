@@ -1765,7 +1765,7 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
                     return C2_CORRUPTED;
                 if (m_allocator && !m_allocator->InCache(id)) {
                     res = C2_BLOCKING;
-                    usleep(1000);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
                     // If always fetch a nocached block, check if width or height have changed
                     // compare to when it was initialized.
                     MFX_DEBUG_TRACE_STREAM("fetchGraphicBlock a nocached block, please retune output blocks. id = " << id);
