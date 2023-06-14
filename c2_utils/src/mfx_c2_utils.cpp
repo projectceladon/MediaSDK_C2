@@ -512,7 +512,7 @@ int MfxFourCCToGralloc(mfxU32 fourcc, bool using_video_memory)
     switch (fourcc)
     {
         case MFX_FOURCC_NV12:
-            return using_video_memory ? HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL : HAL_PIXEL_FORMAT_NV12;
+            return using_video_memory ? HAL_PIXEL_FORMAT_NV12_X_TILED_INTEL : HAL_PIXEL_FORMAT_NV12;
         case MFX_FOURCC_P010:
             return HAL_PIXEL_FORMAT_P010_INTEL;
         default:

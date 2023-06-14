@@ -626,7 +626,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         .build());
 
     // Pixel format info. Set to NV12 by default
-    m_pixelFormat = std::make_unique<C2StreamPixelFormatInfo::output>(SINGLE_STREAM_ID, HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL);
+    m_pixelFormat = std::make_unique<C2StreamPixelFormatInfo::output>(SINGLE_STREAM_ID, HAL_PIXEL_FORMAT_NV12_X_TILED_INTEL);
 
     // HDR static with BT2020 by default
     m_hdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
