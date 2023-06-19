@@ -1341,8 +1341,8 @@ c2_status_t MfxC2DecoderComponent::UpdateC2Param(const mfxVideoParam* src, C2Par
         case kParamIndexPictureSize: {
             if (C2StreamPictureSizeInfo::output::PARAM_TYPE == index) {
                 MFX_DEBUG_TRACE("GetPictureSize");
-                m_size->width = src->mfx.FrameInfo.CropW;
-                m_size->height = src->mfx.FrameInfo.CropH;
+                m_size->width = src->mfx.FrameInfo.Width;
+                m_size->height = src->mfx.FrameInfo.Height;
                 MFX_DEBUG_TRACE_STREAM(NAMED(m_size->width) << NAMED(m_size->height));
             }
             break;
@@ -2410,11 +2410,11 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             worklet->output.flags = (C2FrameData::flags_t)(work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
             worklet->output.ordinal = work->input.ordinal;
 	    if (m_mfxVideoParams.mfx.FrameInfo.Width != m_size->width || m_mfxVideoParams.mfx.FrameInfo.Height != m_size->height) {
-                MFX_DEBUG_TRACE_MSG("Buffer size is changed! inform framework to update Config.");
+                MFX_DEBUG_TRACE_STREAM("find m_size different from m_mfxVideoParams, update width from " << m_size->width
+                                        << " to " << m_mfxVideoParams.mfx.FrameInfo.Width << ", height from " << m_size->height
+                                        << " to " << m_mfxVideoParams.mfx.FrameInfo.Height);
                 m_size->width = m_mfxVideoParams.mfx.FrameInfo.Width;
                 m_size->height = m_mfxVideoParams.mfx.FrameInfo.Height;
-                MFX_DEBUG_TRACE_STREAM("find m_size different from m_mfxVideoParams, update width to " << m_size->width
-                                        << ", height to " << m_size->height);
                 C2StreamPictureSizeInfo::output new_size(0u, m_size->width, m_size->height);
                 m_updatingC2Configures.push_back(C2Param::Copy(new_size));
             }
