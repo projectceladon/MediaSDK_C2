@@ -27,7 +27,7 @@
 #include "mfx_c2_frame_out.h"
 #include "mfx_c2_bitstream_in.h"
 #include "mfx_frame_pool_allocator.h"
-#include "mfx_gralloc_allocator.h"
+#include "mfx_gralloc_instance.h"
 #include "mfx_c2_color_aspects_wrapper.h"
 #include "mfx_c2_setters.h"
 #include <cutils/properties.h>
@@ -226,7 +226,6 @@ private:
     // for pre-allocation when Video memory is chosen and always when System memory output
     std::shared_ptr<C2BlockPool> m_c2Allocator;
     C2BlockPool::local_id_t m_outputPoolId = C2BlockPool::BASIC_GRAPHIC;
-    std::unique_ptr<MfxGrallocAllocator> m_grallocAllocator;
     std::atomic<bool> m_bFlushing{false};
 
     std::list<std::unique_ptr<C2Work>> m_flushedWorks;

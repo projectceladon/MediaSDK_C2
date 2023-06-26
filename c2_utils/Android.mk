@@ -17,6 +17,7 @@ LOCAL_SHARED_LIBRARIES := \
     android.hardware.media.bufferpool@2.0 \
     android.hardware.graphics.bufferqueue@2.0 \
     android.hardware.graphics.common@1.2 \
+    android.hardware.graphics.mapper@4.0 \
     $(MFX_C2_SHARED_LIBRARIES)
 
 LOCAL_STATIC_LIBRARIES := \
@@ -45,7 +46,10 @@ LOCAL_C_INCLUDES := \
     system/core/base/include \
     $(MFX_C2_INCLUDES) \
     $(MFX_C2_HOME)/c2_utils/include \
-    $(MFX_C2_HOME)/plugin_store/include
+    $(MFX_C2_HOME)/plugin_store/include \
+    frameworks/native/libs/gralloc/types/include \
+    hardware/intel/external/minigbm-intel \
+    external/libdrm/include/drm
 
 LOCAL_EXPORT_C_INCLUDE_DIRS := \
     include

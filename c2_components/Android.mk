@@ -25,11 +25,16 @@ define build_components
     libhardware libdl liblog libcutils\
     $(MFX_C2_SHARED_LIBS) \
         libexpat \
+        libsync \
+        libdrm \
+        libutils \
+        libhidlbase \
         libgralloctypes \
         libstagefright_foundation \
         android.hardware.media.bufferpool@2.0 \
         android.hardware.graphics.bufferqueue@2.0 \
         android.hardware.graphics.common@1.2 \
+        android.hardware.graphics.mapper@4.0 \
         libsfplugin_ccodec_utils
 
   LOCAL_STATIC_LIBRARIES := \

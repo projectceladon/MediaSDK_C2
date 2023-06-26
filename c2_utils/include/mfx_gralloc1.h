@@ -22,48 +22,24 @@
 
 #include <mfx_defs.h>
 #include <utils/Errors.h>
-#include <C2Buffer.h>
 #include <hardware/gralloc1.h>
+#include "mfx_gralloc_interface.h"
 
-class MfxGrallocModule
+class MfxGralloc1Module : public IMfxGrallocModule
 {
 public:
-    static c2_status_t Create(std::unique_ptr<MfxGrallocModule>* module);
+    virtual ~MfxGralloc1Module();
 
-    virtual ~MfxGrallocModule();
+    virtual c2_status_t Init() override;
 
-public:
-    struct BufferDetails
-    {
-        buffer_handle_t handle;
-        int32_t prime;
-        int width;
-        int height;
-        int format;
-        uint32_t planes_count;
-        uint32_t pitches[C2PlanarLayout::MAX_NUM_PLANES];// pitch for each plane
-        uint32_t allocWidth;
-        uint32_t allocHeight;
-        BufferDetails():
-            handle(nullptr),
-            prime(-1),
-            width(0),
-            height(0),
-            format(0),
-            planes_count(0),
-            pitches{},
-            allocWidth(0),
-            allocHeight(0)
-        {}
-    };
+    virtual c2_status_t GetBackingStore(const buffer_handle_t rawHandle, uint64_t *id) override;
+    virtual c2_status_t GetBufferDetails(const buffer_handle_t handle, BufferDetails* details) override;
 
-public:
-    c2_status_t GetBufferDetails(const buffer_handle_t handle, BufferDetails* details);
-
-protected:
-    MfxGrallocModule() = default;
-
-    c2_status_t Init();
+    virtual c2_status_t Alloc(const uint16_t width, const uint16_t height, buffer_handle_t* handle);
+    virtual c2_status_t Free(const buffer_handle_t handle);
+    virtual c2_status_t LockFrame(buffer_handle_t handle, uint8_t** data, C2PlanarLayout *layout);
+    virtual c2_status_t UnlockFrame(buffer_handle_t handle);
+    virtual c2_status_t ImportBuffer(const buffer_handle_t rawHandle, buffer_handle_t *outBuffer);
 
 protected:
     hw_module_t const* m_hwModule {};
@@ -89,29 +65,6 @@ protected:
     Gralloc1Func<GRALLOC1_PFN_GET_DIMENSIONS, GRALLOC1_FUNCTION_GET_DIMENSIONS> m_grGetDimensionsFunc;
     Gralloc1Func<GRALLOC1_PFN_GET_NUM_FLEX_PLANES, GRALLOC1_FUNCTION_GET_NUM_FLEX_PLANES> m_grGetNumFlexPlanesFunc;
     Gralloc1Func<GRALLOC1_PFN_GET_BYTE_STRIDE, (gralloc1_function_descriptor_t)GRALLOC1_FUNCTION_GET_BYTE_STRIDE> m_grGetByteStrideFunc;
-#ifdef MFX_C2_USE_PRIME
-    Gralloc1Func<GRALLOC1_PFN_GET_PRIME, (gralloc1_function_descriptor_t)GRALLOC1_FUNCTION_GET_PRIME> m_grGetPrimeFunc;
-#endif
-};
-
-class MfxGrallocAllocator : public MfxGrallocModule
-{
-public:
-    static c2_status_t Create(std::unique_ptr<MfxGrallocAllocator>* allocator);
-
-    virtual c2_status_t Alloc(const uint16_t width, const uint16_t height, buffer_handle_t* handle);
-    virtual c2_status_t Free(const buffer_handle_t handle);
-    virtual c2_status_t LockFrame(buffer_handle_t handle, uint8_t** data, C2PlanarLayout *layout);
-    virtual c2_status_t UnlockFrame(buffer_handle_t handle);
-    virtual c2_status_t ImportBuffer(const buffer_handle_t rawHandle, buffer_handle_t *outBuffer);
-    virtual c2_status_t GetBackingStore(const buffer_handle_t rawHandle, uint64_t *id);
-
-private:
-    MfxGrallocAllocator() = default;
-
-    c2_status_t Init();
-
-protected:
     Gralloc1Func<GRALLOC1_PFN_ALLOCATE, GRALLOC1_FUNCTION_ALLOCATE> m_grAllocateFunc;
     Gralloc1Func<GRALLOC1_PFN_RELEASE, GRALLOC1_FUNCTION_RELEASE> m_grReleaseFunc;
     Gralloc1Func<GRALLOC1_PFN_LOCK, GRALLOC1_FUNCTION_LOCK> m_grLockFunc;
@@ -124,6 +77,7 @@ protected:
     Gralloc1Func<GRALLOC1_PFN_DESTROY_DESCRIPTOR, GRALLOC1_FUNCTION_DESTROY_DESCRIPTOR> m_grDestroyDescriptorFunc;
     Gralloc1Func<GRALLOC1_PFN_IMPORT_BUFFER, GRALLOC1_FUNCTION_IMPORT_BUFFER> m_grImportBufferFunc;
     Gralloc1Func<GRALLOC1_PFN_GET_BACKING_STORE, GRALLOC1_FUNCTION_GET_BACKING_STORE> m_grGetBackingStoreFunc;
-
-    MFX_CLASS_NO_COPY(MfxGrallocAllocator)
+#ifdef MFX_C2_USE_PRIME
+    Gralloc1Func<GRALLOC1_PFN_GET_PRIME, (gralloc1_function_descriptor_t)GRALLOC1_FUNCTION_GET_PRIME> m_grGetPrimeFunc;
+#endif
 };

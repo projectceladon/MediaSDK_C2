@@ -27,7 +27,6 @@
 #include "mfx_c2_utils.h"
 #include "mfx_defaults.h"
 #include "C2PlatformSupport.h"
-#include "mfx_gralloc_allocator.h"
 
 #include <limits>
 #include <thread>
