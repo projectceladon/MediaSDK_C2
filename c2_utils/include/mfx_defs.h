@@ -33,12 +33,19 @@
 #endif
 
 // includes below are to get Intel color formats
+
+#define HAVE_GRALLOC4 // We use gralloc4 but keep supporting gralloc1
+
+#ifdef HAVE_GRALLOC4
+    #define USE_GRALLOC4
+#else // HAVE_GRALLOC4
 #ifdef MFX_C2_USE_PRIME
     // USE_GRALLOC1 required for using PRIME buffer descriptor -
     // opens definition GRALLOC1_PFN_GET_PRIME in
     // i915_private_android_types.h
     #define USE_GRALLOC1
-#endif
+#endif // MFX_C2_USE_PRIME
+#endif // HAVE_GRALLOC4
 #define DRV_I915
 #include <i915_private_android_types.h>
 

@@ -96,8 +96,6 @@ private:
 
     std::unique_ptr<MfxPool<C2GraphicBlock>> m_pool;
 
-    std::unique_ptr<MfxGrallocAllocator> m_grallocAllocator;
-
     std::map<uint64_t, int> m_cachedBufferId;
 
     unsigned int m_uSuggestBufferCnt = 0;

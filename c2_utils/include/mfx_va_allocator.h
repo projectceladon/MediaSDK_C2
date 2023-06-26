@@ -25,7 +25,7 @@
 #include "mfx_defs.h"
 #include "mfx_allocator.h"
 #include "mfx_frame_converter.h"
-#include "mfx_gralloc_allocator.h"
+#include "mfx_gralloc_instance.h"
 
 #include <mutex>
 #include <map>
@@ -63,7 +63,7 @@ private:
     mfxStatus MapGrallocBufferToSurface(buffer_handle_t gralloc_buffer, bool decode_target,
         mfxU32* fourcc, VASurfaceID* surface);
 
-    mfxStatus CreateSurfaceFromGralloc(const MfxGrallocModule::BufferDetails& buffer_details,
+    mfxStatus CreateSurfaceFromGralloc(const IMfxGrallocModule::BufferDetails& buffer_details,
         bool decode_target,
         VASurfaceID* surface);
 
@@ -84,9 +84,6 @@ private:
     VADisplay m_dpy;
 
     std::mutex m_mutex;
-
-    std::unique_ptr<MfxGrallocModule> m_grallocModule; // lazy init
-    std::unique_ptr<MfxGrallocAllocator> m_grallocAllocator;
 
     std::map<uint64_t, std::unique_ptr<VaMemIdAllocated, VaMemIdDeleter>>
         m_mappedVaSurfaces;

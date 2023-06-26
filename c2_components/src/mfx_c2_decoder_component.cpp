@@ -29,7 +29,6 @@
 #include "mfx_c2_allocator_id.h"
 #include "mfx_c2_buffer_queue.h"
 #include "C2PlatformSupport.h"
-#include "mfx_gralloc_allocator.h"
 
 #include <C2AllocatorGralloc.h>
 #include <Codec2Mapper.h>
@@ -1762,7 +1761,8 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
                     android::UnwrapNativeCodec2GrallocHandle((*out_block)->handle()), hndl_deleter);
 
                 uint64_t id;
-                c2_status_t sts = m_grallocAllocator->GetBackingStore(hndl.get(), &id);
+                if (C2_OK != MfxGrallocInstance::getInstance()->GetBackingStore(hndl.get(), &id))
+                    return C2_CORRUPTED;
                 if (m_allocator && !m_allocator->InCache(id)) {
                     res = C2_BLOCKING;
                     usleep(1000);
@@ -1829,7 +1829,8 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
         if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
 
             uint64_t id;
-            c2_status_t sts = m_grallocAllocator->GetBackingStore(hndl.get(), &id);
+            if (C2_OK != MfxGrallocInstance::getInstance()->GetBackingStore(hndl.get(), &id))
+                return C2_CORRUPTED;
 
             it = m_surfaces.find(id);
             if (it == m_surfaces.end()){
@@ -2043,13 +2044,6 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 ALOGI("System memory is being used for decoding!");
 
                 if (MFX_ERR_NONE != mfx_sts) break;
-            }
-        }
-
-        if (!m_grallocAllocator) {
-            res = MfxGrallocAllocator::Create(&m_grallocAllocator);
-            if(C2_OK != res) {
-                break;
             }
         }
 

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "mfx_gralloc_allocator.h"
+#include "mfx_gralloc1.h"
 
 #include "mfx_debug.h"
 #include "mfx_c2_debug.h"
@@ -27,33 +27,16 @@
 using namespace android;
 
 #undef MFX_DEBUG_MODULE_NAME
-#define MFX_DEBUG_MODULE_NAME "mfx_gralloc_allocator"
+#define MFX_DEBUG_MODULE_NAME "mfx_gralloc1"
 
-c2_status_t MfxGrallocModule::Create(std::unique_ptr<MfxGrallocModule>* allocator)
-{
-    c2_status_t res = C2_OK;
-    if (allocator) {
-        std::unique_ptr<MfxGrallocModule> alloc(new (std::nothrow)MfxGrallocModule());
-        if (alloc) {
-            res = alloc->Init();
-            if (res == C2_OK) *allocator = std::move(alloc);
-        } else {
-            res = C2_NO_MEMORY;
-        }
-    } else {
-        res = C2_BAD_VALUE;
-    }
-    return res;
-}
-
-MfxGrallocModule::~MfxGrallocModule()
+MfxGralloc1Module::~MfxGralloc1Module()
 {
     MFX_DEBUG_TRACE_FUNC;
 
     if (m_gralloc1_dev) gralloc1_close(m_gralloc1_dev);
 }
 
-c2_status_t MfxGrallocModule::Init()
+c2_status_t MfxGralloc1Module::Init()
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -77,6 +60,18 @@ c2_status_t MfxGrallocModule::Init()
                 m_grGetDimensionsFunc.Acquire(m_gralloc1_dev) &&
                 m_grGetNumFlexPlanesFunc.Acquire(m_gralloc1_dev) &&
                 m_grGetByteStrideFunc.Acquire(m_gralloc1_dev);
+                m_grAllocateFunc.Acquire(m_gralloc1_dev) &&
+                m_grReleaseFunc.Acquire(m_gralloc1_dev) &&
+                m_grLockFunc.Acquire(m_gralloc1_dev) &&
+                m_grUnlockFunc.Acquire(m_gralloc1_dev) &&
+                m_grCreateDescriptorFunc.Acquire(m_gralloc1_dev) &&
+                m_grSetConsumerUsageFunc.Acquire(m_gralloc1_dev) &&
+                m_grSetProducerUsageFunc.Acquire(m_gralloc1_dev) &&
+                m_grSetDimensionsFunc.Acquire(m_gralloc1_dev) &&
+                m_grSetFormatFunc.Acquire(m_gralloc1_dev) &&
+                m_grDestroyDescriptorFunc.Acquire(m_gralloc1_dev) &&
+                m_grImportBufferFunc.Acquire(m_gralloc1_dev) &&
+                m_grGetBackingStoreFunc.Acquire(m_gralloc1_dev);
 #ifdef MFX_C2_USE_PRIME
             if (m_grGetPrimeFunc.Acquire(m_gralloc1_dev)) {
                 MFX_DEBUG_TRACE_MSG("Use PRIME");
@@ -97,8 +92,8 @@ c2_status_t MfxGrallocModule::Init()
     return res;
 }
 
-c2_status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handle,
-    MfxGrallocModule::BufferDetails* details)
+c2_status_t MfxGralloc1Module::GetBufferDetails(const buffer_handle_t handle,
+                                                MfxGralloc1Module::BufferDetails *details)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -148,53 +143,7 @@ c2_status_t MfxGrallocModule::GetBufferDetails(const buffer_handle_t handle,
     return res;
 }
 
-c2_status_t MfxGrallocAllocator::Create(std::unique_ptr<MfxGrallocAllocator>* allocator)
-{
-    c2_status_t res = C2_OK;
-    if (allocator) {
-        std::unique_ptr<MfxGrallocAllocator> alloc(new (std::nothrow)MfxGrallocAllocator());
-        if (alloc) {
-            res = alloc->Init();
-            if (res == C2_OK) *allocator = std::move(alloc);
-        } else {
-            res = C2_NO_MEMORY;
-        }
-    } else {
-        res = C2_BAD_VALUE;
-    }
-    return res;
-}
-
-c2_status_t MfxGrallocAllocator::Init()
-{
-    MFX_DEBUG_TRACE_FUNC;
-    c2_status_t res = MfxGrallocModule::Init();
-
-    if (C2_OK == res) {
-        bool functions_acquired =
-            m_grAllocateFunc.Acquire(m_gralloc1_dev) &&
-            m_grReleaseFunc.Acquire(m_gralloc1_dev) &&
-            m_grLockFunc.Acquire(m_gralloc1_dev) &&
-            m_grUnlockFunc.Acquire(m_gralloc1_dev) &&
-            m_grCreateDescriptorFunc.Acquire(m_gralloc1_dev) &&
-            m_grSetConsumerUsageFunc.Acquire(m_gralloc1_dev) &&
-            m_grSetProducerUsageFunc.Acquire(m_gralloc1_dev) &&
-            m_grSetDimensionsFunc.Acquire(m_gralloc1_dev) &&
-            m_grSetFormatFunc.Acquire(m_gralloc1_dev) &&
-            m_grDestroyDescriptorFunc.Acquire(m_gralloc1_dev) &&
-            m_grImportBufferFunc.Acquire(m_gralloc1_dev) &&
-            m_grGetBackingStoreFunc.Acquire(m_gralloc1_dev);
-
-        if (!functions_acquired) {
-            res = C2_CORRUPTED;
-            // if MfxGrallocModule::Init allocated some resources
-            // its destructor is responsible to free them.
-        }
-    }
-    return res;
-}
-
-c2_status_t MfxGrallocAllocator::Alloc(const uint16_t width, const uint16_t height, buffer_handle_t* handle)
+c2_status_t MfxGralloc1Module::Alloc(const uint16_t width, const uint16_t height, buffer_handle_t* handle)
 {
     MFX_DEBUG_TRACE_FUNC;
     c2_status_t res = C2_OK;
@@ -241,7 +190,7 @@ c2_status_t MfxGrallocAllocator::Alloc(const uint16_t width, const uint16_t heig
     return res;
 }
 
-c2_status_t MfxGrallocAllocator::Free(const buffer_handle_t handle)
+c2_status_t MfxGralloc1Module::Free(const buffer_handle_t handle)
 {
     MFX_DEBUG_TRACE_FUNC;
     c2_status_t res = C2_OK;
@@ -261,7 +210,7 @@ c2_status_t MfxGrallocAllocator::Free(const buffer_handle_t handle)
     return res;
 }
 
-c2_status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** data, C2PlanarLayout *layout)
+c2_status_t MfxGralloc1Module::LockFrame(buffer_handle_t handle, uint8_t** data, C2PlanarLayout *layout)
 {
     MFX_DEBUG_TRACE_FUNC;
     MFX_DEBUG_TRACE_P(handle);
@@ -307,7 +256,7 @@ c2_status_t MfxGrallocAllocator::LockFrame(buffer_handle_t handle, uint8_t** dat
     return res;
 }
 
-c2_status_t MfxGrallocAllocator::UnlockFrame(buffer_handle_t handle)
+c2_status_t MfxGralloc1Module::UnlockFrame(buffer_handle_t handle)
 {
     MFX_DEBUG_TRACE_FUNC;
     MFX_DEBUG_TRACE_P(handle);
@@ -324,7 +273,7 @@ c2_status_t MfxGrallocAllocator::UnlockFrame(buffer_handle_t handle)
     return res;
 }
 
-c2_status_t MfxGrallocAllocator::ImportBuffer(const buffer_handle_t rawHandle, buffer_handle_t *outBuffer)
+c2_status_t MfxGralloc1Module::ImportBuffer(const buffer_handle_t rawHandle, buffer_handle_t *outBuffer)
 {
     MFX_DEBUG_TRACE_FUNC;
     c2_status_t res = C2_OK;
@@ -339,7 +288,7 @@ c2_status_t MfxGrallocAllocator::ImportBuffer(const buffer_handle_t rawHandle, b
     return res;
 }
 
-c2_status_t MfxGrallocAllocator::GetBackingStore(const buffer_handle_t rawHandle, uint64_t *id)
+c2_status_t MfxGralloc1Module::GetBackingStore(const buffer_handle_t rawHandle, uint64_t *id)
 {
     MFX_DEBUG_TRACE_FUNC;
     c2_status_t res = C2_OK;

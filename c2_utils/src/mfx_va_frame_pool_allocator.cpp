@@ -73,14 +73,6 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
     if (request->Type & MFX_MEMTYPE_VIDEO_MEMORY_DECODER_TARGET) {
 
         do {
-            if (!m_grallocAllocator) {
-                res = MfxGrallocAllocator::Create(&m_grallocAllocator);
-                if(C2_OK != res) {
-                    mfx_res = MFX_ERR_NOT_INITIALIZED;
-                    break;
-                }
-            }
-
             if (!m_c2Allocator) {
                 mfx_res = MFX_ERR_NOT_INITIALIZED;
                 break;
@@ -103,7 +95,6 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                 break;
             }
 #endif
-
             response->NumFrameActual = 0;
 #define RETRY_TIMES 5
             for (int i = 0; i < opt_buffers; ++i) {
@@ -132,7 +123,11 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
 
                 uint64_t id;
                 native_handle_t *hndl = android::UnwrapNativeCodec2GrallocHandle(new_block->handle());
-                m_grallocAllocator->GetBackingStore(hndl, &id);
+                if (C2_OK != MfxGrallocInstance::getInstance()->GetBackingStore(hndl, &id)) {
+                    mfx_res = MFX_ERR_INVALID_HANDLE;
+                    break;
+                }
+
                 m_cachedBufferId.emplace(id, i);
                 // if (C2_OK != res) { //TODO dead code not need.
                 //     native_handle_delete(hndl);

@@ -408,23 +408,13 @@ mfxStatus MfxVaFrameAllocator::ConvertGrallocToVa(buffer_handle_t gralloc_buffer
     VASurfaceID surface { VA_INVALID_ID };
 
     do {
-        if (!m_grallocAllocator) {
-            c2_status_t sts = MfxGrallocAllocator::Create(&m_grallocAllocator);
-            if(C2_OK != sts) {
-                mfx_res = MFX_ERR_MEMORY_ALLOC;
-                break;
-            }
-        }
-
         if (!gralloc_buffer) {
             mfx_res = MFX_ERR_INVALID_HANDLE;
             break;
         }
 
-
         uint64_t id;
-        c2_status_t sts = m_grallocAllocator->GetBackingStore(gralloc_buffer, &id);
-        if(C2_OK != sts) {
+        if(C2_OK != MfxGrallocInstance::getInstance()->GetBackingStore(gralloc_buffer, &id)) {
             mfx_res = MFX_ERR_INVALID_HANDLE;
             break;
         }
@@ -495,7 +485,7 @@ void MfxVaFrameAllocator::FreeAllMappings()
     m_mappedVaSurfaces.clear();
 }
 
-mfxStatus MfxVaFrameAllocator::CreateSurfaceFromGralloc(const MfxGrallocModule::BufferDetails& buffer_details,
+mfxStatus MfxVaFrameAllocator::CreateSurfaceFromGralloc(const IMfxGrallocModule::BufferDetails& buffer_details,
     bool decode_target,
     VASurfaceID* surface)
 {
@@ -503,7 +493,7 @@ mfxStatus MfxVaFrameAllocator::CreateSurfaceFromGralloc(const MfxGrallocModule::
 
     mfxStatus mfx_res = MFX_ERR_NONE;
 
-    const MfxGrallocModule::BufferDetails & info = buffer_details;
+    const IMfxGrallocModule::BufferDetails & info = buffer_details;
     MFX_DEBUG_TRACE_P(info.handle);
     MFX_DEBUG_TRACE_I32(info.prime);
     MFX_DEBUG_TRACE_I32(info.width);
@@ -592,17 +582,8 @@ mfxStatus MfxVaFrameAllocator::MapGrallocBufferToSurface(buffer_handle_t gralloc
     MFX_DEBUG_TRACE_P(gralloc_buffer);
 
     do {
-
-        if (!m_grallocModule) {
-            c2_status_t sts = MfxGrallocModule::Create(&m_grallocModule);
-            if(C2_OK != sts) {
-                mfx_res = MFX_ERR_MEMORY_ALLOC;
-                break;
-            }
-        }
-
-        MfxGrallocModule::BufferDetails buffer_details;
-        c2_status_t sts = m_grallocModule->GetBufferDetails(gralloc_buffer, &buffer_details);
+        IMfxGrallocModule::BufferDetails buffer_details;
+        c2_status_t sts = MfxGrallocInstance::getInstance()->GetBufferDetails(gralloc_buffer, &buffer_details);
         if(C2_OK != sts) {
             mfx_res = MFX_ERR_INVALID_HANDLE;
             break;
