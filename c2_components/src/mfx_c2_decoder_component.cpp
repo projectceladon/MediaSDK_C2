@@ -624,8 +624,25 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         .withSetter(ColorAspectsSetter, m_defaultColorAspects, m_codedColorAspects)
         .build());
 
-    // Pixel format info. Set to NV12 by default
-    m_pixelFormat = std::make_unique<C2StreamPixelFormatInfo::output>(SINGLE_STREAM_ID, HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL);
+    // In order to pass CTS, we advertise support for these formats defined by Google. Because they
+    // don't recognize HAL implementation specific formats.
+    // But the format we actually allocated buffer is HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL for 8-bit,
+    // HAL_PIXEL_FORMAT_P010_INTEL for 10-bit. via function MfxFourCCToGralloc in mfx_c2_utils.cpp
+    std::vector<uint32_t> supportedPixelFormats = {
+        HAL_PIXEL_FORMAT_YCBCR_420_888,
+        HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED,
+        HAL_PIXEL_FORMAT_YCRCB_420_SP,
+        HAL_PIXEL_FORMAT_YV12,
+        HAL_PIXEL_FORMAT_YCBCR_P010
+    };
+
+    addParameter(
+        DefineParam(m_pixelFormat, C2_PARAMKEY_PIXEL_FORMAT)
+        .withDefault(new C2StreamPixelFormatInfo::output(
+                            0u, HAL_PIXEL_FORMAT_YCBCR_420_888))
+        .withFields({C2F(m_pixelFormat, value).oneOf(supportedPixelFormats)})
+        .withSetter((Setter<decltype(*m_pixelFormat)>::StrictValueWithNoDeps))
+        .build());
 
     // HDR static with BT2020 by default
     m_hdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
@@ -2066,12 +2083,6 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                     res = C2_BAD_VALUE;
                     break;
                 }
-
-                {
-                    // Update pixel format info after decoder initialized
-                    m_pixelFormat->value =
-                            MfxFourCCToGralloc(m_mfxVideoParams.mfx.FrameInfo.FourCC, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY);
-                }
             }
 
             if (!m_bSetHdrStatic) UpdateHdrStaticInfo();
@@ -2388,9 +2399,6 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
 
             // set static hdr info
             out_buffer->setInfo(m_hdrStaticInfo);
-
-            // set pixel info
-            out_buffer->setInfo(m_pixelFormat);
 
             // set color aspects info
             out_buffer->setInfo(getColorAspects_l());
