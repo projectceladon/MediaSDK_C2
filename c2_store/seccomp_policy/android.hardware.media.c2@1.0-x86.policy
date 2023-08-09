@@ -19,6 +19,8 @@ openat: 1
 open: 1
 getuid32: 1
 getuid: 1
+getgid: 1
+getgid32: 1
 getrlimit: 1
 writev: 1
 ioctl: 1
@@ -69,6 +71,7 @@ getpid: 1
 gettid: 1
 getcwd: 1
 geteuid32: 1
+getegid32: 1
 
 getpgid: 1
 sigkill: 1
