@@ -111,6 +111,19 @@ static mfxU32 ConvertVAFourccToVARTFormat(mfxU32 va_fourcc)
     }
 }
 
+// quick fix tiling issue, formal should use modifier with PRIME2 interface
+static bool isTiledGrallocFourcc(int fourcc) {
+    switch (fourcc) {
+        case HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL:
+        case HAL_PIXEL_FORMAT_YUV420PackedSemiPlanar_Tiled_INTEL:
+        case HAL_PIXEL_FORMAT_P010_INTEL:
+            return true;
+        default:
+            break;
+    }
+    return false;
+}
+
 MfxVaFrameAllocator::MfxVaFrameAllocator(VADisplay dpy)
     : m_dpy(dpy)
 {
@@ -536,6 +549,8 @@ mfxStatus MfxVaFrameAllocator::CreateSurfaceFromGralloc(const IMfxGrallocModule:
     if (IS_PRIME_VALID(info.prime)) {
         surfExtBuf.buffers = (uintptr_t *)&info.prime;
         surfExtBuf.flags = VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME;
+        if (isTiledGrallocFourcc(info.format))
+            surfExtBuf.flags |= VA_SURFACE_EXTBUF_DESC_ENABLE_TILING;
     } else {
         surfExtBuf.buffers = (uintptr_t *)&info.handle;
         surfExtBuf.flags = VA_SURFACE_ATTRIB_MEM_TYPE_ANDROID_GRALLOC;
