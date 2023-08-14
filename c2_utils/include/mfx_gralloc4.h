@@ -49,6 +49,7 @@ public:
 
     virtual c2_status_t GetBufferDetails(const buffer_handle_t handle, BufferDetails* details) override;
     virtual c2_status_t GetBackingStore(const buffer_handle_t rawHandle, uint64_t *id) override;
+    virtual buffer_handle_t ImportBuffer(const buffer_handle_t rawHandle) override;
 
     // TODO: not fully tested
     virtual c2_status_t LockFrame(buffer_handle_t handle, uint8_t** data, C2PlanarLayout *layout);

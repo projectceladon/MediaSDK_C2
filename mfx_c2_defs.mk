@@ -24,6 +24,9 @@ endif
 
 # Android version preference:
 # We start codec2.0 development starting from Android R
+ifneq ($(filter 14 14.% U% ,$(PLATFORM_VERSION)),)
+  MFX_ANDROID_VERSION:= MFX_U
+endif
 ifneq ($(filter 13 13.% T% ,$(PLATFORM_VERSION)),)
   MFX_ANDROID_VERSION:= MFX_T
 endif
