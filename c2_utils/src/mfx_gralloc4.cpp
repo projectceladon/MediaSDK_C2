@@ -98,7 +98,7 @@ c2_status_t MfxGralloc4Module::GetBufferDetails(const buffer_handle_t handle, Bu
         uint64_t height = 0;
         gralloc4::decodeHeight(vec, &height);
         details->height = details->allocHeight = height;
-        MFX_DEBUG_TRACE_I32(details->width);
+        MFX_DEBUG_TRACE_I32(details->height);
 
         hardware::graphics::common::V1_2::PixelFormat pixelFormat;
         if (IsFailed(get(handle, gralloc4::MetadataType_PixelFormatRequested, vec)))
@@ -148,6 +148,28 @@ c2_status_t MfxGralloc4Module::GetBackingStore(const buffer_handle_t handle, uin
 
     MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
+}
+
+buffer_handle_t MfxGralloc4Module::ImportBuffer(const buffer_handle_t rawHandle)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    c2_status_t res = C2_OK;
+    buffer_handle_t outBuffer = nullptr;
+    Error4 err;
+
+    if (nullptr == m_mapper)
+        res = C2_CORRUPTED;
+    if (C2_OK == res)
+    {
+        m_mapper->importBuffer(hardware::hidl_handle(rawHandle), [&](const Error4 & tmpError, void * tmpBuffer) {
+            err = tmpError;
+            outBuffer = static_cast<buffer_handle_t>(tmpBuffer);
+        });
+        if (IsFailed(err))
+            res = C2_CORRUPTED;
+    }
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
+    return outBuffer;
 }
 
 c2_status_t MfxGralloc4Module::LockFrame(buffer_handle_t handle, uint8_t** data, C2PlanarLayout *layout)

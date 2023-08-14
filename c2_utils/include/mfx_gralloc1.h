@@ -39,7 +39,7 @@ public:
     virtual c2_status_t Free(const buffer_handle_t handle);
     virtual c2_status_t LockFrame(buffer_handle_t handle, uint8_t** data, C2PlanarLayout *layout);
     virtual c2_status_t UnlockFrame(buffer_handle_t handle);
-    virtual c2_status_t ImportBuffer(const buffer_handle_t rawHandle, buffer_handle_t *outBuffer);
+    virtual buffer_handle_t ImportBuffer(const buffer_handle_t rawHandle) override;
 
 protected:
     hw_module_t const* m_hwModule {};
