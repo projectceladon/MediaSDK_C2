@@ -9,11 +9,12 @@ cc_library_static {
     ],
 
     header_libs: [
-        "mfx_c2_components_headers"
+        "mfx_c2_components_headers",
+        "libva_headers",
     ],
 
     static_libs: [
-        "libmfx_c2_utils"
+        "libmfx_c2_utils_va"
     ],
 
     srcs: ["src/mfx_c2_store.cpp"],
@@ -39,11 +40,12 @@ cc_binary {
     header_libs: [
         "mfx_c2_components_headers",
         "libmedia_headers",
+        "libva_headers",
     ],
 
     static_libs: [
         "libmfx_c2_store",
-        "libmfx_c2_utils",
+        "libmfx_c2_utils_va",
         "libexpat"
     ],
 

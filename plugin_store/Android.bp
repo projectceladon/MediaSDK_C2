@@ -27,7 +27,7 @@ cc_library_shared {
     ],
 
     static_libs: [
-        "libmfx_c2_utils"
+        "libmfx_c2_utils_va"
     ],
 
     shared_libs: [

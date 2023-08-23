@@ -18,45 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-cc_library_headers {
-    name: "mfx_c2_components_headers",
-
-    export_include_dirs: [
-        "include",
-    ],
-
-    vendor: true,
-}
-
-cc_library_shared {
-    name: "libmfx_c2_components_hw",
-
-    defaults: ["mfx_c2_defaults"],
+cc_library_static {
+    name: "libmfx_c2_buffers",
 
     static_libs: [
-        "libmfx_c2_buffers",
-        "libmfx_c2_utils_va",
     ],
 
     shared_libs: [
-        "libvpl",
-        "libva",
-        "libva-android",
-        "liblog",
         "libexpat",
-        "libhardware",
-        "libdl",
-        "libsync",
-        "libdrm",
-        "libcutils",
-        "libhidlbase",
         "libgralloctypes",
         "libstagefright_foundation",
-        "libsfplugin_ccodec_utils",
         "android.hardware.media.bufferpool@2.0",
         "android.hardware.graphics.bufferqueue@2.0",
         "android.hardware.graphics.common@1.2",
-        "android.hardware.graphics.mapper@4.0",
+    ],
+
+    defaults: ["mfx_c2_defaults"],
+
+    srcs: [
+        "src/*.cpp",
+    ],
+
+    cflags: [
     ],
 
     local_include_dirs: [
@@ -64,19 +47,13 @@ cc_library_shared {
     ],
 
     include_dirs: [
+        "vendor/intel/mediasdk_c2/c2_components/include",
         "vendor/intel/mediasdk_c2/c2_utils/include",
-        "vendor/intel/mediasdk_c2/c2_buffers/include",
-        "vendor/intel/mediasdk_c2/plugin_store/include",
-        "frameworks/native/libs/ui/include",
-        "frameworks/av/media/codec2/sfplugin/utils",
+        "frameworks/av/media/codec2/vndk/include",
     ],
 
-    srcs: [
-        "src/*.cpp",
-    ],
-
-    cflags: [
-        
+    header_libs: [
+        "libva_headers",
     ],
 
     vendor: true,

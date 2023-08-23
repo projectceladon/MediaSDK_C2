@@ -47,7 +47,7 @@ constexpr uint64_t kDefaultConsumerUsage =
 
 
 // Android S declared VP8 profile
-#if MFX_ANDROID_VERSION <= MFX_R
+#if PLATFORM_SDK_VERSION <= 30 // Android 11(R)
 enum VP8_PROFILE {
     PROFILE_VP8_0 = C2_PROFILE_LEVEL_VENDOR_START,
 };
@@ -417,7 +417,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
 
             addParameter(DefineParam(m_profileLevel, C2_PARAMKEY_PROFILE_LEVEL)
                 .withDefault(new C2StreamProfileLevelInfo::input(
-#if MFX_ANDROID_VERSION <= MFX_R
+#if PLATFORM_SDK_VERSION <= 30 // Android 11(R)
                     SINGLE_STREAM_ID, PROFILE_VP8_0, C2Config::LEVEL_UNUSED))
                 .withFields({
                     C2F(m_profileLevel, profile).equalTo(
