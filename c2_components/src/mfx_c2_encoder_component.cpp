@@ -1247,7 +1247,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             native_handle_t *grallocHandle = android::UnwrapNativeCodec2GrallocHandle(c_graph_block->handle());
             // From Android U, the get function of IMapper4 will check whether the buffer handle is reserved.
             // So we need to call importBuffer before getting the buffer's info.
-#if MFX_ANDROID_VERSION >= MFX_U
+#if PLATFORM_SDK_VERSION >= 34 // Android 14(U)
             buffer_handle_t importedHandle = MfxGrallocInstance::getInstance()->ImportBuffer(grallocHandle);
 
             mfxStatus mfx_sts = frame_converter->ConvertGrallocToVa(importedHandle,
