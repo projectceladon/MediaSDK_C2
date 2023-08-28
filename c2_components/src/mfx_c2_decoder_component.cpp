@@ -874,8 +874,8 @@ mfxStatus MfxC2DecoderComponent::InitSession()
     MFX_DEBUG_TRACE_FUNC;
 
     mfxStatus mfx_res = MFX_ERR_NONE;
-    mfxConfig cfg[2];
-    mfxVariant cfgVal[2];
+    mfxConfig cfg[3];
+    mfxVariant cfgVal[3];
 
     if (nullptr == m_mfxLoader)
         m_mfxLoader = MFXLoad();
@@ -918,6 +918,22 @@ mfxStatus MfxC2DecoderComponent::InitSession()
         return MFX_ERR_UNKNOWN;
     }
 
+    cfg[2] = MFXCreateConfig(m_mfxLoader);
+    if (!cfg[2]) {
+        ALOGE("Failed to create a MFX configuration");
+        MFXUnload(m_mfxLoader);
+        return MFX_ERR_UNKNOWN;
+    }
+
+    cfgVal[2].Type = MFX_VARIANT_TYPE_U32;
+    cfgVal[2].Data.U32 = DRM_RENDER_NODE_NUM;
+    mfx_res = MFXSetConfigFilterProperty(cfg[2], (const mfxU8 *) "mfxExtendedDeviceId.DRMRenderNodeNum", cfgVal[2]);
+    if (MFX_ERR_NONE != mfx_res) {
+        ALOGE("Failed to add an additional MFX configuration (%d)", mfx_res);
+        MFXUnload(m_mfxLoader);
+        return MFX_ERR_UNKNOWN;
+    }
+
     while (1) {
         /* Enumerate all implementations */
         uint32_t idx = 0;
@@ -940,7 +956,56 @@ mfxStatus MfxC2DecoderComponent::InitSession()
 
         mfx_res = MFXCreateSession(m_mfxLoader, idx, &m_mfxSession);
 
+        MFX_LOG_INFO("ApiVersion:           %hu.%hu  ",
+            idesc->ApiVersion.Major,
+            idesc->ApiVersion.Minor);
+        MFX_LOG_INFO("   Implementation type:  %s\n",
+            (idesc->Impl == MFX_IMPL_TYPE_SOFTWARE) ? "SW" : "HW");
+        MFX_LOG_INFO("%2sApiVersion.Major: 0x%04X\n", "", idesc->ApiVersion.Major);
+        MFX_LOG_INFO("%2sApiVersion.Minor: 0x%04X\n", "", idesc->ApiVersion.Minor);
+        MFX_LOG_INFO("%2sImplementation Name: %s\n", "", idesc->ImplName);
+        MFX_LOG_INFO("%2sLicense: %s\n", "", idesc->License);
+        MFX_LOG_INFO("%2sKeywords: %s\n", "", idesc->Keywords);
+        MFX_LOG_INFO("%2sVendorID: 0x%04X\n", "", idesc->VendorID);
+        MFX_LOG_INFO("%2sVendorImplID: 0x%04X\n", "", idesc->VendorImplID);
+
         MFXDispReleaseImplDescription(m_mfxLoader, idesc);
+#ifdef ONEVPL_EXPERIMENTAL
+        mfxExtendedDeviceId* idescDevice;
+
+        mfx_res = MFXEnumImplementations(m_mfxLoader,
+            0,
+            MFX_IMPLCAPS_DEVICE_ID_EXTENDED,
+            reinterpret_cast<mfxHDL*>(&idescDevice));
+        if (MFX_ERR_NONE != mfx_res) {
+            ALOGE("MFXEnumImplementations MFX_IMPLCAPS_DEVICE_ID_EXTENDED error=%d\n", mfx_res);
+        }
+        else {
+            MFX_LOG_INFO("%6sDeviceName: %s\n", "", idescDevice->DeviceName);
+            MFX_LOG_INFO("%6sExtended DeviceID's:\n", "");
+            MFX_LOG_INFO("%6sVendorID: 0x%04X\n", "", idescDevice->VendorID);
+            MFX_LOG_INFO("%6sDeviceID: 0x%04X\n", "", idescDevice->DeviceID);
+            MFX_LOG_INFO("%6sPCIDomain: 0x%08X\n", "", idescDevice->PCIDomain);
+            MFX_LOG_INFO("%6sPCIBus: 0x%08X\n", "", idescDevice->PCIBus);
+            MFX_LOG_INFO("%6sPCIdevice: 0x%08X\n", "", idescDevice->PCIDevice);
+            MFX_LOG_INFO("%6sPCIFunction: 0x%08X\n", "", idescDevice->PCIFunction);
+            MFX_LOG_INFO("%6sDRMRenderNodeNum: %d\n", "", idescDevice->DRMRenderNodeNum);
+            MFX_LOG_INFO("%6sDRMPrimaryNodeNum: 0x%04X\n", "", idescDevice->DRMPrimaryNodeNum);
+            MFX_LOG_INFO("%6sLUIDValid: 0x%04X\n", "", idescDevice->LUIDValid);
+
+	    detectdGPU(idescDevice->DeviceID);
+
+            if (idescDevice->LUIDValid) {
+                MFX_LOG_INFO("%6sDeviceLUID: ", "");
+                for (mfxU32 idx = 0; idx < 8; idx++) {
+                    MFX_LOG_INFO("%02x", idescDevice->DeviceLUID[7 - idx]);
+                }
+                MFX_LOG_INFO("%6sLUIDDeviceNodeMask: 0x%04X\n", "", idescDevice->LUIDDeviceNodeMask);
+            }
+	}
+
+	MFXDispReleaseImplDescription(m_mfxLoader, idescDevice);
+#endif
 
         if (MFX_ERR_NONE == mfx_res)
             break;
@@ -957,6 +1022,9 @@ mfxStatus MfxC2DecoderComponent::InitSession()
         return mfx_res;
     }
 
+#ifdef ONEVPL_EXPERIMENTAL
+    m_device->setDedicated(isdGPU());
+#endif
     mfx_res = m_device->InitMfxSession(m_mfxSession);
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
