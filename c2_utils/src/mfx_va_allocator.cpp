@@ -606,10 +606,12 @@ mfxStatus MfxVaFrameAllocator::CreateSurfaceFromGralloc(const IMfxGrallocModule:
     desc.objects[0].fd = info.prime;
     desc.objects[0].size = decode_target ? info.pitches[0] * ((height + 31) & ~31) * 1.5 : info.pitches[0] * ((height + 15) & ~15) * 1.5;
     if (HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL == info.format || HAL_PIXEL_FORMAT_P010_INTEL == info.format)
-        desc.objects[0].drm_format_modifier = I915_FORMAT_MOD_Y_TILED;
+	if (isDedicated())
+            desc.objects[0].drm_format_modifier = I915_FORMAT_MOD_4_TILED;
+        else
+            desc.objects[0].drm_format_modifier = I915_FORMAT_MOD_Y_TILED;
     else
         desc.objects[0].drm_format_modifier = DRM_FORMAT_MOD_LINEAR;
-    //desc.objects[0].drm_format_modifier = I915_FORMAT_MOD_4_TILED;
     desc.num_layers = 1;
     desc.layers[0].drm_format = ConvertVAFourccToDrmFormat(va_fourcc);
     desc.layers[0].num_planes = info.planes_count;
