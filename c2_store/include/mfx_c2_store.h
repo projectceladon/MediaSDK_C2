@@ -34,7 +34,7 @@ class MfxC2ComponentStore : public C2ComponentStore {
 public:
     static MfxC2ComponentStore* Create(c2_status_t* status);
 
-private: // C2ComponentStore overrides
+    // C2ComponentStore overrides
     C2String getName() const override;
 
     c2_status_t createComponent(C2String name, std::shared_ptr<C2Component>* const component) override;

@@ -53,7 +53,6 @@ cc_library_static {
     include_dirs: [
         "vendor/intel/mediasdk_c2/plugin_store/include",
         "hardware/intel/external/minigbm-intel",
-        "frameworks/av/media/codec2/vndk/include",
         "frameworks/native/include",
         "frameworks/native/libs/ui/include",
         "frameworks/native/libs/nativewindow/include",
@@ -63,12 +62,13 @@ cc_library_static {
         "frameworks/av/media/codec2/core/include",
         "frameworks/av/media/libstagefright/include",
         "frameworks/native/libs/gralloc/types/include",
-        "system/core/include/utils",
         "external/libdrm/include/drm",
     ],
 
     header_libs: [
         "libva_headers",
+        "libcodec2_vndk_headers",
+        "libcodec2_headers",
     ],
 
     vendor: true,
