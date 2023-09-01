@@ -1,0 +1,189 @@
+// Copyright (c) 2017-2023 Intel Corporation
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+cc_defaults {
+    name: "fuzz_defaults",
+
+    cflags: [
+        "-std=c++17",
+        "-fstack-protector-strong",
+        "-fPIE",
+        "-fPIC",
+        "-O2",
+        "-D_FORTIFY_SOURCE=2",
+        "-Wno-error",
+        "-Wno-deprecated-declarations",
+        "-fexceptions",
+    ],
+
+    shared_libs: [
+        "libdl",
+        "liblog",
+        "libcutils",
+        "libmfx_c2_components_hw",
+        "libcodec2_vndk",
+        "libexpat",
+        "android.hardware.media.bufferpool@2.0",
+    ],
+
+    static_libs: [
+        "libmfx_c2_utils_va",
+        "libmfx_c2_store",
+    ],
+
+    include_dirs: [
+        "vendor/intel/mediasdk_c2/c2_store/include",
+        "hardware/intel/external/minigbm-intel/cros_gralloc",
+    ],
+
+    header_libs: [
+        "mfx_c2_components_headers",
+        "libcodec2_headers",
+        "libhardware_headers",
+        "libutils_headers",
+        "libvpl_headers",
+        "libmfx_android_headers",
+        "libcodec2_headers",
+    ],
+
+    corpus: ["corpus/*"],
+
+    vendor: true,
+}
+
+cc_fuzz {
+    name: "mfx_c2_avc_dec_fuzzer",
+
+    defaults: [
+        "fuzz_defaults"
+    ],
+
+    srcs: [
+        "mfx_c2_dec_fuzzer.cpp",
+    ],
+
+    cflags: [
+        "-DC2COMPONENTNAME=\"c2.intel.avc.decoder\"",
+    ],
+
+    local_include_dirs: [
+        ".",
+    ],
+}
+
+cc_fuzz {
+    name: "mfx_c2_hevc_dec_fuzzer",
+
+    defaults: [
+        "fuzz_defaults"
+    ],
+
+    srcs: [
+        "mfx_c2_dec_fuzzer.cpp",
+    ],
+
+    cflags: [
+        "-DC2COMPONENTNAME=\"c2.intel.hevc.decoder\"",
+    ],
+
+    local_include_dirs: [
+        ".",
+    ],
+}
+
+cc_fuzz {
+    name: "mfx_c2_vp8_dec_fuzzer",
+
+    defaults: [
+        "fuzz_defaults"
+    ],
+
+    srcs: [
+        "mfx_c2_dec_fuzzer.cpp",
+    ],
+
+    cflags: [
+        "-DC2COMPONENTNAME=\"c2.intel.vp8.decoder\"",
+    ],
+
+    local_include_dirs: [
+        ".",
+    ],
+}
+
+cc_fuzz {
+    name: "mfx_c2_vp9_dec_fuzzer",
+
+    defaults: [
+        "fuzz_defaults"
+    ],
+
+    srcs: [
+        "mfx_c2_dec_fuzzer.cpp",
+    ],
+
+    cflags: [
+        "-DC2COMPONENTNAME=\"c2.intel.vp9.decoder\"",
+    ],
+
+    local_include_dirs: [
+        ".",
+    ],
+}
+
+cc_fuzz {
+    name: "mfx_c2_mp2_dec_fuzzer",
+
+    defaults: [
+        "fuzz_defaults"
+    ],
+
+    srcs: [
+        "mfx_c2_dec_fuzzer.cpp",
+    ],
+
+    cflags: [
+        "-DC2COMPONENTNAME=\"c2.intel.mp2.decoder\"",
+    ],
+
+    local_include_dirs: [
+        ".",
+    ],
+}
+
+cc_fuzz {
+    name: "mfx_c2_av1_dec_fuzzer",
+
+    defaults: [
+        "fuzz_defaults"
+    ],
+
+    srcs: [
+        "mfx_c2_dec_fuzzer.cpp",
+    ],
+
+    cflags: [
+        "-DC2COMPONENTNAME=\"c2.intel.av1.decoder\"",
+    ],
+
+    local_include_dirs: [
+        ".",
+    ],
+}
