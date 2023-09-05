@@ -1997,8 +1997,8 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
     bool expect_output = false;
     bool flushing = false;
     bool codecConfig = ((incoming_flags & C2FrameData::FLAG_CODEC_CONFIG) != 0);
-    // Av1 don't need the bs which flag is config.
-    if (codecConfig && DECODER_AV1 == m_decoderType) {
+    // Av1 and VP9 don't need the bs which flag is config.
+    if (codecConfig && (DECODER_AV1 == m_decoderType || DECODER_VP9 == m_decoderType)) {
         FillEmptyWork(std::move(work), C2_OK);
         if (true == m_bInitialized) {
             mfxStatus format_change_sts = HandleFormatChange();
