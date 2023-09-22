@@ -1851,7 +1851,8 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
                 }
             }
         } else {
-            if (m_mfxVideoParams.mfx.FrameInfo.Width >= WIDTH_2K || m_mfxVideoParams.mfx.FrameInfo.Height >= HEIGHT_2K) {
+            // Disable the optimization for 4K thumbnail generation
+            if (0/*m_mfxVideoParams.mfx.FrameInfo.Width >= WIDTH_2K || m_mfxVideoParams.mfx.FrameInfo.Height >= HEIGHT_2K*/) {
                 // Thumbnail generation for 4K/8K video
                 if (m_surfacePool.size() < m_surfaceNum) {
                     res = MfxC2FrameOut::Create(out_block, m_mfxVideoParams.mfx.FrameInfo, TIMEOUT_NS, frame_out);
