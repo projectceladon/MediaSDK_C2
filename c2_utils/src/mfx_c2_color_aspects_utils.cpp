@@ -18,187 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "mfx_c2_color_aspects_wrapper.h"
+#include "mfx_c2_color_aspects_utils.h"
 
 #undef MFX_DEBUG_MODULE_NAME
-#define MFX_DEBUG_MODULE_NAME "mfx_c2_color_aspects_wrapper"
+#define MFX_DEBUG_MODULE_NAME "mfx_c2_color_aspects_utils"
 
-MfxC2ColorAspectsWrapper::MfxC2ColorAspectsWrapper()
-    : m_bIsColorAspectsChanged(false)
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    m_uCodecId = MFX_CODEC_AVC;
-
-    // Init all the color aspects to be Unspecified.
-    memset(&m_frameworkColorAspects, 0, sizeof(android::ColorAspects));
-    memset(&m_bitstreamColorAspects, 0, sizeof(android::ColorAspects));
-}
-
-MfxC2ColorAspectsWrapper::~MfxC2ColorAspectsWrapper()
-{
-    MFX_DEBUG_TRACE_FUNC;
-}
-
-void MfxC2ColorAspectsWrapper::SetCodecID(mfxU32 codecId)
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    m_uCodecId = codecId;
-    MFX_DEBUG_TRACE_I32(m_uCodecId);
-}
-
-void MfxC2ColorAspectsWrapper::SetFrameworkColorAspects(const android::ColorAspects &colorAspects)
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    m_frameworkColorAspects = colorAspects;
-
-    MFX_DEBUG_TRACE_I32(m_frameworkColorAspects.mRange);
-    MFX_DEBUG_TRACE_I32(m_frameworkColorAspects.mPrimaries);
-    MFX_DEBUG_TRACE_I32(m_frameworkColorAspects.mTransfer);
-    MFX_DEBUG_TRACE_I32(m_frameworkColorAspects.mMatrixCoeffs);
-}
-
-void MfxC2ColorAspectsWrapper::UpdateBitstreamColorAspects(const mfxExtVideoSignalInfo &signalInfo)
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    MFX_DEBUG_TRACE_I32(signalInfo.VideoFullRange);
-    MFX_DEBUG_TRACE_I32(signalInfo.ColourPrimaries);
-    MFX_DEBUG_TRACE_I32(signalInfo.TransferCharacteristics);
-    MFX_DEBUG_TRACE_I32(signalInfo.MatrixCoefficients);
-
-    MfxToC2VideoRange(signalInfo.VideoFullRange, m_bitstreamColorAspects.mRange);
-    MfxToC2ColourPrimaries(signalInfo.ColourPrimaries, m_bitstreamColorAspects.mPrimaries);
-    MfxToC2TransferCharacteristics(signalInfo.TransferCharacteristics, m_bitstreamColorAspects.mTransfer);
-    MfxToC2MatrixCoefficients(signalInfo.MatrixCoefficients, m_bitstreamColorAspects.mMatrixCoeffs);
-
-    mfxU16 video_signal_type_present_flag = signalInfo.VideoFormat != 5 ||
-                                            signalInfo.VideoFullRange != 0 ||
-                                            signalInfo.ColourDescriptionPresent != 0;
-
-    if (MFX_CODEC_VP9 == m_uCodecId || MFX_CODEC_VP8 == m_uCodecId || MFX_CODEC_AV1 == m_uCodecId)
-    {
-        video_signal_type_present_flag = false;
-    }
-
-    if (!video_signal_type_present_flag)
-    {
-        m_bitstreamColorAspects.mRange = android::ColorAspects::RangeUnspecified;
-        m_bitstreamColorAspects.mPrimaries = android::ColorAspects::PrimariesUnspecified;
-        m_bitstreamColorAspects.mTransfer  = android::ColorAspects::TransferUnspecified;
-        m_bitstreamColorAspects.mMatrixCoeffs = android::ColorAspects::MatrixUnspecified;
-    }
-
-    if ((m_bitstreamColorAspects.mRange        != android::ColorAspects::RangeUnspecified &&
-         m_bitstreamColorAspects.mRange        != m_frameworkColorAspects.mRange)     ||
-        (m_bitstreamColorAspects.mPrimaries    != android::ColorAspects::PrimariesUnspecified &&
-         m_bitstreamColorAspects.mPrimaries    != m_frameworkColorAspects.mPrimaries) ||
-        (m_bitstreamColorAspects.mTransfer     != android::ColorAspects::TransferUnspecified &&
-         m_bitstreamColorAspects.mTransfer     != m_frameworkColorAspects.mTransfer)  ||
-        (m_bitstreamColorAspects.mMatrixCoeffs != android::ColorAspects::MatrixUnspecified &&
-         m_bitstreamColorAspects.mMatrixCoeffs != m_frameworkColorAspects.mMatrixCoeffs)
-        )
-    {
-        m_bIsColorAspectsChanged = true;
-    }
-
-    MFX_DEBUG_TRACE_I32(m_bitstreamColorAspects.mRange);
-    MFX_DEBUG_TRACE_I32(m_bitstreamColorAspects.mPrimaries);
-    MFX_DEBUG_TRACE_I32(m_bitstreamColorAspects.mTransfer);
-    MFX_DEBUG_TRACE_I32(m_bitstreamColorAspects.mMatrixCoeffs);
-}
-
-void MfxC2ColorAspectsWrapper::GetOutputColorAspects(android::ColorAspects &outColorAspects) const
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    // The component SHALL return the final color aspects
-    // by replacing Unspecified coded values with the default values
-    // (default values == sent from framework)
-
-    MFX_DEBUG_TRACE_I32(m_bitstreamColorAspects.mRange);
-    MFX_DEBUG_TRACE_I32(m_bitstreamColorAspects.mPrimaries);
-    MFX_DEBUG_TRACE_I32(m_bitstreamColorAspects.mTransfer);
-    MFX_DEBUG_TRACE_I32(m_bitstreamColorAspects.mMatrixCoeffs);
-
-    if (m_bitstreamColorAspects.mRange != android::ColorAspects::RangeUnspecified)
-        outColorAspects.mRange = m_bitstreamColorAspects.mRange;
-    else
-        outColorAspects.mRange = m_frameworkColorAspects.mRange;
-
-    if (m_bitstreamColorAspects.mPrimaries != android::ColorAspects::PrimariesUnspecified)
-        outColorAspects.mPrimaries = m_bitstreamColorAspects.mPrimaries;
-    else
-        outColorAspects.mPrimaries = m_frameworkColorAspects.mPrimaries;
-
-    if (m_bitstreamColorAspects.mTransfer != android::ColorAspects::TransferUnspecified)
-        outColorAspects.mTransfer = m_bitstreamColorAspects.mTransfer;
-    else
-        outColorAspects.mTransfer = m_frameworkColorAspects.mTransfer;
-
-    if (m_bitstreamColorAspects.mMatrixCoeffs != android::ColorAspects::MatrixUnspecified)
-        outColorAspects.mMatrixCoeffs = m_bitstreamColorAspects.mMatrixCoeffs;
-    else
-        outColorAspects.mMatrixCoeffs = m_frameworkColorAspects.mMatrixCoeffs;
-
-    MFX_DEBUG_TRACE_I32(outColorAspects.mRange);
-    MFX_DEBUG_TRACE_I32(outColorAspects.mPrimaries);
-    MFX_DEBUG_TRACE_I32(outColorAspects.mTransfer);
-    MFX_DEBUG_TRACE_I32(outColorAspects.mMatrixCoeffs);
-}
-
-void MfxC2ColorAspectsWrapper::GetColorAspectsFromVideoSignal(const mfxExtVideoSignalInfo &signalInfo, android::ColorAspects &outColorAspects)
-{
-    MFX_DEBUG_TRACE_FUNC;
-    bool video_signal_type_present_flag = signalInfo.VideoFormat != 5 ||
-                                            signalInfo.VideoFullRange != 0 ||
-                                            signalInfo.ColourDescriptionPresent != 0;
-
-    if (MFX_CODEC_VP9 == m_uCodecId || MFX_CODEC_VP8 == m_uCodecId || MFX_CODEC_AV1 == m_uCodecId)
-    {
-        // No video signal info present in vpx bitstream.
-        video_signal_type_present_flag = false;
-    }
-
-    if (video_signal_type_present_flag)
-    {
-        MfxToC2ColourPrimaries(signalInfo.ColourPrimaries, outColorAspects.mPrimaries);
-        MfxToC2VideoRange(signalInfo.VideoFullRange, outColorAspects.mRange);
-        MfxToC2TransferCharacteristics(signalInfo.TransferCharacteristics, outColorAspects.mTransfer);
-        MfxToC2MatrixCoefficients(signalInfo.MatrixCoefficients, outColorAspects.mMatrixCoeffs);
-    }
-    else
-    {
-        outColorAspects.mPrimaries = android::ColorAspects::PrimariesUnspecified;
-        outColorAspects.mRange = android::ColorAspects::RangeUnspecified;
-        outColorAspects.mTransfer = android::ColorAspects::TransferUnspecified;
-        outColorAspects.mMatrixCoeffs = android::ColorAspects::MatrixUnspecified;
-    }
-
-    MFX_DEBUG_TRACE_I32(outColorAspects.mRange);
-    MFX_DEBUG_TRACE_I32(outColorAspects.mPrimaries);
-    MFX_DEBUG_TRACE_I32(outColorAspects.mTransfer);
-    MFX_DEBUG_TRACE_I32(outColorAspects.mMatrixCoeffs);
-}
-
-bool MfxC2ColorAspectsWrapper::IsColorAspectsChanged()
-{
-    MFX_DEBUG_TRACE_FUNC;
-    MFX_DEBUG_TRACE_I32(m_bIsColorAspectsChanged);
-
-    return m_bIsColorAspectsChanged;
-}
-
-void MfxC2ColorAspectsWrapper::SignalChangedColorAspectsIsSent()
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    m_bIsColorAspectsChanged = false;
-}
-
-void MfxC2ColorAspectsWrapper::MfxToC2VideoRange(mfxU16 videoRange, android::ColorAspects::Range &out)
+void MfxC2ColorAspectsUtils::MfxToC2VideoRange(mfxU16 videoRange, android::ColorAspects::Range &out)
 {
     MFX_DEBUG_TRACE_FUNC;
     MFX_DEBUG_TRACE_I32(videoRange);
@@ -221,7 +46,7 @@ void MfxC2ColorAspectsWrapper::MfxToC2VideoRange(mfxU16 videoRange, android::Col
     MFX_DEBUG_TRACE_I32(out);
 }
 
-void MfxC2ColorAspectsWrapper::MfxToC2ColourPrimaries(mfxU16 colourPrimaries, android::ColorAspects::Primaries &out)
+void MfxC2ColorAspectsUtils::MfxToC2ColourPrimaries(mfxU16 colourPrimaries, android::ColorAspects::Primaries &out)
 {
     MFX_DEBUG_TRACE_FUNC;
     MFX_DEBUG_TRACE_I32(colourPrimaries);
@@ -264,7 +89,7 @@ void MfxC2ColorAspectsWrapper::MfxToC2ColourPrimaries(mfxU16 colourPrimaries, an
     MFX_DEBUG_TRACE_I32(out);
 }
 
-void MfxC2ColorAspectsWrapper::MfxToC2TransferCharacteristics(mfxU16 transferCharacteristics, android::ColorAspects::Transfer &out)
+void MfxC2ColorAspectsUtils::MfxToC2TransferCharacteristics(mfxU16 transferCharacteristics, android::ColorAspects::Transfer &out)
 {
     MFX_DEBUG_TRACE_FUNC;
     MFX_DEBUG_TRACE_I32(transferCharacteristics);
@@ -336,7 +161,7 @@ void MfxC2ColorAspectsWrapper::MfxToC2TransferCharacteristics(mfxU16 transferCha
     MFX_DEBUG_TRACE_I32(out);
 }
 
-void MfxC2ColorAspectsWrapper::MfxToC2MatrixCoefficients(mfxU16 matrixCoefficients, android::ColorAspects::MatrixCoeffs &out)
+void MfxC2ColorAspectsUtils::MfxToC2MatrixCoefficients(mfxU16 matrixCoefficients, android::ColorAspects::MatrixCoeffs &out)
 {
     MFX_DEBUG_TRACE_FUNC;
     MFX_DEBUG_TRACE_I32(matrixCoefficients);
@@ -380,7 +205,7 @@ void MfxC2ColorAspectsWrapper::MfxToC2MatrixCoefficients(mfxU16 matrixCoefficien
     MFX_DEBUG_TRACE_I32(out);
 }
 
-void MfxC2ColorAspectsWrapper::C2ToMfxVideoRange(android::ColorAspects::Range videoRange, mfxU16 &out)
+void MfxC2ColorAspectsUtils::C2ToMfxVideoRange(android::ColorAspects::Range videoRange, mfxU16 &out)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -406,7 +231,7 @@ void MfxC2ColorAspectsWrapper::C2ToMfxVideoRange(android::ColorAspects::Range vi
     }
 }
 
-void MfxC2ColorAspectsWrapper::C2ToMfxColourPrimaries(android::ColorAspects::Primaries colourPrimaries, mfxU16 &out)
+void MfxC2ColorAspectsUtils::C2ToMfxColourPrimaries(android::ColorAspects::Primaries colourPrimaries, mfxU16 &out)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -447,7 +272,7 @@ void MfxC2ColorAspectsWrapper::C2ToMfxColourPrimaries(android::ColorAspects::Pri
     }
 }
 
-void MfxC2ColorAspectsWrapper::C2ToMfxTransferCharacteristics(android::ColorAspects::Transfer transferCharacteristics, mfxU16 &out)
+void MfxC2ColorAspectsUtils::C2ToMfxTransferCharacteristics(android::ColorAspects::Transfer transferCharacteristics, mfxU16 &out)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -509,7 +334,7 @@ void MfxC2ColorAspectsWrapper::C2ToMfxTransferCharacteristics(android::ColorAspe
     }
 }
 
-void MfxC2ColorAspectsWrapper::C2ToMfxMatrixCoefficients(android::ColorAspects::MatrixCoeffs matrixCoefficients, mfxU16 &out)
+void MfxC2ColorAspectsUtils::C2ToMfxMatrixCoefficients(android::ColorAspects::MatrixCoeffs matrixCoefficients, mfxU16 &out)
 {
     MFX_DEBUG_TRACE_FUNC;
 

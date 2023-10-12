@@ -28,7 +28,6 @@
 #include "mfx_c2_bitstream_in.h"
 #include "mfx_frame_pool_allocator.h"
 #include "mfx_gralloc_instance.h"
-#include "mfx_c2_color_aspects_wrapper.h"
 #include "mfx_c2_setters.h"
 #include <cutils/properties.h>
 
@@ -161,7 +160,7 @@ private:
 
     void UpdateHdrStaticInfo();
 
-    std::shared_ptr<C2StreamColorAspectsInfo::output> getColorAspects_l() const;
+    void UpdateColorAspectsFromBitstream(const mfxExtVideoSignalInfo &signalInfo);
 
 private:
     DecoderType m_decoderType;
@@ -237,8 +236,6 @@ private:
     std::shared_ptr<C2StreamHdrStaticInfo::output> m_hdrStaticInfo;
     bool m_bSetHdrStatic;
 
-    MfxC2ColorAspectsWrapper m_colorAspectsWrapper;
-
     std::shared_ptr<C2StreamPixelFormatInfo::output> m_pixelFormat;
 
     std::vector<std::unique_ptr<C2Param>> m_updatingC2Configures;
@@ -279,8 +276,8 @@ private:
     std::shared_ptr<C2PortActualDelayTuning::input> m_actualInputDelay;
     std::shared_ptr<C2PortDelayTuning::input> m_inputDelay;
     std::shared_ptr<C2StreamColorAspectsTuning::output> m_defaultColorAspects;
-    std::shared_ptr<C2StreamColorAspectsInfo::input> m_codedColorAspects;
-    std::shared_ptr<C2StreamColorAspectsInfo::output> m_colorAspects;
+    std::shared_ptr<C2StreamColorAspectsInfo::input> m_inColorAspects;
+    std::shared_ptr<C2StreamColorAspectsInfo::output> m_outColorAspects;
     /* ----------------------------------------Setters------------------------------------------- */
     static C2R OutputSurfaceAllocatorSetter(bool mayBlock, C2P<C2PortSurfaceAllocatorTuning::output> &me);
     static C2R SizeSetter(bool mayBlock, const C2P<C2StreamPictureSizeInfo::output> &oldMe,
