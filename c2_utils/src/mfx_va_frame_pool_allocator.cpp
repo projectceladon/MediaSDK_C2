@@ -25,6 +25,7 @@
 
 #include "mfx_c2_utils.h"
 #include "mfx_debug.h"
+#include "mfx_msdk_debug.h"
 
 #include <C2AllocatorGralloc.h>
 
@@ -155,6 +156,13 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
             }
             MFX_DEBUG_TRACE_I32(response->NumFrameActual);
 
+            if (MFX_ERR_NONE != mfx_res) {
+                MFX_DEBUG_TRACE_MSG("Fatal error occurred while allocating memory");
+
+                MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+                return mfx_res;
+            }
+
             if (response->NumFrameActual >= request->NumFrameMin) {
                 response->mids = mids.release();
                 m_pool = std::make_unique<MfxPool<C2GraphicBlock>>(); //release graphic buffer
@@ -172,6 +180,7 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
         mfx_res = AllocFrames(request, response);
     }
 
+    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }
 

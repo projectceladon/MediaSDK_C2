@@ -106,11 +106,11 @@ int main(int /* argc */, char** /* argv */) {
         android::hardware::configureRpcThreadpool(8, true /* callerWillJoin */);
 
         RegisterC2Service();
+
+        android::hardware::joinRpcThreadpool();
+
     } catch(const std::exception& ex) {
         // ALOGE("hardware.intel.media.c2@1.0-service exception: %s", ex.what());
-        return 0;
     }
-
-    android::hardware::joinRpcThreadpool();
     return 0;
 }
