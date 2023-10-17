@@ -305,6 +305,8 @@ private:
                 std::shared_ptr<C2GraphicAllocation> alloc;
                 c2_status_t err = mAllocator->priorGraphicAllocation(c2Handle, &alloc);
                 if (err != C2_OK) {
+                    native_handle_close(handle);
+                    native_handle_delete(handle);
                     return err;
                 }
                 std::shared_ptr<MfxC2BufferQueueBlockPoolData> poolData =
@@ -338,17 +340,20 @@ public:
 
     ~Impl() {
         bool noInit = false;
-        for (int i = 0; i < NUM_BUFFER_SLOTS; ++i) {
-            if (!noInit && mProducer) {
-                Return<HStatus> transResult =
-                        mProducer->detachBuffer(static_cast<int32_t>(i));
-                noInit = !transResult.isOk() ||
-                         static_cast<HStatus>(transResult) == HStatus::NO_INIT;
+        try {
+                for (int i = 0; i < NUM_BUFFER_SLOTS; ++i) {
+                if (!noInit && mProducer) {
+                    Return<HStatus> transResult =
+                            mProducer->detachBuffer(static_cast<int32_t>(i));
+                    noInit = !transResult.isOk() ||
+                            static_cast<HStatus>(transResult) == HStatus::NO_INIT;
+                }
+                mBuffers[i].clear();
             }
-            mBuffers[i].clear();
+            gbuffer_.clear();
+        } catch(const std::exception& e) {
+            MFX_DEBUG_TRACE_STREAM("Got an exception: " << e.what());
         }
-
-        gbuffer_.clear();
     }
 
     c2_status_t handle(const C2Handle * c2_hdl, buffer_handle_t *hndl){
@@ -570,12 +575,16 @@ private:
     void cancel(uint32_t generation, uint64_t igbp_id, int32_t igbp_slot) {
         bool cancelled = false;
         {
-        MFX_DEBUG_TRACE_FUNC;
-        std::scoped_lock<std::mutex> lock(mMutex);
-        if (generation == mGeneration && igbp_id == mProducerId && mProducer) {
-            (void)mProducer->cancelBuffer(igbp_slot, hidl_handle{}).isOk();
-            cancelled = true;
-        }
+            MFX_DEBUG_TRACE_FUNC;
+            try {
+                std::scoped_lock<std::mutex> lock(mMutex);
+                if (generation == mGeneration && igbp_id == mProducerId && mProducer) {
+                    (void)mProducer->cancelBuffer(igbp_slot, hidl_handle{}).isOk();
+                    cancelled = true;
+                }
+            } catch(const std::exception& e) {
+                MFX_DEBUG_TRACE_STREAM("Got an exception: " << e.what());
+            }
         }
     }
 
@@ -632,7 +641,7 @@ MfxC2BufferQueueBlockPoolData::~MfxC2BufferQueueBlockPoolData() {
             localPool->cancel(generation, bqId, bqSlot);
         }
     } else if (igbp && !owner.expired()) {
-        igbp->cancelBuffer(bqSlot, hidl_handle{}).isOk();
+        (void)igbp->cancelBuffer(bqSlot, hidl_handle{}).isOk();
     }
 }
 

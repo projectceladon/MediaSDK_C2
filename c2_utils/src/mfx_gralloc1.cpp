@@ -280,7 +280,7 @@ buffer_handle_t MfxGralloc1Module::ImportBuffer(const buffer_handle_t rawHandle)
     buffer_handle_t *outBuffer = nullptr;
     int32_t gr1_res = (*m_grImportBufferFunc)(m_gralloc1_dev, rawHandle, outBuffer);
 
-    if (GRALLOC1_ERROR_NONE != gr1_res) {
+    if (GRALLOC1_ERROR_NONE != gr1_res || nullptr == outBuffer) {
         MFX_DEBUG_TRACE_I32(gr1_res);
         res = C2_BAD_STATE;
     }
