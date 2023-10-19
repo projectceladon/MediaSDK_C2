@@ -240,8 +240,6 @@ private:
 
     std::vector<std::unique_ptr<C2Param>> m_updatingC2Configures;
 
-    uint64_t m_consumerUsage;
-
     uint32_t m_surfaceNum;
     std::list<std::shared_ptr<mfxFrameSurface1>> m_surfacePool; // used in case of system memory
 
@@ -278,6 +276,7 @@ private:
     std::shared_ptr<C2StreamColorAspectsTuning::output> m_defaultColorAspects;
     std::shared_ptr<C2StreamColorAspectsInfo::input> m_inColorAspects;
     std::shared_ptr<C2StreamColorAspectsInfo::output> m_outColorAspects;
+    std::shared_ptr<C2StreamUsageTuning::output> m_outputUsage;
     /* ----------------------------------------Setters------------------------------------------- */
     static C2R OutputSurfaceAllocatorSetter(bool mayBlock, C2P<C2PortSurfaceAllocatorTuning::output> &me);
     static C2R SizeSetter(bool mayBlock, const C2P<C2StreamPictureSizeInfo::output> &oldMe,
