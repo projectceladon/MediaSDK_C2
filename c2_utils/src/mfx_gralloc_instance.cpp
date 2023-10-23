@@ -39,8 +39,10 @@ std::shared_ptr<IMfxGrallocModule> MfxGrallocInstance::getInstance()
         if (nullptr == m_instance)
         {
 #ifdef USE_GRALLOC4
+            MFX_DEBUG_TRACE_MSG("using gralloc4");
             m_instance = std::make_shared<MfxGralloc4Module>();
-#else 
+#else
+            MFX_DEBUG_TRACE_MSG("using gralloc1");
             m_instance = std::make_shared<MfxGralloc1Module>();
 #endif
             if(C2_OK != m_instance->Init())
