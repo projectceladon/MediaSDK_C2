@@ -24,6 +24,8 @@
 #include "mfx_debug.h"
 #include "mfx_c2_debug.h"
 
+#ifdef USE_GRALLOC4
+
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_gralloc4"
 
@@ -241,3 +243,5 @@ c2_status_t MfxGralloc4Module::UnlockFrame(buffer_handle_t handle)
     MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
+
+#endif
