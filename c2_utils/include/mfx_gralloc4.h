@@ -44,12 +44,18 @@ public:
     virtual ~MfxGralloc4Module();
 
     // Wrapper for IMapper::get
-    virtual Error4 get(const native_handle_t* bufferHandle, const IMapper4::MetadataType& metadataType,
+    virtual Error4 Get(const native_handle_t* bufferHandle, const IMapper4::MetadataType& metadataType,
+                    hidl_vec<uint8_t>& outVec);
+    virtual Error4 GetWithImported(const native_handle_t* handle, const IMapper4::MetadataType& metadataType,
                     hidl_vec<uint8_t>& outVec);
 
     virtual c2_status_t GetBufferDetails(const buffer_handle_t handle, BufferDetails* details) override;
     virtual c2_status_t GetBackingStore(const buffer_handle_t rawHandle, uint64_t *id) override;
+
+    // Start with Android U, the get function of IMapper4 will check whether the buffer handle is reserved.
+    // So we need to call importBuffer to preserve handle before getting the buffer's info.
     virtual buffer_handle_t ImportBuffer(const buffer_handle_t rawHandle) override;
+    virtual c2_status_t FreeBuffer(const buffer_handle_t rawHandle) override;
 
     // TODO: not fully tested
     virtual c2_status_t LockFrame(buffer_handle_t handle, uint8_t** data, C2PlanarLayout *layout);
