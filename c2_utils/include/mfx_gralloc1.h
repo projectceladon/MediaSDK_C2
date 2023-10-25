@@ -38,7 +38,7 @@ public:
     virtual c2_status_t GetBufferDetails(const buffer_handle_t handle, BufferDetails* details) override;
 
     virtual c2_status_t Alloc(const uint16_t width, const uint16_t height, buffer_handle_t* handle);
-    virtual c2_status_t Free(const buffer_handle_t handle);
+    virtual c2_status_t FreeBuffer(const buffer_handle_t handle) override;
     virtual c2_status_t LockFrame(buffer_handle_t handle, uint8_t** data, C2PlanarLayout *layout);
     virtual c2_status_t UnlockFrame(buffer_handle_t handle);
     virtual buffer_handle_t ImportBuffer(const buffer_handle_t rawHandle) override;
