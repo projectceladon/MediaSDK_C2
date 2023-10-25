@@ -57,4 +57,5 @@ public:
     virtual c2_status_t GetBackingStore(const buffer_handle_t rawHandle, uint64_t *id) = 0;
 
     virtual buffer_handle_t ImportBuffer(const buffer_handle_t rawHandle) = 0;
+    virtual c2_status_t FreeBuffer(const buffer_handle_t rawHandle) = 0;
 };

@@ -190,7 +190,7 @@ c2_status_t MfxGralloc1Module::Alloc(const uint16_t width, const uint16_t height
     return res;
 }
 
-c2_status_t MfxGralloc1Module::Free(const buffer_handle_t handle)
+c2_status_t MfxGralloc1Module::FreeBuffer(const buffer_handle_t handle)
 {
     MFX_DEBUG_TRACE_FUNC;
     c2_status_t res = C2_OK;
