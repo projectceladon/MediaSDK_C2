@@ -2409,7 +2409,8 @@ void MfxC2DecoderComponent::PushPending(std::unique_ptr<C2Work>&& work)
     const auto incoming_frame_timestamp = work->input.ordinal.timestamp;
     auto duplicate = find_if(m_pendingWorks.begin(), m_pendingWorks.end(),
         [incoming_frame_timestamp] (const auto &item) {
-            return item.second->input.ordinal.timestamp == incoming_frame_timestamp;
+            // When decoding the image, the timestamp is always 0, so it is excluded.
+            return (item.second->input.ordinal.timestamp == incoming_frame_timestamp) && ((c2_cntr64_t)0 != incoming_frame_timestamp);
         });
     if (duplicate != m_pendingWorks.end()) {
         MFX_DEBUG_TRACE_STREAM("Potentional error: Found duplicated timestamp: "
