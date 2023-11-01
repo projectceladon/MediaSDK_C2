@@ -339,6 +339,7 @@ public:
     }
 
     ~Impl() {
+        MFX_DEBUG_TRACE_FUNC;
         bool noInit = false;
         try {
                 for (int i = 0; i < NUM_BUFFER_SLOTS; ++i) {
