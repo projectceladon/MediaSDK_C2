@@ -52,9 +52,24 @@ func matchWhole(patterns string, s string) bool {
     return res
 }
 
+func includeDirs(ctx android.LoadHookContext) []string {
+    var include_dirs []string
+
+    if ctx.AConfig().PlatformSdkVersion().FinalOrFutureInt() >= 34 {
+        include_dirs = append(include_dirs, "frameworks/av/media/module/foundation/include")
+        include_dirs = append(include_dirs, "frameworks/av/media/module/bufferpool/2.0/include")
+    } else {
+        include_dirs = append(include_dirs, "frameworks/av/media/libstagefright/foundation/include")
+        include_dirs = append(include_dirs, "frameworks/av/media/bufferpool/2.0/include")
+    }
+
+    return include_dirs
+}
+
 func mfxCcDefaults(ctx android.LoadHookContext) {
     type props struct {
         Cflags []string
+        include_dirs []string
     }
 
     p := &props{}
@@ -81,6 +96,12 @@ func mfxCcDefaults(ctx android.LoadHookContext) {
 
     p.Cflags = append(p.Cflags, "-DMFX_ANDROID_VERSION=" + androidVersion)
     p.Cflags = append(p.Cflags, "-DMFX_ANDROID_PLATFORM=" + ctx.AConfig().DeviceName())
+
+    var dirs = includeDirs(ctx)
+    for _, path := range dirs {
+        p.include_dirs = append(p.include_dirs, path)
+    }
+
     ctx.AppendProperties(p)
 }
 
