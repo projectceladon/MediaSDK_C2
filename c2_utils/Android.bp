@@ -62,7 +62,6 @@ cc_library_static {
         "frameworks/av/media/codec2/components/base/include",
         "frameworks/av/media/codec2/core/include",
         "frameworks/av/media/libstagefright/include",
-        "frameworks/av/media/module/foundation/include",
         "frameworks/native/libs/gralloc/types/include",
         "system/core/include/utils",
         "external/libdrm/include/drm",

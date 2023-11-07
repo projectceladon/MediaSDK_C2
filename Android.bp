@@ -63,8 +63,6 @@ mfx_cc_defaults {
 
     include_dirs: [
         "hardware/intel/external/minigbm-intel/cros_gralloc", // remove then minigbm gets Android.bp
-        "frameworks/av/media/module/foundation/include",
-        "frameworks/av/media/module/bufferpool/2.0/include",
         "frameworks/av/media/codec2/sfplugin/utils",
         "frameworks/av/media/codec2/vndk/include",
         "frameworks/native/include",
