@@ -2719,13 +2719,23 @@ void MfxC2DecoderComponent::UpdateColorAspectsFromBitstream(const mfxExtVideoSig
         m_outColorAspects->matrix = C2Color::MATRIX_UNSPECIFIED;
     }
 
-    if (C2Color::RANGE_UNSPECIFIED != m_outColorAspects->range || C2Color::PRIMARIES_UNSPECIFIED != m_outColorAspects->primaries
-        || C2Color::TRANSFER_UNSPECIFIED != m_outColorAspects->transfer || C2Color::MATRIX_UNSPECIFIED != m_outColorAspects->matrix) {
-        MFX_DEBUG_TRACE_MSG("m_outColorAspects have been changed by decoderHeader.");
-        MFX_DEBUG_TRACE_I32(m_outColorAspects->range);
-        MFX_DEBUG_TRACE_I32(m_outColorAspects->primaries);
-        MFX_DEBUG_TRACE_I32(m_outColorAspects->transfer);
-        MFX_DEBUG_TRACE_I32(m_outColorAspects->matrix);
-        m_updatingC2Configures.push_back(C2Param::Copy(*m_outColorAspects));
+    // If the color aspects is not read through bitstream, we will use the default value which from framework.
+    if (C2Color::RANGE_UNSPECIFIED == m_outColorAspects->range) {
+        m_outColorAspects->range = m_defaultColorAspects->range;
     }
+    if (C2Color::PRIMARIES_UNSPECIFIED == m_outColorAspects->primaries) {
+        m_outColorAspects->primaries = m_defaultColorAspects->primaries;
+    }
+    if (C2Color::TRANSFER_UNSPECIFIED == m_outColorAspects->transfer) {
+        m_outColorAspects->transfer = m_defaultColorAspects->transfer;
+    }
+    if (C2Color::MATRIX_UNSPECIFIED == m_outColorAspects->matrix) {
+        m_outColorAspects->matrix = m_defaultColorAspects->matrix;
+    }
+
+    MFX_DEBUG_TRACE_I32(m_outColorAspects->range);
+    MFX_DEBUG_TRACE_I32(m_outColorAspects->primaries);
+    MFX_DEBUG_TRACE_I32(m_outColorAspects->transfer);
+    MFX_DEBUG_TRACE_I32(m_outColorAspects->matrix);
+    m_updatingC2Configures.push_back(C2Param::Copy(*m_outColorAspects));
 }
