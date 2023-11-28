@@ -84,6 +84,9 @@ protected:
 
 public:
     virtual ~MfxC2Component();
+#ifdef ONEVPL_EXPERIMENTAL
+    bool isdGPU() { return dedicated;}
+#endif
 
 private: // Non-virtual interface methods optionally overridden in descendants
     virtual c2_status_t Init() = 0;
@@ -174,6 +177,16 @@ protected:
 
     std::unique_lock<std::mutex> AcquireRunningStateLock(bool may_block) const;
 
+#ifdef ONEVPL_EXPERIMENTAL
+    void detectdGPU(mfxU16 deviceId) {
+	// DG2 paiid from kernel/include/drm/i915_pciids.h#696
+        if (deviceId >= 0x5690 && deviceId <= 0x56B3)
+                dedicated = true;
+	else
+		dedicated = false;
+    }
+#endif
+
 private:
     c2_status_t CheckStateTransitionConflict(
         const std::unique_lock<std::mutex>& state_lock,
@@ -200,6 +213,10 @@ private:
     std::list<std::shared_ptr<Listener>> m_listeners;
 
     std::mutex m_listenersMutex;
+
+#ifdef ONEVPL_EXPERIMENTAL
+    bool dedicated = false;
+#endif
 };
 
 typedef MfxC2Component* (CreateMfxC2ComponentFunc)(const char* name,
