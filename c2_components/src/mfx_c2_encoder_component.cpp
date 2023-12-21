@@ -1892,6 +1892,10 @@ void MfxC2EncoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
                         break;
                 }
                 MFX_DEBUG_TRACE_STREAM("set m_bitrateMode->value = " << m_bitrateMode->value);
+                if (isdGPU()) {
+                    // dGPU only support CQP
+                    mfx_set_RateControlMethod(MFX_RATECONTROL_CQP, &m_mfxVideoParamsConfig);
+		}
                 if(MFX_ERR_NONE != sts) {
                     failures->push_back(MakeC2SettingResult(C2ParamField(param), C2SettingResult::BAD_VALUE));
                 }
