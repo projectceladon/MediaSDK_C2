@@ -59,6 +59,8 @@ extern mfxVersion g_required_mfx_version;
     #include <va/va.h>
 #endif // #ifdef LIBVA_SUPPORT
 
+constexpr uint32_t DEFAULT_MAX_INSTANCES = 32;
+
 #define MFX_MAX_PATH 260
 
 #define WIDTH_16K 16384

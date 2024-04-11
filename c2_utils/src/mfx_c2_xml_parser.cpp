@@ -36,6 +36,7 @@
  */
 
 #include "mfx_c2_xml_parser.h"
+#include "mfx_defs.h"
 #include "mfx_c2_debug.h"
 #include <expat.h>
 
@@ -79,6 +80,18 @@ C2Component::kind_t MfxXmlParser::getKind(const char *name) {
         return KIND_OTHER;
     }
     return codec->second.isEncoder ? KIND_ENCODER : KIND_DECODER;
+}
+
+uint32_t  MfxXmlParser::getConcurrentInstances(const char *name) {
+    MFX_DEBUG_TRACE_FUNC;
+
+    auto codec = m_codecMap.find(name);
+    if (codec == m_codecMap.end() || 0 == codec->second.concurrentInstance) {
+        MFX_DEBUG_TRACE_STREAM("concurrent-instances wasn't found, using default value " << DEFAULT_MAX_INSTANCES);
+        return DEFAULT_MAX_INSTANCES;
+    }
+
+    return codec->second.concurrentInstance;
 }
 
 bool MfxXmlParser::dumpOutputEnabled(const char *name) {
@@ -177,6 +190,25 @@ c2_status_t MfxXmlParser::addDiagnostics(const char **attrs) {
     return C2_OK;
 }
 
+c2_status_t MfxXmlParser::addLimits(const char **attrs) {
+    MFX_DEBUG_TRACE_FUNC;
+    size_t i = 0;
+    while (attrs[i] != nullptr) {
+        if (strcmp(attrs[i], "concurrent-instances") == 0) {
+            if (strcmp(attrs[++i], "max") == 0) {
+                m_currentCodec->second.concurrentInstance = std::atoi(attrs[++i]);
+                MFX_DEBUG_TRACE_STREAM("m_currentCodec->second.concurrentInstance = %d", m_currentCodec->second.concurrentInstance);
+            } else {
+                MFX_DEBUG_TRACE_MSG("concurrent-instances is null");
+                return C2_BAD_VALUE;
+            }
+        }
+        i++;
+    }
+
+    return C2_OK;
+}
+
 void MfxXmlParser::startElementHandler(const char* name, const char** attrs) {
 
     MFX_DEBUG_TRACE_FUNC;
@@ -233,6 +265,8 @@ void MfxXmlParser::startElementHandler(const char* name, const char** attrs) {
             if (strcmp(name, "Diagnostics") == 0) {
                 m_parsingStatus =
                     addDiagnostics(attrs);
+            } else if (strcmp(name, "Limit") == 0) {
+                addLimits(attrs);
             }
             break;
         }

@@ -22,6 +22,7 @@
 #include "mfx_debug.h"
 #include "mfx_c2_debug.h"
 #include "mfx_c2_components_registry.h"
+#include "mfx_c2_components_monitor.h"
 
 using namespace android;
 
@@ -303,6 +304,17 @@ c2_status_t MfxC2Component::start()
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
+
+    MfxC2ComponentsMonitor::getInstance().increase(m_name.c_str());
+
+    // The creating component instances of the same type can't exceece the configured the number of maximum concurrent instances
+    // And must ensure that C2_NO_MEMORY is returned by start() which because the reclaimResource calling happens in
+    // MediaCodec::start() in libstagefright
+    MFX_DEBUG_TRACE_I32(m_createConfig.concurrent_instances);
+    if (MfxC2ComponentsMonitor::getInstance().get(m_name.c_str()) > m_createConfig.concurrent_instances) {
+        MFX_DEBUG_TRACE_MSG("Cannot create component, the number of created components has exceeded maximum instance limit.");
+        return C2_NO_MEMORY;
+    }
     // work to be done for state change
     std::function<c2_status_t()> action = [] () { return C2_CORRUPTED; };
 
@@ -339,6 +351,8 @@ c2_status_t MfxC2Component::start()
             }
             m_condStateStable.notify_all();
         }
+    } else {
+        MfxC2ComponentsMonitor::getInstance().decrease(m_name.c_str());
     }
 
     MFX_DEBUG_TRACE__android_c2_status_t(res);
@@ -449,6 +463,9 @@ c2_status_t MfxC2Component::release()
         }
     }
 
+    if (C2_OK == res) {
+        MfxC2ComponentsMonitor::getInstance().decrease(m_name.c_str());
+    }
     MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
