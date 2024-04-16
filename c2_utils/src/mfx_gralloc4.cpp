@@ -24,6 +24,8 @@
 #include "mfx_debug.h"
 #include "mfx_c2_debug.h"
 
+#ifdef USE_GRALLOC4
+
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_gralloc4"
 
@@ -49,7 +51,7 @@ MfxGralloc4Module::~MfxGralloc4Module()
 
 }
 
-Error4 MfxGralloc4Module::get(const native_handle_t* handle, const IMapper4::MetadataType& metadataType,
+Error4 MfxGralloc4Module::Get(const native_handle_t* handle, const IMapper4::MetadataType& metadataType,
                     hidl_vec<uint8_t>& outVec)
 {
     Error4 err;
@@ -64,13 +66,34 @@ Error4 MfxGralloc4Module::get(const native_handle_t* handle, const IMapper4::Met
     return err;
 }
 
+Error4 MfxGralloc4Module::GetWithImported(const native_handle_t* handle, const IMapper4::MetadataType& metadataType,
+                    hidl_vec<uint8_t>& outVec)
+{
+    Error4 err;
+    if (nullptr == m_mapper)
+        return Error4::NO_RESOURCES;
+
+    auto importedHnd = ImportBuffer(handle);
+    m_mapper->get(const_cast<native_handle_t*>(importedHnd), metadataType,
+                [&](const auto& tmpError, const hidl_vec<uint8_t>& tmpVec)
+                {
+                    err = tmpError;
+                    outVec = tmpVec;
+                });
+
+    (void)FreeBuffer(importedHnd);
+    return err;
+}
+
 c2_status_t MfxGralloc4Module::GetBufferDetails(const buffer_handle_t handle, BufferDetails *details)
 {
     MFX_DEBUG_TRACE_FUNC;
     c2_status_t res = C2_OK;
 
+    buffer_handle_t importedHnd = nullptr;
     do
     {
+        importedHnd = ImportBuffer(handle);
         details->handle = handle;
 
         details->prime = handle->data[0];
@@ -78,7 +101,7 @@ c2_status_t MfxGralloc4Module::GetBufferDetails(const buffer_handle_t handle, Bu
 
         hidl_vec<uint8_t> vec;
 
-        if (IsFailed(get(handle, gralloc4::MetadataType_Width, vec)))
+        if (IsFailed(Get(importedHnd, gralloc4::MetadataType_Width, vec)))
         {
             res = C2_CORRUPTED;
             break;
@@ -89,7 +112,7 @@ c2_status_t MfxGralloc4Module::GetBufferDetails(const buffer_handle_t handle, Bu
         details->width = details->allocWidth = width;
         MFX_DEBUG_TRACE_I32(details->width);
 
-        if (IsFailed(get(handle, gralloc4::MetadataType_Height, vec)))
+        if (IsFailed(Get(importedHnd, gralloc4::MetadataType_Height, vec)))
         {
             res = C2_CORRUPTED;
             break;
@@ -101,7 +124,7 @@ c2_status_t MfxGralloc4Module::GetBufferDetails(const buffer_handle_t handle, Bu
         MFX_DEBUG_TRACE_I32(details->height);
 
         hardware::graphics::common::V1_2::PixelFormat pixelFormat;
-        if (IsFailed(get(handle, gralloc4::MetadataType_PixelFormatRequested, vec)))
+        if (IsFailed(Get(importedHnd, gralloc4::MetadataType_PixelFormatRequested, vec)))
         {
             res = C2_CORRUPTED;
             break;
@@ -110,7 +133,7 @@ c2_status_t MfxGralloc4Module::GetBufferDetails(const buffer_handle_t handle, Bu
         details->format = static_cast<int>(pixelFormat);
         MFX_DEBUG_TRACE_I32(details->format);
 
-        if(IsFailed(get(handle, gralloc4::MetadataType_PlaneLayouts, vec)))
+        if(IsFailed(Get(importedHnd, gralloc4::MetadataType_PlaneLayouts, vec)))
         {
             res = C2_CORRUPTED;
             break;
@@ -132,6 +155,8 @@ c2_status_t MfxGralloc4Module::GetBufferDetails(const buffer_handle_t handle, Bu
             MFX_DEBUG_TRACE_STREAM("details->pitches[" << i << "] = " << details->pitches[i]);
         }
     } while (false);
+
+    (void)FreeBuffer(importedHnd);
     MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
@@ -142,7 +167,7 @@ c2_status_t MfxGralloc4Module::GetBackingStore(const buffer_handle_t handle, uin
     c2_status_t res = C2_OK;
 
     hidl_vec<uint8_t> vec;
-    if(IsFailed(get(handle, android::gralloc4::MetadataType_BufferId, vec)))
+    if(IsFailed(GetWithImported(handle, android::gralloc4::MetadataType_BufferId, vec)))
         res = C2_CORRUPTED;
     gralloc4::decodeBufferId(vec, id);
 
@@ -170,6 +195,25 @@ buffer_handle_t MfxGralloc4Module::ImportBuffer(const buffer_handle_t rawHandle)
     }
     MFX_DEBUG_TRACE__android_c2_status_t(res);
     return outBuffer;
+}
+
+c2_status_t MfxGralloc4Module::FreeBuffer(const buffer_handle_t rawHandle)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    c2_status_t res = C2_OK;
+    Error4 err;
+    if (nullptr == m_mapper)
+        res = C2_CORRUPTED;
+    if (C2_OK == res)
+    {
+        err = m_mapper->freeBuffer(const_cast<native_handle_t*>(rawHandle));
+
+        if (IsFailed(err))
+            res = C2_CORRUPTED;
+    }
+
+    MFX_DEBUG_TRACE__android_c2_status_t(res);
+    return res;
 }
 
 c2_status_t MfxGralloc4Module::LockFrame(buffer_handle_t handle, uint8_t** data, C2PlanarLayout *layout)
@@ -241,3 +285,5 @@ c2_status_t MfxGralloc4Module::UnlockFrame(buffer_handle_t handle)
     MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
+
+#endif
