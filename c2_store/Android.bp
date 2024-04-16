@@ -63,7 +63,6 @@ cc_binary {
 
     required: ["android.hardware.media.c2@1.0-vendor.policy"],
 
-    compile_multilib: "32",
 }
 
 prebuilt_etc {
