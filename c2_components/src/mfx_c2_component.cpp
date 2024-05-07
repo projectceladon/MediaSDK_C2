@@ -36,11 +36,15 @@ MfxC2Component::MfxC2Component(const C2String& name, const CreateConfig& config,
     m_mfxImplementation(MFX_IMPLEMENTATION)
 {
     MFX_DEBUG_TRACE_FUNC;
+
+    MfxC2ComponentsMonitor::getInstance().increase(m_name.c_str());
 }
 
 MfxC2Component::~MfxC2Component()
 {
     MFX_DEBUG_TRACE_FUNC;
+
+    MfxC2ComponentsMonitor::getInstance().decrease(m_name.c_str());
 }
 
 c2_status_t MfxC2Component::DoStart()
@@ -305,8 +309,6 @@ c2_status_t MfxC2Component::start()
 
     c2_status_t res = C2_OK;
 
-    MfxC2ComponentsMonitor::getInstance().increase(m_name.c_str());
-
     // The creating component instances of the same type can't exceece the configured the number of maximum concurrent instances
     // And must ensure that C2_NO_MEMORY is returned by start() which because the reclaimResource calling happens in
     // MediaCodec::start() in libstagefright
@@ -351,8 +353,6 @@ c2_status_t MfxC2Component::start()
             }
             m_condStateStable.notify_all();
         }
-    } else {
-        MfxC2ComponentsMonitor::getInstance().decrease(m_name.c_str());
     }
 
     MFX_DEBUG_TRACE__android_c2_status_t(res);
@@ -463,9 +463,6 @@ c2_status_t MfxC2Component::release()
         }
     }
 
-    if (C2_OK == res) {
-        MfxC2ComponentsMonitor::getInstance().decrease(m_name.c_str());
-    }
     MFX_DEBUG_TRACE__android_c2_status_t(res);
     return res;
 }
