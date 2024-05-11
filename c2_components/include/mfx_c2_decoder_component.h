@@ -236,8 +236,6 @@ private:
     std::shared_ptr<C2StreamHdrStaticInfo::output> m_hdrStaticInfo;
     bool m_bSetHdrStatic;
 
-    std::shared_ptr<C2StreamPixelFormatInfo::output> m_pixelFormat;
-
     std::vector<std::unique_ptr<C2Param>> m_updatingC2Configures;
 
     uint64_t m_consumerUsage;
@@ -278,6 +276,7 @@ private:
     std::shared_ptr<C2StreamColorAspectsTuning::output> m_defaultColorAspects;
     std::shared_ptr<C2StreamColorAspectsInfo::input> m_inColorAspects;
     std::shared_ptr<C2StreamColorAspectsInfo::output> m_outColorAspects;
+    std::shared_ptr<C2StreamPixelFormatInfo::output> m_pixelFormat;
     /* ----------------------------------------Setters------------------------------------------- */
     static C2R OutputSurfaceAllocatorSetter(bool mayBlock, C2P<C2PortSurfaceAllocatorTuning::output> &me);
     static C2R SizeSetter(bool mayBlock, const C2P<C2StreamPictureSizeInfo::output> &oldMe,
