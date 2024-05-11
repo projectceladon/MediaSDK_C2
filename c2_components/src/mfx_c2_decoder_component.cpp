@@ -624,8 +624,23 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
             .withSetter(ColorAspectsSetter, m_defaultColorAspects, m_inColorAspects)
             .build());
     }
-    // Pixel format info. Set to NV12 by default
-    m_pixelFormat = std::make_unique<C2StreamPixelFormatInfo::output>(SINGLE_STREAM_ID, HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL);
+    // In order to pass CTS, we advertise support for these formats defined by Google. Because they
+    // don't recognize HAL implementation specific formats.
+    // But the format we actually allocated buffer is HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL for 8-bit,
+    // HAL_PIXEL_FORMAT_P010_INTEL for 10-bit. via function MfxFourCCToGralloc in mfx_c2_utils.cpp
+    std::vector<uint32_t> supportedPixelFormats = {
+        HAL_PIXEL_FORMAT_YCBCR_420_888,
+        HAL_PIXEL_FORMAT_YV12,
+        HAL_PIXEL_FORMAT_YCBCR_P010
+    };
+
+    addParameter(
+        DefineParam(m_pixelFormat, C2_PARAMKEY_PIXEL_FORMAT)
+        .withDefault(new C2StreamPixelFormatInfo::output(
+                            0u, HAL_PIXEL_FORMAT_YCBCR_420_888))
+        .withFields({C2F(m_pixelFormat, value).oneOf(supportedPixelFormats)})
+        .withSetter((Setter<decltype(*m_pixelFormat)>::StrictValueWithNoDeps))
+        .build());
 
     // HDR static with BT2020 by default
     m_hdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
@@ -2004,12 +2019,6 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                     res = C2_BAD_VALUE;
                     break;
                 }
-
-                {
-                    // Update pixel format info after decoder initialized
-                    m_pixelFormat->value =
-                            MfxFourCCToGralloc(m_mfxVideoParams.mfx.FrameInfo.FourCC, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY);
-                }
             }
 
             if (!m_bSetHdrStatic) UpdateHdrStaticInfo();
@@ -2327,10 +2336,6 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             // set static hdr info
             out_buffer->setInfo(m_hdrStaticInfo);
 
-            // set pixel info
-            out_buffer->setInfo(m_pixelFormat);
-
-
             std::unique_ptr<C2Worklet>& worklet = work->worklets.front();
             // Pass end of stream flag only.
             worklet->output.flags = (C2FrameData::flags_t)(work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
@@ -2344,6 +2349,12 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
                 C2StreamPictureSizeInfo::output new_size(0u, m_size->width, m_size->height);
                 m_updatingC2Configures.push_back(C2Param::Copy(new_size));
             }
+            // Update pixel format to framework if it different from what we actually allocted.
+            if (MFX_FOURCC_P010 == m_mfxVideoParams.mfx.FrameInfo.FourCC && m_pixelFormat->value != HAL_PIXEL_FORMAT_YCBCR_P010) {
+                C2StreamPixelFormatInfo::output new_pixel_format(0u, HAL_PIXEL_FORMAT_YCBCR_P010);
+                m_updatingC2Configures.push_back(C2Param::Copy(new_pixel_format));
+            }
+
             // Update codec's configure
             for (int i = 0; i < m_updatingC2Configures.size(); i++) {
                 worklet->output.configUpdate.push_back(std::move(m_updatingC2Configures[i]));
