@@ -1879,7 +1879,7 @@ void MfxC2EncoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
                 break;
             }
             case kParamIndexSyncFrameInterval: {
-                if (m_syncFramePeriod->value > 0) {
+                if (m_syncFramePeriod->value >= 0) {
                     uint32_t gop_size = getSyncFramePeriod_l(m_syncFramePeriod->value);
                     MFX_DEBUG_TRACE_PRINTF("updating m_mfxVideoParamsConfig.mfx.GopPicSize from %d to %d",
                         m_mfxVideoParamsConfig.mfx.GopPicSize, gop_size);
