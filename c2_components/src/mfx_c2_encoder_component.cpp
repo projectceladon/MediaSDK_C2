@@ -497,8 +497,8 @@ void MfxC2EncoderComponent::getMaxMinResolutionSupported(
             break;
         }
         case ENCODER_H265: {
-            *min_w = 176;
-            *min_h = 144;
+            *min_w = 352;
+            *min_h = 288;
             *max_w = 8192;
             *max_h = 8192;
             break;
