@@ -961,7 +961,8 @@ mfxStatus MfxC2EncoderComponent::InitVPP(C2FrameData& buf_pack)
 
     res = MapConstGraphicBlock(*c_graph_block, TIMEOUT_NS, &c2_graphic_view_);
 
-    if(c2_graphic_view_->layout().type == C2PlanarLayout::TYPE_RGB) {
+    switch (c2_graphic_view_->layout().type) {
+    case C2PlanarLayout::TYPE_RGB: {
         // need color convert to YUV
         MfxC2VppWrappParam param;
         mfxFrameInfo frame_info;
@@ -979,28 +980,40 @@ mfxStatus MfxC2EncoderComponent::InitVPP(C2FrameData& buf_pack)
 
         mfx_res = m_vpp.Init(&param);
         m_inputVppType = param.conversion;
-    } else {
+    }
+        break;
+    case C2PlanarLayout::TYPE_YUV: {
         uint32_t width, height, format, stride, igbp_slot, generation;
         uint64_t usage, igbp_id;
         android::_UnwrapNativeCodec2GrallocMetadata(c_graph_block->handle(), &width, &height, &format, &usage,
                                                 &stride, &generation, &igbp_id, &igbp_slot);
-        if ((!igbp_id && !igbp_slot) || (!igbp_id && igbp_slot == 0xffffffff)) {
-            //No surface & BQ
-            m_mfxVideoParamsConfig.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY;
+        if (format == HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL) {
+            m_mfxVideoParamsConfig.IOPattern = MFX_IOPATTERN_IN_VIDEO_MEMORY;
+        } else {
+            if ((!igbp_id && !igbp_slot) || (!igbp_id && igbp_slot == 0xffffffff)) {
+                //No surface & BQ
+                m_mfxVideoParamsConfig.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY;
 #ifdef USE_ONEVPL
-            mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, nullptr);
+                mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, nullptr);
 #else
-            mfx_res = m_mfxSession.SetFrameAllocator(nullptr);
+                mfx_res = m_mfxSession.SetFrameAllocator(nullptr);
 #endif
-            m_bAllocatorSet = false;
-            MFX_LOG_INFO("Format = 0x%x. System memory is being used for encoding!", format);
-            if (MFX_ERR_NONE != mfx_res) MFX_DEBUG_TRACE_MSG("SetFrameAllocator failed");
+                m_bAllocatorSet = false;
+                MFX_LOG_INFO("Format = 0x%x. System memory is being used for encoding!", format);
+                if (MFX_ERR_NONE != mfx_res) MFX_DEBUG_TRACE_MSG("SetFrameAllocator failed");
+            }
+
+            mfx_res = AllocateSurfacePool();
+            if (MFX_ERR_NONE != mfx_res) MFX_DEBUG_TRACE_MSG("AllocateSurfacePool failed");
+
         }
 
-        mfx_res = AllocateSurfacePool();
-        if (MFX_ERR_NONE != mfx_res) MFX_DEBUG_TRACE_MSG("AllocateSurfacePool failed");
-
         m_inputVppType = CONVERT_NONE;
+    }
+        break;
+    default:
+        MFX_DEBUG_TRACE_PRINTF("Unsupported layout: 0x%x", (uint32_t)c2_graphic_view_->layout().type);
+        break;
     }
 
     if (MFX_ERR_NONE == mfx_res) m_bVppDetermined = true;
@@ -1232,10 +1245,10 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             frame_converter = m_device->GetFrameConverter();
         }
 
-        if (CONVERT_NONE != m_inputVppType && frame_converter) {
+        if (frame_converter) {
             std::unique_ptr<mfxFrameSurface1> unique_mfx_frame =
                     std::make_unique<mfxFrameSurface1>();
-            mfxFrameSurface1* pSurfaceToEncode;
+            mfxFrameSurface1* pSurfaceToEncode = nullptr;
             std::unique_ptr<const C2GraphicView> c_graph_view;
 
             std::unique_ptr<C2ConstGraphicBlock> c_graph_block;
@@ -1269,11 +1282,22 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 break;
             }
 
-            InitMfxFrameHW(input.ordinal.timestamp.peeku(), input.ordinal.frameIndex.peeku(),
-                mem_id, c_graph_block->width(), c_graph_block->height(), MFX_FOURCC_RGB4,
-                m_mfxVideoParamsConfig.mfx.FrameInfo, unique_mfx_frame.get());
+            if (m_inputVppType != CONVERT_NONE) {
+                InitMfxFrameHW(input.ordinal.timestamp.peeku(), input.ordinal.frameIndex.peeku(),
+                    mem_id, c_graph_block->width(), c_graph_block->height(), MFX_FOURCC_RGB4,
+                    m_mfxVideoParamsConfig.mfx.FrameInfo, unique_mfx_frame.get());
 
-            m_vpp.ProcessFrameVpp(unique_mfx_frame.get(), &pSurfaceToEncode);
+                m_vpp.ProcessFrameVpp(unique_mfx_frame.get(), &pSurfaceToEncode);
+            } else {
+                pSurfaceToEncode = new mfxFrameSurface1;
+                if (!pSurfaceToEncode) {
+                    res = C2_NO_MEMORY;
+                    break;
+                }
+                InitMfxFrameHW(input.ordinal.timestamp.peeku(), input.ordinal.frameIndex.peeku(),
+                    mem_id, c_graph_block->width(), c_graph_block->height(), MFX_FOURCC_NV12,
+                    m_mfxVideoParamsConfig.mfx.FrameInfo, pSurfaceToEncode);
+            }
             res = mfx_frame_in.init(NULL, std::move(c_graph_view), input, pSurfaceToEncode);
         } else {
             uint32_t nIndex = MFXGetFreeSurfaceIdx(m_encSrfPool, m_encSrfNum);
