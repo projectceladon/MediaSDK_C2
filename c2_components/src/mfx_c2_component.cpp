@@ -411,7 +411,10 @@ c2_status_t MfxC2Component::stop()
 c2_status_t MfxC2Component::reset()
 {
     MFX_DEBUG_TRACE_FUNC;
-    return C2_OK;
+    if(m_state == State::STOPPED)
+        return C2_OK;
+    else
+        return stop();
 }
 
 c2_status_t MfxC2Component::release()
