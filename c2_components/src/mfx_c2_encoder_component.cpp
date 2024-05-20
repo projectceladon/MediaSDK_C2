@@ -376,8 +376,9 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
                         .oneOf({
                             PROFILE_VP9_0,
                             PROFILE_VP9_1,
-                            PROFILE_VP9_2,
-                            PROFILE_VP9_3,
+                            // TODO: support 10-bit HDR
+                            // PROFILE_VP9_2,
+                            // PROFILE_VP9_3,
                         }),
                     C2F(m_profileLevel, C2ProfileLevelStruct::level)
                         .oneOf({
