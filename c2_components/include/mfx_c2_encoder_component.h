@@ -243,7 +243,11 @@ private:
     static C2R SizeSetter(bool mayBlock, const C2P<C2StreamPictureSizeInfo::input> &oldMe,
                         C2P<C2StreamPictureSizeInfo::input> &me);
     
-    static C2R AVC_ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::output> &me);
+    static C2R AVC_ProfileLevelSetter(bool mayBlock,
+                                C2P<C2StreamProfileLevelInfo::output> &me,
+                                const C2P<C2StreamPictureSizeInfo::input> &size,
+                                const C2P<C2StreamFrameRateInfo::output> &frameRate,
+                                const C2P<C2StreamBitrateInfo::output> &bitrate);
     static C2R HEVC_ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::output> &me);
     static C2R VP9_ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::output> &me);
 
