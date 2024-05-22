@@ -522,9 +522,15 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                     C2F(m_profileLevel, C2ProfileLevelStruct::level)
                         .oneOf({
                             LEVEL_AV1_2, LEVEL_AV1_2_1,
-                            LEVEL_AV1_2_1, LEVEL_AV1_2_3,
+                            LEVEL_AV1_2_2, LEVEL_AV1_2_3,
                             LEVEL_AV1_3, LEVEL_AV1_3_1,
-                            LEVEL_AV1_3_2,
+                            LEVEL_AV1_3_2, LEVEL_AV1_3_3,
+			    LEVEL_AV1_4, LEVEL_AV1_4_1,
+			    LEVEL_AV1_4_2, LEVEL_AV1_4_3,
+			    LEVEL_AV1_5, LEVEL_AV1_5_1,
+			    LEVEL_AV1_5_2, LEVEL_AV1_5_3,
+			    LEVEL_AV1_6, LEVEL_AV1_6_1,
+			    LEVEL_AV1_6_2, LEVEL_AV1_6_3,
                         }),})
                 .withSetter(ProfileLevelSetter, m_size)
                 .build());
