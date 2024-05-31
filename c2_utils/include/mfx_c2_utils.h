@@ -120,6 +120,8 @@ bool IsI420(const C2GraphicView &view);
 
 bool IsYV12(const C2GraphicView &view);
 
+bool IsP010(const C2GraphicView &view);
+
 void ParseGop(const std::shared_ptr<C2StreamGopTuning::output> gop, 
     uint32_t &syncInterval, uint32_t &iInterval, uint32_t &maxBframes);
 
