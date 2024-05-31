@@ -1058,6 +1058,12 @@ mfxStatus MfxC2EncoderComponent::InitVPP(C2FrameData& buf_pack)
                                                 &stride, &generation, &igbp_id, &igbp_slot);
         if (format == HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL) {
             m_mfxVideoParamsConfig.IOPattern = MFX_IOPATTERN_IN_VIDEO_MEMORY;
+        } else if (format == HAL_PIXEL_FORMAT_P010_INTEL) {
+            m_mfxVideoParamsConfig.IOPattern = MFX_IOPATTERN_IN_VIDEO_MEMORY;
+            m_mfxVideoParamsConfig.mfx.FrameInfo.FourCC = MFX_FOURCC_P010;
+            m_mfxVideoParamsConfig.mfx.FrameInfo.BitDepthLuma = 10;
+            m_mfxVideoParamsConfig.mfx.FrameInfo.BitDepthChroma = 10;
+            m_mfxVideoParamsConfig.mfx.FrameInfo.Shift = 1;
         } else {
             if ((!igbp_id && !igbp_slot) || (!igbp_id && igbp_slot == 0xffffffff)) {
                 //No surface & BQ
@@ -1070,6 +1076,13 @@ mfxStatus MfxC2EncoderComponent::InitVPP(C2FrameData& buf_pack)
                 m_bAllocatorSet = false;
                 MFX_LOG_INFO("Format = 0x%x. System memory is being used for encoding!", format);
                 if (MFX_ERR_NONE != mfx_res) MFX_DEBUG_TRACE_MSG("SetFrameAllocator failed");
+            }
+
+            if (format == HAL_PIXEL_FORMAT_YCBCR_P010) {
+                m_mfxVideoParamsConfig.mfx.FrameInfo.FourCC = MFX_FOURCC_P010;
+                m_mfxVideoParamsConfig.mfx.FrameInfo.BitDepthLuma = 10;
+                m_mfxVideoParamsConfig.mfx.FrameInfo.BitDepthChroma = 10;
+                m_mfxVideoParamsConfig.mfx.FrameInfo.Shift = 1;
             }
 
             mfx_res = AllocateSurfacePool();
@@ -1364,7 +1377,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                     break;
                 }
                 InitMfxFrameHW(input.ordinal.timestamp.peeku(), input.ordinal.frameIndex.peeku(),
-                    mem_id, c_graph_block->width(), c_graph_block->height(), MFX_FOURCC_NV12,
+                    mem_id, c_graph_block->width(), c_graph_block->height(), m_mfxVideoParamsConfig.mfx.FrameInfo.FourCC,
                     m_mfxVideoParamsConfig.mfx.FrameInfo, pSurfaceToEncode);
             }
             res = mfx_frame_in.init(NULL, std::move(c_graph_view), input, pSurfaceToEncode);

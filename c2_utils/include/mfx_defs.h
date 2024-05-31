@@ -197,7 +197,7 @@ std::vector<T> MakeVector(T&& item)
 
 mfxStatus InitMfxFrameSW(
     uint64_t timestamp, uint64_t frame_index,
-    uint8_t *data,
+    uint8_t *data_Y, uint8_t *data_UV,
     uint32_t width, uint32_t height, uint32_t stride, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame);
 
 mfxStatus InitMfxFrameHW(
@@ -205,7 +205,7 @@ mfxStatus InitMfxFrameHW(
     mfxMemId mem_id,
     uint32_t width, uint32_t height, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame);
 
-mfxStatus MFXLoadSurfaceSW(uint8_t *data, uint32_t stride, const mfxFrameInfo& input_info, mfxFrameSurface1* srf);
+mfxStatus MFXLoadSurfaceSW(uint8_t *data_Y, uint8_t *data_UV, uint32_t stride, const mfxFrameInfo& input_info, mfxFrameSurface1* srf);
 
 uint32_t MFXGetSurfaceSize(uint32_t FourCC, uint32_t width, uint32_t height);
 uint32_t MFXGetFreeSurfaceIdx(mfxFrameSurface1 *SurfacesPool, uint32_t nPoolSize);
