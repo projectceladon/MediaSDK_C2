@@ -146,8 +146,17 @@ c2_status_t MfxC2FrameIn::MfxC2LoadSurfaceInSW(C2ConstGraphicBlock& c_graph_bloc
 
     if (IsNV12(*m_c2GraphicView)) {
         mfx_sts = InitMfxFrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
-            const_cast<uint8_t*>(m_c2GraphicView->data()[0]),
+            const_cast<uint8_t*>(m_c2GraphicView->data()[0]), const_cast<uint8_t*>(m_c2GraphicView->data()[1]),
             width, height, stride, MFX_FOURCC_NV12, m_mfxFrameInfo,
+            m_pMfxFrameSurface);
+        if (MFX_ERR_NONE != mfx_sts) {
+            res = MfxStatusToC2(mfx_sts);
+            return res;
+        }
+    } else if (IsP010(*m_c2GraphicView)) {
+        mfx_sts = InitMfxFrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
+            const_cast<uint8_t*>(m_c2GraphicView->data()[0]), const_cast<uint8_t*>(m_c2GraphicView->data()[1]),
+            width, height, stride, MFX_FOURCC_P010, m_mfxFrameInfo,
             m_pMfxFrameSurface);
         if (MFX_ERR_NONE != mfx_sts) {
             res = MfxStatusToC2(mfx_sts);
@@ -185,7 +194,7 @@ c2_status_t MfxC2FrameIn::MfxC2LoadSurfaceInSW(C2ConstGraphicBlock& c_graph_bloc
 #endif
 
         mfx_sts = InitMfxFrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
-                                m_yuvData.get(), width, height, stride, MFX_FOURCC_NV12, m_mfxFrameInfo,
+                                m_yuvData.get(), m_yuvData.get()+y_plane_size, width, height, stride, MFX_FOURCC_NV12, m_mfxFrameInfo,
                                 m_pMfxFrameSurface);
         if (MFX_ERR_NONE != mfx_sts) {
             res = MfxStatusToC2(mfx_sts);

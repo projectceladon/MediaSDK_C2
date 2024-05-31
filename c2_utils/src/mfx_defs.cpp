@@ -50,7 +50,7 @@ static void InitMfxFrameHeader(
 
 mfxStatus InitMfxFrameSW(
     uint64_t timestamp, uint64_t frame_index,
-    uint8_t *data,
+    uint8_t *data_Y, uint8_t *data_UV,
     uint32_t width, uint32_t height, uint32_t stride, uint32_t fourcc, const mfxFrameInfo& info, mfxFrameSurface1* mfx_frame)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -62,14 +62,14 @@ mfxStatus InitMfxFrameSW(
     InitMfxFrameHeader(timestamp, frame_index, width, height, fourcc, info, mfx_frame);
 
     mfx_frame->Data.MemType = MFX_MEMTYPE_SYSTEM_MEMORY;
-    mfx_frame->Data.PitchLow = MFX_ALIGN_32(stride);
+    mfx_frame->Data.PitchLow = stride;
 
-    res = MFXLoadSurfaceSW(data, stride, input_info, mfx_frame);
+    res = MFXLoadSurfaceSW(data_Y, data_UV, stride, input_info, mfx_frame);
 
     return res;
 }
 
-mfxStatus MFXLoadSurfaceSW(uint8_t *data, uint32_t stride, const mfxFrameInfo& input_info, mfxFrameSurface1* srf)
+mfxStatus MFXLoadSurfaceSW(uint8_t *data_Y, uint8_t *data_UV, uint32_t stride, const mfxFrameInfo& input_info, mfxFrameSurface1* srf)
 {
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus res = MFX_ERR_NONE;
@@ -82,38 +82,36 @@ mfxStatus MFXLoadSurfaceSW(uint8_t *data, uint32_t stride, const mfxFrameInfo& i
     uint32_t nCropY = srf->Info.CropY;
     uint32_t nCropW = srf->Info.CropW;
     uint32_t nCropH = srf->Info.CropH;
-    uint32_t nPitch = srf->Data.PitchLow;
+    uint32_t pixel_bytes = (srf->Info.FourCC == MFX_FOURCC_P010) ? 2 : 1;
+    uint32_t nPitch = srf->Info.Width * pixel_bytes;
 
     if (!MFX_C2_IS_COPY_NEEDED(srf->Data.MemType, input_info, srf->Info)) {
-        srf->Data.Y  = data;
-        srf->Data.U = data + nOPitch * nOHeight;
-        srf->Data.V = srf->Data.U + 1;
+        srf->Data.Y  = data_Y;
+        srf->Data.U = data_UV;
+        srf->Data.V = srf->Data.U + pixel_bytes;
         srf->Data.Pitch = nOPitch;
     } else {
-        uint32_t i = 0;
-        uint8_t* Y  = data;
-        uint8_t* UV = data + nOPitch * nOHeight;
-
         // if input surface width or height is not 16bit aligned, do copy here
-        for (i = 0; i < nCropH/2; ++i)
+        for (uint32_t i = 0; i < nCropH/2; ++i)
         {
             // copying Y
-            uint8_t *src = Y + nCropX + (nCropY + i)*nOPitch;
-            uint8_t *dst = srf->Data.Y + nCropX + (nCropY + i)*nPitch;
-            std::copy(src, src + nCropW, dst);
+            uint8_t *src = data_Y + nCropX*pixel_bytes + (nCropY + i)*nOPitch;
+            uint8_t *dst = srf->Data.Y + nCropX*pixel_bytes + (nCropY + i)*nPitch;
+            std::copy(src, src + nCropW*pixel_bytes, dst);
 
             // copying UV
-            src = UV + nCropX + (nCropY/2 + i)*nOPitch;
-            dst = srf->Data.UV + nCropX + (nCropY/2 + i)*nPitch;
-            std::copy(src, src + nCropW, dst);
+            src = data_UV + nCropX*pixel_bytes + (nCropY/2 + i)*nOPitch;
+            dst = srf->Data.UV + nCropX*pixel_bytes + (nCropY/2 + i)*nPitch;
+            std::copy(src, src + nCropW*pixel_bytes, dst);
         }
-        for (i = nCropH/2; i < nCropH; ++i)
+        for (uint32_t i = nCropH/2; i < nCropH; ++i)
         {
             // copying Y (remained data)
-            uint8_t *src = Y + nCropX + (nCropY + i)*nOPitch;
-            uint8_t *dst = srf->Data.Y + nCropX + (nCropY + i)*nPitch;
-            std::copy(src, src + nCropW, dst);
+            uint8_t *src = data_Y + nCropX*pixel_bytes + (nCropY + i)*nOPitch;
+            uint8_t *dst = srf->Data.Y + nCropX*pixel_bytes + (nCropY + i)*nPitch;
+            std::copy(src, src + nCropW*pixel_bytes, dst);
         }
+        srf->Data.Pitch = nPitch;
     }
 
     return res;
@@ -127,9 +125,9 @@ mfxStatus InitMfxFrameHW(
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus res = MFX_ERR_NONE;
 
+    MFX_ZERO_MEMORY(mfx_frame->Data);
     InitMfxFrameHeader(timestamp, frame_index, width, height, fourcc, info, mfx_frame);
 
-    MFX_ZERO_MEMORY(mfx_frame->Data);
     mfx_frame->Data.MemType = MFX_MEMTYPE_EXTERNAL_FRAME;
     mfx_frame->Data.PitchLow = MFX_ALIGN_32(width);
     mfx_frame->Data.MemId = mem_id;
