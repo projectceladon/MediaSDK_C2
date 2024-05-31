@@ -849,6 +849,11 @@ void MfxC2EncoderComponent::AttachExtBuffer()
 {
     MFX_DEBUG_TRACE_FUNC;
 
+    if (m_encoderType == ENCODER_H265) {
+        mfxExtCodingOption3* codingOption3 = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtCodingOption3>();
+        codingOption3->GPB = MFX_CODINGOPTION_OFF;
+    }
+
     if (m_encoderType == ENCODER_H264 || m_encoderType == ENCODER_H265) {
         mfxExtCodingOption* codingOption = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtCodingOption>();
         codingOption->NalHrdConformance = MFX_CODINGOPTION_OFF;
