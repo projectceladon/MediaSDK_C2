@@ -1172,6 +1172,16 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
 
         m_mfxVideoParams.mfx.FrameInfo.Width = MFX_MEM_ALIGN(m_mfxVideoParams.mfx.FrameInfo.Width, 16);
         m_mfxVideoParams.mfx.FrameInfo.Height = MFX_MEM_ALIGN(m_mfxVideoParams.mfx.FrameInfo.Height, 16);
+
+        // Google requires the component to decode to an 8-bit color format by default.
+        // Reference CTS cases testDefaultOutputColorFormat.
+        if (HAL_PIXEL_FORMAT_YCBCR_420_888 == m_pixelFormat->value) {
+            m_mfxVideoParams.mfx.FrameInfo.FourCC = MFX_FOURCC_NV12;
+            m_mfxVideoParams.mfx.FrameInfo.ChromaFormat = MFX_CHROMAFORMAT_YUV420;
+            m_mfxVideoParams.mfx.FrameInfo.BitDepthLuma = 8;
+            m_mfxVideoParams.mfx.FrameInfo.BitDepthChroma = 8;
+            m_mfxVideoParams.mfx.FrameInfo.Shift = 0;
+        }
         if (MFX_ERR_NONE == mfx_res) {
             mfx_res = m_c2Bitstream->GetFrameConstructor()->Init(m_mfxVideoParams.mfx.CodecProfile, m_mfxVideoParams.mfx.FrameInfo);
         }
