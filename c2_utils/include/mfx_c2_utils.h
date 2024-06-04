@@ -221,6 +221,9 @@ template<>struct mfx_ext_buffer_id<mfxExtVideoSignalInfo> {
 template<>struct mfx_ext_buffer_id<mfxExtEncoderResetOption> {
     enum {id = MFX_EXTBUFF_ENCODER_RESET_OPTION };
 };
+template<>struct mfx_ext_buffer_id<mfxExtCodingOption3> {
+    enum {id = MFX_EXTBUFF_CODING_OPTION3};
+};
 
 template <typename R>
 struct ExtParamAccessor
