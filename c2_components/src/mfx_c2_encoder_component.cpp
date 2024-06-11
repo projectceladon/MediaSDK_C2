@@ -959,6 +959,24 @@ mfxStatus MfxC2EncoderComponent::InitEncoder()
 
             AttachExtBuffer();
 
+            // The BufferSizeInKB is estimated in oneVPL if set to 0 when calling encoder Init().
+            // However, the estimated value is not sufficient in some corner cases, such as HEVC with a bitrate of 4 and a resolution of 176x144.
+            // In these cases, set BufferSizeInKB manually to a limit to ensure there is enough space to write the bitstream.
+            if (m_mfxVideoParamsConfig.mfx.CodecId == MFX_CODEC_HEVC && m_mfxVideoParamsConfig.mfx.TargetKbps < 8) {
+                // minBufferSizeInKB is calculated the same method with onevpl
+                if (m_mfxVideoParamsConfig.mfx.FrameInfo.Width != 0 &&
+                    m_mfxVideoParamsConfig.mfx.FrameInfo.Height != 0 &&
+                    m_mfxVideoParamsConfig.mfx.FrameInfo.FrameRateExtN != 0 &&
+                    m_mfxVideoParamsConfig.mfx.FrameInfo.FrameRateExtD != 0) {
+                    mfxF64 rawDataBitrate = 12.0 * m_mfxVideoParamsConfig.mfx.FrameInfo.Width * m_mfxVideoParamsConfig.mfx.FrameInfo.Height *
+                                            m_mfxVideoParamsConfig.mfx.FrameInfo.FrameRateExtN / m_mfxVideoParamsConfig.mfx.FrameInfo.FrameRateExtD;
+                    mfxU32 minBufferSizeInKB = mfxU32(std::min<mfxF64>(0xffffffff, rawDataBitrate / 8 / 1000.0 / 1400.0));
+                    if (minBufferSizeInKB < 2) {
+                        m_mfxVideoParamsConfig.mfx.BufferSizeInKB = 2;
+                    }
+                }
+            }
+
             MFX_DEBUG_TRACE_MSG("Encoder initializing...");
             MFX_DEBUG_TRACE__mfxVideoParam_enc(m_mfxVideoParamsConfig);
 
