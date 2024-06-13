@@ -1967,6 +1967,15 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             }
         }
         return;
+    } else if (DECODER_AV1 == m_decoderType && m_c2Bitstream->IsInReset()) {
+        if (true == m_bInitialized) {
+            mfxStatus format_change_sts = HandleFormatChange();
+            MFX_DEBUG_TRACE__mfxStatus(format_change_sts);
+            mfx_sts = format_change_sts;
+            if (MFX_ERR_NONE != mfx_sts) {
+                FreeDecoder();
+            }
+        }
     }
 
     do {

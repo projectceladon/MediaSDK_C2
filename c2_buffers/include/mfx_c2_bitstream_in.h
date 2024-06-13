@@ -42,6 +42,7 @@ public:
     virtual c2_status_t AppendFrame(const C2FrameData& buf_pack, c2_nsecs_t timeout,
         std::unique_ptr<C2ReadView>* view);
 
+    virtual bool IsInReset();
 protected: // variables
     std::shared_ptr<IMfxC2FrameConstructor> m_frameConstructor;
 

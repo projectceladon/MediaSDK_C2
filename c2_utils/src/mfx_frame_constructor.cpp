@@ -34,7 +34,8 @@ MfxC2FrameConstructor::MfxC2FrameConstructor():
     m_profile(MFX_PROFILE_UNKNOWN),
     m_bEos(false),
     m_uBstBufReallocs(0),
-    m_uBstBufCopyBytes(0)
+    m_uBstBufCopyBytes(0),
+    m_bInReset(false)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -198,6 +199,10 @@ mfxStatus MfxC2FrameConstructor::Unload()
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
 
+    if(m_bInReset) {
+        m_bInReset = false;
+    }
+
     mfx_res = BstBufSync();
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
@@ -209,6 +214,8 @@ mfxStatus MfxC2FrameConstructor::Reset()
 {
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
+
+    m_bInReset = true;
 
     // saving allocating information about internal buffer
     mfxU8* data = m_bstBuf->Data;
@@ -232,6 +239,11 @@ mfxStatus MfxC2FrameConstructor::Reset()
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
+}
+
+bool MfxC2FrameConstructor::IsInReset()
+{
+    return m_bInReset;
 }
 
 mfxStatus MfxC2FrameConstructor::BstBufRealloc(mfxU32 add_size)

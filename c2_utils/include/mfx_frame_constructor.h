@@ -69,6 +69,8 @@ public:
     virtual mfxPayload* GetSEI(mfxU32 /*type*/) = 0;
     // save current SPS/PPS
     virtual mfxStatus SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset) = 0;
+    // get whether in reset state
+    virtual bool IsInReset() = 0;
 
 protected:
     struct StartCode
@@ -110,6 +112,8 @@ public:
         (void)is_reset;
         return MFX_ERR_NONE;
     }
+    // get whether in reset state
+    virtual bool IsInReset();
 
 protected: // functions
     virtual mfxStatus LoadHeader(const mfxU8* data, mfxU32 size, bool header);
@@ -147,6 +151,7 @@ protected: // data
     mfxU32 m_uBstBufReallocs;
     mfxU32 m_uBstBufCopyBytes;
 
+    bool m_bInReset;
 private:
     MFX_CLASS_NO_COPY(MfxC2FrameConstructor)
 };
