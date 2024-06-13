@@ -57,6 +57,13 @@ c2_status_t MfxC2BitstreamIn::Reset()
     return res;
 }
 
+bool MfxC2BitstreamIn::IsInReset()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    return m_frameConstructor->IsInReset();
+}
+
 c2_status_t MfxC2BitstreamIn::Unload()
 {
     MFX_DEBUG_TRACE_FUNC;
