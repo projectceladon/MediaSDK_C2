@@ -2074,7 +2074,7 @@ c2_status_t MfxC2EncoderComponent::Queue(std::list<std::unique_ptr<C2Work>>* con
     for(auto& work : *items) {
 
         bool eos = (work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
-        bool empty = (work->input.buffers.size() == 0);
+        bool empty = (work->input.buffers.size() == 0) || !work->input.buffers[0];
         MFX_DEBUG_TRACE_STREAM(NAMED(eos) << NAMED(empty));
 
         if (empty) {
