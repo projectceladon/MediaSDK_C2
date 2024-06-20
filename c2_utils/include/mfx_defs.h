@@ -34,7 +34,7 @@
 
 // includes below are to get Intel color formats
 
-// #define HAVE_GRALLOC4 // We use gralloc4 but keep supporting gralloc1
+#define HAVE_GRALLOC4 // We use gralloc4 but keep supporting gralloc1
 
 #ifdef HAVE_GRALLOC4
     #define USE_GRALLOC4
