@@ -28,6 +28,7 @@
 
 #include <dlfcn.h>
 #include <fstream>
+#include <sys/stat.h>
 
 static const std::string FIELD_SEP = " : ";
 
@@ -272,6 +273,19 @@ c2_status_t MfxC2ComponentStore::readConfigFile()
     config_filename.append(MFX_C2_CONFIG_FILE_PATH);
     config_filename.append("/");
     config_filename.append(MFX_C2_CONFIG_FILE_NAME);
+    if (config_filename.compare(config_filename.size() - 5, 5, ".conf") == 0) {
+        char codecsVariant[PROPERTY_VALUE_MAX] = {'\0'};
+        if(property_get("ro.vendor.media.target_variant_platform", codecsVariant, NULL) > 0 ) {
+            std::string variant_config_file = config_filename;
+            variant_config_file.insert(variant_config_file.size() - 5, codecsVariant);
+            struct stat fileStat;
+            if (stat(variant_config_file.c_str(), &fileStat) == 0 && S_ISREG(fileStat.st_mode)) {
+                config_filename = variant_config_file;
+                MFX_DEBUG_TRACE_STREAM("Changing config_filename to: " << config_filename.c_str());
+            }
+        }
+    }
+
     std::ifstream config_file(config_filename.c_str(), std::ifstream::in);
 
     if (config_file)
@@ -332,7 +346,19 @@ c2_status_t MfxC2ComponentStore::readXmlConfigFile()
     std::string config_filename = MFX_C2_CONFIG_XML_FILE_PATH;
     config_filename.append("/");
     config_filename.append(MFX_C2_CONFIG_XML_FILE_NAME);
-
+    MFX_DEBUG_TRACE_S(config_filename.c_str());
+    if (config_filename.compare(config_filename.size() - 4, 4, ".xml") == 0) {
+        char codecsVariant[PROPERTY_VALUE_MAX] = {'\0'};
+        if(property_get("ro.vendor.media.target_variant_platform", codecsVariant, NULL) > 0 ) {
+            std::string variant_config_file = config_filename;
+            variant_config_file.insert(variant_config_file.size() - 4, codecsVariant);
+            struct stat fileStat;
+            if (stat(variant_config_file.c_str(), &fileStat) == 0 && S_ISREG(fileStat.st_mode)) {
+                config_filename = variant_config_file;
+                MFX_DEBUG_TRACE_STREAM("Changing xml config_filename to: " << config_filename.c_str());
+            }
+        }
+    }
     c2_res = m_xmlParser.parseConfig(config_filename.c_str());
 
     MFX_DEBUG_TRACE__android_c2_status_t(c2_res);
