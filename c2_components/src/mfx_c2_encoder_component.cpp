@@ -77,6 +77,16 @@ C2R MfxC2EncoderComponent::AVC_ProfileLevelSetter(bool mayBlock, C2P<C2StreamPro
     return C2R::Ok();
 }
 
+
+C2R MfxC2EncoderComponent::AV1_ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::output> &me) {
+    (void)mayBlock;
+    if (!me.F(me.v.profile).supportsAtAll(me.v.profile))
+        me.set().profile = PROFILE_AV1_0;
+    if (!me.F(me.v.level).supportsAtAll(me.v.level))
+        me.set().level = LEVEL_AV1_7_3;
+
+    return C2R::Ok();
+}
 C2R MfxC2EncoderComponent::HEVC_ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::output> &me) {
     (void)mayBlock;
     if (!me.F(me.v.profile).supportsAtAll(me.v.profile))
@@ -298,6 +308,35 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
         .build());
 
     switch(m_encoderType) {
+        case ENCODER_AV1: {
+            addParameter(
+                DefineParam(m_outputMediaType, C2_PARAMKEY_OUTPUT_MEDIA_TYPE)
+                .withConstValue(C2PortMediaTypeSetting::output::AllocShared("video/av01"))
+                .build());
+
+            addParameter(DefineParam(m_profileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                .withDefault(new C2StreamProfileLevelInfo::output(
+                    SINGLE_STREAM_ID, PROFILE_AV1_0, LEVEL_AV1_7_3))
+                .withFields({
+                    C2F(m_profileLevel, C2ProfileLevelStruct::profile)
+                        .oneOf({
+                            PROFILE_AV1_0,
+                            PROFILE_AV1_1,
+                            PROFILE_AV1_2,
+                        }),
+                    C2F(m_profileLevel, C2ProfileLevelStruct::level)
+                        .oneOf({
+                            LEVEL_AV1_2, LEVEL_AV1_2_1, LEVEL_AV1_2_2, LEVEL_AV1_2_3,
+                            LEVEL_AV1_3, LEVEL_AV1_3_1, LEVEL_AV1_3_2, LEVEL_AV1_3_3,
+                            LEVEL_AV1_4, LEVEL_AV1_4_1, LEVEL_AV1_4_2, LEVEL_AV1_4_3,
+                            LEVEL_AV1_5, LEVEL_AV1_5_1, LEVEL_AV1_5_2, LEVEL_AV1_5_3,
+                            LEVEL_AV1_6, LEVEL_AV1_6_1, LEVEL_AV1_6_2, LEVEL_AV1_6_3,
+                            LEVEL_AV1_7, LEVEL_AV1_7_1, LEVEL_AV1_7_2, LEVEL_AV1_7_3,
+                        }),})
+                .withSetter(AV1_ProfileLevelSetter)
+                .build());
+            break;
+        };
         case ENCODER_H264: {
             addParameter(
                 DefineParam(m_outputMediaType, C2_PARAMKEY_OUTPUT_MEDIA_TYPE)
@@ -476,6 +515,8 @@ void MfxC2EncoderComponent::RegisterClass(MfxC2ComponentsRegistry& registry)
 {
     MFX_DEBUG_TRACE_FUNC;
 
+    registry.RegisterMfxC2Component("c2.intel.av1.encoder",
+        &MfxC2Component::Factory<MfxC2EncoderComponent, EncoderType>::Create<ENCODER_AV1>);
     registry.RegisterMfxC2Component("c2.intel.avc.encoder",
         &MfxC2Component::Factory<MfxC2EncoderComponent, EncoderType>::Create<ENCODER_H264>);
     registry.RegisterMfxC2Component("c2.intel.hevc.encoder",
@@ -490,6 +531,13 @@ void MfxC2EncoderComponent::getMaxMinResolutionSupported(
     MFX_DEBUG_TRACE_FUNC;
 
     switch(m_encoderType) {
+        case ENCODER_AV1: {
+            *min_w = 176;
+            *min_h = 144;
+            *max_w = 4096;
+            *max_h = 4096;
+            break;
+        }
         case ENCODER_H264: {
             *min_w = 176;
             *min_h = 144;
@@ -814,6 +862,9 @@ mfxStatus MfxC2EncoderComponent::ResetSettings()
 
     switch (m_encoderType)
     {
+    case ENCODER_AV1:
+        m_mfxVideoParamsConfig.mfx.CodecId = MFX_CODEC_AV1;
+        break;
     case ENCODER_H264:
         m_mfxVideoParamsConfig.mfx.CodecId = MFX_CODEC_AVC;
         break;
@@ -855,7 +906,7 @@ void MfxC2EncoderComponent::AttachExtBuffer()
         codingOption3->GPB = MFX_CODINGOPTION_OFF;
     }
 
-    if (m_encoderType == ENCODER_H264 || m_encoderType == ENCODER_H265) {
+    if (m_encoderType == ENCODER_H264 || m_encoderType == ENCODER_H265 || m_encoderType == ENCODER_AV1) {
         mfxExtCodingOption* codingOption = m_mfxVideoParamsConfig.AddExtBuffer<mfxExtCodingOption>();
         codingOption->NalHrdConformance = MFX_CODINGOPTION_OFF;
 
@@ -1699,6 +1750,10 @@ c2_status_t MfxC2EncoderComponent::UpdateC2Param(C2Param::Index index) const
         }
         case kParamIndexProfileLevel: {
             switch (m_encoderType) {
+                case ENCODER_AV1:
+                    Av1ProfileMfxToAndroid(m_mfxVideoParamsConfig.mfx.CodecProfile, &m_profileLevel->profile);
+                    Av1LevelMfxToAndroid(m_mfxVideoParamsConfig.mfx.CodecLevel, &m_profileLevel->level);
+                    break;
                 case ENCODER_H264:
                     AvcProfileMfxToAndroid(m_mfxVideoParamsConfig.mfx.CodecProfile, &m_profileLevel->profile);
                     AvcLevelMfxToAndroid(m_mfxVideoParamsConfig.mfx.CodecLevel, &m_profileLevel->level);
@@ -1887,6 +1942,10 @@ void MfxC2EncoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
             }
             case kParamIndexProfileLevel: {
                 switch (m_encoderType) {
+                    case ENCODER_AV1:
+                        Av1ProfileAndroidToMfx(m_profileLevel->profile, &m_mfxVideoParamsConfig.mfx.CodecProfile);
+                        Av1LevelAndroidToMfx(m_profileLevel->level, &m_mfxVideoParamsConfig.mfx.CodecLevel);
+                        break;
                     case ENCODER_H264:
                         AvcProfileAndroidToMfx(m_profileLevel->profile, &m_mfxVideoParamsConfig.mfx.CodecProfile);
                         AvcLevelAndroidToMfx(m_profileLevel->level, &m_mfxVideoParamsConfig.mfx.CodecLevel);
