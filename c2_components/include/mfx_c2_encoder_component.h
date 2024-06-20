@@ -56,6 +56,7 @@ public:
         ENCODER_H264,
         ENCODER_H265,
         ENCODER_VP9,
+        ENCODER_AV1,
     };
 
 protected:
@@ -248,6 +249,7 @@ private:
                                 const C2P<C2StreamPictureSizeInfo::input> &size,
                                 const C2P<C2StreamFrameRateInfo::output> &frameRate,
                                 const C2P<C2StreamBitrateInfo::output> &bitrate);
+    static C2R AV1_ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::output> &me);
     static C2R HEVC_ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::output> &me);
     static C2R VP9_ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::output> &me);
 
