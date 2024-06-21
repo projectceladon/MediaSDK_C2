@@ -67,76 +67,12 @@ C2R MfxC2EncoderComponent::SizeSetter(bool mayBlock, const C2P<C2StreamPictureSi
     return res;
 }
 
-C2R MfxC2EncoderComponent::AVC_ProfileLevelSetter(bool mayBlock,
-                        C2P<C2StreamProfileLevelInfo::output> &me,
-                        const C2P<C2StreamPictureSizeInfo::input> &size,
-                        const C2P<C2StreamFrameRateInfo::output> &frameRate,
-                        const C2P<C2StreamBitrateInfo::output> &bitrate) {
+C2R MfxC2EncoderComponent::AVC_ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::output> &me) {
     (void)mayBlock;
     if (!me.F(me.v.profile).supportsAtAll(me.v.profile))
          me.set().profile = PROFILE_AVC_CONSTRAINED_BASELINE;
-
-    struct LevelLimits {
-        C2Config::level_t level;
-        float mbsPerSec;
-        uint64_t mbs;
-        uint32_t bitrate;
-    };
-    constexpr LevelLimits kLimits[] = {
-        { LEVEL_AVC_1,     1485,    99,     64000 },
-        { LEVEL_AVC_1_1,   3000,   396,    192000 },
-        { LEVEL_AVC_1_2,   6000,   396,    384000 },
-        { LEVEL_AVC_1_3,  11880,   396,    768000 },
-        { LEVEL_AVC_2,    11880,   396,   2000000 },
-        { LEVEL_AVC_2_1,  19800,   792,   4000000 },
-        { LEVEL_AVC_2_2,  20250,  1620,   4000000 },
-        { LEVEL_AVC_3,    40500,  1620,  10000000 },
-        { LEVEL_AVC_3_1, 108000,  3600,  14000000 },
-        { LEVEL_AVC_3_2, 216000,  5120,  20000000 },
-        { LEVEL_AVC_4,   245760,  8192,  20000000 },
-        { LEVEL_AVC_4_1, 245760,  8192,  50000000 },
-        { LEVEL_AVC_4_2, 522240,  8704,  50000000 },
-        { LEVEL_AVC_5,   589824, 22080, 135000000 },
-        { LEVEL_AVC_5_1, 983040, 36864, 240000000},
-        { LEVEL_AVC_5_2, 2073600, 139264, 240000000},
-    };
-
-    uint64_t mbs = uint64_t((size.v.width + 15) / 16) * ((size.v.height + 15) / 16);
-    float mbsPerSec = float(mbs) * frameRate.v.value;
-
-    // Check if the supplied level meets the MB / bitrate requirements. If
-    // not, update the level with the lowest level meeting the requirements.
-    bool found = false;
-    // By default needsUpdate = false in case the supplied level does meet
-    // the requirements. For Level 1b, we want to update the level anyway,
-    // so we set it to true in that case.
-    bool needsUpdate = false;
-    if (me.v.level == LEVEL_AVC_1B || !me.F(me.v.level).supportsAtAll(me.v.level)) {
-        needsUpdate = true;
-    }
-    for (const LevelLimits &limit : kLimits) {
-        if (mbs <= limit.mbs && mbsPerSec <= limit.mbsPerSec &&
-                bitrate.v.value <= limit.bitrate) {
-            // This is the lowest level that meets the requirements, and if
-            // we haven't seen the supplied level yet, that means we don't
-            // need the update.
-            if (needsUpdate) {
-                me.set().level = limit.level;
-            }
-            found = true;
-            break;
-        }
-        if (me.v.level == limit.level) {
-            // We break out of the loop when the lowest feasible level is
-            // found. The fact that we're here means that our level doesn't
-            // meet the requirement and needs to be updated.
-            needsUpdate = true;
-        }
-    }
-    if (!found || me.v.level > LEVEL_AVC_5_2) {
-        // We set to the highest supported level.
+    if (!me.F(me.v.level).supportsAtAll(me.v.level))
         me.set().level = LEVEL_AVC_5_2;
-    }
 
     return C2R::Ok();
 }
@@ -390,7 +326,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
                             LEVEL_AVC_4, LEVEL_AVC_4_1, LEVEL_AVC_4_2,
                             LEVEL_AVC_5, LEVEL_AVC_5_1, LEVEL_AVC_5_2,
                         }),})
-                .withSetter(AVC_ProfileLevelSetter, m_size, m_frameRate, m_bitrate)
+                .withSetter(AVC_ProfileLevelSetter)
                 .build());
             break;
         };
