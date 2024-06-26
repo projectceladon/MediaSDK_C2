@@ -86,6 +86,14 @@ std::unique_ptr<T> AllocUniqueString(const Args(&... args), const char *value)
     return res;
 }
 
+bool Av1ProfileAndroidToMfx(C2Config::profile_t android_value, mfxU16* mfx_value);
+
+bool Av1ProfileMfxToAndroid(mfxU16 mfx_value, C2Config::profile_t* android_value);
+
+bool Av1LevelAndroidToMfx(C2Config::level_t android_value, mfxU16* mfx_value);
+
+bool Av1LevelMfxToAndroid(mfxU16 mfx_value, C2Config::level_t* android_value);
+
 bool AvcProfileAndroidToMfx(C2Config::profile_t android_value, mfxU16* mfx_value);
 
 bool AvcProfileMfxToAndroid(mfxU16 mfx_value, C2Config::profile_t* android_value);

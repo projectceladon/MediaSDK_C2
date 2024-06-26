@@ -405,6 +405,61 @@ static const std::pair<C2Config::profile_t, mfxU16> g_vp9_profiles[] =
     { PROFILE_VP9_3, MFX_PROFILE_VP9_3 }
 };
 
+static const std::pair<C2Config::level_t, mfxU16> g_av1_levels[] =
+{
+    { LEVEL_AV1_2,  MFX_LEVEL_AV1_2 },
+    { LEVEL_AV1_2_1, MFX_LEVEL_AV1_21 },
+    { LEVEL_AV1_2_2, MFX_LEVEL_AV1_22 },
+    { LEVEL_AV1_2_3, MFX_LEVEL_AV1_23 },
+    { LEVEL_AV1_3, MFX_LEVEL_AV1_3 },
+    { LEVEL_AV1_3_1,  MFX_LEVEL_AV1_31 },
+    { LEVEL_AV1_3_2, MFX_LEVEL_AV1_32 },
+    { LEVEL_AV1_3_3, MFX_LEVEL_AV1_33 },
+    { LEVEL_AV1_4,  MFX_LEVEL_AV1_4 },
+    { LEVEL_AV1_4_1, MFX_LEVEL_AV1_41 },
+    { LEVEL_AV1_4_2, MFX_LEVEL_AV1_42 },
+    { LEVEL_AV1_4_3,  MFX_LEVEL_AV1_43 },
+    { LEVEL_AV1_5, MFX_LEVEL_AV1_5 },
+    { LEVEL_AV1_5_1, MFX_LEVEL_AV1_51 },
+    { LEVEL_AV1_5_2,  MFX_LEVEL_AV1_52 },
+    { LEVEL_AV1_5_3, MFX_LEVEL_AV1_53 },
+    { LEVEL_AV1_6, MFX_LEVEL_AV1_6 },
+    { LEVEL_AV1_6_1,  MFX_LEVEL_AV1_61 },
+    { LEVEL_AV1_6_2, MFX_LEVEL_AV1_62 },
+    { LEVEL_AV1_6_3, MFX_LEVEL_AV1_63 },
+    { LEVEL_AV1_7,  MFX_LEVEL_AV1_7 },
+    { LEVEL_AV1_7_1, MFX_LEVEL_AV1_71 },
+    { LEVEL_AV1_7_2, MFX_LEVEL_AV1_72 },
+    { LEVEL_AV1_7_3,  MFX_LEVEL_AV1_73 }
+};
+
+static const std::pair<C2Config::profile_t, mfxU16> g_av1_profiles[] =
+{
+    { PROFILE_AV1_0, MFX_PROFILE_AV1_MAIN },
+    { PROFILE_AV1_1, MFX_PROFILE_AV1_HIGH },
+    { PROFILE_AV1_2, MFX_PROFILE_AV1_PRO }
+};
+
+bool Av1ProfileAndroidToMfx(C2Config::profile_t android_value, mfxU16* mfx_value)
+{
+    return FirstToSecond(g_av1_profiles, android_value, mfx_value);
+}
+
+bool Av1ProfileMfxToAndroid(mfxU16 mfx_value, C2Config::profile_t* android_value)
+{
+    return SecondToFirst(g_av1_profiles, mfx_value, android_value);
+}
+
+bool Av1LevelAndroidToMfx(C2Config::level_t android_value, mfxU16* mfx_value)
+{
+    return FirstToSecond(g_av1_levels, android_value, mfx_value);
+}
+
+bool Av1LevelMfxToAndroid(mfxU16 mfx_value, C2Config::level_t* android_value)
+{
+    return SecondToFirst(g_av1_levels, mfx_value, android_value);
+}
+
 bool AvcProfileAndroidToMfx(C2Config::profile_t android_value, mfxU16* mfx_value)
 {
     return FirstToSecond(g_h264_profiles, android_value, mfx_value);
