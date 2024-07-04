@@ -33,6 +33,10 @@
 #include "mfx_c2_encoder_component.h"
 #endif
 
+#ifdef ENABLE_WIDEVINE
+#include "mfx_c2_secure_decoder_component.h"
+#endif
+
 using namespace android;
 
 
@@ -65,6 +69,10 @@ MfxC2ComponentsRegistry::MfxC2ComponentsRegistry()
 #else
     MfxC2DecoderComponent::RegisterClass(*this);
     MfxC2EncoderComponent::RegisterClass(*this);
+#endif
+
+#ifdef ENABLE_WIDEVINE
+    MfxC2SecureDecoderComponent::RegisterClass(*this);
 #endif
 }
 

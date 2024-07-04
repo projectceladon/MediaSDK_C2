@@ -74,6 +74,57 @@ c2_status_t MfxStatusToC2(mfxStatus mfx_status)
     }
 }
 
+mfxStatus va_to_mfx_status(VAStatus vaSts)
+{
+    switch (vaSts)
+    {
+        case VA_STATUS_SUCCESS:
+        {
+            return MFX_ERR_NONE;
+        }
+        case VA_STATUS_ERROR_OPERATION_FAILED:
+        {
+            return MFX_ERR_ABORTED;
+        }
+        case VA_STATUS_ERROR_DECODING_ERROR:
+        case VA_STATUS_ERROR_ENCODING_ERROR:
+        {
+            return MFX_ERR_DEVICE_FAILED;
+        }
+        case VA_STATUS_ERROR_ALLOCATION_FAILED:
+        {
+            return MFX_ERR_MEMORY_ALLOC;
+        }
+        case VA_STATUS_ERROR_INVALID_DISPLAY:
+        case VA_STATUS_ERROR_INVALID_CONFIG:
+        case VA_STATUS_ERROR_INVALID_CONTEXT:
+        case VA_STATUS_ERROR_INVALID_SURFACE:
+        case VA_STATUS_ERROR_INVALID_BUFFER:
+        case VA_STATUS_ERROR_INVALID_IMAGE:
+        case VA_STATUS_ERROR_INVALID_SUBPICTURE:
+        case VA_STATUS_ERROR_INVALID_PARAMETER:
+        case VA_STATUS_ERROR_INVALID_IMAGE_FORMAT:
+        {
+            return MFX_ERR_INVALID_HANDLE;
+        }
+        case VA_STATUS_ERROR_ATTR_NOT_SUPPORTED:
+        case VA_STATUS_ERROR_UNSUPPORTED_PROFILE:
+        case VA_STATUS_ERROR_UNSUPPORTED_ENTRYPOINT:
+        case VA_STATUS_ERROR_UNSUPPORTED_RT_FORMAT:
+        case VA_STATUS_ERROR_UNSUPPORTED_BUFFERTYPE:
+        case VA_STATUS_ERROR_FLAG_NOT_SUPPORTED:
+        case VA_STATUS_ERROR_RESOLUTION_NOT_SUPPORTED:
+        case VA_STATUS_ERROR_UNIMPLEMENTED:
+        {
+            return MFX_ERR_UNSUPPORTED;
+        }
+        default:
+        {
+            return MFX_ERR_UNKNOWN;
+        }
+    }
+}
+
 c2_status_t GetC2ConstGraphicBlock(
     const C2FrameData& buf_pack, std::unique_ptr<C2ConstGraphicBlock>* c_graph_block)
 {
@@ -514,7 +565,7 @@ int MfxFourCCToGralloc(mfxU32 fourcc, bool using_video_memory)
         case MFX_FOURCC_NV12:
             return using_video_memory ? HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL : HAL_PIXEL_FORMAT_NV12;
         case MFX_FOURCC_P010:
-            return using_video_memory ? HAL_PIXEL_FORMAT_P010_INTEL : HAL_PIXEL_FORMAT_YCBCR_P010;
+            return HAL_PIXEL_FORMAT_P010_INTEL;
         default:
             return 0;
     }
@@ -757,37 +808,6 @@ bool IsYV12(const C2GraphicView &view) {
             && layout.planes[layout.PLANE_V].colInc == 1
             && layout.planes[layout.PLANE_V].rootIx == layout.PLANE_U
             && layout.planes[layout.PLANE_V].offset == 0);
-}
-
-bool IsP010(const C2GraphicView &view) {
-    const C2PlanarLayout &layout = view.layout();
-        return (layout.numPlanes == 3
-            && layout.type == C2PlanarLayout::TYPE_YUV
-            && layout.planes[layout.PLANE_Y].channel == C2PlaneInfo::CHANNEL_Y
-            && layout.planes[layout.PLANE_Y].allocatedDepth == 16
-            && layout.planes[layout.PLANE_Y].bitDepth == 10
-            && layout.planes[layout.PLANE_Y].rightShift == 6
-            && layout.planes[layout.PLANE_Y].colSampling == 1
-            && layout.planes[layout.PLANE_Y].rowSampling == 1
-            && layout.planes[layout.PLANE_U].channel == C2PlaneInfo::CHANNEL_CB
-            && layout.planes[layout.PLANE_U].allocatedDepth == 16
-            && layout.planes[layout.PLANE_U].bitDepth == 10
-            && layout.planes[layout.PLANE_U].rightShift == 6
-            && layout.planes[layout.PLANE_U].colSampling == 2
-            && layout.planes[layout.PLANE_U].rowSampling == 2
-            && layout.planes[layout.PLANE_V].channel == C2PlaneInfo::CHANNEL_CR
-            && layout.planes[layout.PLANE_V].allocatedDepth == 16
-            && layout.planes[layout.PLANE_V].bitDepth == 10
-            && layout.planes[layout.PLANE_V].rightShift == 6
-            && layout.planes[layout.PLANE_V].colSampling == 2
-            && layout.planes[layout.PLANE_V].rowSampling == 2
-            && layout.rootPlanes == 2
-            && layout.planes[layout.PLANE_U].colInc == 4
-            && layout.planes[layout.PLANE_U].rootIx == layout.PLANE_U
-            && layout.planes[layout.PLANE_U].offset == 0
-            && layout.planes[layout.PLANE_V].colInc == 4
-            && layout.planes[layout.PLANE_V].rootIx == layout.PLANE_U
-            && layout.planes[layout.PLANE_V].offset == 2);
 }
 
 void ParseGop(

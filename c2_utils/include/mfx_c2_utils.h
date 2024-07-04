@@ -28,6 +28,8 @@
 
 c2_status_t MfxStatusToC2(mfxStatus mfx_status);
 
+mfxStatus va_to_mfx_status(VAStatus vaSts);
+
 inline mfxU64 TimestampC2ToMfx(uint64_t timestamp)
 {
     return timestamp * 90000 / MFX_SECOND_NS;
@@ -119,8 +121,6 @@ bool IsNV12(const C2GraphicView &view);
 bool IsI420(const C2GraphicView &view);
 
 bool IsYV12(const C2GraphicView &view);
-
-bool IsP010(const C2GraphicView &view);
 
 void ParseGop(const std::shared_ptr<C2StreamGopTuning::output> gop, 
     uint32_t &syncInterval, uint32_t &iInterval, uint32_t &maxBframes);
@@ -220,9 +220,6 @@ template<>struct mfx_ext_buffer_id<mfxExtVideoSignalInfo> {
 };
 template<>struct mfx_ext_buffer_id<mfxExtEncoderResetOption> {
     enum {id = MFX_EXTBUFF_ENCODER_RESET_OPTION };
-};
-template<>struct mfx_ext_buffer_id<mfxExtCodingOption3> {
-    enum {id = MFX_EXTBUFF_CODING_OPTION3};
 };
 
 template <typename R>

@@ -48,6 +48,8 @@ public:
 
     virtual std::shared_ptr<MfxFramePoolAllocator> GetFramePoolAllocator() = 0;
 
+    virtual bool CheckHUCSupport(VAProfile profile) = 0;
+
 #ifdef USE_ONEVPL
     virtual mfxStatus InitMfxSession(mfxSession session) = 0;
 #else

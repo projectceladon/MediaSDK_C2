@@ -142,17 +142,17 @@ public:
 
     void Reset()
     {
-        m_SeqParams.Reset();
-        m_SeqExParams.Reset();
-        m_SeqParamsMvcExt.Reset();
-        m_PicParams.Reset();
+        m_seqParams.Reset();
+        m_seqExParams.Reset();
+        m_seqParamsMvcExt.Reset();
+        m_picParams.Reset();
         m_SEIParams.Reset();
     }
 
-    HeaderSet<AVCSeqParamSet>             m_SeqParams;
-    HeaderSet<AVCSeqParamSetExtension>    m_SeqExParams;
-    HeaderSet<AVCSeqParamSet>             m_SeqParamsMvcExt;
-    HeaderSet<AVCPicParamSet>             m_PicParams;
+    HeaderSet<AVCSeqParamSet>             m_seqParams;
+    HeaderSet<AVCSeqParamSetExtension>    m_seqExParams;
+    HeaderSet<AVCSeqParamSet>             m_seqParamsMvcExt;
+    HeaderSet<AVCPicParamSet>             m_picParams;
     HeaderSet<AVCSEIPayLoad>              m_SEIParams;
     AVCNalExtension                       m_nalExtension;
 };

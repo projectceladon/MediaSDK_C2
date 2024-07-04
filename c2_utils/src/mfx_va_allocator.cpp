@@ -31,8 +31,6 @@
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_va_allocator"
 
-#define va_to_mfx_status(sts) ((VA_STATUS_SUCCESS == sts) ? MFX_ERR_NONE : MFX_ERR_UNKNOWN)
-
 #define IS_PRIME_VALID(prime) ((prime >= 0) ? true : false)
 
 #define DRM_FORMAT_MOD_VENDOR_NONE  0

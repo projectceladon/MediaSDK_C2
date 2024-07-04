@@ -222,6 +222,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         .build());
 
     switch(m_decoderType) {
+        case DECODER_H264_SECURE:
         case DECODER_H264: {
             m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
 
@@ -277,6 +278,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 .build());
             break;
         }
+        case DECODER_H265_SECURE:
         case DECODER_H265: {
             m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
 
@@ -370,9 +372,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                         .oneOf({
                             PROFILE_VP9_0,
                             PROFILE_VP9_1,
-                            // TODO: support 10-bit HDR
-                            // PROFILE_VP9_2,
-                            // PROFILE_VP9_3,
+                            PROFILE_VP9_2,
+                            PROFILE_VP9_3,
                         }),
                     C2F(m_profileLevel, C2ProfileLevelStruct::level)
                         .oneOf({
@@ -523,15 +524,9 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                     C2F(m_profileLevel, C2ProfileLevelStruct::level)
                         .oneOf({
                             LEVEL_AV1_2, LEVEL_AV1_2_1,
-                            LEVEL_AV1_2_2, LEVEL_AV1_2_3,
+                            LEVEL_AV1_2_1, LEVEL_AV1_2_3,
                             LEVEL_AV1_3, LEVEL_AV1_3_1,
-                            LEVEL_AV1_3_2, LEVEL_AV1_3_3,
-			    LEVEL_AV1_4, LEVEL_AV1_4_1,
-			    LEVEL_AV1_4_2, LEVEL_AV1_4_3,
-			    LEVEL_AV1_5, LEVEL_AV1_5_1,
-			    LEVEL_AV1_5_2, LEVEL_AV1_5_3,
-			    LEVEL_AV1_6, LEVEL_AV1_6_1,
-			    LEVEL_AV1_6_2, LEVEL_AV1_6_3,
+                            LEVEL_AV1_3_2,
                         }),})
                 .withSetter(ProfileLevelSetter, m_size)
                 .build());
@@ -882,6 +877,14 @@ void MfxC2DecoderComponent::InitFrameConstructor()
     case DECODER_AV1:
         fc_type = MfxC2FC_AV1;
         break;
+#ifdef ENABLE_WIDEVINE
+    case DECODER_H264_SECURE:
+        fc_type = MfxC2FC_SEC_AVC;
+        break;
+    case DECODER_H265_SECURE:
+        fc_type = MfxC2FC_SEC_HEVC;
+        break;
+#endif
     default:
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
         fc_type = MfxC2FC_None;
@@ -1026,9 +1029,11 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
 
     switch (m_decoderType)
     {
+    case DECODER_H264_SECURE:
     case DECODER_H264:
         m_mfxVideoParams.mfx.CodecId = MFX_CODEC_AVC;
         break;
+    case DECODER_H265_SECURE:
     case DECODER_H265:
         m_mfxVideoParams.mfx.CodecId = MFX_CODEC_HEVC;
         break;
@@ -1913,7 +1918,7 @@ void MfxC2DecoderComponent::EmptyReadViews(uint64_t timestamp, uint64_t frame_in
 
     auto it = m_duplicatedTimeStamp.begin();
     for (; it != m_duplicatedTimeStamp.end(); it++) {
-        if (it->first < timestamp) {
+        if (it->first <= timestamp) {
            ReleaseReadViews(it->second);
         }
     }
@@ -1968,15 +1973,6 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             }
         }
         return;
-    } else if (DECODER_AV1 == m_decoderType && m_c2Bitstream->IsInReset()) {
-        if (true == m_bInitialized) {
-            mfxStatus format_change_sts = HandleFormatChange();
-            MFX_DEBUG_TRACE__mfxStatus(format_change_sts);
-            mfx_sts = format_change_sts;
-            if (MFX_ERR_NONE != mfx_sts) {
-                FreeDecoder();
-            }
-        }
     }
 
     do {
