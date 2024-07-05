@@ -361,6 +361,20 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
                         }),})
                 .withSetter(HEVC_ProfileLevelSetter)
                 .build());
+
+            std::vector<uint32_t> supportedPixelFormats = {
+                HAL_PIXEL_FORMAT_YCBCR_420_888,
+                HAL_PIXEL_FORMAT_YCBCR_P010
+            };
+
+            addParameter(
+                DefineParam(m_pixelFormat, C2_PARAMKEY_PIXEL_FORMAT)
+                .withDefault(new C2StreamPixelFormatInfo::input(
+                                    0u, HAL_PIXEL_FORMAT_YCBCR_420_888))
+                .withFields({C2F(m_pixelFormat, value).oneOf(supportedPixelFormats)})
+                .withSetter((Setter<decltype(*m_pixelFormat)>::StrictValueWithNoDeps))
+                .build());
+
             break;
         };
         case ENCODER_VP9: {
@@ -391,6 +405,20 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
                         }),})
                 .withSetter(VP9_ProfileLevelSetter)
                 .build());
+
+            std::vector<uint32_t> supportedPixelFormats = {
+                HAL_PIXEL_FORMAT_YCBCR_420_888,
+                HAL_PIXEL_FORMAT_YCBCR_P010
+            };
+
+            addParameter(
+                DefineParam(m_pixelFormat, C2_PARAMKEY_PIXEL_FORMAT)
+                .withDefault(new C2StreamPixelFormatInfo::input(
+                                    0u, HAL_PIXEL_FORMAT_YCBCR_420_888))
+                .withFields({C2F(m_pixelFormat, value).oneOf(supportedPixelFormats)})
+                .withSetter((Setter<decltype(*m_pixelFormat)>::StrictValueWithNoDeps))
+                .build());
+
             break;
         };
         default: {
