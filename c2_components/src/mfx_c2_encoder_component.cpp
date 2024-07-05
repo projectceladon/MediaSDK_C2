@@ -425,6 +425,15 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
                         }),})
                 .withSetter(HEVC_ProfileLevelSetter)
                 .build());
+
+            addParameter(
+                DefineParam(m_pixelFormat, C2_PARAMKEY_PIXEL_FORMAT)
+                .withFields({C2F(m_pixelFormat, value)
+                    .oneOf({
+                        HAL_PIXEL_FORMAT_YCBCR_P010,
+                    })})
+                .build());
+
             break;
         };
         case ENCODER_VP9: {
@@ -452,6 +461,15 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
                         }),})
                 .withSetter(VP9_ProfileLevelSetter)
                 .build());
+
+            addParameter(
+                DefineParam(m_pixelFormat, C2_PARAMKEY_PIXEL_FORMAT)
+                .withFields({C2F(m_pixelFormat, value)
+                    .oneOf({
+                        HAL_PIXEL_FORMAT_YCBCR_P010,
+                    })})
+                .build());
+
             break;
         };
         default: {
