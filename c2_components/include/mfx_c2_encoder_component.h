@@ -239,6 +239,8 @@ private:
     std::shared_ptr<C2StreamIntraRefreshTuning::output> m_intraRefresh;
     std::shared_ptr<C2StreamColorAspectsInfo::input> m_colorAspects;
     std::shared_ptr<C2StreamColorAspectsInfo::output> m_codedColorAspects;
+    std::shared_ptr<C2StreamPixelFormatInfo::input> m_pixelFormat;
+
     /* ---------------------------------Setters------------------------------------------- */
     static C2R SizeSetter(bool mayBlock, const C2P<C2StreamPictureSizeInfo::input> &oldMe,
                         C2P<C2StreamPictureSizeInfo::input> &me);
