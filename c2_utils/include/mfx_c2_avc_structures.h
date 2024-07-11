@@ -25,6 +25,7 @@
 #include <string.h>
 #include <vector>
 #include "mfxstructures.h"
+#include "mfx_defs.h"
 
 namespace AVCParser
 {
@@ -534,8 +535,7 @@ struct AVCPicParamSetBase
 
     void Reset()
     {
-        AVCPicParamSetBase pps = {};
-        *this = pps;
+        *this = {};
     }
 };    // AVCPicParamSet
 

@@ -46,7 +46,7 @@ private:
     virtual void SetC2Allocator(std::shared_ptr<C2BlockPool> c2_allocator) override
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_c2Allocator = c2_allocator;
+        m_c2Allocator = std::move(c2_allocator);
     }
 
     virtual std::shared_ptr<C2GraphicBlock> Alloc() override

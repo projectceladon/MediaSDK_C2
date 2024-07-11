@@ -1231,7 +1231,7 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         cropH = m_mfxVideoParams.mfx.FrameInfo.CropH;
 
         if (m_allocator) {
-            m_allocator->SetC2Allocator(c2_allocator);
+            m_allocator->SetC2Allocator(std::move(c2_allocator));
             m_allocator->SetBufferCount(m_uOutputDelay);
             m_allocator->SetConsumerUsage(m_consumerUsage);
         }
@@ -1794,7 +1794,7 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
             it = m_surfaces.find(id);
             if (it == m_surfaces.end()){
                 // haven't been used for decoding yet
-                res = MfxC2FrameOut::Create(converter, out_block, m_mfxVideoParams.mfx.FrameInfo, frame_out, hndl.get());
+                res = MfxC2FrameOut::Create(converter, std::move(out_block), m_mfxVideoParams.mfx.FrameInfo, frame_out, hndl.get());
                 if (C2_OK != res) {
                     break;
                 }
@@ -1846,7 +1846,7 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
                 }
             } else {
                 // small resolution video playback with system memory
-                res = MfxC2FrameOut::Create(out_block, m_mfxVideoParams.mfx.FrameInfo, TIMEOUT_NS, frame_out);
+                res = MfxC2FrameOut::Create(std::move(out_block), m_mfxVideoParams.mfx.FrameInfo, TIMEOUT_NS, frame_out);
             }
 
             if (C2_OK != res) {

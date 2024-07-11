@@ -45,7 +45,7 @@ c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converte
         C2FrameData& buf_pack, mfxFrameSurface1 *mfx_frame)
 {
     m_c2GraphicView = std::move(c_graph_view);
-    m_frameConverter = frame_converter;
+    m_frameConverter = std::move(frame_converter);
     m_pMfxFrameSurface = mfx_frame;
     m_c2Buffer = std::move(buf_pack.buffers.front());
 

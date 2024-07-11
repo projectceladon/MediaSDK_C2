@@ -31,8 +31,6 @@ class MfxC2BufferQueueBlockPool : public C2BlockPool {
 public:
     MfxC2BufferQueueBlockPool(const std::shared_ptr<C2Allocator> &allocator, const local_id_t localId);
 
-    virtual ~MfxC2BufferQueueBlockPool() override;
-
     virtual C2Allocator::id_t getAllocatorId() const override {
         return android::C2PlatformAllocatorStore::BUFFERQUEUE;
     };
