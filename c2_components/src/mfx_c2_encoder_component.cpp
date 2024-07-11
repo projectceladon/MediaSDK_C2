@@ -1275,7 +1275,7 @@ c2_status_t MfxC2EncoderComponent::AllocateBitstream(const std::unique_ptr<C2Wor
         res = m_c2Allocator->fetchLinearBlock(required_size, mem_usage, &out_block);
         if(C2_OK != res) break;
 
-        res = MfxC2BitstreamOut::Create(out_block, TIMEOUT_NS, mfx_bitstream);
+        res = MfxC2BitstreamOut::Create(std::move(out_block), TIMEOUT_NS, mfx_bitstream);
 
     } while(false);
 
@@ -1425,7 +1425,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 res = MfxStatusToC2(mfx_sts);
                 break;
             }
-            res = mfx_frame_in.init(frame_converter, input, m_mfxVideoParamsConfig.mfx.FrameInfo, &m_encSrfPool[nIndex], TIMEOUT_NS);
+            res = mfx_frame_in.init(std::move(frame_converter), input, m_mfxVideoParamsConfig.mfx.FrameInfo, &m_encSrfPool[nIndex], TIMEOUT_NS);
         }
         if(C2_OK != res) break;
 
@@ -1624,7 +1624,7 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
             C2ConstLinearBlock const_linear = bit_stream.GetC2LinearBlock()->share(
                 mfx_bitstream->DataOffset,
                 mfx_bitstream->DataLength, C2Fence()/*event.fence()*/);
-            C2Buffer out_buffer = MakeC2Buffer( { const_linear } );
+            C2Buffer out_buffer = MakeC2Buffer( { std::move(const_linear) } );
             if ((mfx_bitstream->FrameType & MFX_FRAMETYPE_IDR) != 0 || (mfx_bitstream->FrameType & MFX_FRAMETYPE_I) != 0 ) {
                 out_buffer.setInfo(std::make_shared<C2StreamPictureTypeMaskInfo::output>(0u/*stream id*/, C2Config::SYNC_FRAME));
             }
@@ -1703,7 +1703,7 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
                 if (MFX_ERR_NONE == mfx_res) {
                     // validate coded color aspects here
                     std::shared_ptr<C2StreamColorAspectsInfo::output> codedColorAspects = getCodedColorAspects_l();
-                    if (CodedColorAspectsDiffer(codedColorAspects)) {
+                    if (CodedColorAspectsDiffer(std::move(codedColorAspects))) {
                         // not a fatal error
                         MFX_LOG_INFO("Color aspects are not coded as expected!");
                     }

@@ -715,8 +715,6 @@ MfxC2BufferQueueBlockPool::MfxC2BufferQueueBlockPool(
         const std::shared_ptr<C2Allocator> &allocator, const local_id_t localId)
         : mAllocator(allocator), local_id_(localId), impl_(new Impl(allocator)) {}
 
-MfxC2BufferQueueBlockPool::~MfxC2BufferQueueBlockPool() {}
-
 c2_status_t MfxC2BufferQueueBlockPool::fetchGraphicBlock(
         uint32_t width,
         uint32_t height,

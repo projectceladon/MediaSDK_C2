@@ -82,7 +82,7 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
         }
 
         wrapper->m_c2GraphicBlock = block;
-        wrapper->m_mfxSurface = mfx_frame;
+        wrapper->m_mfxSurface = std::move(mfx_frame);
 
     } while(false);
 
@@ -138,7 +138,7 @@ c2_status_t MfxC2FrameOut::Create(std::shared_ptr<C2GraphicBlock> block,
             mfx_frame.get());
 
         wrapper->m_c2GraphicBlock = block;
-        wrapper->m_mfxSurface = mfx_frame;
+        wrapper->m_mfxSurface = std::move(mfx_frame);
 
     } while(false);
 

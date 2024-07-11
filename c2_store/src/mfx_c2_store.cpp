@@ -136,7 +136,7 @@ c2_status_t MfxC2ComponentStore::createInterface(C2String name, std::shared_ptr<
     MFX_DEBUG_TRACE_FUNC;
 
     std::shared_ptr<C2Component> component;
-    c2_status_t result = createComponent(name, &component);
+    c2_status_t result = createComponent(std::move(name), &component);
 
     if(result == C2_OK) {
         *interface = component->intf();

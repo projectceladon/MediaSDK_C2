@@ -30,21 +30,35 @@ using namespace android;
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_component"
 
 MfxC2Component::MfxC2Component(const C2String& name, const CreateConfig& config, std::shared_ptr<C2ReflectorHelper> reflector) :
-    C2InterfaceHelper(reflector),
+    C2InterfaceHelper(std::move(reflector)),
     m_name(name),
     m_createConfig(config),
     m_mfxImplementation(MFX_IMPLEMENTATION)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    MfxC2ComponentsMonitor::getInstance().increase(m_name.c_str());
+    try
+    {
+        MfxC2ComponentsMonitor::getInstance().increase(m_name.c_str());
+    }
+    catch(const std::exception& e)
+    {
+        MFX_DEBUG_TRACE_STREAM("MfxC2ComponentsMonitor increase got exception: " << e.what() << '\n');
+    }
 }
 
 MfxC2Component::~MfxC2Component()
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    MfxC2ComponentsMonitor::getInstance().decrease(m_name.c_str());
+    try
+    {
+        MfxC2ComponentsMonitor::getInstance().decrease(m_name.c_str());
+    }
+    catch(const std::exception& e)
+    {
+        MFX_DEBUG_TRACE_STREAM("MfxC2ComponentsMonitor decrease got exception: " << e.what() << '\n');
+    }
 }
 
 c2_status_t MfxC2Component::DoStart()
@@ -502,7 +516,7 @@ void MfxC2Component::NotifyListeners(std::function<void(std::shared_ptr<Listener
         listeners_copy = m_listeners;
     }
     for(std::shared_ptr<Listener> listener : listeners_copy) {
-        notify(listener);
+        notify(std::move(listener));
     }
 }
 
@@ -520,11 +534,11 @@ void MfxC2Component::NotifyWorkDone(std::unique_ptr<C2Work>&& work, c2_status_t 
 
     std::weak_ptr<C2Component> weak_this = shared_from_this();
 
-    NotifyListeners([weak_this, &work] (std::shared_ptr<Listener> listener)
+    NotifyListeners([&weak_this, &work] (std::shared_ptr<Listener> listener)
     {
         std::list<std::unique_ptr<C2Work>> work_items;
         work_items.push_back(std::move(work));
-        listener->onWorkDone_nb(weak_this, std::move(work_items));
+        listener->onWorkDone_nb(std::move(weak_this), std::move(work_items));
     });
 }
 
@@ -553,9 +567,9 @@ void MfxC2Component::ConfigError(const std::vector<std::shared_ptr<C2SettingResu
     }
 
     std::weak_ptr<C2Component> weak_this = shared_from_this();
-    NotifyListeners([weak_this, setting_result] (std::shared_ptr<Listener> listener)
+    NotifyListeners([&weak_this, setting_result] (std::shared_ptr<Listener> listener)
     {
-        listener->onTripped_nb(weak_this, setting_result);
+        listener->onTripped_nb(std::move(weak_this), setting_result);
     });
 }
 
@@ -584,8 +598,8 @@ void MfxC2Component::FatalError(c2_status_t error)
     }
 
     std::weak_ptr<C2Component> weak_this = shared_from_this();
-    NotifyListeners([weak_this, error] (std::shared_ptr<Listener> listener)
+    NotifyListeners([&weak_this, error] (std::shared_ptr<Listener> listener)
     {
-        listener->onError_nb(weak_this, error);
+        listener->onError_nb(std::move(weak_this), error);
     });
 }

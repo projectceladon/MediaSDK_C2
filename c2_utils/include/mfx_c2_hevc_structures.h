@@ -236,6 +236,7 @@ const uint16_t SAspectRatio[17][2] =
 // Scaling list data structure
 class H265ScalingList
 {
+MFX_CLASS_NO_COPY(H265ScalingList)
 public:
     H265ScalingList() { m_bInitialized = false; }
     ~H265ScalingList()
@@ -710,8 +711,7 @@ struct H265SeqParamSetBase
 
     void Reset()
     {
-        H265SeqParamSetBase sps = {};
-        *this = sps;
+        *this = {};
     }
 
 };    // H265SeqParamSetBase
@@ -907,8 +907,7 @@ struct H265PicParamSetBase
 
     void Reset()
     {
-        H265PicParamSetBase pps = {};
-        *this = pps;
+        *this = {};
     }
 };  // H265PicParamSetBase
 

@@ -77,6 +77,7 @@ private:
     // that ptr should be freed with MfxPoolImpl<T>::Destroy.
     class MfxPoolImpl : public std::enable_shared_from_this<MfxPoolImpl>
     {
+    MFX_CLASS_NO_COPY(MfxPoolImpl)
     private:
         std::mutex m_mutex;
         // Signals new free resource added to the pool.
@@ -86,6 +87,7 @@ private:
         // Signal when instance destroyed
         std::promise<void> m_destroyed;
     public:
+        MfxPoolImpl() = default;
         ~MfxPoolImpl()
         {
             try
@@ -130,7 +132,7 @@ private:
 
             std::unique_ptr<T> free_block = std::move(m_free.front());
             m_free.pop_front();
-            return std::shared_ptr<T>(free_block.release(), deleter);
+            return std::shared_ptr<T>(free_block.release(), std::move(deleter));
         }
 
         std::future<void> Destroyed()

@@ -32,6 +32,7 @@ class MfxC2FrameIn
 public:
     MfxC2FrameIn() = default;
     MfxC2FrameIn(MfxC2FrameIn&& other) = default;
+    MfxC2FrameIn& operator=(const MfxC2FrameIn&) = delete;
     ~MfxC2FrameIn();
 
     c2_status_t init(std::shared_ptr<MfxFrameConverter> frame_converter,  std::unique_ptr<const C2GraphicView> c_graph_view,

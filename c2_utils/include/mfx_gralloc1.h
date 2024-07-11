@@ -27,7 +27,9 @@
 
 class MfxGralloc1Module : public IMfxGrallocModule
 {
+MFX_CLASS_NO_COPY(MfxGralloc1Module)
 public:
+    MfxGralloc1Module() = default;
     virtual ~MfxGralloc1Module();
 
     virtual c2_status_t Init() override;

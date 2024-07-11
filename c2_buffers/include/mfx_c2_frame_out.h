@@ -34,7 +34,7 @@ public:
     MfxC2FrameOut(std::shared_ptr<C2GraphicBlock>&& c2_block,
         std::shared_ptr<mfxFrameSurface1> mfx_frame)
         : m_c2GraphicBlock(std::move(c2_block))
-        , m_mfxSurface(mfx_frame)
+        , m_mfxSurface(std::move(mfx_frame))
     {}
 
     static c2_status_t Create(const std::shared_ptr<MfxFrameConverter>& frame_converter,

@@ -85,7 +85,7 @@ void MfxCmdQueue::Push(Task&& task)
     // so we create copy assignable lambda - it captures shared_ptr to incoming task
     std::shared_ptr<Task> shared_task = std::make_shared<Task>(std::move(task));
 
-    MfxCmd cmd = [shared_task] () { (*shared_task)(); }; // just call task
+    MfxCmd cmd = [moved_task = std::move(shared_task)] () { (*moved_task)(); }; // just call task
 
     std::lock_guard<std::mutex> lock(m_mutex);
     m_data.push(cmd);

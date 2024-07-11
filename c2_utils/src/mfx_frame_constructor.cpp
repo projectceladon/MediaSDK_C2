@@ -428,13 +428,12 @@ mfxStatus MfxC2AVCFrameConstructor::FindHeaders(const mfxU8* data, mfxU32 size, 
                     length -= size + start_code.size;
                 sps->DataLength = length;
                 MFX_DEBUG_TRACE_STREAM("Found SPS size " << length);
-                mfx_res = SaveHeaders(sps, nullptr, false);
+                mfx_res = SaveHeaders(std::move(sps), nullptr, false);
                 if (MFX_ERR_NONE != mfx_res) return mfx_res;
                 found_sps = true;
             }
             if (isPPS(start_code.type)) {
                 std::shared_ptr<mfxBitstream> pps = std::make_shared<mfxBitstream>();
-                if (!pps) return MFX_ERR_MEMORY_ALLOC;
 
                 MFX_ZERO_MEMORY((*pps));
                 pps->Data = (mfxU8*)data - start_code.size;
@@ -445,7 +444,7 @@ mfxStatus MfxC2AVCFrameConstructor::FindHeaders(const mfxU8* data, mfxU32 size, 
                     length -= size + start_code.size;
                 pps->DataLength = length;
                 MFX_DEBUG_TRACE_STREAM("Found PPS size " << length);
-                mfx_res = SaveHeaders(nullptr, pps, false);
+                mfx_res = SaveHeaders(nullptr, std::move(pps), false);
                 if (MFX_ERR_NONE != mfx_res) return mfx_res;
                 found_pps = true;
             }
