@@ -778,7 +778,7 @@ void ParseGop(
                 iInt *= (layer.count + 1);
             }
         }
-        if (layer.type_ == C2Config::picture_type_t(P_FRAME | B_FRAME) && maxBframes) {
+        if (layer.type_ == C2Config::picture_type_t(P_FRAME | B_FRAME)) {
             maxBframes = layer.count;
         }
     }
