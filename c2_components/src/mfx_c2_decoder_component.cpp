@@ -322,12 +322,13 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                             LEVEL_HEVC_MAIN_2, LEVEL_HEVC_MAIN_2_1,
                             LEVEL_HEVC_MAIN_3, LEVEL_HEVC_MAIN_3_1,
                             LEVEL_HEVC_MAIN_4, LEVEL_HEVC_MAIN_4_1,
+                            LEVEL_HEVC_HIGH_4, LEVEL_HEVC_HIGH_4_1,
                             LEVEL_HEVC_MAIN_5, LEVEL_HEVC_MAIN_5_1,
-                            LEVEL_HEVC_MAIN_5_2, LEVEL_HEVC_HIGH_4,
-                            LEVEL_HEVC_HIGH_4_1, LEVEL_HEVC_HIGH_5,
+                            LEVEL_HEVC_MAIN_5_2, LEVEL_HEVC_HIGH_5,
                             LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
                             LEVEL_HEVC_MAIN_6, LEVEL_HEVC_MAIN_6_1,
-                            LEVEL_HEVC_MAIN_6_2,
+                            LEVEL_HEVC_MAIN_6_2, LEVEL_HEVC_HIGH_6,
+                            LEVEL_HEVC_HIGH_6_1, LEVEL_HEVC_HIGH_6_2
                         }),})
                 .withSetter(ProfileLevelSetter, m_size)
                 .build());
@@ -380,7 +381,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                             LEVEL_VP9_2, LEVEL_VP9_2_1,
                             LEVEL_VP9_3, LEVEL_VP9_3_1,
                             LEVEL_VP9_4, LEVEL_VP9_4_1,
-                            LEVEL_VP9_5,
+                            LEVEL_VP9_5, LEVEL_VP9_5_1
                         }),})
                 .withSetter(ProfileLevelSetter, m_size)
                 .build());
@@ -526,12 +527,12 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                             LEVEL_AV1_2_2, LEVEL_AV1_2_3,
                             LEVEL_AV1_3, LEVEL_AV1_3_1,
                             LEVEL_AV1_3_2, LEVEL_AV1_3_3,
-			    LEVEL_AV1_4, LEVEL_AV1_4_1,
-			    LEVEL_AV1_4_2, LEVEL_AV1_4_3,
-			    LEVEL_AV1_5, LEVEL_AV1_5_1,
-			    LEVEL_AV1_5_2, LEVEL_AV1_5_3,
-			    LEVEL_AV1_6, LEVEL_AV1_6_1,
-			    LEVEL_AV1_6_2, LEVEL_AV1_6_3,
+                            LEVEL_AV1_4, LEVEL_AV1_4_1,
+                            LEVEL_AV1_4_2, LEVEL_AV1_4_3,
+                            LEVEL_AV1_5, LEVEL_AV1_5_1,
+                            LEVEL_AV1_5_2, LEVEL_AV1_5_3,
+                            LEVEL_AV1_6, LEVEL_AV1_6_1,
+                            LEVEL_AV1_6_2, LEVEL_AV1_6_3
                         }),})
                 .withSetter(ProfileLevelSetter, m_size)
                 .build());
