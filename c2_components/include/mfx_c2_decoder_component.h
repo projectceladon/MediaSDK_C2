@@ -292,4 +292,5 @@ private:
     static C2R ColorAspectsSetter(bool mayBlock, C2P<C2StreamColorAspectsInfo::output> &me,
                                 const C2P<C2StreamColorAspectsTuning::output> &def,
                                 const C2P<C2StreamColorAspectsInfo::input> &coded);
+    static C2R HdrStaticInfoSetter(bool mayBlock, C2P<C2StreamHdrStaticInfo::output> &me);
 };
