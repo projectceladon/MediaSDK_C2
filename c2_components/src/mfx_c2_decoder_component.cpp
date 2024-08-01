@@ -158,9 +158,75 @@ C2R MfxC2DecoderComponent::ColorAspectsSetter(bool mayBlock, C2P<C2StreamColorAs
     return C2R::Ok();
 }
 
+C2R MfxC2DecoderComponent::HdrStaticInfoSetter(bool mayBlock, C2P<C2StreamHdrStaticInfo::output> &me) {
+    (void)mayBlock;
+    if (me.v.mastering.red.x > 1) {
+      me.set().mastering.red.x = 1;
+    }
+    if (me.v.mastering.red.y > 1) {
+      me.set().mastering.red.y = 1;
+    }
+    if (me.v.mastering.green.x > 1) {
+      me.set().mastering.green.x = 1;
+    }
+    if (me.v.mastering.green.y > 1) {
+      me.set().mastering.green.y = 1;
+    }
+    if (me.v.mastering.blue.x > 1) {
+      me.set().mastering.blue.x = 1;
+    }
+    if (me.v.mastering.blue.y > 1) {
+      me.set().mastering.blue.y = 1;
+    }
+    if (me.v.mastering.white.x > 1) {
+      me.set().mastering.white.x = 1;
+    }
+    if (me.v.mastering.white.y > 1) {
+      me.set().mastering.white.y = 1;
+    }
+    if (me.v.mastering.maxLuminance > 65535.0) {
+      me.set().mastering.maxLuminance = 65535.0;
+    }
+    if (me.v.mastering.minLuminance > 6.5535) {
+      me.set().mastering.minLuminance = 6.5535;
+    }
+    if (me.v.mastering.green.y > 1) {
+      me.set().mastering.green.y = 1;
+    }
+    if (me.v.mastering.blue.x > 1) {
+      me.set().mastering.blue.x = 1;
+    }
+    if (me.v.mastering.blue.y > 1) {
+      me.set().mastering.blue.y = 1;
+    }
+    if (me.v.mastering.white.x > 1) {
+      me.set().mastering.white.x = 1;
+    }
+    if (me.v.mastering.white.y > 1) {
+      me.set().mastering.white.y = 1;
+    }
+    if (me.v.mastering.maxLuminance > 65535.0) {
+      me.set().mastering.maxLuminance = 65535.0;
+    }
+    if (me.v.mastering.minLuminance > 6.5535) {
+      me.set().mastering.minLuminance = 6.5535;
+    }
+    if (me.v.mastering.minLuminance > 6.5535) {
+      me.set().mastering.minLuminance = 6.5535;
+    }
+    if (me.v.maxCll > 65535.0) {
+      me.set().maxCll = 65535.0;
+    }
+    if (me.v.maxFall > 65535.0) {
+      me.set().maxFall = 65535.0;
+    }
+
+    return C2R::Ok();
+}
+
 MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateConfig& config,
     std::shared_ptr<C2ReflectorHelper> reflector, DecoderType decoder_type) :
-        MfxC2Component(name, config, std::move(reflector)),
+        MfxC2Component(name, config, reflector),
         m_decoderType(decoder_type),
 #ifdef USE_ONEVPL
         m_mfxSession(nullptr),
@@ -330,6 +396,39 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                             LEVEL_HEVC_MAIN_6_2,
                         }),})
                 .withSetter(ProfileLevelSetter, m_size)
+                .build());
+
+            C2HdrStaticMetadataStruct defaultStaticInfo{};
+            // HDR static with BT2020 by default
+            defaultStaticInfo.mastering = {
+                .red   = { .x = 0.708,  .y = 0.292 },
+                .green = { .x = 0.170,  .y = 0.797 },
+                .blue  = { .x = 0.131,  .y = 0.046 },
+                .white = { .x = 0.3127, .y = 0.3290 },
+                .maxLuminance = 0,
+                .minLuminance = 0,
+            };
+            defaultStaticInfo.maxCll = 0;
+            defaultStaticInfo.maxFall = 0;
+
+            reflector->addStructDescriptors<C2MasteringDisplayColorVolumeStruct, C2ColorXyStruct>();
+            addParameter( DefineParam(m_hdrStaticInfo, C2_PARAMKEY_HDR_STATIC_INFO)
+                .withDefault(new C2StreamHdrStaticInfo::output(0u, defaultStaticInfo))
+                .withFields({
+                    C2F(m_hdrStaticInfo, mastering.red.x).inRange(0, 1),
+                    C2F(m_hdrStaticInfo, mastering.red.y).inRange(0, 1),
+                    C2F(m_hdrStaticInfo, mastering.green.x).inRange(0, 1),
+                    C2F(m_hdrStaticInfo, mastering.green.y).inRange(0, 1),
+                    C2F(m_hdrStaticInfo, mastering.blue.x).inRange(0, 1),
+                    C2F(m_hdrStaticInfo, mastering.blue.y).inRange(0, 1),
+                    C2F(m_hdrStaticInfo, mastering.white.x).inRange(0, 1),
+                    C2F(m_hdrStaticInfo, mastering.white.x).inRange(0, 1),
+                    C2F(m_hdrStaticInfo, mastering.maxLuminance).inRange(0, 65535),
+                    C2F(m_hdrStaticInfo, mastering.minLuminance).inRange(0, 6.5535),
+                    C2F(m_hdrStaticInfo, maxCll).inRange(0, 0XFFFF),
+                    C2F(m_hdrStaticInfo, maxFall).inRange(0, 0XFFFF)
+                })
+                .withSetter(HdrStaticInfoSetter)
                 .build());
             break;
         }
@@ -649,19 +748,6 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         .withFields({C2F(m_pixelFormat, value).oneOf(supportedPixelFormats)})
         .withSetter((Setter<decltype(*m_pixelFormat)>::StrictValueWithNoDeps))
         .build());
-
-    // HDR static with BT2020 by default
-    m_hdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
-    m_hdrStaticInfo->mastering = {
-        .red   = { .x = 0.708,  .y = 0.292 },
-        .green = { .x = 0.170,  .y = 0.797 },
-        .blue  = { .x = 0.131,  .y = 0.046 },
-        .white = { .x = 0.3127, .y = 0.3290 },
-        .maxLuminance = 0,
-        .minLuminance = 0,
-        };
-    m_hdrStaticInfo->maxCll = 0;
-    m_hdrStaticInfo->maxFall = 0;
 
     // By default prepare buffer to be displayed on any of the common surfaces
     m_consumerUsage = kDefaultConsumerUsage;
@@ -2385,6 +2471,8 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
                 C2StreamPictureSizeInfo::output new_size(0u, m_size->width, m_size->height);
                 m_updatingC2Configures.push_back(C2Param::Copy(new_size));
             }
+
+            m_updatingC2Configures.push_back(C2Param::Copy(*m_hdrStaticInfo));
 
             // Update codec's configure
             for (int i = 0; i < m_updatingC2Configures.size(); i++) {
