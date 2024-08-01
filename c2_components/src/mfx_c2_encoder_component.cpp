@@ -2004,6 +2004,11 @@ void MfxC2EncoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
                         m_mfxVideoParamsConfig.mfx.IdrInterval, syncInterval);
                     m_mfxVideoParamsConfig.mfx.IdrInterval = syncInterval;
                 }
+                if (maxBframes > 0) {
+                    MFX_DEBUG_TRACE_PRINTF("updating m_mfxVideoParamsConfig.mfx.GopRefDist from %d to %d",
+                        m_mfxVideoParamsConfig.mfx.GopRefDist, maxBframes + 1);
+                    m_mfxVideoParamsConfig.mfx.GopRefDist = maxBframes + 1;
+                }
                 break;
             }
             case kParamIndexRequestSyncFrame: {
