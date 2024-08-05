@@ -807,7 +807,6 @@ c2_status_t MfxC2DecoderComponent::DoStop(bool abort)
     m_c2Allocator = nullptr;
 
     m_readViews.clear();
-    m_duplicatedTimeStamp.clear();
 
     FreeDecoder();
 
@@ -1880,79 +1879,43 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
     return res;
 }
 
-bool MfxC2DecoderComponent::IsDuplicatedTimeStamp(uint64_t timestamp)
+void MfxC2DecoderComponent::ReleaseReadViews(uint64_t frame_index, uint64_t timestamp)
 {
     MFX_DEBUG_TRACE_FUNC;
-
-    bool bDuplicated = false;
-
-    auto duplicate = find_if(m_duplicatedTimeStamp.begin(), m_duplicatedTimeStamp.end(),
-        [timestamp] (const auto &item) {
-            return item.first == timestamp;
-    });
-
-    if (duplicate != m_duplicatedTimeStamp.end()) {
-        bDuplicated = true;
-        MFX_DEBUG_TRACE_STREAM("Potentional error: Found duplicated timestamp: "
-                        << duplicate->first);
-    }
-
-    return bDuplicated;
-}
-
-bool MfxC2DecoderComponent::IsPartialFrame(uint64_t frame_index)
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    bool bDuplicated = false;
-
-    auto duplicate = find_if(m_duplicatedTimeStamp.begin(), m_duplicatedTimeStamp.end(),
-        [frame_index] (const auto &item) {
-            return item.second == frame_index;
-    });
-
-    if (duplicate != m_duplicatedTimeStamp.end()) {
-        bDuplicated = true;
-        MFX_DEBUG_TRACE_STREAM("Potentional error: Found duplicated timestamp: "
-                        << duplicate->first);
-    }
-
-    return bDuplicated;
-}
-
-void MfxC2DecoderComponent::EmptyReadViews(uint64_t timestamp, uint64_t frame_index)
-{
-    MFX_DEBUG_TRACE_FUNC;
-    MFX_DEBUG_TRACE_I64(timestamp);
     MFX_DEBUG_TRACE_I64(frame_index);
-
-    if (!IsDuplicatedTimeStamp(timestamp)) {
-        ReleaseReadViews(frame_index);
-        return;
-    }
-
-    auto it = m_duplicatedTimeStamp.begin();
-    for (; it != m_duplicatedTimeStamp.end(); it++) {
-        if (it->first < timestamp) {
-           ReleaseReadViews(it->second);
-        }
-    }
-}
-
-void MfxC2DecoderComponent::ReleaseReadViews(uint64_t incoming_frame_index)
-{
-    MFX_DEBUG_TRACE_FUNC;
-    MFX_DEBUG_TRACE_I64(incoming_frame_index);
+    MFX_DEBUG_TRACE_I64(timestamp);
 
     std::unique_ptr<C2ReadView> read_view;
     std::lock_guard<std::mutex> lock(m_readViewMutex);
 
-    auto it = m_readViews.find(incoming_frame_index);
+    auto it = std::find_if(m_readViews.begin(), m_readViews.end(), [timestamp, frame_index] (const auto& item) {
+        return item.first.first == frame_index && item.first.second == timestamp;
+    });
     if (it != m_readViews.end()) {
         read_view = std::move(it->second);
         read_view.reset();
         m_readViews.erase(it);
     }
+}
+
+bool MfxC2DecoderComponent::IsPartialFrame(uint64_t index, uint64_t timestamp)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    bool bDuplicated = false;
+    std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
+
+    auto found = std::find_if(m_pendingWorks.begin(), m_pendingWorks.end(), [index, timestamp] (const auto &item) {
+        return item.second->input.ordinal.timestamp.peeku() == timestamp &&
+                item.second->input.ordinal.frameIndex.peeku() != index;
+    });
+
+    if (found != m_pendingWorks.end()) {
+        bDuplicated = true;
+        MFX_DEBUG_TRACE_STREAM("Found duplicated timestamp: " << timestamp << ", it is PartialFrame");
+    }
+
+    return bDuplicated;
 }
 
 void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
@@ -1968,6 +1931,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
     mfxStatus mfx_sts = MFX_ERR_NONE;
 
     const auto incoming_frame_index = work->input.ordinal.frameIndex;
+    const auto incoming_timestamp = work->input.ordinal.timestamp;
     const auto incoming_flags = work->input.flags;
 
     MFX_DEBUG_TRACE_STREAM("work: " << work.get() << "; index: " << incoming_frame_index.peeku() <<
@@ -2006,7 +1970,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
         {
             std::lock_guard<std::mutex> lock(m_readViewMutex);
-            m_readViews.emplace(incoming_frame_index.peeku(), std::move(read_view));
+            m_readViews.emplace(std::make_pair<uint64_t, uint64_t>(incoming_frame_index.peeku(), incoming_timestamp.peeku()), std::move(read_view));
             MFX_DEBUG_TRACE_I32(m_readViews.size());
         }
 
@@ -2127,7 +2091,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         (incoming_flags & (C2FrameData::FLAG_INCOMPLETE | C2FrameData::FLAG_CODEC_CONFIG)) != 0;
 
     // sometimes the frame is split to several buffers with the same timestamp.
-    incomplete_frame |= IsPartialFrame(incoming_frame_index.peeku());
+    incomplete_frame |= IsPartialFrame(incoming_frame_index.peeku(), incoming_timestamp.peeku());
 
     // notify listener in case of failure or empty output
     if (C2_OK != res || !expect_output || incomplete_frame || flushing) {
@@ -2317,7 +2281,7 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
         const auto frame_index = work->input.ordinal.frameIndex;
 
         // Release input buffers
-        EmptyReadViews(frame_timestamp.peeku(), frame_index.peeku());
+        ReleaseReadViews(frame_index.peeku(), frame_timestamp.peeku());
     }
 
     do {
@@ -2449,30 +2413,16 @@ void MfxC2DecoderComponent::PushPending(std::unique_ptr<C2Work>&& work)
     std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
 
     const auto incoming_frame_timestamp = work->input.ordinal.timestamp;
-    auto duplicate = find_if(m_pendingWorks.begin(), m_pendingWorks.end(),
-        [incoming_frame_timestamp] (const auto &item) {
-            // When decoding the image, the timestamp is always 0, so it is excluded.
-            return (item.second->input.ordinal.timestamp == incoming_frame_timestamp) && ((c2_cntr64_t)0 != incoming_frame_timestamp);
-        });
-    if (duplicate != m_pendingWorks.end()) {
-        MFX_DEBUG_TRACE_STREAM("Potentional error: Found duplicated timestamp: "
-                               << duplicate->second->input.ordinal.timestamp.peeku());
-
-        uint64_t duplicated_timestamp = duplicate->second->input.ordinal.timestamp.peeku();
-        if (!IsDuplicatedTimeStamp(duplicated_timestamp)) {
-            m_duplicatedTimeStamp.push_back(std::make_pair(duplicate->second->input.ordinal.timestamp.peeku(),
-                                               duplicate->second->input.ordinal.frameIndex.peeku()));
-        }
-        m_duplicatedTimeStamp.push_back(std::make_pair(work->input.ordinal.timestamp.peeku(),
-                                               work->input.ordinal.frameIndex.peeku()));
-    }
-
     const auto incoming_frame_index = work->input.ordinal.frameIndex;
-    auto it = m_pendingWorks.find(incoming_frame_index);
-    if (it != m_pendingWorks.end()) { // Shouldn't be the same index there
-        NotifyWorkDone(std::move(it->second), C2_CORRUPTED);
-        MFX_DEBUG_TRACE_STREAM("Work removed: " << NAMED(it->second->input.ordinal.frameIndex.peeku()));
-        m_pendingWorks.erase(it);
+    auto duplicate = find_if(m_pendingWorks.begin(), m_pendingWorks.end(),
+        [incoming_frame_timestamp, incoming_frame_index] (const auto &item) {
+            // When decoding the image, the timestamp is always 0, so it is excluded.
+            return (item.second->input.ordinal.timestamp == incoming_frame_timestamp) && (item.first == incoming_frame_index) && ((c2_cntr64_t)0 != incoming_frame_timestamp);
+        });
+    if (duplicate != m_pendingWorks.end()) { // Shouldn't be the same index there
+        NotifyWorkDone(std::move(duplicate->second), C2_CORRUPTED);
+        MFX_DEBUG_TRACE_STREAM("Work removed: " << NAMED(duplicate->second->input.ordinal.frameIndex.peeku()));
+        m_pendingWorks.erase(duplicate);
     }
     m_pendingWorks.emplace(incoming_frame_index, std::move(work));
 }
@@ -2596,8 +2546,6 @@ c2_status_t MfxC2DecoderComponent::Flush(std::list<std::unique_ptr<C2Work>>* con
         std::lock_guard<std::mutex> lock(m_readViewMutex);
         m_readViews.clear();
     }
-
-    m_duplicatedTimeStamp.clear();
 
     FreeSurfaces();
 
