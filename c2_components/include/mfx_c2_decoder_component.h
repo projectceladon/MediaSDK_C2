@@ -142,13 +142,9 @@ private:
 
     void DoWork(std::unique_ptr<C2Work>&& work);
 
-    void ReleaseReadViews(uint64_t incoming_frame_index);
+    void ReleaseReadViews(uint64_t frame_index, uint64_t timestamp);
 
-    void EmptyReadViews(uint64_t timestamp, uint64_t frame_index);
-
-    bool IsPartialFrame(uint64_t frame_index);
-
-    bool IsDuplicatedTimeStamp(uint64_t timestamp);
+    bool IsPartialFrame(uint64_t index, uint64_t timestamp);
 
     void FillEmptyWork(std::unique_ptr<C2Work>&& work, c2_status_t res);
 
@@ -230,8 +226,8 @@ private:
     std::list<std::unique_ptr<C2Work>> m_flushedWorks;
 
     std::mutex m_readViewMutex;
-    std::map<const uint64_t, std::unique_ptr<C2ReadView>> m_readViews;
-    std::list<std::pair<uint64_t, uint64_t>> m_duplicatedTimeStamp;
+    // pair<index, timestamp>
+    std::map<std::pair<uint64_t, uint64_t>, std::unique_ptr<C2ReadView>> m_readViews;
 
     std::shared_ptr<C2StreamHdrStaticInfo::output> m_hdrStaticInfo;
     bool m_bSetHdrStatic;
