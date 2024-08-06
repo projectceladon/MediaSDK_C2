@@ -329,6 +329,7 @@ c2_status_t MfxC2ComponentStore::readConfigFile()
             config.flags = flags;
             config.dump_output = m_xmlParser.dumpOutputEnabled(name.c_str());
             config.concurrent_instances = m_xmlParser.getConcurrentInstances(name.c_str());
+            config.low_power_mode = m_xmlParser.getLowPowerMode(name.c_str());
 
             m_componentsRegistry_.emplace(name, ComponentDesc(module.c_str(), media_type.c_str(), kind, config));
         }

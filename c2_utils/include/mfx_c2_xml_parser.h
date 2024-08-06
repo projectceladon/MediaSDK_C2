@@ -51,6 +51,7 @@ public:
     C2String getMediaType(const char *name);
     uint32_t getConcurrentInstances(const char *name);
     bool dumpOutputEnabled(const char *name);
+    bool getLowPowerMode(const char *name);
 
 private:
 
@@ -62,6 +63,7 @@ private:
         std::map<C2String, AttributeMap> typeMap;   // map of types supported by this codec
         bool dump_output{false};
         uint32_t concurrentInstance{0};
+        bool lowPowerMode{false};
     };
 
     enum Section {
