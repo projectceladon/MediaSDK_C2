@@ -93,7 +93,14 @@ int main(int /* argc */, char** /* argv */) {
     ALOGD("hardware.intel.media.c2@1.0-service starting...");
 
     signal(SIGPIPE, SIG_IGN);
-    android::SetUpMinijail(kBaseSeccompPolicyPath, kExtSeccompPolicyPath);
+    try
+    {
+        android::SetUpMinijail(kBaseSeccompPolicyPath, kExtSeccompPolicyPath);
+    }
+    catch(const std::exception& e)
+    {
+        ALOGE("SetUpMinijail function execution error");
+    }
 
     // vndbinder is needed by BufferQueue.
     android::ProcessState::initWithDriver("/dev/vndbinder");
