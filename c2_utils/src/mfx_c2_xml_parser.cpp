@@ -106,6 +106,18 @@ bool MfxXmlParser::dumpOutputEnabled(const char *name) {
     return codec->second.dump_output;
 }
 
+bool MfxXmlParser::getLowPowerMode(const char *name) {
+
+    MFX_DEBUG_TRACE_FUNC;
+
+    auto codec = m_codecMap.find(name);
+    if (codec == m_codecMap.end()) {
+        MFX_DEBUG_TRACE_STREAM("codec " << name << "wasn't found");
+        return false;
+    }
+    return codec->second.lowPowerMode;
+}
+
 c2_status_t MfxXmlParser::addMediaCodecFromAttributes(bool encoder, const char** attrs) {
 
     MFX_DEBUG_TRACE_FUNC;
@@ -169,6 +181,7 @@ c2_status_t MfxXmlParser::addDiagnostics(const char **attrs) {
     MFX_DEBUG_TRACE_FUNC;
 
     bool dump_output{false};
+    bool lowPowerMode{false};
 
     size_t i = 0;
     while (attrs[i] != nullptr) {
@@ -179,6 +192,13 @@ c2_status_t MfxXmlParser::addDiagnostics(const char **attrs) {
             }
             dump_output = parseBoolean(attrs[i]);
             MFX_DEBUG_TRACE_STREAM("dumpOutput value " << attrs[i] << " parsed to " << (int)dump_output);
+        } else if (strcmp(attrs[i], "lowPowerMode") == 0) {
+            if (attrs[++i] == nullptr) {
+                MFX_DEBUG_TRACE_STREAM("lowPowerMode is null");
+                return C2_BAD_VALUE;
+            }
+            lowPowerMode = parseBoolean(attrs[i]);
+            MFX_DEBUG_TRACE_STREAM("lowPowerMode value " << attrs[i] << " parsed to " << (int)lowPowerMode);
         } else {
             MFX_DEBUG_TRACE_STREAM("unrecognized attribute: " << attrs[i]);
             return C2_BAD_VALUE;
@@ -187,6 +207,8 @@ c2_status_t MfxXmlParser::addDiagnostics(const char **attrs) {
     }
 
     m_currentCodec->second.dump_output = dump_output;
+    m_currentCodec->second.lowPowerMode = lowPowerMode;
+
     return C2_OK;
 }
 
