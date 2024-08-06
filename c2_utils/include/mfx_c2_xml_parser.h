@@ -49,6 +49,7 @@ public:
     c2_status_t parseConfig(const char *path);
     C2Component::kind_t getKind(const char *name);
     C2String getMediaType(const char *name);
+    uint32_t getConcurrentInstances(const char *name);
     bool dumpOutputEnabled(const char *name);
 
 private:
@@ -60,6 +61,7 @@ private:
         size_t order;      // order of appearance in the file (starting from 0)
         std::map<C2String, AttributeMap> typeMap;   // map of types supported by this codec
         bool dump_output{false};
+        uint32_t concurrentInstance{0};
     };
 
     enum Section {
@@ -78,6 +80,8 @@ private:
     c2_status_t addMediaCodecFromAttributes(bool encoder, const char **attrs);
 
     c2_status_t addDiagnostics(const char **attrs);
+
+    c2_status_t addLimits(const char **attrs);
 
     void startElementHandler(const char *name, const char **attrs);
     void endElementHandler(const char *name);
