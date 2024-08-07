@@ -391,12 +391,13 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
                             LEVEL_HEVC_MAIN_2, LEVEL_HEVC_MAIN_2_1,
                             LEVEL_HEVC_MAIN_3, LEVEL_HEVC_MAIN_3_1,
                             LEVEL_HEVC_MAIN_4, LEVEL_HEVC_MAIN_4_1,
+                            LEVEL_HEVC_HIGH_4, LEVEL_HEVC_HIGH_4_1,
                             LEVEL_HEVC_MAIN_5, LEVEL_HEVC_MAIN_5_1,
-                            LEVEL_HEVC_MAIN_5_2, LEVEL_HEVC_HIGH_4,
-                            LEVEL_HEVC_HIGH_4_1, LEVEL_HEVC_HIGH_5,
+                            LEVEL_HEVC_MAIN_5_2, LEVEL_HEVC_HIGH_5,
                             LEVEL_HEVC_HIGH_5_1, LEVEL_HEVC_HIGH_5_2,
                             LEVEL_HEVC_MAIN_6, LEVEL_HEVC_MAIN_6_1,
-                            LEVEL_HEVC_MAIN_6_2,
+                            LEVEL_HEVC_MAIN_6_2, LEVEL_HEVC_HIGH_6,
+                            LEVEL_HEVC_HIGH_6_1, LEVEL_HEVC_HIGH_6_2
                         }),})
                 .withSetter(HEVC_ProfileLevelSetter)
                 .build());
@@ -440,7 +441,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
                             LEVEL_VP9_2, LEVEL_VP9_2_1,
                             LEVEL_VP9_3, LEVEL_VP9_3_1,
                             LEVEL_VP9_4, LEVEL_VP9_4_1,
-                            LEVEL_VP9_5,
+                            LEVEL_VP9_5, LEVEL_VP9_5_1
                         }),})
                 .withSetter(VP9_ProfileLevelSetter)
                 .build());
@@ -568,8 +569,8 @@ void MfxC2EncoderComponent::getMaxMinResolutionSupported(
             break;
         }
         case ENCODER_H264: {
-            *min_w = 176;
-            *min_h = 144;
+            *min_w = 128;
+            *min_h = 96;
             *max_w = 4096;
             *max_h = 4096;
             break;
