@@ -29,6 +29,10 @@
 
 #include <sys/ioctl.h>
 
+#ifdef ENABLE_WIDEVINE
+#include "mfx_va_private.h"
+#endif
+
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_dev_va"
 
@@ -214,5 +218,51 @@ std::shared_ptr<MfxFramePoolAllocator> MfxDevVa::GetFramePoolAllocator()
     MFX_DEBUG_TRACE_FUNC;
     return m_usage == Usage::Decoder ? m_vaPoolAllocator : nullptr;
 }
+
+bool MfxDevVa::CheckHUCSupport(VAProfile profile)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    return true;
+
+    mfxStatus mfx_res = MFX_ERR_NONE;
+    VAStatus va_res = VA_STATUS_SUCCESS;
+
+    if (!m_vaDisplay) mfx_res = MFX_ERR_INVALID_HANDLE;
+
+    VAEntrypoint entrypoint = VAEntrypointVLD;
+    VAConfigAttrib attrib[1];
+    attrib[0].type = VAConfigAttribEncryption;
+
+    if (mfx_res == MFX_ERR_NONE)
+    {
+        va_res = vaGetConfigAttributes(m_vaDisplay, profile, entrypoint, &attrib[0], sizeof(attrib)/sizeof(attrib[0]));
+        mfx_res = ((VA_STATUS_SUCCESS == va_res) ? MFX_ERR_NONE: MFX_ERR_UNKNOWN);
+    }
+
+    if (mfx_res == MFX_ERR_NONE)
+    {
+        if (!(attrib[0].value & VA_ATTRIB_NOT_SUPPORTED) &&
+            (attrib[0].value != VA_ENCRYPTION_TYPE_NONE) &&
+            (((VAProfileH264ConstrainedBaseline == profile) &&
+              (attrib[0].value & VA_ENCRYPTION_TYPE_CENC_CBC) &&
+              (attrib[0].value & VA_ENCRYPTION_TYPE_CENC_CTR_LENGTH) &&
+              (attrib[0].value & VA_ENCRYPTION_TYPE_CENC_CTR)) ||
+             ((VAProfileHEVCMain == profile) &&
+              (attrib[0].value & VA_ENCRYPTION_TYPE_CENC_CTR_LENGTH) &&
+              (attrib[0].value & VA_ENCRYPTION_TYPE_CENC_CTR)) /* ||
+             ((m_pRegData->m_type == MfxOmx_vp9vd_secure) &&
+              (attrib[0].value & VA_ENCRYPTION_TYPE_CENC_CTR_LENGTH))*/))
+        {
+            MFX_DEBUG_TRACE_MSG("HUC decryption is supported");
+            return true;
+        }
+    }
+
+    MFX_DEBUG_TRACE_MSG("HUC decryption is not supported");
+    MFX_DEBUG_TRACE_I32(mfx_res);
+    return false;
+}
+
 
 #endif // #ifdef LIBVA_SUPPORT

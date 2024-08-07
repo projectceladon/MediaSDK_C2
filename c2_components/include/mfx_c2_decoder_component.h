@@ -41,6 +41,10 @@ public:
         DECODER_VP8,
         DECODER_MPEG2,
         DECODER_AV1,
+#ifdef ENABLE_WIDEVINE
+        DECODER_H264_SECURE,
+        DECODER_H265_SECURE
+#endif
     };
 
     enum class OperationState {
@@ -103,7 +107,10 @@ protected:
 
     c2_status_t Flush(std::list<std::unique_ptr<C2Work>>* const flushedWork) override;
 
-private:
+    // Work routines
+    c2_status_t ValidateWork(const std::unique_ptr<C2Work>& work);
+
+protected:
     c2_status_t UpdateC2Param(const mfxVideoParam* src, C2Param::Index index) const;
 
     void DoUpdateMfxParam(const std::vector<C2Param*> &params,
@@ -137,11 +144,6 @@ private:
 
     mfxU16 GetAsyncDepth();
 
-    // Work routines
-    c2_status_t ValidateWork(const std::unique_ptr<C2Work>& work);
-
-    void DoWork(std::unique_ptr<C2Work>&& work);
-
     void ReleaseReadViews(uint64_t incoming_frame_index);
 
     void EmptyReadViews(uint64_t timestamp, uint64_t frame_index);
@@ -152,17 +154,19 @@ private:
 
     void FillEmptyWork(std::unique_ptr<C2Work>&& work, c2_status_t res);
 
-    void Drain(std::unique_ptr<C2Work>&& work);
-    // waits for the sync_point and update work with decoder output then
-    void WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint sync_point);
-
-    void PushPending(std::unique_ptr<C2Work>&& work);
-
     void UpdateHdrStaticInfo();
 
     void UpdateColorAspectsFromBitstream(const mfxExtVideoSignalInfo &signalInfo);
 
-private:
+protected:
+    void DoWork(std::unique_ptr<C2Work>&& work);
+
+    void PushPending(std::unique_ptr<C2Work>&& work);
+
+    void Drain(std::unique_ptr<C2Work>&& work);
+    // waits for the sync_point and update work with decoder output then
+    void WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint sync_point);
+
     DecoderType m_decoderType;
 
     std::unique_ptr<MfxDev> m_device;
@@ -173,6 +177,17 @@ private:
     MFXVideoSession m_mfxSession;
 #endif
 
+    std::atomic<bool> m_bEosReceived {};
+
+    MfxCmdQueue m_workingQueue;
+    MFX_TRACEABLE(m_workingQueue);
+    MfxCmdQueue m_waitingQueue;
+    MFX_TRACEABLE(m_waitingQueue);
+
+    std::unique_ptr<MfxC2BitstreamIn> m_c2Bitstream;
+    mfxVideoParam m_mfxVideoParams {};
+
+protected:
     // Accessed from working thread or stop method when working thread is stopped.
     std::unique_ptr<MFXVideoDECODE> m_mfxDecoder;
 
@@ -183,12 +198,6 @@ private:
 
     OperationState m_OperationState { OperationState::INITIALIZATION };
 
-    MfxCmdQueue m_workingQueue;
-    MFX_TRACEABLE(m_workingQueue);
-    MfxCmdQueue m_waitingQueue;
-    MFX_TRACEABLE(m_waitingQueue);
-
-    mfxVideoParam m_mfxVideoParams {};
     std::vector<mfxExtBuffer*> m_extBuffers;
     mfxExtVideoSignalInfo m_signalInfo;
 
@@ -199,7 +208,6 @@ private:
     mfxU16 m_uMaxWidth {};
     mfxU16 m_uMaxHeight {};
 
-    std::atomic<bool> m_bEosReceived {};
     // Members handling MFX_WRN_DEVICE_BUSY.
     // Active sync points got from DecodeFrameAsync for waiting on.
     std::atomic_uint m_uSyncedPointsCount;
@@ -209,7 +217,7 @@ private:
     // Even atomic type needs to be mutex protected.
     std::mutex m_devBusyMutex;
 
-    std::unique_ptr<MfxC2BitstreamIn> m_c2Bitstream;
+
     // Store raw pointers there as don't want to keep objects by shared_ptr
     std::map<uint64_t, std::shared_ptr<mfxFrameSurface1>> m_surfaces; // all ever send to Decoder
     // Store all surfaces used for system memory

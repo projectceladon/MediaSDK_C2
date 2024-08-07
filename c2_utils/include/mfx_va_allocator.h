@@ -26,6 +26,7 @@
 #include "mfx_allocator.h"
 #include "mfx_frame_converter.h"
 #include "mfx_gralloc_instance.h"
+#include "mfx_c2_utils.h"
 
 #include <mutex>
 #include <map>

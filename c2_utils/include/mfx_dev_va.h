@@ -36,6 +36,7 @@ public:
 
 public:
     VADisplay GetVaDisplay() { return m_vaDisplay; }
+    bool CheckHUCSupport(VAProfile profile);
 
 private:
     mfxStatus Init() override;
