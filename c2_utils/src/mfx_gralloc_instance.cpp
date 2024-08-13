@@ -38,11 +38,17 @@ std::shared_ptr<IMfxGrallocModule> MfxGrallocInstance::getInstance()
         std::lock_guard<std::mutex> lock(m_mutex);
         if (nullptr == m_instance)
         {
-#ifdef USE_GRALLOC4
+#ifdef USE_MAPPER5
+            MFX_DEBUG_TRACE_MSG("using mapper5");
+            ALOGI("using mapper5");
+            m_instance = std::make_shared<MfxMapper5Module>();
+#elif USE_GRALLOC4
             MFX_DEBUG_TRACE_MSG("using gralloc4");
+            ALOGI("using gralloc4");
             m_instance = std::make_shared<MfxGralloc4Module>();
 #else
             MFX_DEBUG_TRACE_MSG("using gralloc1");
+            ALOGI("using gralloc1");
             m_instance = std::make_shared<MfxGralloc1Module>();
 #endif
             if(C2_OK != m_instance->Init())
