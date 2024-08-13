@@ -34,9 +34,14 @@ cc_library_static {
         "android.hardware.graphics.bufferqueue@2.0",
         "android.hardware.graphics.common@1.2",
         "android.hardware.graphics.mapper@4.0",
+        "libbinder_ndk",
+        "libvndksupport",
     ],
 
-    defaults: ["mfx_c2_defaults"],
+    defaults: [
+        "mfx_c2_defaults",
+        "android.hardware.graphics.allocator-ndk_shared",
+    ],
 
     srcs: [
         "src/*.cpp",
@@ -69,6 +74,9 @@ cc_library_static {
         "libva_headers",
         "libcodec2_vndk_headers",
         "libcodec2_headers",
+        "libui_headers",
+        "libimapper_stablec",
+        "libimapper_providerutils",
     ],
 
     vendor: true,
