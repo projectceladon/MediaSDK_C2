@@ -23,6 +23,7 @@
 #include "mfx_gralloc_interface.h"
 #include "mfx_gralloc1.h"
 #include "mfx_gralloc4.h"
+#include "mfx_mapper5.h"
 
 class MfxGrallocInstance
 {
