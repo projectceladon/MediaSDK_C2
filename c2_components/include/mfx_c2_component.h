@@ -38,6 +38,7 @@ public:
         int flags{0};
         bool dump_output{false};
         uint32_t concurrent_instances{0};
+        bool low_power_mode{false};
     };
 protected:
     /* State diagram:

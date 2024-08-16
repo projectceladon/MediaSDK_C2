@@ -106,6 +106,18 @@ bool MfxXmlParser::dumpOutputEnabled(const char *name) {
     return codec->second.dump_output;
 }
 
+bool MfxXmlParser::getLowPowerMode(const char *name) {
+
+    MFX_DEBUG_TRACE_FUNC;
+
+    auto codec = m_codecMap.find(name);
+    if (codec == m_codecMap.end()) {
+        MFX_DEBUG_TRACE_STREAM("codec " << name << "wasn't found");
+        return false;
+    }
+    return codec->second.lowPowerMode;
+}
+
 c2_status_t MfxXmlParser::addMediaCodecFromAttributes(bool encoder, const char** attrs) {
 
     MFX_DEBUG_TRACE_FUNC;
@@ -165,44 +177,37 @@ static bool parseBoolean(const char* s) {
         strcasecmp(s, "1") == 0;
 }
 
-c2_status_t MfxXmlParser::addDiagnostics(const char **attrs) {
-    MFX_DEBUG_TRACE_FUNC;
-
-    bool dump_output{false};
-
-    size_t i = 0;
-    while (attrs[i] != nullptr) {
-        if (strcmp(attrs[i], "dumpOutput") == 0) {
-            if (attrs[++i] == nullptr) {
-                MFX_DEBUG_TRACE_STREAM("dumpOutput is null");
-                return C2_BAD_VALUE;
-            }
-            dump_output = parseBoolean(attrs[i]);
-            MFX_DEBUG_TRACE_STREAM("dumpOutput value " << attrs[i] << " parsed to " << (int)dump_output);
-        } else {
-            MFX_DEBUG_TRACE_STREAM("unrecognized attribute: " << attrs[i]);
-            return C2_BAD_VALUE;
-        }
-        ++i;
-    }
-
-    m_currentCodec->second.dump_output = dump_output;
-    return C2_OK;
-}
-
 c2_status_t MfxXmlParser::addLimits(const char **attrs) {
     MFX_DEBUG_TRACE_FUNC;
+
     size_t i = 0;
     while (attrs[i] != nullptr) {
         if (strcmp(attrs[i], "concurrent-instances") == 0) {
             if (strcmp(attrs[++i], "max") == 0) {
                 m_currentCodec->second.concurrentInstance = std::atoi(attrs[++i]);
-                MFX_DEBUG_TRACE_STREAM("m_currentCodec->second.concurrentInstance = %d", m_currentCodec->second.concurrentInstance);
+                MFX_DEBUG_TRACE_PRINTF("m_currentCodec->second.concurrentInstance = %d", m_currentCodec->second.concurrentInstance);
             } else {
                 MFX_DEBUG_TRACE_MSG("concurrent-instances is null");
                 return C2_BAD_VALUE;
             }
+        } else if (strcmp(attrs[i], "dumpOutput") == 0) {
+            if (strcmp(attrs[++i], "value") == 0) {
+                m_currentCodec->second.dump_output = parseBoolean(attrs[++i]);
+                MFX_DEBUG_TRACE_PRINTF("m_currentCodec->second.dump_output = %d", m_currentCodec->second.dump_output);
+            } else {
+                MFX_DEBUG_TRACE_MSG("dumpOutput is null");
+                return C2_BAD_VALUE;
+            }
+        } else if (strcmp(attrs[i], "lowPowerMode") == 0) {
+            if (strcmp(attrs[++i], "value") == 0) {
+                m_currentCodec->second.lowPowerMode = parseBoolean(attrs[++i]);
+                MFX_DEBUG_TRACE_PRINTF("m_currentCodec->second.lowPowerMode = %d ", m_currentCodec->second.lowPowerMode);
+            } else {
+                MFX_DEBUG_TRACE_MSG("lowPowerMode is null");
+                return C2_BAD_VALUE;
+            }
         }
+
         i++;
     }
 
@@ -262,10 +267,7 @@ void MfxXmlParser::startElementHandler(const char* name, const char** attrs) {
         case SECTION_DECODER:
         case SECTION_ENCODER:
         {
-            if (strcmp(name, "Diagnostics") == 0) {
-                m_parsingStatus =
-                    addDiagnostics(attrs);
-            } else if (strcmp(name, "Limit") == 0) {
+            if (strcmp(name, "Limit") == 0) {
                 addLimits(attrs);
             }
             break;

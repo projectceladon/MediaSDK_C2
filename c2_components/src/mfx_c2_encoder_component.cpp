@@ -922,6 +922,12 @@ mfxStatus MfxC2EncoderComponent::ResetSettings()
     m_mfxVideoParamsConfig.NumExtParam = 0;
     m_mfxVideoParamsConfig.ExtParam = nullptr;
 
+    // set low power mode for AVC encoder
+    if(m_mfxVideoParamsConfig.mfx.CodecId == MFX_CODEC_AVC && m_createConfig.low_power_mode)
+    {
+        m_mfxVideoParamsConfig.mfx.LowPower = MFX_CODINGOPTION_ON;
+    }
+
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }
