@@ -133,7 +133,7 @@ private:
 
     c2_status_t AllocateC2Block(uint32_t width, uint32_t height, uint32_t fourcc, std::shared_ptr<C2GraphicBlock>* out_block);
 
-    c2_status_t AllocateFrame(MfxC2FrameOut* frame_out);
+    c2_status_t AllocateFrame(MfxC2FrameOut* frame_out, bool vpp_conversion = false);
 
     mfxU16 GetAsyncDepth();
 
@@ -161,6 +161,8 @@ private:
     void UpdateHdrStaticInfo();
 
     void UpdateColorAspectsFromBitstream(const mfxExtVideoSignalInfo &signalInfo);
+
+    mfxStatus InitVPP();
 
 private:
     DecoderType m_decoderType;
@@ -245,6 +247,10 @@ private:
 
     unsigned int m_uOutputDelay = 8u;
     unsigned int m_uInputDelay = 0u;
+
+    MFXVideoVPP* m_vpp;
+    MfxC2FrameOut m_frameOutVpp;
+    bool m_vppConversion = false;
 
 #if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
     int m_count = 0;
