@@ -46,7 +46,6 @@ constexpr uint64_t kMinInputBufferSize = 1 * WIDTH_1K * HEIGHT_1K;
 constexpr uint64_t kDefaultConsumerUsage =
     (GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_HW_COMPOSER);
 
-
 // Android S declared VP8 profile
 #if PLATFORM_SDK_VERSION <= 30 // Android 11(R)
 enum VP8_PROFILE {
@@ -106,6 +105,13 @@ C2R MfxC2DecoderComponent::ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfile
     (void)size;
     (void)me;  // TODO: validate
     return C2R::Ok();
+}
+
+C2R MfxC2DecoderComponent::OutputUsageSetter(bool mayBlock, C2P<C2StreamUsageTuning::output> &me) {
+    (void)mayBlock;
+    (void)me;
+    C2R res = C2R::Ok();
+    return res;
 }
 
 C2R MfxC2DecoderComponent::DefaultColorAspectsSetter(bool mayBlock,
@@ -220,6 +226,15 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         DefineParam(m_outputMediaType, C2_PARAMKEY_OUTPUT_MEDIA_TYPE)
         .withConstValue(AllocSharedString<C2PortMediaTypeSetting::output>("video/raw"))
         .build());
+
+    m_consumerUsage = C2AndroidMemoryUsage::FromGrallocUsage(kDefaultConsumerUsage).expected;
+    addParameter(
+        DefineParam(m_outputUsage, C2_PARAMKEY_OUTPUT_STREAM_USAGE)
+        .withDefault(new C2StreamUsageTuning::output(SINGLE_STREAM_ID, m_consumerUsage))
+        .withFields({ C2F(m_outputUsage, value).any(),})
+        .withSetter(OutputUsageSetter)
+        .build()
+    );
 
     switch(m_decoderType) {
         case DECODER_H264: {
@@ -663,9 +678,6 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     m_hdrStaticInfo->maxCll = 0;
     m_hdrStaticInfo->maxFall = 0;
 
-    // By default prepare buffer to be displayed on any of the common surfaces
-    m_consumerUsage = kDefaultConsumerUsage;
-
     MFX_ZERO_MEMORY(m_signalInfo);
     //m_paramStorage.DumpParams();
 }
@@ -713,6 +725,7 @@ c2_status_t MfxC2DecoderComponent::Init()
     if(mfx_res == MFX_ERR_NONE) {
         mfx_res = InitSession();
     }
+
     if(MFX_ERR_NONE == mfx_res) {
         InitFrameConstructor();
     }
@@ -725,51 +738,23 @@ c2_status_t MfxC2DecoderComponent::DoStart()
     MFX_DEBUG_TRACE_FUNC;
 
     m_uSyncedPointsCount = 0;
-    mfxStatus mfx_res = MFX_ERR_NONE;
     m_bEosReceived = false;
+    m_bAllocatorSet = false;
 
     do {
-        bool allocator_required = (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY);
-
-        if (allocator_required != m_bAllocatorSet) {
-
+        // Must reserve MFXClose(), InitSession() logic here, if not some drm cts will not pass
 #ifdef USE_ONEVPL
-            mfx_res = MFXClose(m_mfxSession);
+        mfxStatus mfx_res = MFXClose(m_mfxSession);
 #else
-            mfx_res = m_mfxSession.Close();
+        mfxStatus mfx_res = m_mfxSession.Close();
 #endif
-            if (MFX_ERR_NONE != mfx_res) break;
+        if (MFX_ERR_NONE != mfx_res) break;
 
-            mfx_res = InitSession();
-            if (MFX_ERR_NONE != mfx_res) break;
-
-            // set frame allocator
-            if (allocator_required) {
-                m_allocator = m_device->GetFramePoolAllocator();
-#ifdef USE_ONEVPL
-                mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, &(m_device->GetFrameAllocator()->GetMfxAllocator()));
-#else
-                mfx_res = m_mfxSession.SetFrameAllocator(&(m_device->GetFrameAllocator()->GetMfxAllocator()));
-#endif
-            } else {
-                m_allocator = nullptr;
-#ifdef USE_ONEVPL
-                mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, nullptr);
-#else
-                mfx_res = m_mfxSession.SetFrameAllocator(nullptr);
-#endif
-            }
-            if (MFX_ERR_NONE != mfx_res) break;
-
-            m_bAllocatorSet = allocator_required;
-        }
-
-        MFX_DEBUG_TRACE_STREAM(m_surfaces.size());
-        MFX_DEBUG_TRACE_STREAM(m_surfacePool.size());
+        mfx_res = InitSession();
+        if (MFX_ERR_NONE != mfx_res) break;
 
         m_workingQueue.Start();
         m_waitingQueue.Start();
-
     } while(false);
 
     m_OperationState = OperationState::RUNNING;
@@ -829,7 +814,7 @@ c2_status_t MfxC2DecoderComponent::Release()
 
 #ifdef USE_ONEVPL
     if (m_mfxSession) {
-        MFXClose(m_mfxSession);
+        sts = MFXClose(m_mfxSession);
         m_mfxSession = nullptr;
     }
 #else
@@ -1053,17 +1038,9 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
     m_signalInfo.VideoFullRange = 2; // UNSPECIFIED Range
     mfx_set_defaults_mfxVideoParam_dec(&m_mfxVideoParams);
 
-    if (m_device)
-    {
-        // default pattern: video memory if allocator available
-        m_mfxVideoParams.IOPattern = m_device->GetFrameAllocator() ?
-        MFX_IOPATTERN_OUT_VIDEO_MEMORY : MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
-
-    }
-    else
-    {
-        res = MFX_ERR_NULL_PTR;
-    }
+    m_mfxVideoParams.IOPattern = (m_consumerUsage & (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE)) ?
+                MFX_IOPATTERN_OUT_SYSTEM_MEMORY : MFX_IOPATTERN_OUT_VIDEO_MEMORY;
+    MFX_DEBUG_TRACE_U32(m_mfxVideoParams.IOPattern);
 
     return res;
 }
@@ -1145,9 +1122,6 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         }
 
         if (MFX_ERR_NONE == mfx_res) {
-            // set memory type according to consumer usage sent from framework
-            m_mfxVideoParams.IOPattern = (C2MemoryUsage::CPU_READ == m_consumerUsage) ?
-                    MFX_IOPATTERN_OUT_SYSTEM_MEMORY : MFX_IOPATTERN_OUT_VIDEO_MEMORY;
             MFX_DEBUG_TRACE_I32(m_mfxVideoParams.IOPattern);
             MFX_DEBUG_TRACE_I32(m_mfxVideoParams.mfx.FrameInfo.Width);
             MFX_DEBUG_TRACE_I32(m_mfxVideoParams.mfx.FrameInfo.Height);
@@ -1206,41 +1180,16 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         m_mfxVideoParams.AsyncDepth = GetAsyncDepth();
     }
 
-    // We need check whether the BQ allocator has a surface, if No we cannot use MFX_IOPATTERN_OUT_VIDEO_MEMORY mode.
-    if (MFX_ERR_NONE == mfx_res && m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
-        std::shared_ptr<C2GraphicBlock> out_block;
-        c2_status_t res = C2_OK;
-        C2MemoryUsage mem_usage = {C2AndroidMemoryUsage::CPU_READ | C2AndroidMemoryUsage::HW_COMPOSER_READ,
-                                C2AndroidMemoryUsage::HW_CODEC_WRITE};
-
-        res = m_c2Allocator->fetchGraphicBlock(m_mfxVideoParams.mfx.FrameInfo.Width,
-                                            m_mfxVideoParams.mfx.FrameInfo.Height,
-                                            MfxFourCCToGralloc(m_mfxVideoParams.mfx.FrameInfo.FourCC),
-                                            mem_usage, &out_block);
-
-        if (res == C2_OK)
-        {
-            uint32_t width, height, format, stride, igbp_slot, generation;
-            uint64_t usage, igbp_id;
-            android::_UnwrapNativeCodec2GrallocMetadata(out_block->handle(), &width, &height, &format, &usage,
-                                                        &stride, &generation, &igbp_id, &igbp_slot);
-            if ((!igbp_id && !igbp_slot) || (!igbp_id && igbp_slot == 0xffffffff))
-            {
-                // No surface & BQ
-                m_mfxVideoParams.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
-                m_allocator = nullptr;
-            }
-        }
-    }
-
-    if (MFX_ERR_NONE == mfx_res && m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
+    bool allocator_required = (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY);
+    if (MFX_ERR_NONE == mfx_res && allocator_required && m_bAllocatorSet == false) {
+        // set frame allocator
+        m_allocator = m_device->GetFramePoolAllocator();
 #ifdef USE_ONEVPL
-        mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, nullptr);
+        mfx_res = MFXVideoCORE_SetFrameAllocator(m_mfxSession, &(m_device->GetFrameAllocator()->GetMfxAllocator()));
 #else
-        mfx_res = m_mfxSession.SetFrameAllocator(nullptr);
+        mfx_res = m_mfxSession.SetFrameAllocator(&(m_device->GetFrameAllocator()->GetMfxAllocator()));
 #endif
-        m_bAllocatorSet = false;
-        if (MFX_ERR_NONE != mfx_res) MFX_DEBUG_TRACE_MSG("SetFrameAllocator failed");
+        if (MFX_ERR_NONE == mfx_res) m_bAllocatorSet = true;
     }
 
     if (MFX_ERR_NONE == mfx_res) {
@@ -1497,6 +1446,16 @@ void MfxC2DecoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
                 }
                 break;
             }
+            case kParamIndexUsage: {
+                if (C2StreamUsageTuning::output::PARAM_TYPE == param->index()) {
+                    m_consumerUsage = m_outputUsage->value;
+                    // Set memory type according to consumer usage sent from framework
+                    m_mfxVideoParams.IOPattern = (m_consumerUsage & (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE)) ?
+                        MFX_IOPATTERN_OUT_SYSTEM_MEMORY : MFX_IOPATTERN_OUT_VIDEO_MEMORY;
+                    MFX_DEBUG_TRACE_STREAM("config kParamIndexUsage to 0x" << std::hex << m_consumerUsage);
+                }
+                break;
+            }
             default:
                 MFX_DEBUG_TRACE_STREAM("attempt to configure " 
                                     << C2Param::Type(param->type()).typeIndex() << " type, but not found");
@@ -1726,7 +1685,6 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
         }
 
         if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
-
             C2MemoryUsage mem_usage = {m_consumerUsage, C2AndroidMemoryUsage::HW_CODEC_WRITE};
             res = m_c2Allocator->fetchGraphicBlock(width, height,
                                                MfxFourCCToGralloc(fourcc), mem_usage, out_block);
@@ -1751,7 +1709,6 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
                 }
             }
         } else if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
-
             C2MemoryUsage mem_usage = {m_consumerUsage, C2MemoryUsage::CPU_WRITE};
             res = m_c2Allocator->fetchGraphicBlock(width, height,
                                                MfxFourCCToGralloc(fourcc, false), mem_usage, out_block);
@@ -2018,24 +1975,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             res = GetCodec2BlockPool(m_outputPoolId,
                 shared_from_this(), &m_c2Allocator);
             if (res != C2_OK) break;
-#ifdef MFX_BUFFER_QUEUE
-            bool hasSurface = std::static_pointer_cast<MfxC2BufferQueueBlockPool>(m_c2Allocator)->outputSurfaceSet();
-            m_mfxVideoParams.IOPattern = hasSurface ? MFX_IOPATTERN_OUT_VIDEO_MEMORY : MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
-#endif
-            if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
-                m_allocator = nullptr;
-#ifdef USE_ONEVPL
-                mfx_sts = MFXVideoCORE_SetFrameAllocator(m_mfxSession, nullptr);
-#else
-                mfx_sts = m_mfxSession.SetFrameAllocator(nullptr);
-#endif
-                m_bAllocatorSet = false;
-                ALOGI("System memory is being used for decoding!");
-
-                if (MFX_ERR_NONE != mfx_sts) break;
-            }
         }
-
         // loop repeats DecodeFrame on the same frame
         // if DecodeFrame returns error which is repairable, like resolution change
         bool resolution_change = false;
