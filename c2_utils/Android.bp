@@ -47,16 +47,11 @@ cc_library_static {
         "src/*.cpp",
     ],
 
-    cflags: [
-        //"-DMFX_BUFFER_QUEUE"
-    ],
-
     local_include_dirs: [
         "include",
     ],
 
     include_dirs: [
-        "vendor/intel/mediasdk_c2/plugin_store/include",
         "hardware/intel/external/minigbm-intel",
         "frameworks/native/include",
         "frameworks/native/libs/ui/include",
