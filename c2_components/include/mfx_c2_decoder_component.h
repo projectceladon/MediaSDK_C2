@@ -264,7 +264,6 @@ private:
     std::shared_ptr<C2ComponentDomainSetting> m_domain;
     std::shared_ptr<C2StreamPictureSizeInfo::output> m_size;
     std::shared_ptr<C2PortSurfaceAllocatorTuning::output> m_surfaceAllocator;
-    std::shared_ptr<C2PortAllocatorsTuning::input> m_inputAllocators;
     std::shared_ptr<C2PortAllocatorsTuning::output> m_outputAllocators;
     std::shared_ptr<C2StreamMaxPictureSizeTuning::output> m_maxSize;
     std::shared_ptr<C2StreamMaxBufferSizeInfo::input> m_maxInputSize;
@@ -277,13 +276,12 @@ private:
     std::shared_ptr<C2StreamUsageTuning::output> m_outputUsage;
     std::shared_ptr<C2StreamProfileLevelInfo::input> m_profileLevel;
     std::shared_ptr<C2PortActualDelayTuning::output> m_actualOutputDelay;
-    std::shared_ptr<C2PortRequestedDelayTuning::input> m_requestedInputDelay;
-    std::shared_ptr<C2PortActualDelayTuning::input> m_actualInputDelay;
     std::shared_ptr<C2PortDelayTuning::input> m_inputDelay;
     std::shared_ptr<C2StreamColorAspectsTuning::output> m_defaultColorAspects;
     std::shared_ptr<C2StreamColorAspectsInfo::input> m_inColorAspects;
     std::shared_ptr<C2StreamColorAspectsInfo::output> m_outColorAspects;
     std::shared_ptr<C2StreamPixelFormatInfo::output> m_pixelFormat;
+
     /* ----------------------------------------Setters------------------------------------------- */
     static C2R OutputSurfaceAllocatorSetter(bool mayBlock, C2P<C2PortSurfaceAllocatorTuning::output> &me);
     static C2R SizeSetter(bool mayBlock, const C2P<C2StreamPictureSizeInfo::output> &oldMe,
