@@ -26,8 +26,6 @@
 #include "mfx_c2_components_registry.h"
 #include "mfx_c2_utils.h"
 #include "mfx_defaults.h"
-#include "mfx_c2_allocator_id.h"
-#include "mfx_c2_buffer_queue.h"
 #include "C2PlatformSupport.h"
 #include "mfx_c2_color_aspects_utils.h"
 
@@ -1038,9 +1036,7 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
     m_signalInfo.VideoFullRange = 2; // UNSPECIFIED Range
     mfx_set_defaults_mfxVideoParam_dec(&m_mfxVideoParams);
 
-    m_mfxVideoParams.IOPattern = (m_consumerUsage & (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE)) ?
-                MFX_IOPATTERN_OUT_SYSTEM_MEMORY : MFX_IOPATTERN_OUT_VIDEO_MEMORY;
-    MFX_DEBUG_TRACE_U32(m_mfxVideoParams.IOPattern);
+    m_mfxVideoParams.IOPattern = MFX_IOPATTERN_OUT_VIDEO_MEMORY;
 
     return res;
 }
@@ -1183,7 +1179,6 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             {
                 // No surface & BQ
                 m_mfxVideoParams.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
-                m_allocator = nullptr;
             }
         }
     }
@@ -1403,14 +1398,7 @@ c2_status_t MfxC2DecoderComponent::UpdateC2Param(const mfxVideoParam* src, C2Par
         }
         case kParamIndexAllocators: {
             if (C2PortAllocatorsTuning::output::PARAM_TYPE == index) {
-                if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY)
-#ifdef MFX_BUFFER_QUEUE
-                    m_outputAllocators->m.values[0] = MFX_BUFFERQUEUE;
-#else
-                    m_outputAllocators->m.values[0] = C2PlatformAllocatorStore::GRALLOC;
-#endif
-                else
-                    m_outputAllocators->m.values[0] = C2PlatformAllocatorStore::GRALLOC;
+                m_outputAllocators->m.values[0] = C2PlatformAllocatorStore::GRALLOC;
                 MFX_DEBUG_TRACE_PRINTF("Set output port alloctor to: %d", m_outputAllocators->m.values[0]);
             }
             break;

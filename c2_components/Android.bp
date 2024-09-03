@@ -66,7 +66,6 @@ cc_library_shared {
     include_dirs: [
         "vendor/intel/mediasdk_c2/c2_utils/include",
         "vendor/intel/mediasdk_c2/c2_buffers/include",
-        "vendor/intel/mediasdk_c2/plugin_store/include",
         "frameworks/native/libs/ui/include",
         "frameworks/av/media/codec2/sfplugin/utils",
     ],
