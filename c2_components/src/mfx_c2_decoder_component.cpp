@@ -1070,6 +1070,8 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
     mfxStatus mfx_res = MFX_ERR_NONE;
     // Workaround for MSDK issue which would change crop size on AV1.
     mfxU16 cropW = 0, cropH = 0;
+    mfxU16 init_sizeW = 0, init_sizeH = 0;
+    m_sizeChanged = false;
     std::lock_guard<std::mutex> lock(m_initDecoderMutex);
 
     {
@@ -1094,6 +1096,12 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             m_mfxVideoParams.NumExtParam = m_extBuffers.size();
             m_mfxVideoParams.ExtParam = &m_extBuffers.front();
 
+	    init_sizeW = m_mfxVideoParams.mfx.FrameInfo.Width;
+	    init_sizeH = m_mfxVideoParams.mfx.FrameInfo.Height;
+	    MFX_DEBUG_TRACE_MSG("Before decoding header. Size:");
+	    MFX_DEBUG_TRACE_I32(init_sizeW);
+	    MFX_DEBUG_TRACE_I32(init_sizeH);
+
             // decoding header
             mfx_res = m_mfxDecoder->DecodeHeader(m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get(), &m_mfxVideoParams);
             // MSDK will call the function av1_native_profile_to_mfx_profile to change CodecProfile in DecodeHeader while 
@@ -1116,6 +1124,13 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             MFX_DEBUG_TRACE_I32(m_mfxVideoParams.IOPattern);
             MFX_DEBUG_TRACE_I32(m_mfxVideoParams.mfx.FrameInfo.Width);
             MFX_DEBUG_TRACE_I32(m_mfxVideoParams.mfx.FrameInfo.Height);
+
+	    if (init_sizeW != m_mfxVideoParams.mfx.FrameInfo.Width || init_sizeH != m_mfxVideoParams.mfx.FrameInfo.Height) {
+                m_sizeChanged = true;
+		MFX_DEBUG_TRACE_MSG("After decoding header. Size is changed.");
+                MFX_DEBUG_TRACE_I32(init_sizeW);
+                MFX_DEBUG_TRACE_I32(init_sizeH);
+	    }
 
             // Query required surfaces number for decoder
             mfxFrameAllocRequest decRequest = {};
@@ -2376,6 +2391,18 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             // Pass end of stream flag only.
             worklet->output.flags = (C2FrameData::flags_t)(work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
             worklet->output.ordinal = work->input.ordinal;
+
+            if (m_sizeChanged) {
+                m_sizeChanged = false;
+		MFX_DEBUG_TRACE_MSG("Buffer size is changed! inform framework to update Config.");
+                MFX_DEBUG_TRACE_STREAM("find size different from m_mfxVideoParams, update width to " <<
+			       m_mfxVideoParams.mfx.FrameInfo.Width << ", height to " << m_mfxVideoParams.mfx.FrameInfo.Height);
+                C2StreamPictureSizeInfo::output new_size(0u, m_mfxVideoParams.mfx.FrameInfo.Width,
+			       m_mfxVideoParams.mfx.FrameInfo.Height);
+
+                m_updatingC2Configures.push_back(C2Param::Copy(new_size));
+	    }
+
             // Update codec's configure
             for (int i = 0; i < m_updatingC2Configures.size(); i++) {
                 worklet->output.configUpdate.push_back(std::move(m_updatingC2Configures[i]));
