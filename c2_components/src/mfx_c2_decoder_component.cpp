@@ -651,7 +651,6 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     // But the format we actually allocated buffer is HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL for 8-bit,
     // HAL_PIXEL_FORMAT_P010_INTEL for 10-bit. via function MfxFourCCToGralloc in mfx_c2_utils.cpp
     std::vector<uint32_t> supportedPixelFormats = {
-        HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED,
         HAL_PIXEL_FORMAT_YCBCR_420_888,
         HAL_PIXEL_FORMAT_YV12,
         HAL_PIXEL_FORMAT_YCBCR_P010
@@ -1148,25 +1147,6 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
 
         m_mfxVideoParams.mfx.FrameInfo.Width = MFX_MEM_ALIGN(m_mfxVideoParams.mfx.FrameInfo.Width, 16);
         m_mfxVideoParams.mfx.FrameInfo.Height = MFX_MEM_ALIGN(m_mfxVideoParams.mfx.FrameInfo.Height, 16);
-        // Google requires the component to decode to 8-bit color format by default.
-        // Reference CTS cases testDefaultOutputColorFormat.
-        MFX_DEBUG_TRACE_I32(m_pixelFormat->value);
-        if (HAL_PIXEL_FORMAT_YCBCR_420_888 == m_pixelFormat->value && MFX_FOURCC_P010 == m_mfxVideoParams.mfx.FrameInfo.FourCC) {
-            MFX_DEBUG_TRACE_MSG("force change from 10-bit to 8-bit");
-            m_mfxVideoParams.mfx.FrameInfo.FourCC = MFX_FOURCC_NV12;
-            m_mfxVideoParams.mfx.FrameInfo.ChromaFormat = MFX_CHROMAFORMAT_YUV420;
-            m_mfxVideoParams.mfx.FrameInfo.BitDepthLuma = 8;
-            m_mfxVideoParams.mfx.FrameInfo.BitDepthChroma = 8;
-            m_mfxVideoParams.mfx.FrameInfo.Shift = 0;
-            if (m_decoderType == DECODER_H265) {
-                m_mfxVideoParams.mfx.CodecProfile = MFX_PROFILE_HEVC_MAIN;
-            }
-            if (m_decoderType == DECODER_VP9) {
-                m_mfxVideoParams.mfx.CodecProfile = MFX_PROFILE_VP9_0;
-            }
-        }
-
-        MFX_DEBUG_TRACE_I32(m_mfxVideoParams.mfx.FrameInfo.FourCC);
         if (MFX_ERR_NONE == mfx_res) {
             mfx_res = m_c2Bitstream->GetFrameConstructor()->Init(m_mfxVideoParams.mfx.CodecProfile, m_mfxVideoParams.mfx.FrameInfo);
         }
@@ -2365,6 +2345,11 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
                 m_size->height = m_mfxVideoParams.mfx.FrameInfo.Height;
                 C2StreamPictureSizeInfo::output new_size(0u, m_size->width, m_size->height);
                 m_updatingC2Configures.push_back(C2Param::Copy(new_size));
+            }
+            // Update pixel format to framework if it different from what we actually allocted.
+            if (MFX_FOURCC_P010 == m_mfxVideoParams.mfx.FrameInfo.FourCC && m_pixelFormat->value != HAL_PIXEL_FORMAT_YCBCR_P010) {
+                C2StreamPixelFormatInfo::output new_pixel_format(0u, HAL_PIXEL_FORMAT_YCBCR_P010);
+                m_updatingC2Configures.push_back(C2Param::Copy(new_pixel_format));
             }
 
             // Update codec's configure
