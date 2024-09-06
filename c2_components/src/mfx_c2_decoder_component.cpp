@@ -651,6 +651,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     // But the format we actually allocated buffer is HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL for 8-bit,
     // HAL_PIXEL_FORMAT_P010_INTEL for 10-bit. via function MfxFourCCToGralloc in mfx_c2_utils.cpp
     std::vector<uint32_t> supportedPixelFormats = {
+        HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED,
         HAL_PIXEL_FORMAT_YCBCR_420_888,
         HAL_PIXEL_FORMAT_YV12,
         HAL_PIXEL_FORMAT_YCBCR_P010
@@ -1248,12 +1249,64 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             m_mfxVideoParams.mfx.FrameInfo.CropH = cropH;
         }
     }
+
+    // Google requires the component to decode to 8-bit color format by default.
+    // Reference CTS cases testDefaultOutputColorFormat.
+    if (MFX_ERR_NONE == mfx_res && HAL_PIXEL_FORMAT_YCBCR_420_888 == m_pixelFormat->value &&
+            MFX_FOURCC_P010 == m_mfxVideoParams.mfx.FrameInfo.FourCC) {
+        m_vppConversion = true;
+        mfx_res = InitVPP();
+    }
+
     if (MFX_ERR_NONE != mfx_res) {
         FreeDecoder();
     }
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
+}
+
+mfxStatus MfxC2DecoderComponent::InitVPP()
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxStatus sts = MFX_ERR_NONE;
+    mfxVideoParam vppParam;
+
+#ifdef USE_ONEVPL
+        MFX_NEW(m_vpp, MFXVideoVPP(m_mfxSession));
+#else
+        MFX_NEW(m_vpp, MFXVideoVPP(*m_pSession));
+#endif
+
+    if(!m_vpp) {
+        sts = MFX_ERR_UNKNOWN;
+        return sts;
+    }
+
+    mfxFrameInfo frame_info;
+    frame_info = m_mfxVideoParams.mfx.FrameInfo;
+    MFX_ZERO_MEMORY(vppParam);
+
+    if(m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
+        vppParam.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY | MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
+    } else {
+        vppParam.IOPattern = MFX_IOPATTERN_IN_VIDEO_MEMORY | MFX_IOPATTERN_OUT_VIDEO_MEMORY;
+    }
+
+    vppParam.vpp.In = frame_info;
+    vppParam.vpp.Out = frame_info;
+
+    vppParam.vpp.Out.FourCC = MFX_FOURCC_NV12;
+    vppParam.vpp.Out.Shift = 0;
+
+    vppParam.AsyncDepth = m_mfxVideoParams.AsyncDepth;
+
+    MFX_DEBUG_TRACE__mfxFrameInfo(vppParam.vpp.In);
+    MFX_DEBUG_TRACE__mfxFrameInfo(vppParam.vpp.Out);
+
+    if (MFX_ERR_NONE == sts) sts = m_vpp->Init(&vppParam);
+
+    return sts;
 }
 
 void MfxC2DecoderComponent::FreeDecoder()
@@ -1263,6 +1316,11 @@ void MfxC2DecoderComponent::FreeDecoder()
     m_bInitialized = false;
 
     m_lockedSurfaces.clear();
+
+    if(m_vppConversion && m_vpp != NULL) {
+        m_vpp->Close();
+        MFX_DELETE(m_vpp);
+    }
 
     if(nullptr != m_mfxDecoder) {
         m_mfxDecoder->Close();
@@ -1670,7 +1728,7 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
     return mfx_sts;
 }
 
-c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t height, uint32_t fourcc, std::shared_ptr<C2GraphicBlock>* out_block)
+c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t height, uint32_t fourcc, std::shared_ptr<C2GraphicBlock>* out_block, bool vpp_conversion)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -1707,12 +1765,14 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
                 uint64_t id;
                 if (C2_OK != MfxGrallocInstance::getInstance()->GetBackingStore(hndl.get(), &id))
                     return C2_CORRUPTED;
-                if (m_allocator && !m_allocator->InCache(id)) {
-                    res = C2_BLOCKING;
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                    // If always fetch a nocached block, check if width or height have changed
-                    // compare to when it was initialized.
-                    MFX_DEBUG_TRACE_STREAM("fetchGraphicBlock a nocached block, please retune output blocks. id = " << id);
+                if(!m_vppConversion) {
+                    if (m_allocator && !m_allocator->InCache(id)) {
+                        res = C2_BLOCKING;
+                        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                        // If always fetch a nocached block, check if width or height have changed
+                        // compare to when it was initialized.
+                        MFX_DEBUG_TRACE_STREAM("fetchGraphicBlock a nocached block, please retune output blocks. id = " << id);
+                    }
                 }
             }
         } else if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
@@ -1726,7 +1786,7 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
     return res;
 }
 
-c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
+c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out, bool vpp_conversion)
 {
     MFX_DEBUG_TRACE_FUNC;
 
@@ -1749,9 +1809,15 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
         }
 
         std::shared_ptr<C2GraphicBlock> out_block;
-        res = AllocateC2Block(MFXGetSurfaceWidth(m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
-                              MFXGetSurfaceHeight(m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
-                              m_mfxVideoParams.mfx.FrameInfo.FourCC, &out_block);
+        if(!vpp_conversion) {
+            res = AllocateC2Block(MFXGetSurfaceWidth(m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
+                                  MFXGetSurfaceHeight(m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
+                                  m_mfxVideoParams.mfx.FrameInfo.FourCC, &out_block);
+        } else {
+            res = AllocateC2Block(MFXGetSurfaceWidth(m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
+                                  MFXGetSurfaceHeight(m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
+                                  MFX_FOURCC_NV12, &out_block, vpp_conversion);
+        }
         if (C2_TIMED_OUT == res) continue;
 
         if (C2_OK != res) break;
@@ -1778,11 +1844,16 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
             it = m_surfaces.find(id);
             if (it == m_surfaces.end()){
                 // haven't been used for decoding yet
-                res = MfxC2FrameOut::Create(converter, std::move(out_block), m_mfxVideoParams.mfx.FrameInfo, frame_out, hndl.get());
+                if(!vpp_conversion) {
+                    res = MfxC2FrameOut::Create(converter, std::move(out_block), m_mfxVideoParams.mfx.FrameInfo, frame_out, hndl.get());
+                } else {
+                    mfxFrameInfo frame_info = m_mfxVideoParams.mfx.FrameInfo;
+                    frame_info.FourCC = MFX_FOURCC_NV12;
+                    res = MfxC2FrameOut::Create(converter, std::move(out_block), frame_info, frame_out, hndl.get());
+                }
                 if (C2_OK != res) {
                     break;
                 }
-
                 m_surfaces.emplace(id, frame_out->GetMfxFrameSurface());
             } else {
                 if (it->second->Data.Locked) {
@@ -1830,7 +1901,13 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
                 }
             } else {
                 // small resolution video playback with system memory
-                res = MfxC2FrameOut::Create(std::move(out_block), m_mfxVideoParams.mfx.FrameInfo, TIMEOUT_NS, frame_out);
+                if(!vpp_conversion) {
+                    res = MfxC2FrameOut::Create(std::move(out_block), m_mfxVideoParams.mfx.FrameInfo, TIMEOUT_NS, frame_out);
+                } else {
+                    mfxFrameInfo frame_info = m_mfxVideoParams.mfx.FrameInfo;
+                    frame_info.FourCC = MFX_FOURCC_NV12;
+                    res = MfxC2FrameOut::Create(std::move(out_block), frame_info, TIMEOUT_NS, frame_out);
+                }
             }
 
             if (C2_OK != res) {
@@ -2230,12 +2307,13 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
+    mfxStatus mfx_res = MFX_ERR_NONE;
 
     {
 #ifdef USE_ONEVPL
-        mfxStatus mfx_res = MFXVideoCORE_SyncOperation(m_mfxSession, sync_point, MFX_TIMEOUT_INFINITE);
+        mfx_res = MFXVideoCORE_SyncOperation(m_mfxSession, sync_point, MFX_TIMEOUT_INFINITE);
 #else
-        mfxStatus mfx_res = m_mfxSession.SyncOperation(sync_point, MFX_TIMEOUT_INFINITE);
+        mfx_res = m_mfxSession.SyncOperation(sync_point, MFX_TIMEOUT_INFINITE);
 #endif
         if (MFX_ERR_NONE != mfx_res) {
             MFX_DEBUG_TRACE_MSG("SyncOperation failed");
@@ -2253,6 +2331,24 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
     MFX_DEBUG_TRACE_I32(mfx_surface->Info.CropH);
     MFX_DEBUG_TRACE_I32(m_mfxVideoParams.mfx.FrameInfo.CropW);
     MFX_DEBUG_TRACE_I32(m_mfxVideoParams.mfx.FrameInfo.CropH);
+
+    MfxC2FrameOut frameOutVpp;
+    std::shared_ptr<mfxFrameSurface1> mfx_surface_vpp;
+    if(m_vppConversion) {
+        AllocateFrame(&frameOutVpp, true);
+        mfx_surface_vpp = frameOutVpp.GetMfxFrameSurface();
+
+        if (mfx_surface_vpp) {
+            mfxSyncPoint syncp;
+            mfx_res = m_vpp->RunFrameVPPAsync(mfx_surface.get(), mfx_surface_vpp.get(), NULL, &syncp);
+            if (MFX_ERR_NONE == mfx_res)
+#ifdef USE_ONEVPL
+                mfx_res = MFXVideoCORE_SyncOperation(m_mfxSession, syncp, MFX_TIMEOUT_INFINITE);
+#else
+                mfx_res = m_pSession->SyncOperation(syncp, MFX_TIMEOUT_INFINITE);
+#endif
+        }
+    }
 
     decltype(C2WorkOrdinalStruct::timestamp) ready_timestamp{mfx_surface->Data.TimeStamp};
 
@@ -2286,8 +2382,14 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
         //C2Event event; // not supported yet, left for future use
         //event.fire(); // pre-fire event as output buffer is ready to use
 
-        const C2Rect rect = C2Rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH)
-            .at(mfx_surface->Info.CropX, mfx_surface->Info.CropY);
+        C2Rect rect;
+        if(!m_vppConversion) {
+            rect = C2Rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH)
+                          .at(mfx_surface->Info.CropX, mfx_surface->Info.CropY);
+        } else {
+            rect = C2Rect(mfx_surface_vpp->Info.CropW, mfx_surface_vpp->Info.CropH)
+                          .at(mfx_surface_vpp->Info.CropX, mfx_surface_vpp->Info.CropY);
+        }
 
         {
             // Update frame format description to be returned by Query method
@@ -2304,7 +2406,12 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             m_mfxVideoParams.mfx.FrameInfo = mfx_surface->Info;
         }
 
-        std::shared_ptr<C2GraphicBlock> block = frame_out.GetC2GraphicBlock();
+        std::shared_ptr<C2GraphicBlock> block;
+        if(!m_vppConversion) {
+            block = frame_out.GetC2GraphicBlock();
+        } else {
+            block = frameOutVpp.GetC2GraphicBlock();
+        }
         if (!block) {
             res = C2_CORRUPTED;
             break;
@@ -2345,11 +2452,6 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
                 m_size->height = m_mfxVideoParams.mfx.FrameInfo.Height;
                 C2StreamPictureSizeInfo::output new_size(0u, m_size->width, m_size->height);
                 m_updatingC2Configures.push_back(C2Param::Copy(new_size));
-            }
-            // Update pixel format to framework if it different from what we actually allocted.
-            if (MFX_FOURCC_P010 == m_mfxVideoParams.mfx.FrameInfo.FourCC && m_pixelFormat->value != HAL_PIXEL_FORMAT_YCBCR_P010) {
-                C2StreamPixelFormatInfo::output new_pixel_format(0u, HAL_PIXEL_FORMAT_YCBCR_P010);
-                m_updatingC2Configures.push_back(C2Param::Copy(new_pixel_format));
             }
 
             // Update codec's configure
@@ -2397,6 +2499,10 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
     } while (false);
     // Release output frame before onWorkDone is called, release causes unmap for system memory.
     frame_out = MfxC2FrameOut();
+    if(m_vppConversion) {
+        frameOutVpp = MfxC2FrameOut();
+    }
+
     if (work) {
         NotifyWorkDone(std::move(work), res);
     }
