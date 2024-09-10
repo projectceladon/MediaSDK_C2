@@ -1180,6 +1180,33 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         m_mfxVideoParams.AsyncDepth = GetAsyncDepth();
     }
 
+    // We need check whether the BQ allocator has a surface, if No we cannot use MFX_IOPATTERN_OUT_VIDEO_MEMORY mode.
+    if (MFX_ERR_NONE == mfx_res && m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
+        std::shared_ptr<C2GraphicBlock> out_block;
+        c2_status_t res = C2_OK;
+        C2MemoryUsage mem_usage = {C2AndroidMemoryUsage::CPU_READ | C2AndroidMemoryUsage::HW_COMPOSER_READ,
+                                C2AndroidMemoryUsage::HW_CODEC_WRITE};
+
+        res = m_c2Allocator->fetchGraphicBlock(m_mfxVideoParams.mfx.FrameInfo.Width,
+                                            m_mfxVideoParams.mfx.FrameInfo.Height,
+                                            MfxFourCCToGralloc(m_mfxVideoParams.mfx.FrameInfo.FourCC),
+                                            mem_usage, &out_block);
+
+        if (res == C2_OK)
+        {
+            uint32_t width, height, format, stride, igbp_slot, generation;
+            uint64_t usage, igbp_id;
+            android::_UnwrapNativeCodec2GrallocMetadata(out_block->handle(), &width, &height, &format, &usage,
+                                                        &stride, &generation, &igbp_id, &igbp_slot);
+            if ((!igbp_id && !igbp_slot) || (!igbp_id && igbp_slot == 0xffffffff))
+            {
+                // No surface & BQ
+                m_mfxVideoParams.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
+                m_allocator = nullptr;
+            }
+        }
+    }
+
     bool allocator_required = (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY);
     if (MFX_ERR_NONE == mfx_res && allocator_required && m_bAllocatorSet == false) {
         // set frame allocator
