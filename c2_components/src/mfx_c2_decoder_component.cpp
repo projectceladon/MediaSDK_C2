@@ -1840,6 +1840,7 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out)
 bool MfxC2DecoderComponent::IsDuplicatedTimeStamp(uint64_t timestamp)
 {
     MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_I64(timestamp);
 
     bool bDuplicated = false;
 
@@ -1860,6 +1861,7 @@ bool MfxC2DecoderComponent::IsDuplicatedTimeStamp(uint64_t timestamp)
 bool MfxC2DecoderComponent::IsPartialFrame(uint64_t frame_index)
 {
     MFX_DEBUG_TRACE_FUNC;
+    MFX_DEBUG_TRACE_I64(frame_index);
 
     bool bDuplicated = false;
 
@@ -1909,6 +1911,8 @@ void MfxC2DecoderComponent::ReleaseReadViews(uint64_t incoming_frame_index)
         read_view = std::move(it->second);
         read_view.reset();
         m_readViews.erase(it);
+        MFX_DEBUG_TRACE_STREAM("release read_view with " <<
+            NAMED(incoming_frame_index));
     }
 }
 
@@ -1925,9 +1929,11 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
     mfxStatus mfx_sts = MFX_ERR_NONE;
 
     const auto incoming_frame_index = work->input.ordinal.frameIndex;
+    const auto incoming_timestamp = work->input.ordinal.timestamp;
     const auto incoming_flags = work->input.flags;
 
     MFX_DEBUG_TRACE_STREAM("work: " << work.get() << "; index: " << incoming_frame_index.peeku() <<
+        "; timestamp: " << incoming_timestamp.peeku() <<
         " flags: " << std::hex << incoming_flags);
 
     bool expect_output = false;
@@ -1956,6 +1962,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         }
     }
 
+    bool encounterResolutionChanged = false;
     do {
         std::unique_ptr<C2ReadView> read_view;
         res = m_c2Bitstream->AppendFrame(work->input, TIMEOUT_NS, &read_view);
@@ -1964,6 +1971,8 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         {
             std::lock_guard<std::mutex> lock(m_readViewMutex);
             m_readViews.emplace(incoming_frame_index.peeku(), std::move(read_view));
+            MFX_DEBUG_TRACE_STREAM("emplace readview with " << NAMED(incoming_frame_index.peeku())
+                << NAMED(incoming_timestamp.peeku()));
             MFX_DEBUG_TRACE_I32(m_readViews.size());
         }
 
@@ -2020,6 +2029,8 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 
             resolution_change = (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == mfx_sts);
             if (resolution_change) {
+                encounterResolutionChanged = true;
+
                 frame_out = MfxC2FrameOut(); // release the frame to be used in Drain
 
                 Drain(nullptr);
@@ -2066,8 +2077,13 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
     bool incomplete_frame =
         (incoming_flags & (C2FrameData::FLAG_INCOMPLETE | C2FrameData::FLAG_CODEC_CONFIG)) != 0;
 
-    // sometimes the frame is split to several buffers with the same timestamp.
-    incomplete_frame |= IsPartialFrame(incoming_frame_index.peeku());
+    // Sometimes the frame is split to several buffers with the same timestamp.
+    // If the current input bitstream causes a change in resolution,
+    // the corresponding decoded frame must be returned to the framework in the 'WaitWork' thread,
+    // rather than returning an empty output in the 'DoWork' thread.
+    if (!encounterResolutionChanged) {
+        incomplete_frame |= IsPartialFrame(incoming_frame_index.peeku());
+    }
 
     // notify listener in case of failure or empty output
     if (C2_OK != res || !expect_output || incomplete_frame || flushing) {
@@ -2122,7 +2138,6 @@ void MfxC2DecoderComponent::Drain(std::unique_ptr<C2Work>&& work)
 
     if (m_bInitialized) {
         do {
-
             if (m_bFlushing) {
                 if (work) {
                     m_flushedWorks.push_back(std::move(work));
@@ -2149,7 +2164,6 @@ void MfxC2DecoderComponent::Drain(std::unique_ptr<C2Work>&& work)
         // eos work, should be sent after last work returned
         if (work) {
             m_waitingQueue.Push([work = std::move(work), this]() mutable {
-
                 FillEmptyWork(std::move(work), C2_OK);
             });
         }
@@ -2402,16 +2416,21 @@ void MfxC2DecoderComponent::PushPending(std::unique_ptr<C2Work>&& work)
         if (!IsDuplicatedTimeStamp(duplicated_timestamp)) {
             m_duplicatedTimeStamp.push_back(std::make_pair(duplicate->second->input.ordinal.timestamp.peeku(),
                                                duplicate->second->input.ordinal.frameIndex.peeku()));
+            MFX_DEBUG_TRACE_STREAM("record work with duplicated timestamp: " << duplicate->second->input.ordinal.timestamp.peeku() <<
+                "; index: " << duplicate->second->input.ordinal.frameIndex.peeku());
         }
         m_duplicatedTimeStamp.push_back(std::make_pair(work->input.ordinal.timestamp.peeku(),
                                                work->input.ordinal.frameIndex.peeku()));
+        MFX_DEBUG_TRACE_STREAM("record incoming work with duplicated timestamp: " << work->input.ordinal.timestamp.peeku() <<
+            "; index: " << work->input.ordinal.frameIndex.peeku());
     }
 
     const auto incoming_frame_index = work->input.ordinal.frameIndex;
     auto it = m_pendingWorks.find(incoming_frame_index);
     if (it != m_pendingWorks.end()) { // Shouldn't be the same index there
         NotifyWorkDone(std::move(it->second), C2_CORRUPTED);
-        MFX_DEBUG_TRACE_STREAM("Work removed: " << NAMED(it->second->input.ordinal.frameIndex.peeku()));
+        MFX_DEBUG_TRACE_STREAM("Work removed: " << NAMED(it->second->input.ordinal.frameIndex.peeku()) <<
+            NAMED(it->second->input.ordinal.timestamp.peeku()));
         m_pendingWorks.erase(it);
     }
     m_pendingWorks.emplace(incoming_frame_index, std::move(work));
