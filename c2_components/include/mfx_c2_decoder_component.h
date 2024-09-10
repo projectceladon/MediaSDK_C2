@@ -268,7 +268,6 @@ private:
     std::shared_ptr<C2PortMediaTypeSetting::input> m_inputMediaType;
     std::shared_ptr<C2StreamBufferTypeSetting::input> m_inputFormat;
     std::shared_ptr<C2StreamBufferTypeSetting::output> m_outputFormat;
-    std::shared_ptr<C2StreamUsageTuning::output> m_outputUsage;
     std::shared_ptr<C2StreamProfileLevelInfo::input> m_profileLevel;
     std::shared_ptr<C2PortActualDelayTuning::output> m_actualOutputDelay;
     std::shared_ptr<C2PortRequestedDelayTuning::input> m_requestedInputDelay;
@@ -293,5 +292,4 @@ private:
     static C2R ColorAspectsSetter(bool mayBlock, C2P<C2StreamColorAspectsInfo::output> &me,
                                 const C2P<C2StreamColorAspectsTuning::output> &def,
                                 const C2P<C2StreamColorAspectsInfo::input> &coded);
-    static C2R OutputUsageSetter(bool mayBlock, C2P<C2StreamUsageTuning::output> &me);
 };
