@@ -1336,6 +1336,43 @@ c2_status_t MfxC2EncoderComponent::ApplyWorkTunings(C2Work& work)
     return res;
 }
 
+#if MFX_DEBUG_DUMP_FRAME_ENC == MFX_DEBUG_YES
+#include <cutils/properties.h>
+#include <iostream>
+#include <sstream>
+
+bool MfxC2EncoderComponent::NeedDumpBuffer() {
+    MFX_DEBUG_TRACE_FUNC;
+    const char* key = "mediacodec2.encoder.dump.buffer";
+    char* value = new char[20];
+    int len = property_get(key, value, "0");
+
+    std::stringstream strValue;
+    strValue << value;
+
+    unsigned int frame_number = 0;
+    strValue >> frame_number;
+
+    m_count_lock.lock();
+    if (m_count) {
+        delete[] value;
+        m_count_lock.unlock();
+        return true;
+    } else {
+        delete[] value;
+        if (len > 0 && frame_number > 0) {
+            m_count = frame_number;
+            MFX_DEBUG_TRACE_PRINTF("--------encoder triggered to dump %d buffers---------", frame_number);
+            property_set(key, "0");
+            m_count_lock.unlock();
+            return true;
+        }
+        m_count_lock.unlock();
+        return false;
+    }
+}
+#endif
+
 void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -1362,6 +1399,46 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 break;
             }
         }
+
+#if MFX_DEBUG_DUMP_FRAME_ENC == MFX_DEBUG_YES
+            if (MFX_IOPATTERN_IN_SYSTEM_MEMORY == m_mfxVideoParamsConfig.IOPattern &&
+	           MFX_FOURCC_NV12 == m_mfxVideoParamsState.mfx.FrameInfo.FourCC &&
+		   NeedDumpBuffer()) {
+                std::unique_ptr<const C2GraphicView> c_graph_view;
+                std::unique_ptr<C2ConstGraphicBlock> c_graph_block;
+
+                res = GetC2ConstGraphicBlock(input, &c_graph_block);
+                MapConstGraphicBlock(*c_graph_block, TIMEOUT_NS, &c_graph_view);
+
+                m_count_lock.lock();
+                if (m_count) {
+                    const uint8_t* srcY = c_graph_view->data()[C2PlanarLayout::PLANE_Y];
+                    const uint8_t* srcU = c_graph_view->data()[C2PlanarLayout::PLANE_U];
+                    const uint8_t* srcV = c_graph_view->data()[C2PlanarLayout::PLANE_V];
+                    if (!m_file) {
+                        m_file = fopen("/data/local/traces/encoder_frame.yuv", "w+");
+                        MFX_DEBUG_TRACE_STREAM("/data/local/traces/encoder_frame.yuv: create:" << m_file);
+		    }
+		    if (m_file) {
+                        size_t copied_Y = 0, copied_U = 0;
+                        copied_Y = fwrite(srcY, c_graph_block->width() * c_graph_block->height(), 1, m_file);
+                        copied_U = fwrite(srcU, c_graph_block->width() * c_graph_block->height() / 2, 1, m_file);
+                        MFX_DEBUG_TRACE_PRINTF("############# dumping #%d encoder input buffer in size: %dx%d, Y:%zu, U:%zu #################",
+					m_count, c_graph_block->width(), c_graph_block->height(), copied_Y, copied_U);
+                        if (copied_Y > 0 || copied_U > 0)
+                            m_count--;
+                     }
+                }
+                m_count_lock.unlock();
+            }
+            m_count_lock.lock();
+            if (m_count == 0 && m_file) {
+                fclose(m_file);
+                MFX_DEBUG_TRACE_MSG("encoder dump file is closed");
+                m_file = NULL;
+            }
+            m_count_lock.unlock();
+#endif
 
         std::shared_ptr<MfxFrameConverter> frame_converter;
         if (m_mfxVideoParamsConfig.IOPattern == MFX_IOPATTERN_IN_VIDEO_MEMORY) {
