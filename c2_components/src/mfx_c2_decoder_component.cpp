@@ -46,6 +46,7 @@ constexpr uint64_t kMinInputBufferSize = 1 * WIDTH_1K * HEIGHT_1K;
 constexpr uint64_t kDefaultConsumerUsage =
     (GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_HW_COMPOSER);
 
+constexpr uint64_t kProtectedUsage = C2MemoryUsage::READ_PROTECTED;
 
 // Android S declared VP8 profile
 #if PLATFORM_SDK_VERSION <= 30 // Android 11(R)
@@ -169,7 +170,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         m_bInitialized(false),
         m_uSyncedPointsCount(0),
         m_bSetHdrStatic(false),
-        m_surfaceNum(0)
+        m_surfaceNum(0),
+        m_secure(false)
 {
     MFX_DEBUG_TRACE_FUNC;
     const unsigned int SINGLE_STREAM_ID = 0u;
@@ -222,6 +224,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         .build());
 
     switch(m_decoderType) {
+        case DECODER_H264_SECURE:
         case DECODER_H264: {
             m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
 
@@ -277,6 +280,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 .build());
             break;
         }
+        case DECODER_H265_SECURE:
         case DECODER_H265: {
             m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
 
@@ -883,6 +887,14 @@ void MfxC2DecoderComponent::InitFrameConstructor()
     case DECODER_AV1:
         fc_type = MfxC2FC_AV1;
         break;
+#ifdef ENABLE_WIDEVINE
+    case DECODER_H264_SECURE:
+        fc_type = MfxC2FC_SEC_AVC;
+        break;
+    case DECODER_H265_SECURE:
+        fc_type = MfxC2FC_SEC_HEVC;
+        break;
+#endif
     default:
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
         fc_type = MfxC2FC_None;
@@ -1028,9 +1040,11 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
     switch (m_decoderType)
     {
     case DECODER_H264:
+    case DECODER_H264_SECURE:
         m_mfxVideoParams.mfx.CodecId = MFX_CODEC_AVC;
         break;
     case DECODER_H265:
+    case DECODER_H265_SECURE:
         m_mfxVideoParams.mfx.CodecId = MFX_CODEC_HEVC;
         break;
     case DECODER_VP9:
@@ -1106,6 +1120,10 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
     // Workaround for MSDK issue which would change crop size on AV1.
     mfxU16 cropW = 0, cropH = 0;
     std::lock_guard<std::mutex> lock(m_initDecoderMutex);
+
+    MFX_DEBUG_TRACE_I32(m_secure);
+    if (m_secure)
+        m_consumerUsage |= kProtectedUsage;
 
     {
         MFX_DEBUG_TRACE_MSG("InitDecoder: DecodeHeader");
