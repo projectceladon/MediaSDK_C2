@@ -95,21 +95,17 @@ c2_status_t MfxC2FrameIn::init(std::shared_ptr<MfxFrameConverter> frame_converte
 c2_status_t MfxC2FrameIn::MfxC2LoadSurfaceInHW(C2ConstGraphicBlock& c_graph_block, C2FrameData& buf_pack)
 {
     MFX_DEBUG_TRACE_FUNC;
+    
     c2_status_t res = C2_OK;
-
     mfxMemId mem_id = nullptr;
     bool decode_target = false;
 
-    auto hndl_deleter = [](native_handle_t *hndl) {
-        native_handle_delete(hndl);
-        hndl = nullptr;
-    };
+    native_handle_t *grallocHandle =
+            android::UnwrapNativeCodec2GrallocHandle(c_graph_block.handle());
 
-    std::unique_ptr<native_handle_t, decltype(hndl_deleter)> grallocHandle(
-        android::UnwrapNativeCodec2GrallocHandle(c_graph_block.handle()), hndl_deleter);
-
-    mfxStatus mfx_sts = m_frameConverter->ConvertGrallocToVa(grallocHandle.get(), decode_target, &mem_id);
+    mfxStatus mfx_sts = m_frameConverter->ConvertGrallocToVa(grallocHandle, decode_target, &mem_id);
     if (MFX_ERR_NONE != mfx_sts) {
+        native_handle_delete(grallocHandle);
         res = MfxStatusToC2(mfx_sts);
         return res;
     }
@@ -117,6 +113,8 @@ c2_status_t MfxC2FrameIn::MfxC2LoadSurfaceInHW(C2ConstGraphicBlock& c_graph_bloc
     InitMfxFrameHW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
         mem_id, c_graph_block.width(), c_graph_block.height(), MFX_FOURCC_NV12, m_mfxFrameInfo,
         m_pMfxFrameSurface);
+
+    native_handle_delete(grallocHandle);
 
     return res;
 }

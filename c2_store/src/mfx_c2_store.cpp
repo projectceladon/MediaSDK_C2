@@ -71,8 +71,6 @@ c2_status_t MfxC2ComponentStore::createComponent(C2String name, std::shared_ptr<
 
     MFX_DEBUG_TRACE_FUNC;
 
-    c2_status_t result = C2_OK;
-
     char szVendorIntelVideoCodec[PROPERTY_VALUE_MAX] = {'\0'};
     if(property_get("vendor.intel.video.codec", szVendorIntelVideoCodec, NULL) > 0 ) {
         if (strncmp(szVendorIntelVideoCodec, "software", PROPERTY_VALUE_MAX) == 0 ) {
@@ -81,50 +79,45 @@ c2_status_t MfxC2ComponentStore::createComponent(C2String name, std::shared_ptr<
         }
     }
 
-    if(component != nullptr) {
-
-        auto it = m_componentsRegistry_.find(name);
-        if(it != m_componentsRegistry_.end()) {
-
-            auto dso_deleter = [] (void* handle) { dlclose(handle); };
-            std::unique_ptr<void, decltype(dso_deleter)> dso(loadModule(it->second.dso_name_), dso_deleter);
-            if(dso != nullptr) {
-
-                CreateMfxC2ComponentFunc* create_func =
-                    reinterpret_cast<CreateMfxC2ComponentFunc*>(dlsym(dso.get(), CREATE_MFX_C2_COMPONENT_FUNC_NAME));
-                if(create_func != nullptr) {
-
-                    std::shared_ptr<C2ReflectorHelper> reflector;
-                    {
-                        std::lock_guard<std::mutex> lock(m_reflectorMutex);
-                        reflector = m_reflector; // safe copy
-                    }
-
-                    MfxC2Component* mfx_component = (*create_func)(name.c_str(), it->second.config_, std::move(reflector), &result);
-                    if(result == C2_OK) {
-                        void* dso_handle = dso.release(); // release handle to be captured into lambda deleter
-                        auto component_deleter = [dso_handle] (MfxC2Component* p) { delete p; dlclose(dso_handle); };
-                        *component = std::shared_ptr<MfxC2Component>(mfx_component, component_deleter);
-                    }
-                }
-                else {
-                    MFX_LOG_ERROR("Module %s is invalid", it->second.dso_name_.c_str());
-                    result = C2_NOT_FOUND;
-                }
-            }
-            else {
-                MFX_LOG_ERROR("Cannot load module %s", it->second.dso_name_.c_str());
-                result = C2_NOT_FOUND;
-            }
-        }
-        else {
-            MFX_LOG_ERROR("Cannot find component %s", name.c_str());
-            result = C2_NOT_FOUND;
-        }
-    }
-    else {
+    if (!component) {
         MFX_LOG_ERROR("output component ptr is null");
-        result = C2_BAD_VALUE;
+        return C2_BAD_VALUE;
+    }
+
+    auto it = m_componentsRegistry_.find(name);
+    if (it == m_componentsRegistry_.end()) {
+        MFX_LOG_ERROR("Cannot find component %s", name.c_str());
+        return C2_NOT_FOUND;
+    }
+
+    void *dso_handle = loadModule(it->second.dso_name_);
+    if (!dso_handle) {
+        return C2_NOT_FOUND;
+    }
+
+    CreateMfxC2ComponentFunc* create_func =
+        reinterpret_cast<CreateMfxC2ComponentFunc*>(dlsym(dso_handle, CREATE_MFX_C2_COMPONENT_FUNC_NAME));
+    const char *dlsym_error = dlerror();
+    if (dlsym_error) {
+        MFX_LOG_ERROR("dlsym-%s failed, error: %s", CREATE_MFX_C2_COMPONENT_FUNC_NAME, dlsym_error);
+        dlclose(dso_handle);
+        return C2_NOT_FOUND;
+    }    
+
+    std::shared_ptr<C2ReflectorHelper> reflector;
+    {
+        std::lock_guard<std::mutex> lock(m_reflectorMutex);
+        reflector = m_reflector; // safe copy
+    }
+
+    c2_status_t result = C2_OK;
+    MfxC2Component* mfx_component = (*create_func)(name.c_str(), it->second.config_, std::move(reflector), &result);
+    if(result == C2_OK) {
+        auto component_deleter = [dso_handle] (MfxC2Component* p) { delete p; dlclose(dso_handle); };
+        *component = std::shared_ptr<MfxC2Component>(mfx_component, component_deleter);
+    } else {
+        dlclose(dso_handle);
+        MFX_LOG_ERROR("Failed to create %s", name.c_str());
     }
 
     MFX_DEBUG_TRACE__android_c2_status_t(result);
@@ -377,7 +370,7 @@ void* MfxC2ComponentStore::loadModule(const std::string& name) {
     dlerror();
     result = dlopen(name.c_str(), RTLD_NOW);
     if(result == nullptr) {
-        MFX_LOG_ERROR("Module %s load is failed: %s", name.c_str(), dlerror());
+        MFX_LOG_ERROR("dlopen-%s failed, error: %s", name.c_str(), dlerror());
     }
     MFX_DEBUG_TRACE_P(result);
     return result;

@@ -1797,8 +1797,7 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out, bool 
         converter = m_device->GetFrameConverter();
     }
 
-    do
-    {
+    do {
         auto pred_unlocked = [&](const MfxC2FrameOut &item) {
             return !item.GetMfxFrameSurface()->Data.Locked;
         };
@@ -1819,39 +1818,32 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out, bool 
                                   MFX_FOURCC_NV12, &out_block, vpp_conversion);
         }
         if (C2_TIMED_OUT == res) continue;
-
         if (C2_OK != res) break;
 
-        auto hndl_deleter = [](native_handle_t *hndl) {
-            native_handle_delete(hndl);
-            hndl = nullptr;
-        };
-
-        std::unique_ptr<native_handle_t, decltype(hndl_deleter)> hndl(
-            android::UnwrapNativeCodec2GrallocHandle(out_block->handle()), hndl_deleter);
-
-        if(hndl == nullptr)
-        {
-            return C2_NO_MEMORY;
-        }
         auto it = m_surfaces.end();
         if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
 
+            native_handle_t *hndl = android::UnwrapNativeCodec2GrallocHandle(out_block->handle());
+            if (!hndl) return C2_NO_MEMORY;
+
             uint64_t id;
-            if (C2_OK != MfxGrallocInstance::getInstance()->GetBackingStore(hndl.get(), &id))
+            if (C2_OK != MfxGrallocInstance::getInstance()->GetBackingStore(hndl, &id)) {
+                native_handle_delete(hndl);
                 return C2_CORRUPTED;
+            }
 
             it = m_surfaces.find(id);
-            if (it == m_surfaces.end()){
+            if (it == m_surfaces.end()) {
                 // haven't been used for decoding yet
-                if(!vpp_conversion) {
-                    res = MfxC2FrameOut::Create(converter, std::move(out_block), m_mfxVideoParams.mfx.FrameInfo, frame_out, hndl.get());
+                if (!vpp_conversion) {
+                    res = MfxC2FrameOut::Create(converter, std::move(out_block), m_mfxVideoParams.mfx.FrameInfo, frame_out, hndl);
                 } else {
                     mfxFrameInfo frame_info = m_mfxVideoParams.mfx.FrameInfo;
                     frame_info.FourCC = MFX_FOURCC_NV12;
-                    res = MfxC2FrameOut::Create(converter, std::move(out_block), frame_info, frame_out, hndl.get());
+                    res = MfxC2FrameOut::Create(converter, std::move(out_block), frame_info, frame_out, hndl);
                 }
                 if (C2_OK != res) {
+                    native_handle_delete(hndl);
                     break;
                 }
                 m_surfaces.emplace(id, frame_out->GetMfxFrameSurface());
@@ -1864,6 +1856,8 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out, bool 
                     *frame_out = MfxC2FrameOut(std::move(out_block), it->second);
                 }
             }
+
+            native_handle_delete(hndl);
         } else {
             // Disable the optimization for 4K thumbnail generation
             if (0/*m_mfxVideoParams.mfx.FrameInfo.Width >= WIDTH_2K || m_mfxVideoParams.mfx.FrameInfo.Height >= HEIGHT_2K*/) {
