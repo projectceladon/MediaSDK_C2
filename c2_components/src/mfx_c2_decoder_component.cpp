@@ -1038,7 +1038,7 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
     m_signalInfo.VideoFullRange = 2; // UNSPECIFIED Range
     mfx_set_defaults_mfxVideoParam_dec(&m_mfxVideoParams);
 
-    m_mfxVideoParams.IOPattern = (m_consumerUsage & (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE)) ?
+    m_mfxVideoParams.IOPattern = (m_consumerUsage == C2MemoryUsage::CPU_READ) ?
                 MFX_IOPATTERN_OUT_SYSTEM_MEMORY : MFX_IOPATTERN_OUT_VIDEO_MEMORY;
     MFX_DEBUG_TRACE_U32(m_mfxVideoParams.IOPattern);
 
@@ -1515,7 +1515,7 @@ void MfxC2DecoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
                 if (C2StreamUsageTuning::output::PARAM_TYPE == param->index()) {
                     m_consumerUsage = m_outputUsage->value;
                     // Set memory type according to consumer usage sent from framework
-                    m_mfxVideoParams.IOPattern = (m_consumerUsage & (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE)) ?
+                    m_mfxVideoParams.IOPattern = (m_consumerUsage == C2MemoryUsage::CPU_READ) ?
                         MFX_IOPATTERN_OUT_SYSTEM_MEMORY : MFX_IOPATTERN_OUT_VIDEO_MEMORY;
                     MFX_DEBUG_TRACE_STREAM("config kParamIndexUsage to 0x" << std::hex << m_consumerUsage);
                 }
