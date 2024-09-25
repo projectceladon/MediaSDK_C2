@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 Intel Corporation
+// Copyright (c) 2017-2024 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,33 +19,35 @@
 // SOFTWARE.
 
 #pragma once
+#include <array>
 
-#include <C2Component.h>
-#include <C2Config.h>
-#include "mfx_c2_param_reflector.h"
+#define PROTECTED_DATA_BUFFER_MAGIC (0UL | ('E' << 24) | ('B' << 16) | ('D' << 8) | 'P')
+using IV = std::array<uint8_t, 16>;
 
-#define MFX_C2_COMPONENT_STORE_NAME "MfxC2ComponentStore"
+typedef unsigned int VAGenericID;
+typedef VAGenericID VAContextID;
 
-#define CREATE_MFX_C2_COMPONENT_FUNC_NAME "MfxCreateC2Component"
 
-#define MFX_C2_CONFIG_FILE_NAME "mfx_c2_store.conf"
-#define MFX_C2_CONFIG_FILE_PATH "/vendor/etc"
+typedef enum OEMCryptoCipherMode {
+  OEMCrypto_CipherMode_CTR,
+  OEMCrypto_CipherMode_CBC,
+  OEMCrypto_CipherMode_MaxValue = OEMCrypto_CipherMode_CBC,
+} OEMCryptoCipherMode;
 
-#define MFX_C2_CONFIG_XML_FILE_NAME "media_codecs_intel_c2_video.xml"
-#define MFX_C2_CONFIG_XML_FILE_PATH "/vendor/etc"
+typedef struct {
+    size_t block_offset;
+    IV current_iv;
+    size_t data_length;
+    size_t clear_bytes;
+    size_t encrypted_bytes;
+    VAContextID context_id;
+} packet_info;
 
-#define MFX_C2_DUMP_DIR "/data/local/tmp"
-#define MFX_C2_DUMP_OUTPUT_SUB_DIR "c2-output"
-
-#define ENABLE_WIDEVINE
-
-const c2_nsecs_t MFX_SECOND_NS = 1000000000; // 1e9
-
-extern const size_t g_h264_profile_levels_count;
-extern const C2ProfileLevelStruct g_h264_profile_levels[];
-
-extern const size_t g_h265_profile_levels_count;
-extern const C2ProfileLevelStruct g_h265_profile_levels[];
-
-// TODO: Update this value if you need to add ExtBufHolder type
-constexpr uint16_t g_max_num_ext_buffers = 2;
+typedef struct {
+    uint32_t pr_magic;
+    uint32_t app_id;
+    size_t num_packet_data;
+    size_t sample_size;
+    OEMCryptoCipherMode cipher_mode;
+    packet_info* packet_data;
+} HUCVideoBuffer;

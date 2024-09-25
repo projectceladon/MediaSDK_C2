@@ -21,9 +21,16 @@
 #pragma once
 
 #include "mfx_defs.h"
+#include "mfx_c2_widevine_crypto_defs.h"
+#ifdef ENABLE_WIDEVINE
+#include "mfx_c2_bs_utils.h"
+#include "mfx_c2_avc_bitstream.h"
+#include "mfx_c2_hevc_bitstream.h"
+#endif
 #include <memory>
 #include <vector>
 #include <map>
+#include <cstring>
 
 enum MfxC2FrameConstructorType
 {
@@ -34,6 +41,10 @@ enum MfxC2FrameConstructorType
     MfxC2FC_VP9,
     MfxC2FC_MP2,
     MfxC2FC_AV1,
+    #ifdef ENABLE_WIDEVINE
+    MfxC2FC_SEC_AVC,
+    MfxC2FC_SEC_HEVC,
+    #endif
 };
 
 enum MfxC2BitstreamState
@@ -71,6 +82,8 @@ public:
     virtual mfxStatus SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset) = 0;
     // get whether in reset state
     virtual bool IsInReset() = 0;
+
+    virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame) = 0;
 
 protected:
     struct StartCode
@@ -170,6 +183,9 @@ public:
 
 protected: // functions
     virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
+    
+    virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame);
+    
     virtual mfxStatus LoadHeader(const mfxU8* data, mfxU32 size, bool header);
     // save current SEI
     virtual mfxStatus SaveSEI(mfxBitstream * /*pSEI*/) {return MFX_ERR_NONE;}
@@ -229,6 +245,103 @@ protected: // data
 private:
     MFX_CLASS_NO_COPY(MfxC2HEVCFrameConstructor)
 };
+
+#ifdef ENABLE_WIDEVINE
+class MfxC2SecureFrameConstructor
+{
+public:
+    MfxC2SecureFrameConstructor();
+    virtual ~MfxC2SecureFrameConstructor();
+
+    MFX_CLASS_NO_COPY(MfxC2SecureFrameConstructor)
+
+protected:
+    virtual mfxStatus Reset(void);
+    virtual mfxStatus ResetHeaders(void);
+    virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
+    virtual mfxEncryptedData* GetFreeEncryptedDataItem(void);
+    virtual mfxEncryptedData* BuildEncryptedDataList(void);
+
+protected:
+    static const mfxU32 SLICE_HEADER_BUFFER_SIZE = 128;
+    std::list<mfxEncryptedData*> m_encryptedDataList;
+    HUCVideoBuffer               m_hucBuffer;
+
+    // Actual SPS/PPS/SEI headers
+    mfxBitstream m_SPS_PPS_SEI;
+    // tmp buffer for slice header packing
+    std::vector<mfxU8>  m_sliceHeader;
+    // m_ClearBst contains clear data - SPS, PPS, SEI, slice header
+    mfxBitstream m_ClearBst;
+};
+
+class MfxC2AVCSecureFrameConstructor : public MfxC2HEVCFrameConstructor, public MfxC2SecureFrameConstructor
+{
+public:
+    MfxC2AVCSecureFrameConstructor();
+    virtual ~MfxC2AVCSecureFrameConstructor(void);
+    MFX_CLASS_NO_COPY(MfxC2AVCSecureFrameConstructor)
+
+    virtual mfxStatus Reset(void);
+    virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool b_header, bool bCompleteFrame);
+    virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame);
+
+protected:
+    virtual bool   isSPS(mfxI32 code) {return MfxC2AVCFrameConstructor::isSPS(code);}
+    virtual bool   isPPS(mfxI32 code) {return MfxC2AVCFrameConstructor::isPPS(code);}
+    virtual bool   isIDR(mfxI32 code) {return NAL_UT_AVC_IDR_SLICE == code;}
+    virtual bool   isRegularSlice(mfxI32 code) {return NAL_UT_AVC_SLICE == code;}
+
+    std::shared_ptr<mfxBitstream> GetMfxBitstream();
+
+protected:
+    bool m_bNeedAttachSPSPPS;
+
+    const static mfxU32 NAL_UT_AVC_SLICE       = 1;
+    const static mfxU32 NAL_UT_AVC_IDR_SLICE   = 5;
+
+    AVCParser::AVCHeaders m_H264Headers;
+    std::vector<mfxU8>  m_swappingMemory;
+};
+
+/*------------------------------------------------------------------------------*/
+
+class MfxC2HEVCSecureFrameConstructor : public MfxC2AVCSecureFrameConstructor
+{
+public:
+    MfxC2HEVCSecureFrameConstructor();
+    virtual ~MfxC2HEVCSecureFrameConstructor(void);
+
+    MFX_CLASS_NO_COPY(MfxC2HEVCSecureFrameConstructor)
+protected:
+    virtual StartCode ReadStartCode(const mfxU8** position, mfxU32& size_left);
+    virtual bool   isSPS(mfxI32 code) {return MfxC2HEVCFrameConstructor::isSPS(code);}
+    virtual bool   isPPS(mfxI32 code) {return MfxC2HEVCFrameConstructor::isPPS(code);}
+    virtual bool   isIDR(mfxI32 code) {return (NAL_UT_HEVC_SLICE_IDR_W_RADL == code) || (NAL_UT_HEVC_SLICE_IDR_N_LP == code);}
+    virtual bool   isRegularSlice(mfxI32 code);
+
+protected:
+    const static mfxU32 NAL_UT_HEVC_SLICE_TRAIL_N    = 0;
+    const static mfxU32 NAL_UT_HEVC_SLICE_TRAIL_R    = 1;
+    const static mfxU32 NAL_UT_HEVC_SLICE_TSA_N      = 2;
+    const static mfxU32 NAL_UT_HEVC_SLICE_TLA_R      = 3;
+    const static mfxU32 NAL_UT_HEVC_SLICE_STSA_N     = 4;
+    const static mfxU32 NAL_UT_HEVC_SLICE_STSA_R     = 5;
+    const static mfxU32 NAL_UT_HEVC_SLICE_RADL_N     = 6;
+    const static mfxU32 NAL_UT_HEVC_SLICE_RADL_R     = 7;
+    const static mfxU32 NAL_UT_HEVC_SLICE_RASL_N     = 8;
+    const static mfxU32 NAL_UT_HEVC_SLICE_RASL_R     = 9;
+    const static mfxU32 NAL_UT_HEVC_SLICE_BLA_W_LP   = 16;
+    const static mfxU32 NAL_UT_HEVC_SLICE_BLA_W_RADL = 17;
+    const static mfxU32 NAL_UT_HEVC_SLICE_BLA_N_LP   = 18;
+    const static mfxU32 NAL_UT_HEVC_SLICE_IDR_W_RADL = 19;
+    const static mfxU32 NAL_UT_HEVC_SLICE_IDR_N_LP   = 20;
+    const static mfxU32 NAL_UT_HEVC_SLICE_CRA        = 21;
+
+    HEVCParser::HEVCHeaders m_H265Headers;
+    int32_t previous_poc;
+};
+#endif
 
 class MfxC2FrameConstructorFactory
 {

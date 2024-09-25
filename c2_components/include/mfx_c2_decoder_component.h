@@ -41,6 +41,8 @@ public:
         DECODER_VP8,
         DECODER_MPEG2,
         DECODER_AV1,
+        DECODER_H264_SECURE,
+        DECODER_H265_SECURE
     };
 
     enum class OperationState {
@@ -161,6 +163,9 @@ private:
     void UpdateHdrStaticInfo();
 
     void UpdateColorAspectsFromBitstream(const mfxExtVideoSignalInfo &signalInfo);
+
+protected:
+    bool m_secure;
 
 private:
     DecoderType m_decoderType;
