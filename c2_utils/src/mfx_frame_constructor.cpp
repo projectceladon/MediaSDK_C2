@@ -417,7 +417,6 @@ mfxStatus MfxC2AVCFrameConstructor::FindHeaders(const mfxU8* data, mfxU32 size, 
             start_code = ReadStartCode(&data, &size);
             if (isSPS(start_code.type)) {
                 std::shared_ptr<mfxBitstream> sps = std::make_shared<mfxBitstream>();
-                if (!sps) return MFX_ERR_MEMORY_ALLOC;
 
                 MFX_ZERO_MEMORY((*sps));
                 sps->Data = (mfxU8*)data - start_code.size;
