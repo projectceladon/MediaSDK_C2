@@ -202,8 +202,6 @@ private:
 
     std::shared_ptr<C2BlockPool> m_c2Allocator;
 
-    std::unique_ptr<BinaryWriter> m_outputWriter;
-
     bool m_bHeaderSent{false};
 
     mfxFrameSurface1 *m_encSrfPool;
@@ -219,6 +217,11 @@ private:
 
     // Input frame info with width or height not 16byte aligned
     mfxFrameInfo m_mfxInputInfo;
+
+    std::unique_ptr<BinaryWriter> m_outputWriter;
+    std::unique_ptr<BinaryWriter> m_inputWriter;
+
+    uint32_t m_dump_count = 0;
 
     /* -----------------------C2Parameters--------------------------- */
     std::mutex m_c2ParameterMutex;

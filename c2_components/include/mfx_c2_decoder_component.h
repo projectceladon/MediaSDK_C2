@@ -29,6 +29,7 @@
 #include "mfx_frame_pool_allocator.h"
 #include "mfx_gralloc_instance.h"
 #include "mfx_c2_setters.h"
+#include "mfx_c2_utils.h"
 #include <cutils/properties.h>
 
 class MfxC2DecoderComponent : public MfxC2Component
@@ -251,6 +252,11 @@ private:
 
     MFXVideoVPP* m_vpp;
     bool m_vppConversion = false;
+
+    std::unique_ptr<BinaryWriter> m_outputWriter;
+    std::unique_ptr<BinaryWriter> m_inputWriter;
+
+    uint32_t m_dump_count = 0;
 
     /* -----------------------C2Parameters--------------------------- */
     std::shared_ptr<C2ComponentNameSetting> m_name;

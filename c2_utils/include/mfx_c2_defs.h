@@ -34,8 +34,11 @@
 #define MFX_C2_CONFIG_XML_FILE_NAME "media_codecs_intel_c2_video.xml"
 #define MFX_C2_CONFIG_XML_FILE_PATH "/vendor/etc"
 
-#define MFX_C2_DUMP_DIR "/data/local/tmp"
+#define MFX_C2_DUMP_DIR "/data/local/traces"
 #define MFX_C2_DUMP_OUTPUT_SUB_DIR "c2-output"
+#define MFX_C2_DUMP_INPUT_SUB_DIR "c2-input"
+
+constexpr uint32_t DEFAULT_DUMP_FRAMES_COUNT = 1;
 
 const c2_nsecs_t MFX_SECOND_NS = 1000000000; // 1e9
 

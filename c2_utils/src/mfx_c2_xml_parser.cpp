@@ -103,7 +103,31 @@ bool MfxXmlParser::dumpOutputEnabled(const char *name) {
         MFX_DEBUG_TRACE_STREAM("codec " << name << "wasn't found");
         return false;
     }
-    return codec->second.dump_output;
+    return codec->second.dumpOutput;
+}
+
+bool MfxXmlParser::dumpInputEnabled(const char *name) {
+
+    MFX_DEBUG_TRACE_FUNC;
+
+    auto codec = m_codecMap.find(name);
+    if (codec == m_codecMap.end()) {
+        MFX_DEBUG_TRACE_STREAM("codec " << name << "wasn't found");
+        return false;
+    }
+    return codec->second.dumpInput;
+}
+
+uint32_t MfxXmlParser::getDumpFramesCount(const char *name) {
+    MFX_DEBUG_TRACE_FUNC;
+
+    auto codec = m_codecMap.find(name);
+    if (codec == m_codecMap.end() || 0 == codec->second.dumpFramesCount) {
+        MFX_DEBUG_TRACE_STREAM("dump frames count wasn't found, using default value " << DEFAULT_DUMP_FRAMES_COUNT);
+        return DEFAULT_DUMP_FRAMES_COUNT;
+    }
+
+    return codec->second.dumpFramesCount;
 }
 
 bool MfxXmlParser::getLowPowerMode(const char *name) {
@@ -190,20 +214,36 @@ c2_status_t MfxXmlParser::addLimits(const char **attrs) {
                 MFX_DEBUG_TRACE_MSG("concurrent-instances is null");
                 return C2_BAD_VALUE;
             }
-        } else if (strcmp(attrs[i], "dumpOutput") == 0) {
+        } else if (strcmp(attrs[i], "dump-output") == 0) {
             if (strcmp(attrs[++i], "value") == 0) {
-                m_currentCodec->second.dump_output = parseBoolean(attrs[++i]);
-                MFX_DEBUG_TRACE_PRINTF("m_currentCodec->second.dump_output = %d", m_currentCodec->second.dump_output);
+                m_currentCodec->second.dumpOutput = parseBoolean(attrs[++i]);
+                MFX_DEBUG_TRACE_PRINTF("m_currentCodec->second.dumpOutput = %d", m_currentCodec->second.dumpOutput);
             } else {
-                MFX_DEBUG_TRACE_MSG("dumpOutput is null");
+                MFX_DEBUG_TRACE_MSG("dump-output is null");
                 return C2_BAD_VALUE;
             }
-        } else if (strcmp(attrs[i], "lowPowerMode") == 0) {
+        } else if (strcmp(attrs[i], "dump-input") == 0) {
+            if (strcmp(attrs[++i], "value") == 0) {
+                m_currentCodec->second.dumpInput = parseBoolean(attrs[++i]);
+                MFX_DEBUG_TRACE_PRINTF("_currentCodec->second.dumpInput = %d", m_currentCodec->second.dumpInput);
+            } else {
+                MFX_DEBUG_TRACE_MSG("dump-input is null");
+                return C2_BAD_VALUE;
+            }
+        } else if (strcmp(attrs[i], "dump-frames-count") == 0) {
+            if (strcmp(attrs[++i], "value") == 0) {
+                m_currentCodec->second.dumpFramesCount = std::atoi(attrs[++i]);
+                MFX_DEBUG_TRACE_PRINTF("m_currentCodec->second.dumpFramesCount = %d", m_currentCodec->second.dumpFramesCount);
+            } else {
+                MFX_DEBUG_TRACE_MSG("dump-frames-count is null");
+                return C2_BAD_VALUE;
+            }
+        } else if (strcmp(attrs[i], "low-power-mode") == 0) {
             if (strcmp(attrs[++i], "value") == 0) {
                 m_currentCodec->second.lowPowerMode = parseBoolean(attrs[++i]);
                 MFX_DEBUG_TRACE_PRINTF("m_currentCodec->second.lowPowerMode = %d ", m_currentCodec->second.lowPowerMode);
             } else {
-                MFX_DEBUG_TRACE_MSG("lowPowerMode is null");
+                MFX_DEBUG_TRACE_MSG("low-power-mode is null");
                 return C2_BAD_VALUE;
             }
         }
