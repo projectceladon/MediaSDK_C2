@@ -252,12 +252,6 @@ private:
     MFXVideoVPP* m_vpp;
     bool m_vppConversion = false;
 
-#if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
-    int m_count = 0;
-    std::mutex m_count_lock;
-    bool NeedDumpBuffer();
-#endif
-
     /* -----------------------C2Parameters--------------------------- */
     std::shared_ptr<C2ComponentNameSetting> m_name;
     std::shared_ptr<C2ComponentKindSetting> m_kind;
