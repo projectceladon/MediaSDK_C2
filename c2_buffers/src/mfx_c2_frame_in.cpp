@@ -187,12 +187,6 @@ c2_status_t MfxC2FrameIn::MfxC2LoadSurfaceInSW(C2ConstGraphicBlock& c_graph_bloc
             }
         }
 
-#if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
-        static int frameIndex = 0;
-        static YUVWriter writer("/data/local/tmp",std::vector<std::string>({}),"encoder_frame.log");
-        writer.Write(m_yuvData.get(), stride, height, frameIndex++);
-#endif
-
         mfx_sts = InitMfxFrameSW(buf_pack.ordinal.timestamp.peeku(), buf_pack.ordinal.frameIndex.peeku(),
                                 m_yuvData.get(), m_yuvData.get()+y_plane_size, width, height, stride, MFX_FOURCC_NV12, m_mfxFrameInfo,
                                 m_pMfxFrameSurface);
