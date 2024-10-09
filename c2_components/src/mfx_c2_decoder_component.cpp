@@ -2004,6 +2004,8 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
 {
     MFX_DEBUG_TRACE_FUNC;
 
+    if (!work) return;
+
     if (m_bFlushing) {
         m_flushedWorks.push_back(std::move(work));
         return;
@@ -2334,19 +2336,20 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
 
     MfxC2FrameOut frameOutVpp;
     std::shared_ptr<mfxFrameSurface1> mfx_surface_vpp;
-    if(m_vppConversion) {
-        AllocateFrame(&frameOutVpp, true);
-        mfx_surface_vpp = frameOutVpp.GetMfxFrameSurface();
-
-        if (mfx_surface_vpp) {
-            mfxSyncPoint syncp;
-            mfx_res = m_vpp->RunFrameVPPAsync(mfx_surface.get(), mfx_surface_vpp.get(), NULL, &syncp);
-            if (MFX_ERR_NONE == mfx_res)
-#ifdef USE_ONEVPL
-                mfx_res = MFXVideoCORE_SyncOperation(m_mfxSession, syncp, MFX_TIMEOUT_INFINITE);
-#else
-                mfx_res = m_pSession->SyncOperation(syncp, MFX_TIMEOUT_INFINITE);
-#endif
+    if (m_vppConversion) {
+        res = AllocateFrame(&frameOutVpp, true);
+        if (res == C2_OK) {
+            mfx_surface_vpp = frameOutVpp.GetMfxFrameSurface();
+            if (mfx_surface_vpp.get()) {
+                mfxSyncPoint syncp;
+                mfx_res = m_vpp->RunFrameVPPAsync(mfx_surface.get(), mfx_surface_vpp.get(), NULL, &syncp);
+                if (MFX_ERR_NONE == mfx_res)
+    #ifdef USE_ONEVPL
+                    mfx_res = MFXVideoCORE_SyncOperation(m_mfxSession, syncp, MFX_TIMEOUT_INFINITE);
+    #else
+                    mfx_res = m_pSession->SyncOperation(syncp, MFX_TIMEOUT_INFINITE);
+    #endif
+            }
         }
     }
 
@@ -2387,6 +2390,10 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             rect = C2Rect(mfx_surface->Info.CropW, mfx_surface->Info.CropH)
                           .at(mfx_surface->Info.CropX, mfx_surface->Info.CropY);
         } else {
+            if (mfx_surface_vpp.get() == nullptr) {
+                res = C2_CORRUPTED;
+                break;
+            }
             rect = C2Rect(mfx_surface_vpp->Info.CropW, mfx_surface_vpp->Info.CropH)
                           .at(mfx_surface_vpp->Info.CropX, mfx_surface_vpp->Info.CropY);
         }
