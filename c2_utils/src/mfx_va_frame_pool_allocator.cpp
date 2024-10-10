@@ -21,8 +21,6 @@
 #if defined(LIBVA_SUPPORT)
 
 #include "mfx_va_frame_pool_allocator.h"
-#include "mfx_c2_buffer_queue.h"
-
 #include "mfx_c2_utils.h"
 #include "mfx_debug.h"
 #include "mfx_msdk_debug.h"
@@ -89,13 +87,6 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                 break;
             }
 
-#ifdef MFX_BUFFER_QUEUE
-            res = std::static_pointer_cast<MfxC2BufferQueueBlockPool>(m_c2Allocator)->requestNewBufferSet(max_buffers);
-            if(res != C2_OK) {
-                mfx_res = MFX_ERR_MEMORY_ALLOC;
-                break;
-            }
-#endif
             response->NumFrameActual = 0;
 #define RETRY_TIMES 5
             for (int i = 0; i < opt_buffers; ++i) {
