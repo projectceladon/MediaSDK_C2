@@ -656,7 +656,26 @@ c2_status_t MfxC2EncoderComponent::DoStart()
         m_workingQueue.Start();
         m_waitingQueue.Start();
 
-        if (m_createConfig.dump_output) {
+        // Dump input/output for decoder/encoder steps:
+        // 1. $adb shell
+        // 2. $vi /vendor/etc/media_codecs_intel_c2_video.xml, config dump options by
+        //    setting lines like below in specific decoder/encoder configure sections.
+        //    "dump-frmaes-count" is for setting yuv frames number to dump for encoder
+        //    input or decoder output.
+        //
+        //    "<Limit name="dump-input" value="true" />"
+        //    "<Limit name="dump-output" value="true" />"
+        //    "<Limit name="dump-frmaes-count" value="10" />"
+        //
+        // 3. $adb reboot
+        // 4. $adb shell && setenforce 0
+        // 5. Run encode/decode, dumped files can be found in /data/local/traces. Files are
+        //    named in "decoder/encoder name - year - month - day - hour - minute - second".
+        //    Dumped files will not be automatically deleted/overwritten in next run, will
+        //    need be deleted manually.
+        // 6. When viewing yuv frames, check surface width & height in logs if needed.
+
+        if (m_createConfig.dump_output || m_createConfig.dump_input) {
 
             std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
             std::time_t now_c = std::chrono::system_clock::to_time_t(now);
@@ -664,16 +683,29 @@ c2_status_t MfxC2EncoderComponent::DoStart()
             std::tm local_tm;
             localtime_r(&now_c, &local_tm);
 
-            oss << m_name << "-" << std::put_time(std::localtime(&now_c), "%Y%m%d%H%M%S") << ".bin";
+            if(m_createConfig.dump_output) {
+                oss << m_name->m.value << "-" << std::put_time(std::localtime(&now_c), "%Y-%m-%d-%H-%M-%S") << ".bin";
 
-            MFX_DEBUG_TRACE_STREAM("Encoder output dump is started to " <<
-                MFX_C2_DUMP_DIR << "/" << MFX_C2_DUMP_OUTPUT_SUB_DIR << "/" <<
-                oss.str());
+                MFX_DEBUG_TRACE_STREAM("Encoder output dump is started to " <<
+                    MFX_C2_DUMP_DIR << "/" << MFX_C2_DUMP_OUTPUT_SUB_DIR << "/" <<
+                    oss.str());
 
-            m_outputWriter = std::make_unique<BinaryWriter>(MFX_C2_DUMP_DIR,
-                std::vector<std::string>({MFX_C2_DUMP_OUTPUT_SUB_DIR}), oss.str());
+                m_outputWriter = std::make_unique<BinaryWriter>(MFX_C2_DUMP_DIR,
+                    std::vector<std::string>({MFX_C2_DUMP_OUTPUT_SUB_DIR}), oss.str());
+            }
+
+            if(m_createConfig.dump_input) {
+                oss.str("");
+                oss << m_name->m.value << "-" << std::put_time(std::localtime(&now_c), "%Y-%m-%d-%H-%M-%S") << ".yuv";
+
+                MFX_DEBUG_TRACE_STREAM("Encoder input dump is started to " <<
+                    MFX_C2_DUMP_DIR << "/" << MFX_C2_DUMP_INPUT_SUB_DIR << "/" <<
+                    oss.str());
+
+                m_inputWriter = std::make_unique<BinaryWriter>(MFX_C2_DUMP_DIR,
+                    std::vector<std::string>({MFX_C2_DUMP_INPUT_SUB_DIR}), oss.str());
+            }
         }
-
     } while(false);
 
     return C2_OK;
@@ -706,6 +738,7 @@ c2_status_t MfxC2EncoderComponent::DoStop(bool abort)
     FreeEncoder();
 
     m_outputWriter.reset();
+    m_inputWriter.reset();
 
     return C2_OK;
 }
@@ -1430,6 +1463,29 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 res = MfxStatusToC2(mfx_sts);
                 break;
             }
+        }
+
+        if (m_inputWriter && m_dump_count < m_createConfig.dump_frames_count
+                && MFX_IOPATTERN_IN_SYSTEM_MEMORY == m_mfxVideoParamsConfig.IOPattern
+                && (MFX_FOURCC_NV12 == m_mfxVideoParamsState.mfx.FrameInfo.FourCC
+                    || MFX_FOURCC_P010 == m_mfxVideoParamsState.mfx.FrameInfo.FourCC)) {
+
+            mfxFrameSurface1* mfx_surface = mfx_frame_in.GetMfxFrameSurface();
+            const uint8_t* srcY = mfx_surface->Data.Y;
+            const uint8_t* srcUV = mfx_surface->Data.UV;
+
+            if (NULL != srcY && NULL != srcUV) {
+                m_inputWriter->Write(srcY, mfx_surface->Data.PitchLow * mfx_surface->Info.CropH);
+                m_inputWriter->Write(srcUV, mfx_surface->Data.PitchLow * mfx_surface->Info.CropH / 2);
+
+                uint32_t dump_width = (MFX_FOURCC_P010 == m_mfxVideoParamsState.mfx.FrameInfo.FourCC) ?
+                        mfx_surface->Data.PitchLow / 2 : mfx_surface->Data.PitchLow;
+
+                MFX_DEBUG_TRACE_PRINTF("############# dumping #%d encoder input buffer in size: %dx%d #################",
+                        m_dump_count, dump_width, mfx_surface->Info.CropH);
+            }
+
+            m_dump_count ++;
         }
 
         MfxC2BitstreamOut mfx_bitstream;

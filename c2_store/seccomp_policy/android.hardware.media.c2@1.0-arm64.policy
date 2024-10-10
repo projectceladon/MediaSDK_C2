@@ -60,6 +60,7 @@ restart_syscall: 1
 rt_sigreturn: 1
 getrandom: 1
 madvise: 1
+mkdirat: 1
 
 # crash dump policy additions
 clock_gettime: 1

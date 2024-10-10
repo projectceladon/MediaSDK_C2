@@ -37,6 +37,8 @@ public:
     {
         int flags{0};
         bool dump_output{false};
+        bool dump_input{false};
+        uint32_t dump_frames_count{0};
         uint32_t concurrent_instances{0};
         bool low_power_mode{false};
     };

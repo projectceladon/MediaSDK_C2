@@ -757,6 +757,57 @@ c2_status_t MfxC2DecoderComponent::DoStart()
         m_waitingQueue.Start();
     } while(false);
 
+    // Dump input/output for decoder/encoder steps:
+    // 1. $adb shell
+    // 2. $vi /vendor/etc/media_codecs_intel_c2_video.xml, config dump options by
+    //    setting lines like below in specific decoder/encoder configure sections.
+    //    "dump-frmaes-count" is for setting yuv frames number to dump for encoder
+    //    input or decoder output.
+    //
+    //    "<Limit name="dump-input" value="true" />"
+    //    "<Limit name="dump-output" value="true" />"
+    //    "<Limit name="dump-frmaes-count" value="10" />"
+    //
+    // 3. $adb reboot
+    // 4. $adb shell && setenforce 0
+    // 5. Run encode/decode, dumped files can be found in /data/local/traces. Files are
+    //    named in "decoder/encoder name - year - month - day - hour - minute - second".
+    //    Dumped files will not be automatically deleted/overwritten in next run, will
+    //    need be deleted manually.
+    // 6. When viewing yuv frames, check surface width & height in logs if needed.
+
+    if (m_createConfig.dump_output || m_createConfig.dump_input) {
+
+        std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+        std::ostringstream oss;
+        std::tm local_tm;
+        localtime_r(&now_c, &local_tm);
+
+        if(m_createConfig.dump_output) {
+            oss << m_name->m.value << "-" << std::put_time(std::localtime(&now_c), "%Y-%m-%d-%H-%M-%S") << ".yuv";
+
+            MFX_DEBUG_TRACE_STREAM("Decoder output dump is started to " <<
+                MFX_C2_DUMP_DIR << "/" << MFX_C2_DUMP_OUTPUT_SUB_DIR << "/" <<
+                oss.str());
+
+            m_outputWriter = std::make_unique<BinaryWriter>(MFX_C2_DUMP_DIR,
+                std::vector<std::string>({MFX_C2_DUMP_OUTPUT_SUB_DIR}), oss.str());
+        }
+
+        if(m_createConfig.dump_input) {
+            oss.str("");
+            oss << m_name->m.value << "-" << std::put_time(std::localtime(&now_c), "%Y-%m-%d-%H-%M-%S") << ".bin";
+
+            MFX_DEBUG_TRACE_STREAM("Decoder input dump is started to " <<
+                MFX_C2_DUMP_DIR << "/" << MFX_C2_DUMP_INPUT_SUB_DIR << "/" <<
+                oss.str());
+
+            m_inputWriter = std::make_unique<BinaryWriter>(MFX_C2_DUMP_DIR,
+                std::vector<std::string>({MFX_C2_DUMP_INPUT_SUB_DIR}), oss.str());
+        }
+    }
+
     m_OperationState = OperationState::RUNNING;
 
     return C2_OK;
@@ -800,6 +851,9 @@ c2_status_t MfxC2DecoderComponent::DoStop(bool abort)
         m_c2Bitstream->Reset();
         m_c2Bitstream->GetFrameConstructor()->Close();
     }
+
+    m_outputWriter.reset();
+    m_inputWriter.reset();
 
     m_OperationState = OperationState::STOPPED;
     return C2_OK;
@@ -2095,6 +2149,11 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             if (!m_bSetHdrStatic) UpdateHdrStaticInfo();
 
             mfxBitstream *bs = m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get();
+
+            if (m_inputWriter && NULL != bs && bs->DataLength > 0) {
+                m_inputWriter->Write(bs->Data, bs->DataLength);
+            }
+
             MfxC2FrameOut frame_out;
             do {
                 // check bitsream is empty
@@ -2268,41 +2327,46 @@ void MfxC2DecoderComponent::Drain(std::unique_ptr<C2Work>&& work)
     }
 }
 
-#if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
-bool MfxC2DecoderComponent::NeedDumpBuffer() {
-    MFX_DEBUG_TRACE_FUNC;
-    const char* key = "mediacodec2.dump.buffer";
-    char* value = new char[20];
-    int len = property_get(key, value, "0");
+const u_int16_t ytile_width = 16;
+const u_int16_t ytile_height = 32;
+void one_ytiled_to_linear(const unsigned char *src, char *dst, u_int16_t x, u_int16_t y, u_int16_t width, u_int16_t height, uint32_t offset)
+{
+    // x and y follow linear
+    u_int32_t count = x + y * width / ytile_width;
 
-#include <iostream>
-#include <sstream>
-
-    std::stringstream strValue;
-    strValue << value;
-
-    unsigned int m_frame_number = 0;
-    strValue >> m_frame_number;
-
-    m_count_lock.lock();
-    if (m_count) {
-        delete[] value;
-        m_count_lock.unlock();
-        return true;
-    } else {
-        delete[] value;
-        if (len > 0 && m_frame_number > 0) {
-            m_count = m_frame_number;
-            MFX_DEBUG_TRACE_PRINTF("--------triggered to dump %d buffers---------", m_frame_number);
-            property_set(key, "0");
-            m_count_lock.unlock();
-            return true;
-        }
-        m_count_lock.unlock();
-        return false;
+    for (int j = 0; j < ytile_width * ytile_height; j += ytile_width) {
+        memcpy(dst + offset + width * ytile_height * y + width * j / ytile_width + x * ytile_width,
+                src + offset + j + ytile_width * ytile_height * count, ytile_width);
     }
 }
-#endif
+
+void* ytiled_to_linear(uint32_t total_size, uint32_t y_size, uint32_t stride, const unsigned char * src)
+{
+       char* dst = (char*)malloc(total_size * 2);
+       if (NULL == dst) return NULL;
+
+       memset(dst, 0, total_size * 2);
+
+       u_int16_t height = y_size / stride;
+
+       // Y
+       u_int16_t y_hcount =  height / ytile_height + (height % ytile_height != 0);
+       for (u_int16_t x = 0; x < stride / ytile_width; x ++) {
+               for (u_int16_t y = 0; y < y_hcount; y ++) {
+                       one_ytiled_to_linear(src, dst, x, y, stride, height, 0);
+               }
+       }
+
+       // UV
+       u_int16_t uv_hcount =  (height / ytile_height / 2) + (height % (ytile_height * 2) != 0);
+       for (u_int16_t x = 0; x < stride / ytile_width; x ++) {
+               for (u_int16_t y = 0; y < uv_hcount; y ++) {
+                       one_ytiled_to_linear(src, dst, x, y, stride, height / 2, y_size);
+               }
+       }
+
+       return dst;
+}
 
 void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint sync_point)
 {
@@ -2467,39 +2531,52 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             }
             m_updatingC2Configures.clear();
 
-#if MFX_DEBUG_DUMP_FRAME == MFX_DEBUG_YES
-	    static FILE* m_f = 0;
-            if (NeedDumpBuffer()) {
+            if (m_createConfig.dump_output && m_dump_count < m_createConfig.dump_frames_count) {
                 const C2GraphicView& output_view = block->map().get();
-                m_count_lock.lock();
-                if (m_count) {
-                    const uint8_t* srcY = output_view.data()[C2PlanarLayout::PLANE_Y];
-                    const uint8_t* srcU = output_view.data()[C2PlanarLayout::PLANE_U];
-                    const uint8_t* srcV = output_view.data()[C2PlanarLayout::PLANE_V];
-                    if (!m_f) {
-                        m_f = fopen("/data/local/traces/decoder_frame.yuv", "w+");
-                        MFX_DEBUG_TRACE_STREAM("/data/local/traces/decoder_frame.yuv: create:" << m_f);
-		    }
-		    if (m_f) {
-                        size_t copied_Y = 0, copied_U = 0;
-                        copied_Y = fwrite(srcY, mfx_surface->Data.PitchLow * m_mfxVideoParams.mfx.FrameInfo.CropH, 1, m_f);
-                        copied_U = fwrite(srcU, mfx_surface->Data.PitchLow * m_mfxVideoParams.mfx.FrameInfo.CropH / 2, 1, m_f);
-                        MFX_DEBUG_TRACE_PRINTF("############# dumping #%d decoded buffer in size: %dx%d, Y:%zu, U:%zu #################",
-					m_count, mfx_surface->Data.PitchLow, m_mfxVideoParams.mfx.FrameInfo.CropH, copied_Y, copied_U);
-                        if (copied_Y > 0 || copied_U > 0)
-                            m_count--;
-                     }
+
+                const uint8_t* srcY = output_view.data()[C2PlanarLayout::PLANE_Y];
+                const uint8_t* srcUV = output_view.data()[C2PlanarLayout::PLANE_U];
+
+                if(MFX_IOPATTERN_OUT_VIDEO_MEMORY == m_mfxVideoParams.IOPattern) {
+                    const uint32_t align_width = 128;
+                    const uint32_t align_height = 32;
+
+                    uint32_t surface_width = mfx_surface->Info.Width % align_width == 0? mfx_surface->Info.Width :
+                            (mfx_surface->Info.Width / align_width + 1) * align_width;
+                    uint32_t surface_height = mfx_surface->Info.Height % align_height == 0? mfx_surface->Info.Height :
+                            (mfx_surface->Info.Height / align_height + 1) * align_height;
+
+                    uint32_t pix_len = (MFX_FOURCC_P010 == mfx_surface->Info.FourCC) ? 2 : 1;
+
+                    uint32_t total_size = surface_width * pix_len * surface_height * 3 / 2;
+                    uint32_t y_size = surface_width * pix_len * surface_height;
+                    uint32_t stride = surface_width * pix_len;
+
+                    uint8_t* srcY_linear = (uint8_t*)ytiled_to_linear(total_size, y_size, stride, srcY);
+
+                    if (NULL != srcY_linear) {
+                        m_outputWriter->Write(srcY_linear, total_size);
+                        free(srcY_linear);
+
+                        MFX_DEBUG_TRACE_PRINTF("############# dumping #%d decoded buffer in size: %dx%d #################",
+                                m_dump_count, surface_width, surface_height);
+                        m_dump_count ++;
+                    }
+                } else { // IOPattern is system memory
+                    if (NULL != srcY && NULL != srcUV) {
+                        m_outputWriter->Write(srcY, mfx_surface->Data.PitchLow * m_mfxVideoParams.mfx.FrameInfo.CropH);
+                        m_outputWriter->Write(srcUV, mfx_surface->Data.PitchLow * m_mfxVideoParams.mfx.FrameInfo.CropH / 2);
+
+                        uint32_t dump_width = (MFX_FOURCC_P010 == mfx_surface->Info.FourCC) ?
+                                    mfx_surface->Data.PitchLow / 2 : mfx_surface->Data.PitchLow;
+
+                        MFX_DEBUG_TRACE_PRINTF("############# dumping #%d decoded buffer in size: %dx%d  #################",
+                                m_dump_count, dump_width, m_mfxVideoParams.mfx.FrameInfo.CropH);
+                        m_dump_count ++;
+                    }
                 }
-                m_count_lock.unlock();
             }
-            m_count_lock.lock();
-            if (m_count == 0 && m_f) {
-                fclose(m_f);
-                MFX_DEBUG_TRACE_MSG("dump file is closed");
-                m_f = NULL;
-            }
-            m_count_lock.unlock();
-#endif
+
             worklet->output.buffers.push_back(out_buffer);
             block = nullptr;
         }
