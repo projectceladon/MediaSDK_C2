@@ -220,6 +220,13 @@ private:
     // Input frame info with width or height not 16byte aligned
     mfxFrameInfo m_mfxInputInfo;
 
+#if MFX_DEBUG_DUMP_FRAME_ENC == MFX_DEBUG_YES
+    int m_count = 0;
+    std::mutex m_count_lock;
+    FILE* m_file = 0;
+    bool NeedDumpBuffer();
+#endif
+
     /* -----------------------C2Parameters--------------------------- */
     std::mutex m_c2ParameterMutex;
     std::shared_ptr<C2ComponentNameSetting> m_name;
