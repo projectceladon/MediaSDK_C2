@@ -187,9 +187,18 @@ public:
         stream_.write((const char*)data, length);
     }
 
+    bool IsOpen()
+    {
+        return stream_.is_open();
+    }
+
+    void Close()
+    {
+        stream_.close();
+    }
+
 private:
     std::ofstream stream_;
-    std::mutex m_mutex;
 };
 
 // Writes YUV format frame to file.It useful for debug.
