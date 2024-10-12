@@ -29,6 +29,7 @@
 #include "mfx_c2_utils.h"
 #include "mfx_c2_vpp_wrapp.h"
 #include "mfx_c2_setters.h"
+#include <cutils/properties.h>
 
 // Assumes all calls are done from one (working) thread, no sync is needed.
 // m_ctrlOnce accumulates subsequent changes for one next frame.
@@ -202,8 +203,6 @@ private:
 
     std::shared_ptr<C2BlockPool> m_c2Allocator;
 
-    std::unique_ptr<BinaryWriter> m_outputWriter;
-
     bool m_bHeaderSent{false};
 
     mfxFrameSurface1 *m_encSrfPool;
@@ -219,6 +218,15 @@ private:
 
     // Input frame info with width or height not 16byte aligned
     mfxFrameInfo m_mfxInputInfo;
+
+    std::unique_ptr<BinaryWriter> m_outputWriter;
+    std::unique_ptr<BinaryWriter> m_inputWriter;
+
+    std::mutex m_dump_output_lock;
+    std::mutex m_dump_input_lock;
+
+    uint32_t m_dump_count = 0;
+    uint32_t m_dump_frames_number = 0; //total frames to dump
 
     /* -----------------------C2Parameters--------------------------- */
     std::mutex m_c2ParameterMutex;
