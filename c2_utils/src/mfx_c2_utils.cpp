@@ -689,8 +689,6 @@ BinaryWriter::BinaryWriter(const std::string& dir,
     std::stringstream full_name;
     full_name << dir << "/";
 
-    std::lock_guard<std::mutex> lock(m_mutex);
-
     for(const std::string& sub_dir : sub_dirs) {
         full_name << sub_dir;
 
