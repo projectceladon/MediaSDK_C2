@@ -34,8 +34,20 @@
 #define MFX_C2_CONFIG_XML_FILE_NAME "media_codecs_intel_c2_video.xml"
 #define MFX_C2_CONFIG_XML_FILE_PATH "/vendor/etc"
 
-#define MFX_C2_DUMP_DIR "/data/local/tmp"
-#define MFX_C2_DUMP_OUTPUT_SUB_DIR "c2-output"
+#define MFX_C2_DUMP_DIR "/data/local/traces"
+#define MFX_C2_DUMP_DECODER_SUB_DIR "c2-intel-decoder"
+#define MFX_C2_DUMP_ENCODER_SUB_DIR "c2-intel-encoder"
+#define MFX_C2_DUMP_OUTPUT_SUB_DIR "output"
+#define MFX_C2_DUMP_INPUT_SUB_DIR "input"
+
+// dump when dump frames number > 0
+#define DECODER_DUMP_OUTPUT_KEY "c2.decoder.dump.output.number"
+// dump when property set to true
+#define DECODER_DUMP_INPUT_KEY "c2.decoder.dump.input"
+// dump when property set to true
+#define ENCODER_DUMP_OUTPUT_KEY "c2.encoder.dump.output"
+// dump when dump frames number > 0
+#define ENCODER_DUMP_INPUT_KEY "c2.encoder.dump.input.number"
 
 const c2_nsecs_t MFX_SECOND_NS = 1000000000; // 1e9
 
