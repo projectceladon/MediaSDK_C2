@@ -94,18 +94,6 @@ uint32_t  MfxXmlParser::getConcurrentInstances(const char *name) {
     return codec->second.concurrentInstance;
 }
 
-bool MfxXmlParser::dumpOutputEnabled(const char *name) {
-
-    MFX_DEBUG_TRACE_FUNC;
-
-    auto codec = m_codecMap.find(name);
-    if (codec == m_codecMap.end()) {
-        MFX_DEBUG_TRACE_STREAM("codec " << name << "wasn't found");
-        return false;
-    }
-    return codec->second.dump_output;
-}
-
 bool MfxXmlParser::getLowPowerMode(const char *name) {
 
     MFX_DEBUG_TRACE_FUNC;
@@ -190,20 +178,12 @@ c2_status_t MfxXmlParser::addLimits(const char **attrs) {
                 MFX_DEBUG_TRACE_MSG("concurrent-instances is null");
                 return C2_BAD_VALUE;
             }
-        } else if (strcmp(attrs[i], "dumpOutput") == 0) {
-            if (strcmp(attrs[++i], "value") == 0) {
-                m_currentCodec->second.dump_output = parseBoolean(attrs[++i]);
-                MFX_DEBUG_TRACE_PRINTF("m_currentCodec->second.dump_output = %d", m_currentCodec->second.dump_output);
-            } else {
-                MFX_DEBUG_TRACE_MSG("dumpOutput is null");
-                return C2_BAD_VALUE;
-            }
-        } else if (strcmp(attrs[i], "lowPowerMode") == 0) {
+        } else if (strcmp(attrs[i], "low-power-mode") == 0) {
             if (strcmp(attrs[++i], "value") == 0) {
                 m_currentCodec->second.lowPowerMode = parseBoolean(attrs[++i]);
                 MFX_DEBUG_TRACE_PRINTF("m_currentCodec->second.lowPowerMode = %d ", m_currentCodec->second.lowPowerMode);
             } else {
-                MFX_DEBUG_TRACE_MSG("lowPowerMode is null");
+                MFX_DEBUG_TRACE_MSG("low-power-mode is null");
                 return C2_BAD_VALUE;
             }
         }

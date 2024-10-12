@@ -29,6 +29,7 @@
 #include "mfx_frame_pool_allocator.h"
 #include "mfx_gralloc_instance.h"
 #include "mfx_c2_setters.h"
+#include "mfx_c2_utils.h"
 #include <cutils/properties.h>
 
 class MfxC2DecoderComponent : public MfxC2Component
@@ -251,6 +252,18 @@ private:
 
     MFXVideoVPP* m_vpp;
     bool m_vppConversion = false;
+
+    std::unique_ptr<BinaryWriter> m_outputWriter;
+    std::unique_ptr<BinaryWriter> m_inputWriter;
+
+    std::mutex m_dump_output_lock;
+    std::mutex m_dump_input_lock;
+
+    uint32_t m_dump_count = 0;
+    // decoder output dump file number, during decoding one bitstream, if
+    // dump output multiple times, the first dumped file named xxx_0.yuv,
+    // second dumped file named xxx_1.yuv ...
+    uint32_t m_file_num = 0;
 
     /* -----------------------C2Parameters--------------------------- */
     std::shared_ptr<C2ComponentNameSetting> m_name;
