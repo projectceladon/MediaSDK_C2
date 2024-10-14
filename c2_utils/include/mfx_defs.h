@@ -46,6 +46,9 @@
     #define USE_GRALLOC1
 #endif // MFX_C2_USE_PRIME
 #endif // HAVE_GRALLOC4
+
+#define ENABLE_WIDEVINE
+
 #define DRV_I915
 #include <i915_private_android_types.h>
 

@@ -43,6 +43,9 @@ MfxC2FrameConstructor::MfxC2FrameConstructor():
     m_bstBuf = std::make_shared<mfxBitstream>();
     m_bstIn = std::make_shared<mfxBitstream>();
 
+    m_bstEnc = std::make_shared<mfxBitstream>();
+    MFX_ZERO_MEMORY((*m_bstEnc));
+
     MFX_ZERO_MEMORY((*m_bstHeader));
     MFX_ZERO_MEMORY((*m_bstBuf));
     MFX_ZERO_MEMORY((*m_bstIn));
@@ -139,6 +142,12 @@ mfxStatus MfxC2FrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, bool
     }
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
+}
+
+mfxStatus MfxC2FrameConstructor::Load_data(const mfxU8* data, mfxU32 size, const mfxU8* bs, mfxU64 pts, bool b_header, bool bComplete)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    return MFX_ERR_NONE;
 }
 
 mfxStatus MfxC2FrameConstructor::Load_None(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame)
@@ -369,6 +378,12 @@ MfxC2AVCFrameConstructor::~MfxC2AVCFrameConstructor()
 
     MFX_FREE(m_sps.Data);
     MFX_FREE(m_pps.Data);
+}
+
+mfxStatus MfxC2AVCFrameConstructor::Load_data(const mfxU8* data, mfxU32 size, const mfxU8* bs, mfxU64 pts, bool b_header, bool bComplete)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    return MFX_ERR_NONE;
 }
 
 mfxStatus MfxC2AVCFrameConstructor::SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset)
@@ -752,16 +767,429 @@ std::shared_ptr<IMfxC2FrameConstructor> MfxC2FrameConstructorFactory::CreateFram
     MFX_DEBUG_TRACE_FUNC;
 
     std::shared_ptr<IMfxC2FrameConstructor> fc;
-    if (MfxC2FC_AVC == fc_type) {
+
+    switch (fc_type)
+    {
+    case MfxC2FC_AVC:
         fc = std::make_shared<MfxC2AVCFrameConstructor>();
-        return fc;
-
-    } else if (MfxC2FC_HEVC == fc_type) {
+        break;
+    case MfxC2FC_HEVC:
         fc = std::make_shared<MfxC2HEVCFrameConstructor>();
-        return fc;
+        break;
+#ifdef ENABLE_WIDEVINE
+    case MfxC2FC_SEC_AVC:
+        fc = std::make_shared<MfxC2AVCSecureFrameConstructor>();
+        break;
+    case MfxC2FC_SEC_HEVC:
+        fc = std::make_shared<MfxC2HEVCSecureFrameConstructor>();
+        break;
+#endif 
 
-    } else {
-        fc = std::make_shared<MfxC2FrameConstructor>();
-        return fc;
+    default:
+        break;
     }
+
+    return fc;
 }
+
+#ifdef ENABLE_WIDEVINE
+
+MfxC2SecureFrameConstructor::MfxC2SecureFrameConstructor()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    MFX_ZERO_MEMORY(m_hucBuffer);
+
+    MFX_ZERO_MEMORY(m_SPS_PPS_SEI);
+    MFX_ZERO_MEMORY(m_ClearBst);
+
+    m_sliceHeader.resize(SLICE_HEADER_BUFFER_SIZE);
+}
+
+MfxC2SecureFrameConstructor::~MfxC2SecureFrameConstructor()
+{
+    MFX_DEBUG_TRACE_FUNC;
+}
+
+mfxStatus MfxC2SecureFrameConstructor::Reset(void)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    for (std::list<mfxEncryptedData *>::iterator it = m_encryptedDataList.begin(); it != m_encryptedDataList.end(); ++it)
+    {
+        (*it)->DataLength = 0;
+    }
+
+    MFX_ZERO_MEMORY(m_hucBuffer);
+
+    ResetHeaders();
+
+    return MFX_ERR_NONE;
+}
+
+mfxStatus MfxC2SecureFrameConstructor::ResetHeaders(void)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxStatus mfx_res = MFX_ERR_NONE;
+
+    memset(m_SPS_PPS_SEI.Data, 0, m_SPS_PPS_SEI.DataLength);
+    m_SPS_PPS_SEI.DataLength = 0;
+
+    MFX_DEBUG_TRACE_I32(mfx_res);
+    return mfx_res;
+}
+
+mfxStatus MfxC2SecureFrameConstructor::Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    (void)pts;
+    (void)header;
+
+    mfxStatus mfx_res = MFX_ERR_NONE;
+
+    if (!data || !size)
+    {
+        MFX_DEBUG_TRACE_P(data);
+        MFX_DEBUG_TRACE_I32(size);
+        mfx_res = MFX_ERR_NULL_PTR;
+    }
+
+    if (!complete_frame)
+        mfx_res = MFX_ERR_UNDEFINED_BEHAVIOR;
+
+    if (MFX_ERR_NONE == mfx_res) {
+        HUCVideoBuffer *hucBuffer = NULL;
+        hucBuffer = (HUCVideoBuffer *) data;
+
+        if (!hucBuffer)
+        {
+            MFX_DEBUG_TRACE_P(hucBuffer);
+            mfx_res = MFX_ERR_NULL_PTR;
+        }
+        else m_hucBuffer = hucBuffer;
+    }
+
+    MFX_DEBUG_TRACE_I32(mfx_res);
+    return mfx_res;
+}
+
+mfxEncryptedData* MfxC2SecureFrameConstructor::GetFreeEncryptedDataItem(void)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxEncryptedData* pEncryptedData = NULL;
+    for (std::list<mfxEncryptedData *>::iterator it = m_encryptedDataList.begin(); it != m_encryptedDataList.end(); ++it)
+    {
+        if (0 == (*it)->DataLength)
+        {
+            MFX_DEBUG_TRACE_MSG("Found free mfxEncryptedData item");
+            pEncryptedData = *it;
+            m_encryptedDataList.splice(m_encryptedDataList.end(), m_encryptedDataList, it); // move an item to the end of the list
+            break;
+        }
+    }
+    if (NULL == pEncryptedData)
+    {
+        pEncryptedData = (mfxEncryptedData*) calloc(1, sizeof(mfxEncryptedData));
+        if (pEncryptedData)
+        {
+            m_encryptedDataList.push_back(pEncryptedData);
+            MFX_DEBUG_TRACE_MSG("Created new mfxEncryptedData item");
+        }
+    }
+
+    MFX_DEBUG_TRACE_P(pEncryptedData);
+    return pEncryptedData;
+}
+
+mfxEncryptedData* MfxC2SecureFrameConstructor::BuildEncryptedDataList(void)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    mfxEncryptedData* first = NULL;
+    std::list<mfxEncryptedData *>::iterator it;
+    for (it = m_encryptedDataList.begin(); it != m_encryptedDataList.end(); ++it)
+    {
+        if ((*it)->DataLength)
+        {
+            first = *it;
+            break;
+        }
+    }
+    if (it != m_encryptedDataList.end())
+    {
+        std::list<mfxEncryptedData *>::iterator next = it;
+        next++;
+        for (; next != m_encryptedDataList.end(); ++it, ++next)
+        {
+            if ((*next)->DataLength)
+            {
+                (*it)->Next = *next;
+            }
+        }
+    }
+
+    MFX_DEBUG_TRACE_P(first);
+    return first;
+}
+
+MfxC2AVCSecureFrameConstructor::MfxC2AVCSecureFrameConstructor() :
+    MfxC2HEVCFrameConstructor(), MfxC2SecureFrameConstructor()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    m_bNeedAttachSPSPPS = false;
+}
+
+MfxC2AVCSecureFrameConstructor::~MfxC2AVCSecureFrameConstructor(void)
+{
+    MFX_DEBUG_TRACE_FUNC;
+}
+
+
+mfxStatus MfxC2AVCSecureFrameConstructor::Reset(void)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    m_bNeedAttachSPSPPS = false;
+
+    mfxStatus mfx_res = MfxC2SecureFrameConstructor::Reset();
+
+    return (MFX_ERR_NONE == mfx_res) ? MfxC2FrameConstructor::Reset() : mfx_res;
+}
+
+mfxStatus MfxC2AVCSecureFrameConstructor::Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool b_header, bool bCompleteFrame)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxStatus mfx_res = MFX_ERR_NONE;
+
+    mfx_res = MfxC2FrameConstructor::Load(data, size, pts, b_header, bCompleteFrame);
+
+    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+    return mfx_res;
+}
+
+mfxStatus MfxC2AVCSecureFrameConstructor::Load_data(const mfxU8* data, mfxU32 size, const mfxU8* bs, mfxU64 pts, bool b_header, bool bCompleteFrame)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    mfxStatus mfx_res = MfxC2SecureFrameConstructor::Load(data, size, pts, b_header, bCompleteFrame);
+
+    if (MFX_ERR_NONE != mfx_res) return mfx_res;
+        
+    std::memcpy(m_keyblob, m_hucBuffer->hw_key_data, sizeof(m_hucBuffer->hw_key_data));
+
+    bool bFoundSps = false;
+    bool bFoundPps = false;
+    bool bFoundIDR = false;
+    bool bFoundRegularSlice = false;
+    char* baseAddress = reinterpret_cast<char*>(m_hucBuffer);
+
+    // Save SPS/PPS if exists
+    if (MFX_ERR_NONE == mfx_res)
+    {
+        for(int i = 0; i < m_hucBuffer->num_packet_data; i++)
+        {
+            data = NULL;
+            size = 0;
+            packet_info* packet = reinterpret_cast<packet_info*>(baseAddress + sizeof(HUCVideoBuffer) - 8 + (i * sizeof(packet_info)));
+
+            if (packet->clear_bytes != 0)
+            {
+                data = bs + packet->block_offset;
+                size = packet->clear_bytes;
+            }
+            else
+            {
+                continue; // All start codes are located in clear packeds, so we don't need to check encrypted packets
+            }
+            StartCode startCode;
+            mfxU32 length;
+            for (; size > 3;)
+            {
+                startCode = ReadStartCode(&data, &size);
+                if (isSPS(startCode.type))
+                {
+                    auto sps = std::make_shared<mfxBitstream>();
+                    sps->Data = const_cast<mfxU8*>(data) - startCode.size;
+
+                    length = size + startCode.type;
+                    startCode = ReadStartCode(&data, &size);
+                    if (-1 != startCode.type)
+                        length -= size + startCode.size;
+                    sps->DataLength = length;
+                    MFX_DEBUG_TRACE_MSG("Found SPS, length =");
+                    MFX_DEBUG_TRACE_I32(length);
+                    mfx_res = SaveHeaders(sps, NULL, false);
+                    if (MFX_ERR_NONE != mfx_res) return mfx_res;
+                    bFoundSps = true;
+                }
+                if (isPPS(startCode.type))
+                {
+                    auto pps = std::make_shared<mfxBitstream>();
+                    pps->Data = const_cast<mfxU8*>(data) - startCode.size;
+
+                    length = size + startCode.size;
+                    startCode = ReadStartCode(&data, &size);
+                    if (-1 != startCode.type)
+                        length -= size + startCode.size;
+                    pps->DataLength = length;
+                    MFX_DEBUG_TRACE_MSG("Found PPS, length =");
+                    MFX_DEBUG_TRACE_I32(length);
+                    mfx_res = SaveHeaders(NULL, pps, false);
+                    if (MFX_ERR_NONE != mfx_res) return mfx_res;
+                    bFoundPps = true;
+                }
+                if (isIDR(startCode.type))
+                {
+                    MFX_DEBUG_TRACE_MSG("Found IDR");
+                    bFoundIDR = true;
+                    break;
+                }
+                if (isRegularSlice(startCode.type))
+                {
+                    MFX_DEBUG_TRACE_MSG("Found regular slice");
+                    bFoundRegularSlice = true;
+                    break;
+                }
+                if (-1 == startCode.type) break;
+            }
+        }
+    }
+
+    // alloc enough space for m_bstEnc->Data
+    if (m_bstEnc->MaxLength < m_hucBuffer->sample_size)
+    {
+        m_bstEnc->Data = (mfxU8*)realloc(m_bstEnc->Data, m_hucBuffer->sample_size);
+        if (!m_bstEnc->Data)
+            return MFX_ERR_MEMORY_ALLOC;
+        m_bstEnc->MaxLength = m_hucBuffer->sample_size;
+    }
+
+    // copy clear data to m_bstEnc->Data
+    packet_info* packet = reinterpret_cast<packet_info*>(baseAddress + sizeof(HUCVideoBuffer) - 8);
+
+    m_bstEnc->DataOffset = 0;
+    std::copy(bs, bs + packet->clear_bytes, m_bstEnc->Data);
+    m_bstEnc->DataLength = packet->clear_bytes;
+
+    // copy encrypted data to m_bstEnc->EncryptedData->Data
+    if (bFoundIDR || bFoundRegularSlice) {
+        mfxEncryptedData *pEncryptedData = NULL;
+        pEncryptedData = (mfxEncryptedData*) calloc(1, sizeof(mfxEncryptedData));
+        if (pEncryptedData)
+        {
+            pEncryptedData->Data = (mfxU8*)realloc(pEncryptedData->Data, packet->encrypted_bytes);
+            if (!pEncryptedData->Data)
+                return MFX_ERR_MEMORY_ALLOC;
+            std::copy(bs + packet->clear_bytes, bs + packet->clear_bytes + packet->encrypted_bytes, pEncryptedData->Data);
+            pEncryptedData->DataLength = packet->encrypted_bytes;
+            pEncryptedData->DataOffset = 0;
+            pEncryptedData->Next = NULL;
+        }
+
+        m_bstEnc->EncryptedData = pEncryptedData;
+    }
+    m_bstEnc->TimeStamp = pts;
+
+    return mfx_res;
+}
+
+
+std::shared_ptr<mfxBitstream> MfxC2AVCSecureFrameConstructor::GetMfxBitstream()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    auto pBitstream = MfxC2FrameConstructor::GetMfxBitstream();
+
+    if (m_hucBuffer)
+    {
+        MFX_ZERO_MEMORY(m_decryptParams);
+
+        m_decryptParams.Header.BufferId = MFX_EXTBUFF_ENCRYPTION_PARAM;
+        m_decryptParams.Header.BufferSz = sizeof(mfxExtEncryptionParam);
+        m_decryptParams.uiNumSegments = m_hucBuffer->num_packet_data;
+        if (m_hucBuffer->cipher_mode == OEMCrypto_CipherMode_CTR) {
+            m_decryptParams.encryption_type = VA_ENCRYPTION_TYPE_SUBSAMPLE_CTR;
+        } else {
+            m_decryptParams.encryption_type = VA_ENCRYPTION_TYPE_FULLSAMPLE_CBC;
+        }
+        m_decryptParams.pSegmentInfo = (EncryptionSegmentInfo*)malloc(m_hucBuffer->num_packet_data * sizeof(EncryptionSegmentInfo));
+
+        char* baseAddress = reinterpret_cast<char*>(m_hucBuffer);
+        for (int i = 0; i < m_hucBuffer->num_packet_data; i++)
+        {
+            packet_info* packet = reinterpret_cast<packet_info*>(baseAddress + sizeof(HUCVideoBuffer) - 8 + (i * sizeof(packet_info)));
+
+            m_decryptParams.pSegmentInfo[i].segment_start_offset = packet->block_offset + packet->clear_bytes;
+            m_decryptParams.pSegmentInfo[i].segment_length = packet->encrypted_bytes;
+            m_decryptParams.pSegmentInfo[i].init_byte_length = packet->block_offset;
+
+            IV temp_iv = packet->current_iv;
+            std::memcpy(m_decryptParams.pSegmentInfo[i].aes_cbc_iv_or_ctr, temp_iv.data(), temp_iv.size());
+            std::memset(m_decryptParams.pSegmentInfo[i].aes_cbc_iv_or_ctr + temp_iv.size(), 0, sizeof(m_decryptParams.pSegmentInfo[i].aes_cbc_iv_or_ctr) - temp_iv.size());
+        }
+
+        m_extBufs.clear();
+        m_extBufs.push_back(reinterpret_cast<mfxExtBuffer*>(&m_decryptParams));
+        m_bstEnc->ExtParam = &m_extBufs.back();
+        
+        m_bstEnc->NumExtParam = 1;
+        m_bstEnc->DataFlag |= MFX_BITSTREAM_COMPLETE_FRAME;
+
+        MFX_DEBUG_TRACE_I32(m_bstEnc->TimeStamp);
+        MFX_DEBUG_TRACE_I32(m_bstEnc->DataLength);
+        MFX_DEBUG_TRACE_I32(m_bstEnc->EncryptedData->DataLength);
+
+        return m_bstEnc;
+    }
+
+    MFX_DEBUG_TRACE_P(pBitstream.get());
+    return pBitstream;
+}
+
+IMfxC2FrameConstructor::StartCode MfxC2AVCSecureFrameConstructor::ReadStartCode(const mfxU8** position, mfxU32* size_left)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    return MfxC2AVCFrameConstructor::ReadStartCode(position, size_left);
+}
+
+
+MfxC2HEVCSecureFrameConstructor::MfxC2HEVCSecureFrameConstructor():
+                                MfxC2AVCSecureFrameConstructor(), previous_poc(0)
+{
+    MFX_DEBUG_TRACE_FUNC;
+}
+
+MfxC2HEVCSecureFrameConstructor::~MfxC2HEVCSecureFrameConstructor(void)
+{
+    MFX_DEBUG_TRACE_FUNC;
+}
+
+IMfxC2FrameConstructor::StartCode MfxC2HEVCSecureFrameConstructor::ReadStartCode(const mfxU8** position, mfxU32* size_left)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    return MfxC2HEVCFrameConstructor::ReadStartCode(position, size_left);
+}
+
+bool MfxC2HEVCSecureFrameConstructor::isRegularSlice(mfxI32 code)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    return (NAL_UT_HEVC_SLICE_TRAIL_N == code) ||
+           (NAL_UT_HEVC_SLICE_TRAIL_R == code) ||
+           (NAL_UT_HEVC_SLICE_TSA_N == code) ||
+           (NAL_UT_HEVC_SLICE_TLA_R == code) ||
+           (NAL_UT_HEVC_SLICE_STSA_N == code) ||
+           (NAL_UT_HEVC_SLICE_STSA_R == code) ||
+           (NAL_UT_HEVC_SLICE_RADL_N == code) ||
+           (NAL_UT_HEVC_SLICE_RADL_R == code) ||
+           (NAL_UT_HEVC_SLICE_RASL_N == code) ||
+           (NAL_UT_HEVC_SLICE_RASL_R == code) ||
+           (NAL_UT_HEVC_SLICE_BLA_W_LP == code) ||
+           (NAL_UT_HEVC_SLICE_BLA_W_RADL == code) ||
+           (NAL_UT_HEVC_SLICE_BLA_N_LP == code) ||
+           (NAL_UT_HEVC_SLICE_CRA == code);
+}
+
+#endif
