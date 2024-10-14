@@ -40,7 +40,8 @@ typedef struct {
     size_t data_length;
     size_t clear_bytes;
     size_t encrypted_bytes;
-    VAContextID context_id;
+    size_t pattern_clear;
+    size_t pattern_encrypted;
 } packet_info;
 
 typedef struct {
@@ -49,5 +50,6 @@ typedef struct {
     size_t num_packet_data;
     size_t sample_size;
     OEMCryptoCipherMode cipher_mode;
+    uint8_t hw_key_data[16];
     packet_info* packet_data;
 } HUCVideoBuffer;

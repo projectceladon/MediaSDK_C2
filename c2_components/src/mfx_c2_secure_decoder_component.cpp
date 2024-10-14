@@ -40,6 +40,7 @@ MfxC2SecureDecoderComponent::MfxC2SecureDecoderComponent(const C2String name, co
         MfxC2DecoderComponent(name, config, std::move(reflector), decoder_type)
 {
     MFX_DEBUG_TRACE_FUNC;
+    const unsigned int SINGLE_STREAM_ID = 0u;
     m_secure = true;
 
     addParameter(

@@ -1989,7 +1989,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
     const auto incoming_flags = work->input.flags;
 
     MFX_DEBUG_TRACE_STREAM("work: " << work.get() << "; index: " << incoming_frame_index.peeku() <<
-        " flags: " << std::hex << incoming_flags);
+            " flags: " << std::hex << incoming_flags << " infoBuffers: " << work->input.infoBuffers.size());
 
     bool expect_output = false;
     bool flushing = false;

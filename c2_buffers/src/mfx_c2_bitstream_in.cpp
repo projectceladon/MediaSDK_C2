@@ -111,7 +111,6 @@ c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_
         MFX_DEBUG_TRACE_STREAM("ZHDEBUG: encryptedBlock is null");
     }
 
-
     do {
         if (!frame_view) {
             res = C2_BAD_VALUE;
@@ -136,36 +135,34 @@ c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_
         data = read_view->data() + c_linear_block->offset();
         filled_len = c_linear_block->size();
 
+        MFX_DEBUG_TRACE_I64(filled_len);
         MFX_DEBUG_TRACE_STREAM("data: " << FormatHex(data, filled_len));
 
         m_frameConstructor->SetEosMode(buf_pack.flags & C2FrameData::FLAG_END_OF_STREAM);
-
         mfxStatus mfx_res;
-        if (MFX_ERR_NONE == mfx_res) {
-            HUCVideoBuffer *hucBuffer = NULL;
-            hucBuffer = (HUCVideoBuffer *) data;
-            if (hucBuffer->pr_magic == PROTECTED_DATA_BUFFER_MAGIC) {
-                MFX_DEBUG_TRACE_STREAM("ZHDEBUG: hucBuffer->pr_magic == PROTECTED_DATA_BUFFER_MAGIC");
-                mfx_res = m_frameConstructor->Load_data(data,
-                                                       filled_len,
-                                                       infobuffer,
-                                                       buf_pack.ordinal.timestamp.peeku(), // pass pts
-                                                       buf_pack.flags & C2FrameData::FLAG_CODEC_CONFIG,
-                                                       true);
-            } else {
-                MFX_DEBUG_TRACE_STREAM("ZHDEBUG: hucBuffer->pr_magic != PROTECTED_DATA_BUFFER_MAGIC");
-                mfx_res = m_frameConstructor->Load(data,
-                                                   filled_len,
-                                                   buf_pack.ordinal.timestamp.peeku(), // pass pts
-                                                   buf_pack.flags & C2FrameData::FLAG_CODEC_CONFIG,
-                                                   true);
-            }
+        HUCVideoBuffer *hucBuffer = NULL;
+        hucBuffer = (HUCVideoBuffer *) data;
+        if (hucBuffer->pr_magic == PROTECTED_DATA_BUFFER_MAGIC) {
+            MFX_DEBUG_TRACE_STREAM("ZHDEBUG: hucBuffer->pr_magic == PROTECTED_DATA_BUFFER_MAGIC");
+            mfx_res = m_frameConstructor->Load_data(data,
+                                                    filled_len,
+                                                    infobuffer,
+                                                    buf_pack.ordinal.timestamp.peeku(), // pass pts
+                                                    buf_pack.flags & C2FrameData::FLAG_CODEC_CONFIG,
+                                                    true);
+        } else {
+            MFX_DEBUG_TRACE_STREAM("ZHDEBUG: hucBuffer->pr_magic != PROTECTED_DATA_BUFFER_MAGIC");
+            mfx_res = m_frameConstructor->Load(data,
+                                                filled_len,
+                                                buf_pack.ordinal.timestamp.peeku(), // pass pts
+                                                buf_pack.flags & C2FrameData::FLAG_CODEC_CONFIG,
+                                                true);
         }
-        
+
         res = MfxStatusToC2(mfx_res);
         if(C2_OK != res) break;
 
-        *frame_view = std::move(bs_read_view);
+        *frame_view = std::move(read_view);
 
     } while(false);
 

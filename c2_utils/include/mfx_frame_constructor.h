@@ -21,8 +21,8 @@
 #pragma once
 
 #include "mfx_defs.h"
-#include "mfx_c2_widevine_crypto_defs.h"
 #ifdef ENABLE_WIDEVINE
+#include "mfx_c2_widevine_crypto_defs.h"
 #include "mfx_c2_bs_utils.h"
 #include "mfx_c2_avc_bitstream.h"
 #include "mfx_c2_hevc_bitstream.h"
@@ -128,6 +128,8 @@ public:
     // get whether in reset state
     virtual bool IsInReset();
 
+    virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame);
+    
 protected: // functions
     virtual mfxStatus LoadHeader(const mfxU8* data, mfxU32 size, bool header);
     virtual mfxStatus Load_None(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
@@ -157,6 +159,13 @@ protected: // data
     // data from input sample (case when buffering and copying is not needed)
     std::shared_ptr<mfxBitstream> m_bstIn;
 
+    // bs buffer used for WV L1
+    std::shared_ptr<mfxBitstream> m_bstEnc;
+    // ext buffer vector
+    std::vector<mfxExtBuffer*> m_extBufs;
+    // MFX_EXTBUFF_ENCRYPTION_PARAM
+    mfxExtEncryptionParam m_decryptParams;
+
     // EOS flag
     bool m_bEos;
 
@@ -165,6 +174,10 @@ protected: // data
     mfxU32 m_uBstBufCopyBytes;
 
     bool m_bInReset;
+
+public:
+    uint8_t m_keyblob[16];
+
 private:
     MFX_CLASS_NO_COPY(MfxC2FrameConstructor)
 };
@@ -185,7 +198,7 @@ protected: // functions
     virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
     
     virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame);
-    
+
     virtual mfxStatus LoadHeader(const mfxU8* data, mfxU32 size, bool header);
     // save current SEI
     virtual mfxStatus SaveSEI(mfxBitstream * /*pSEI*/) {return MFX_ERR_NONE;}
@@ -265,7 +278,7 @@ protected:
 protected:
     static const mfxU32 SLICE_HEADER_BUFFER_SIZE = 128;
     std::list<mfxEncryptedData*> m_encryptedDataList;
-    HUCVideoBuffer               m_hucBuffer;
+    HUCVideoBuffer*               m_hucBuffer = nullptr;
 
     // Actual SPS/PPS/SEI headers
     mfxBitstream m_SPS_PPS_SEI;
@@ -287,6 +300,7 @@ public:
     virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame);
 
 protected:
+    virtual StartCode ReadStartCode(const mfxU8** position, mfxU32* size_left);
     virtual bool   isSPS(mfxI32 code) {return MfxC2AVCFrameConstructor::isSPS(code);}
     virtual bool   isPPS(mfxI32 code) {return MfxC2AVCFrameConstructor::isPPS(code);}
     virtual bool   isIDR(mfxI32 code) {return NAL_UT_AVC_IDR_SLICE == code;}
@@ -314,7 +328,7 @@ public:
 
     MFX_CLASS_NO_COPY(MfxC2HEVCSecureFrameConstructor)
 protected:
-    virtual StartCode ReadStartCode(const mfxU8** position, mfxU32& size_left);
+    virtual StartCode ReadStartCode(const mfxU8** position, mfxU32* size_left);
     virtual bool   isSPS(mfxI32 code) {return MfxC2HEVCFrameConstructor::isSPS(code);}
     virtual bool   isPPS(mfxI32 code) {return MfxC2HEVCFrameConstructor::isPPS(code);}
     virtual bool   isIDR(mfxI32 code) {return (NAL_UT_HEVC_SLICE_IDR_W_RADL == code) || (NAL_UT_HEVC_SLICE_IDR_N_LP == code);}
