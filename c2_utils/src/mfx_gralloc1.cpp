@@ -277,20 +277,16 @@ buffer_handle_t MfxGralloc1Module::ImportBuffer(const buffer_handle_t rawHandle)
 {
     MFX_DEBUG_TRACE_FUNC;
     c2_status_t res = C2_OK;
-    buffer_handle_t *outBuffer = nullptr;
-    buffer_handle_t out = nullptr;
+    buffer_handle_t outBuffer = nullptr;
 
-    int32_t gr1_res = (*m_grImportBufferFunc)(m_gralloc1_dev, rawHandle, outBuffer);
-    if (GRALLOC1_ERROR_NONE != gr1_res || nullptr == outBuffer) {
+    int32_t gr1_res = (*m_grImportBufferFunc)(m_gralloc1_dev, rawHandle, &outBuffer);
+    if (GRALLOC1_ERROR_NONE != gr1_res) {
         MFX_DEBUG_TRACE_I32(gr1_res);
         res = C2_BAD_STATE;
     }
 
-    if (outBuffer)
-        out = const_cast<buffer_handle_t>(*outBuffer);
-
     MFX_DEBUG_TRACE__android_c2_status_t(res);
-    return out;
+    return outBuffer;
 }
 
 c2_status_t MfxGralloc1Module::GetBackingStore(const buffer_handle_t rawHandle, uint64_t *id)
