@@ -27,6 +27,7 @@ cc_library_static {
     ],
 
     shared_libs: [
+	"libdrm",
         "liblog",
         "libgralloctypes",
         "libstagefright_foundation",
