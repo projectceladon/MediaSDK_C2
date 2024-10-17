@@ -23,6 +23,7 @@
 #include "mfx_c2_debug.h"
 #include "mfx_c2_components_registry.h"
 #include "mfx_c2_components_monitor.h"
+#include <assert.h>
 
 using namespace android;
 

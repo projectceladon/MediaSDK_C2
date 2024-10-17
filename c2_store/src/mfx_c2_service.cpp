@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022 Intel Corporation
+// Copyright (c) 2017-2024 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -36,81 +36,142 @@
  */
 
 // The contents of this file was copied
-// from AOSP hardware/google/av/codec2/hidl/services/vendor.cpp
+// from AOSP frameworks/av/media/codec2/hal/services/vendor.cpp
 // and modified then.
 
 //#define LOG_NDEBUG 0
-#define LOG_TAG "hardware.intel.media.c2@1.0-service"
+#define LOG_TAG "android.hardware.media.c2-service.intel"
 
 #include "mfx_c2_store.h"
 
+#include <android-base/logging.h>
+#include <minijail.h>
+
+#include <util/C2InterfaceHelper.h>
+#include <C2Component.h>
+#include <C2Config.h>
+
+// HIDL
+#include <binder/ProcessState.h>
 #include <codec2/hidl/1.0/ComponentStore.h>
 #include <hidl/HidlTransportSupport.h>
-#include <binder/ProcessState.h>
-#include <minijail.h>
-#include <dlfcn.h>
 
-#include <C2Component.h>
+// AIDL
+#include <android/binder_manager.h>
+#include <android/binder_process.h>
+#include <codec2/aidl/ComponentStore.h>
+#include <codec2/aidl/ParamTypes.h>
 
-// This is created by module "codec2.vendor.base.policy". This can be modified.
+// This is the absolute on-device path of the prebuild_etc module
+// "android.hardware.media.c2-default-seccomp_policy" in Android.bp.
 static constexpr char kBaseSeccompPolicyPath[] =
-        "/vendor/etc/seccomp_policy/android.hardware.media.c2@1.0-vendor.policy";
+        "/vendor/etc/seccomp_policy/"
+        "android.hardware.media.c2-vendor-seccomp_policy";
 
-// Additional device-specific seccomp permissions can be added in this file.
+// Additional seccomp permissions can be added in this file.
+// This file does not exist by default.
 static constexpr char kExtSeccompPolicyPath[] =
-        "/vendor/etc/seccomp_policy/android.hardware.media.c2@1.0-vendor.ext.policy";
+        "/vendor/etc/seccomp_policy/"
+        "android.hardware.media.c2-extended-seccomp_policy";
 
-// Create and register IComponentStore service.
-void RegisterC2Service()
-{
-    using namespace ::android::hardware::media::c2::V1_0;
-    android::sp<IComponentStore> store;
+// We want multiple threads to be running so that a blocking operation
+// on one codec does not block the other codecs.
+// For HIDL: Extra threads may be needed to handle a stacked IPC sequence that
+// contains alternating binder and hwbinder calls. (See b/35283480.)
+static constexpr int kThreadCount = 8;
 
-    ALOGD("Instantiating MFX IComponentStore service...");
+void runAidlService() {
+    ABinderProcess_setThreadPoolMaxThreadCount(kThreadCount);
+    ABinderProcess_startThreadPool();
+
+    // Create IComponentStore service.
+    using namespace ::aidl::android::hardware::media::c2;
+    std::shared_ptr<IComponentStore> store;
+
+    LOG(DEBUG) << "Instantiating MFX IComponentStore service...";
 
     c2_status_t status = C2_OK;
     std::shared_ptr<C2ComponentStore> c2_store(MfxC2ComponentStore::Create(&status));
     if (c2_store) {
-        store = new utils::ComponentStore(c2_store);
+        store = ::ndk::SharedRefBase::make<utils::ComponentStore>(c2_store);
     } else {
         ALOGD("Creation MFX IComponentStore failed with status: %d", (int)status);
     }
 
-    if (!store) {
-        ALOGE("Cannot create Codec2's IComponentStore service.");
+    if (store == nullptr) {
+        LOG(ERROR) << "Cannot create Codec2's IComponentStore service.";
     } else {
-        if (store->registerAsService("default") != android::OK) {
-            ALOGE("Cannot register Codec2's "
-                    "IComponentStore service.");
+        const std::string serviceName =
+            std::string(IComponentStore::descriptor) + "/default";
+        binder_exception_t ex = AServiceManager_addService(
+                store->asBinder().get(), serviceName.c_str());
+        if (ex != EX_NONE) {
+            LOG(ERROR) << "Cannot register Codec2's IComponentStore service"
+                          " with instance name << \""
+                       << serviceName << "\".";
         } else {
-            ALOGI("Codec2's IComponentStore service created.");
+            LOG(DEBUG) << "Codec2's IComponentStore service registered. "
+                          "Instance name: \"" << serviceName << "\".";
         }
     }
+
+    ABinderProcess_joinThreadPool();
 }
 
+void runHidlService() {
+    using namespace ::android;
+
+    // Enable vndbinder to allow vendor-to-vendor binder calls.
+    ProcessState::initWithDriver("/dev/vndbinder");
+
+    ProcessState::self()->startThreadPool();
+    hardware::configureRpcThreadpool(kThreadCount, true /* callerWillJoin */);
+
+    // Create IComponentStore service.
+    {
+        using namespace ::android::hardware::media::c2::V1_0;
+        sp<IComponentStore> store;
+
+        ALOGD("Instantiating MFX IComponentStore service...");
+
+        c2_status_t status = C2_OK;
+        std::shared_ptr<C2ComponentStore> c2_store(MfxC2ComponentStore::Create(&status));
+        if (c2_store) {
+            store = new utils::ComponentStore(c2_store);
+        } else {
+            ALOGD("Creation MFX IComponentStore failed with status: %d", (int)status);
+        }
+
+        if (store == nullptr) {
+            LOG(ERROR) << "Cannot create Codec2's IComponentStore service.";
+        } else {
+            constexpr char const* serviceName = "default";
+            if (store->registerAsService(serviceName) != OK) {
+                LOG(ERROR) << "Cannot register Codec2's IComponentStore service"
+                              " with instance name << \""
+                           << serviceName << "\".";
+            } else {
+                LOG(DEBUG) << "Codec2's IComponentStore service registered. "
+                              "Instance name: \"" << serviceName << "\".";
+            }
+        }
+    }
+
+    hardware::joinRpcThreadpool();
+}
 
 int main(int /* argc */, char** /* argv */) {
-    // ALOGD("hardware.intel.media.c2@1.0-service starting...");
+    const bool aidlEnabled = ::aidl::android::hardware::media::c2::utils::IsSelected();
+    LOG(DEBUG) << "android.hardware.media.c2" << (aidlEnabled ? "-V1" : "@1.0")
+               << "-service starting...";
 
+    // Set up minijail to limit system calls.
     signal(SIGPIPE, SIG_IGN);
-
-    try {
-        android::SetUpMinijail(kBaseSeccompPolicyPath, kExtSeccompPolicyPath);
-    
-        // vndbinder is needed by BufferQueue.
-        android::ProcessState::initWithDriver("/dev/vndbinder");
-        android::ProcessState::self()->startThreadPool();
-
-        // Extra threads may be needed to handle a stacked IPC sequence that
-        // contains alternating binder and hwbinder calls. (See b/35283480.)
-        android::hardware::configureRpcThreadpool(8, true /* callerWillJoin */);
-
-        RegisterC2Service();
-
-        android::hardware::joinRpcThreadpool();
-
-    } catch(const std::exception& ex) {
-        // ALOGE("hardware.intel.media.c2@1.0-service exception: %s", ex.what());
+    android::SetUpMinijail(kBaseSeccompPolicyPath, kExtSeccompPolicyPath);
+    if (aidlEnabled) {
+        runAidlService();
+    } else {
+        runHidlService();
     }
     return 0;
 }
