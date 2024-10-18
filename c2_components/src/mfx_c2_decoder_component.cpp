@@ -226,6 +226,9 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         .build());
 
     m_consumerUsage = C2AndroidMemoryUsage::FromGrallocUsage(kDefaultConsumerUsage).expected;
+    // We need these flags in the case of hybrid GPU.
+    m_consumerUsage |= C2AndroidMemoryUsage::CPU_READ;
+    m_consumerUsage |= C2AndroidMemoryUsage::CPU_WRITE;
     addParameter(
         DefineParam(m_outputUsage, C2_PARAMKEY_OUTPUT_STREAM_USAGE)
         .withDefault(new C2StreamUsageTuning::output(SINGLE_STREAM_ID, m_consumerUsage))
@@ -1502,6 +1505,8 @@ void MfxC2DecoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
             case kParamIndexUsage: {
                 if (C2StreamUsageTuning::output::PARAM_TYPE == param->index()) {
                     m_consumerUsage = m_outputUsage->value;
+                    m_consumerUsage |= C2AndroidMemoryUsage::CPU_READ;
+                    m_consumerUsage |= C2AndroidMemoryUsage::CPU_WRITE;
                     // Set memory type according to consumer usage sent from framework
                     m_mfxVideoParams.IOPattern = (m_consumerUsage & (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE)) ?
                         MFX_IOPATTERN_OUT_SYSTEM_MEMORY : MFX_IOPATTERN_OUT_VIDEO_MEMORY;

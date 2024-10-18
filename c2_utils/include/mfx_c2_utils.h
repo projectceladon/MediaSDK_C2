@@ -118,7 +118,7 @@ void InitNV12PlaneLayout(uint32_t pitches[C2PlanarLayout::MAX_NUM_PLANES], C2Pla
 
 void InitNV12PlaneData(int32_t pitch_y, int32_t alloc_height, uint8_t* base, uint8_t** plane_data);
 
-int MfxFourCCToGralloc(mfxU32 fourcc, bool using_video_memory = true);
+int MfxFourCCToGralloc(mfxU32 fourcc, bool using_video_memory = false);
 
 bool IsYUV420(const C2GraphicView &view);
 
