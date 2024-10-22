@@ -2559,7 +2559,13 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
         std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
 
         auto it = find_if(m_pendingWorks.begin(), m_pendingWorks.end(), [ready_timestamp] (const auto &item) {
-            return item.second->input.ordinal.timestamp == ready_timestamp;
+            uint64_t sub;
+            if (item.second->input.ordinal.timestamp.peeku() > ready_timestamp.peeku())
+                sub = item.second->input.ordinal.timestamp.peeku() - ready_timestamp.peeku();
+            else
+                sub = ready_timestamp.peeku() - item.second->input.ordinal.timestamp.peeku();
+            return sub < 3000;
+            // return item.second->input.ordinal.timestamp == ready_timestamp;
         });
 
         if (it != m_pendingWorks.end()) {
