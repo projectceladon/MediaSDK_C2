@@ -28,9 +28,21 @@
 
 c2_status_t MfxStatusToC2(mfxStatus mfx_status);
 
+static const mfxU32 MFX_TIME_STAMP_FREQUENCY = 90000;
+
+inline mfxF64 GetUmcTimeStamp(mfxU64 ts)
+{
+    return ts / (mfxF64)MFX_TIME_STAMP_FREQUENCY;
+}
+
+inline mfxU64 GetMfxTimeStamp(mfxF64 ts)
+{
+    return (mfxU64)(ts * MFX_TIME_STAMP_FREQUENCY + .5);
+}
+
 inline mfxU64 TimestampC2ToMfx(uint64_t timestamp)
 {
-    return timestamp * 90000 / MFX_SECOND_NS;
+    return timestamp * MFX_TIME_STAMP_FREQUENCY / MFX_SECOND_NS;
 }
 
 c2_status_t GetC2ConstGraphicBlock(
