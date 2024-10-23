@@ -2550,7 +2550,7 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
         }
     }
 
-    decltype(C2WorkOrdinalStruct::timestamp) ready_timestamp{mfx_surface->Data.TimeStamp};
+    uint64_t ready_timestamp = mfx_surface->Data.TimeStamp;
 
     std::unique_ptr<C2Work> work;
     std::unique_ptr<C2ReadView> read_view;
@@ -2559,7 +2559,10 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
         std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
 
         auto it = find_if(m_pendingWorks.begin(), m_pendingWorks.end(), [ready_timestamp] (const auto &item) {
-            return item.second->input.ordinal.timestamp == ready_timestamp;
+            // In some cases, operations in oneVPL may result in timestamp gaps.
+            // To ensure that we correctly identify the work, we replicate the same operations as performed in oneVPL.
+            return item.second->input.ordinal.timestamp.peeku() == ready_timestamp ||
+                   GetMfxTimeStamp(GetUmcTimeStamp(item.second->input.ordinal.timestamp.peeku())) == ready_timestamp;
         });
 
         if (it != m_pendingWorks.end()) {
