@@ -48,6 +48,7 @@ cc_library_static {
     ],
 
     cflags: [
+        "-DONEVPL_EXPERIMENTAL"
         //"-DMFX_BUFFER_QUEUE"
     ],
 

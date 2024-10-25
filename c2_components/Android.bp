@@ -81,7 +81,7 @@ cc_library_shared {
     ],
 
     cflags: [
-        
+        "-DONEVPL_EXPERIMENTAL", // For enable dGPU
     ],
 
     header_libs: [
