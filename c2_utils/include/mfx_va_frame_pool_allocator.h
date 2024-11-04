@@ -62,8 +62,8 @@ private:
     {
         MFX_DEBUG_TRACE_FUNC;
         m_pool = std::make_unique<MfxPool<C2GraphicBlock>>();
-        m_cachedBufferId.clear();
     }
+
     virtual void SetBufferCount(unsigned int cnt) override
     {
         MFX_DEBUG_TRACE_FUNC;
@@ -76,14 +76,6 @@ private:
         m_consumerUsage = usage;
     }
 
-    bool InCache(uint64_t id) {
-        auto it = m_cachedBufferId.find(id);
-        if (it == m_cachedBufferId.end()){
-            return false;
-        }
-
-        return true;
-    }
 private:
     virtual mfxStatus AllocFrames(mfxFrameAllocRequest *request, mfxFrameAllocResponse *response) override;
 
@@ -95,8 +87,6 @@ private:
     std::shared_ptr<C2BlockPool> m_c2Allocator;
 
     std::unique_ptr<MfxPool<C2GraphicBlock>> m_pool;
-
-    std::map<uint64_t, int> m_cachedBufferId;
 
     unsigned int m_uSuggestBufferCnt = 0;
 
