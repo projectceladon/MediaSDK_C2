@@ -105,6 +105,9 @@ mfxStatus mfx_set_RateControlMethod(mfxU16 rate_control_method, mfxVideoParam* p
                 case MFX_CODEC_VP9:
                     params->mfx.TargetKbps = 3000;
                     break;
+                case MFX_CODEC_AV1:
+                    params->mfx.TargetKbps = 3000;
+                    break;
                 default:
                     MFX_DEBUG_TRACE_MSG("Unsupported Codec ID");
                     res = MFX_ERR_INVALID_VIDEO_PARAM;
@@ -212,6 +215,21 @@ mfxStatus mfx_set_defaults_mfxVideoParam_enc(mfxVideoParam* params)
             params->mfx.NumSlice = 1;
             params->mfx.NumRefFrame = 1;
             params->mfx.LowPower = MFX_CODINGOPTION_ON;
+            break;
+        case MFX_CODEC_AV1:
+	    res = mfx_set_RateControlMethod(MFX_RATECONTROL_CBR, params);
+            // If GopRefDist is not set, during Encoder Initialization, default
+            // value of 8 will be read from onevpl and used, which will cause problem.
+            // In framework during codec start, 4 works are queued to work queue, then
+            // codec will wait for work done notification to queue more works, while
+            // in mediasdk_c2, when handling the 4 works from framework, if GopRefDist
+            // is 8, the first 4 works will wait for future works to notify framework
+            // work done, so in framework codec will always be waiting for work done
+            // notification from mediasdk_c2, and mediasdk_c2 will always be waiting for
+            // more works from framework.
+            params->mfx.GopRefDist = 1;
+            params->mfx.GopPicSize = 16;
+            params->mfx.NumRefFrame = 1;
             break;
         default:
             break;
