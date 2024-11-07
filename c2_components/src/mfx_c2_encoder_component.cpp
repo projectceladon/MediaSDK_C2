@@ -83,7 +83,7 @@ C2R MfxC2EncoderComponent::AV1_ProfileLevelSetter(bool mayBlock, C2P<C2StreamPro
     if (!me.F(me.v.profile).supportsAtAll(me.v.profile))
         me.set().profile = PROFILE_AV1_0;
     if (!me.F(me.v.level).supportsAtAll(me.v.level))
-        me.set().level = LEVEL_AV1_7_3;
+        me.set().level = LEVEL_AV1_5_3;
 
     return C2R::Ok();
 }
@@ -316,7 +316,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
 
             addParameter(DefineParam(m_profileLevel, C2_PARAMKEY_PROFILE_LEVEL)
                 .withDefault(new C2StreamProfileLevelInfo::output(
-                    SINGLE_STREAM_ID, PROFILE_AV1_0, LEVEL_AV1_7_3))
+                    SINGLE_STREAM_ID, PROFILE_AV1_0, LEVEL_AV1_5_3))
                 .withFields({
                     C2F(m_profileLevel, C2ProfileLevelStruct::profile)
                         .oneOf({
