@@ -77,4 +77,9 @@ getegid32: 1
 getpgid: 1
 sigkill: 1
 
+# Required by media_driver debug mode
+mkdirat: 1
+semget: 1
+semtimedop: 1
+
 @include /system/etc/seccomp_policy/crash_dump.x86_64.policy
