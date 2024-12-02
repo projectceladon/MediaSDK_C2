@@ -54,6 +54,8 @@
 
 extern mfxVersion g_required_mfx_version;
 
+#define DRM_RENDER_NODE_NUM 128
+
 #ifdef LIBVA_SUPPORT
     #include <va/va.h>
 #endif // #ifdef LIBVA_SUPPORT

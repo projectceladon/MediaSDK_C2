@@ -200,12 +200,16 @@ mfxStatus MfxDevVa::InitMfxSession(MFXVideoSession* session)
 std::shared_ptr<MfxFrameAllocator> MfxDevVa::GetFrameAllocator()
 {
     MFX_DEBUG_TRACE_FUNC;
+    if (m_usage == Usage::Encoder && isDedicated())
+        m_vaAllocator->setDedicated(isDedicated());
     return m_usage == Usage::Decoder ? m_vaPoolAllocator : m_vaAllocator;
 }
 
 std::shared_ptr<MfxFrameConverter> MfxDevVa::GetFrameConverter()
 {
     MFX_DEBUG_TRACE_FUNC;
+    if (m_usage == Usage::Encoder && isDedicated())
+        m_vaAllocator->setDedicated(isDedicated());
     return m_usage == Usage::Decoder ? m_vaPoolAllocator : m_vaAllocator;
 }
 

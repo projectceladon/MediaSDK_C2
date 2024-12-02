@@ -54,4 +54,11 @@ public:
     virtual mfxStatus InitMfxSession(MFXVideoSession* session) = 0;
 #endif
     static mfxStatus Create(Usage usage, std::unique_ptr<MfxDev>* device);
+
+#ifdef ONEVPL_EXPERIMENTAL
+    bool isDedicated() { return dedicated; }
+    void setDedicated(bool dGPU) { dedicated = dGPU; }
+private:
+    bool dedicated = false;
+#endif
 };

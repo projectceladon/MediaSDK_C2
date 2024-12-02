@@ -46,6 +46,11 @@ public:
     MfxVaFrameAllocator(VADisplay dpy);
     virtual ~MfxVaFrameAllocator();
 
+#ifdef ONEVPL_EXPERIMENTAL
+    bool isDedicated() { return dedicated; }
+    void setDedicated(bool dGPU) { dedicated = dGPU; }
+#endif
+
 private: // MfxFrameAllocator
     virtual mfxStatus AllocFrames(mfxFrameAllocRequest *request, mfxFrameAllocResponse *response) override;
     virtual mfxStatus FreeFrames(mfxFrameAllocResponse *response) override;
@@ -84,6 +89,10 @@ private:
     VADisplay m_dpy;
 
     std::mutex m_mutex;
+
+#ifdef ONEVPL_EXPERIMENTAL
+    bool dedicated = false;
+#endif
 
     std::map<uint64_t, std::unique_ptr<VaMemIdAllocated, VaMemIdDeleter>>
         m_mappedVaSurfaces;
