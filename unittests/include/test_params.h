@@ -1,0 +1,181 @@
+// Copyright (c) 2017-2021 Intel Corporation
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#pragma once
+
+#include <C2Param.h>
+
+inline bool Valid(const C2Param& param)
+{
+    return (bool)param;
+}
+
+inline bool Equal(const C2Param& param1, const C2Param& param2)
+{
+    return param1 == param2;
+}
+
+inline std::string FormatParam(const C2Param& param)
+{
+    std::ostringstream oss;
+    // oss << "index: " << std::hex << param.index() << "; "
+    oss << "index: " << param.index() << "; "
+        << "size: " << std::dec << param.size() << "\n" <<
+        FormatHex((const uint8_t*)&param, param.size());
+    return oss.str();
+}
+
+// C2 parameters values set.
+class C2ParamValues
+{
+    using C2Param = C2Param;
+private:
+    std::list<std::shared_ptr<C2Param>> expected_;
+    std::vector<std::shared_ptr<C2Param>> stack_values_;
+    std::vector<C2Param::Index> indices_;
+
+public:
+    template<typename ParamType>
+    void Append(ParamType* param_value)
+    {
+        expected_.push_back(std::shared_ptr<C2Param>((C2Param*)param_value));
+        stack_values_.push_back(std::shared_ptr<C2Param>((C2Param*)new ParamType()));
+        indices_.push_back(ParamType::PARAM_TYPE);
+    }
+
+    template<typename ParamType>
+    void AppendFlex(std::unique_ptr<ParamType>&& param_value)
+    {
+        // don't add to stack_values_ as flex params need dynamic allocation
+        stack_values_.push_back(C2Param::Copy(*param_value));
+        expected_.push_back(std::shared_ptr<C2Param>(std::move(param_value)));
+        indices_.push_back(ParamType::PARAM_TYPE);
+    }
+
+    std::vector<C2Param*> GetStackPointers() const
+    {
+        // need this temp vector as cannot init vector<smth const> in one step
+        std::vector<C2Param*> params;
+        std::transform(stack_values_.begin(), stack_values_.end(), std::back_inserter(params),
+            [] (const std::shared_ptr<C2Param>& p) { return p.get(); } );
+
+        std::vector<C2Param*> res(params.begin(), params.end());
+        return res;
+    }
+
+    std::vector<C2Param*> GetExpectedParams() const
+    {
+        // need this temp vector as cannot init vector<smth const> in one step
+        std::vector<C2Param*> params;
+        std::transform(expected_.begin(), expected_.end(), std::back_inserter(params),
+            [] (const std::shared_ptr<C2Param>& p) { return p.get(); } );
+
+        std::vector<C2Param*> res(params.begin(), params.end());
+        return res;
+    }
+
+    std::vector<C2Param::Index> GetIndices() const
+    {
+        return indices_;
+    }
+
+    void CheckStackValues() const
+    {
+        Check<std::shared_ptr<C2Param>>(stack_values_, false);
+    }
+    // This method can be used for stack and heap values check both
+    // as their collections are the same type.
+    // But there is a significant difference when query of specific parameter failed:
+    // stack value parameter should be invalidated, but heap not allocated at all.
+    // To distingisugh that - bool parameter skip_invalid is intriduced: when true
+    // parameters are expected to be invalid are skipped from comparison.
+    template<typename C2ParamPtr>
+    void Check(const std::vector<C2ParamPtr>& actual, bool skip_invalid) const
+    {
+
+
+        // for(auto expected_i = expected_.begin(); expected_i != expected_.end(); ++expected_i){
+        //     const auto& expected_item = *expected_i;
+        //     std::cout<<"===xiaoliang: expected index "<< std::hex << expected_item->index() <<" expected param "<< FormatParam(*expected_item) << std::endl;
+        // }
+
+        for(int i = 0; i < actual.size(); i++){
+            const C2ParamPtr& actual_item = actual[i]; 
+            std::cout<<"+++xiaoliang: actual param "<< i << std::endl;
+            if(actual_item.get() != nullptr){
+                std::cout<<"+++xiaoliang: actual param +++ "<< std::endl;
+                std::cout<<"+++xiaoliang: actual param "<< FormatParam(*actual_item) << std::endl;
+            }
+            else
+                std::cout<<"+++xiaoliang: actual param is nullptr" << std::endl;
+        }
+
+        if(skip_invalid) {
+            EXPECT_TRUE(expected_.size() > actual.size());
+        } else {
+            std::cout<<"+++xiaoliang: expected_ size:"<< expected_.size() <<" actual size:"<<actual.size()<< std::endl;
+            EXPECT_EQ(expected_.size(), actual.size());
+        }
+
+        auto actual_it = actual.begin();
+
+        for(auto expected_it = expected_.begin(); expected_it != expected_.end(); ++expected_it) {
+
+            const auto& expected_item = *expected_it;
+            if (!Valid(*expected_item) && skip_invalid) {
+                continue;
+            }
+            
+            // std::cout<<"===xiaoliang: expected index "<< std::hex << expected_item->index() <<" expected param "<< FormatParam(*expected_item) << std::endl;
+            EXPECT_NE(actual_it, actual.end());
+
+            if (actual_it != actual.end()) {
+
+                const C2ParamPtr& actual_item = *actual_it;
+
+                std::cout<<"===xiaoliang: actual index "<< actual_item->index() <<" actual param "<< FormatParam(*actual_item) << std::endl;
+
+                EXPECT_EQ(actual_item->index(), expected_item->index())
+                    << std::hex << actual_item->index() << " instead of " << expected_item->index();
+
+                EXPECT_EQ(Valid(*actual_item), Valid(*expected_item));
+
+                EXPECT_EQ(actual_item->size(), expected_item->size())
+                    << actual_item->size() << " instead of " << expected_item->size();
+
+                if (Valid(*expected_item)) {
+                    EXPECT_TRUE(Equal(*actual_item, *expected_item)) <<
+                        "Actual:" << FormatParam(*actual_item) << "\n" <<
+                        "Expected:" << FormatParam(*expected_item);
+                }
+
+                ++actual_it;
+            }
+        }
+        EXPECT_EQ(actual_it, actual.end());
+    }
+};
+
+template<typename ParamType>
+static ParamType* Invalidate(ParamType* param)
+{
+    param->invalidate();
+    return param;
+}
