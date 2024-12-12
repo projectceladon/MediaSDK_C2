@@ -759,8 +759,71 @@ std::shared_ptr<IMfxC2FrameConstructor> MfxC2FrameConstructorFactory::CreateFram
         fc = std::make_shared<MfxC2HEVCFrameConstructor>();
         return fc;
 
-    } else {
+    } else if (MfxC2FC_SEC_AVC == fc_type) {
+        fc = std::make_shared<MfxC2AVCSecureFrameConstructor>();
+        return fc;
+
+    }  else if (MfxC2FC_SEC_HEVC == fc_type) { 
+        fc = std::make_shared<MfxC2HEVCSecureFrameConstructor>();
+        return fc;
+    }
+    
+    else {
         fc = std::make_shared<MfxC2FrameConstructor>();
         return fc;
     }
 }
+
+MfxC2SecureFrameConstructor::MfxC2SecureFrameConstructor()
+{
+    MFX_DEBUG_TRACE_FUNC;
+}
+
+MfxC2SecureFrameConstructor::~MfxC2SecureFrameConstructor()
+{
+    MFX_DEBUG_TRACE_FUNC;
+}
+
+MfxC2AVCSecureFrameConstructor::MfxC2AVCSecureFrameConstructor() :
+    MfxC2HEVCFrameConstructor(), MfxC2SecureFrameConstructor()
+{
+    MFX_DEBUG_TRACE_FUNC;
+}
+
+MfxC2AVCSecureFrameConstructor::~MfxC2AVCSecureFrameConstructor()
+{
+    MFX_DEBUG_TRACE_FUNC;
+}
+
+mfxStatus MfxC2AVCSecureFrameConstructor::Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool b_header, bool bCompleteFrame)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    return MfxC2FrameConstructor::Load(data, size, pts, b_header, bCompleteFrame);
+}
+
+IMfxC2FrameConstructor::StartCode MfxC2AVCSecureFrameConstructor::ReadStartCode(const mfxU8** position, mfxU32* size_left)
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    return MfxC2AVCFrameConstructor::ReadStartCode(position, size_left);
+}
+
+std::shared_ptr<mfxBitstream> MfxC2AVCSecureFrameConstructor::GetMfxBitstream()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    return MfxC2FrameConstructor::GetMfxBitstream();
+}
+
+MfxC2HEVCSecureFrameConstructor::MfxC2HEVCSecureFrameConstructor():
+                                MfxC2AVCSecureFrameConstructor()
+{
+    MFX_DEBUG_TRACE_FUNC;
+}
+
+MfxC2HEVCSecureFrameConstructor::~MfxC2HEVCSecureFrameConstructor()
+{
+    MFX_DEBUG_TRACE_FUNC;
+}
+

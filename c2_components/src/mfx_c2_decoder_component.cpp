@@ -174,7 +174,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         m_bInitialized(false),
         m_uSyncedPointsCount(0),
         m_bSetHdrStatic(false),
-        m_surfaceNum(0)
+        m_surfaceNum(0),
+        m_secure(false)
 {
     MFX_DEBUG_TRACE_FUNC;
     const unsigned int SINGLE_STREAM_ID = 0u;
@@ -247,6 +248,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     );
 
     switch(m_decoderType) {
+        case DECODER_H264_SECURE:
         case DECODER_H264: {
             m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
 
@@ -302,6 +304,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 .build());
             break;
         }
+        case DECODER_H265_SECURE:
         case DECODER_H265: {
             m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
 
@@ -951,6 +954,12 @@ void MfxC2DecoderComponent::InitFrameConstructor()
     case DECODER_AV1:
         fc_type = MfxC2FC_AV1;
         break;
+    case DECODER_H264_SECURE:
+        fc_type = MfxC2FC_SEC_AVC;
+        break;
+    case DECODER_H265_SECURE:
+        fc_type = MfxC2FC_SEC_HEVC;
+        break;
     default:
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
         fc_type = MfxC2FC_None;
@@ -1095,9 +1104,11 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
 
     switch (m_decoderType)
     {
+    case DECODER_H264_SECURE:
     case DECODER_H264:
         m_mfxVideoParams.mfx.CodecId = MFX_CODEC_AVC;
         break;
+    case DECODER_H265_SECURE:
     case DECODER_H265:
         m_mfxVideoParams.mfx.CodecId = MFX_CODEC_HEVC;
         break;

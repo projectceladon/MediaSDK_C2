@@ -34,6 +34,8 @@ enum MfxC2FrameConstructorType
     MfxC2FC_VP9,
     MfxC2FC_MP2,
     MfxC2FC_AV1,
+    MfxC2FC_SEC_AVC,
+    MfxC2FC_SEC_HEVC,
 };
 
 enum MfxC2BitstreamState
@@ -228,6 +230,61 @@ protected: // data
 
 private:
     MFX_CLASS_NO_COPY(MfxC2HEVCFrameConstructor)
+};
+
+class MfxC2SecureFrameConstructor
+{
+public:
+    MfxC2SecureFrameConstructor();
+    virtual ~MfxC2SecureFrameConstructor();
+
+private:
+    MFX_CLASS_NO_COPY(MfxC2SecureFrameConstructor)
+};
+
+class MfxC2AVCSecureFrameConstructor : public MfxC2HEVCFrameConstructor, public MfxC2SecureFrameConstructor
+{
+public:
+    MfxC2AVCSecureFrameConstructor();
+    virtual ~MfxC2AVCSecureFrameConstructor();
+
+    virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool b_header, bool bCompleteFrame);
+
+protected:
+    virtual StartCode ReadStartCode(const mfxU8** position, mfxU32* size_left);
+    virtual bool   isSPS(mfxI32 code) {return MfxC2AVCFrameConstructor::isSPS(code);}
+    virtual bool   isPPS(mfxI32 code) {return MfxC2AVCFrameConstructor::isPPS(code);}
+    virtual bool   isIDR(mfxI32 code) {return NAL_UT_AVC_IDR_SLICE == code;}
+    virtual bool   isRegularSlice(mfxI32 code) {return NAL_UT_AVC_SLICE == code;}
+
+    std::shared_ptr<mfxBitstream> GetMfxBitstream();
+
+protected:
+    bool m_bNeedAttachSPSPPS;
+
+    const static mfxU32 NAL_UT_AVC_SLICE       = 1;
+    const static mfxU32 NAL_UT_AVC_IDR_SLICE   = 5;
+
+    AVCParser::AVCHeaders m_H264Headers;
+    std::vector<mfxU8>  m_swappingMemory;
+private:
+    MFX_CLASS_NO_COPY(MfxC2AVCSecureFrameConstructor)
+};
+
+/*------------------------------------------------------------------------------*/
+
+class MfxC2HEVCSecureFrameConstructor : public MfxC2AVCSecureFrameConstructor
+{
+public:
+    MfxC2HEVCSecureFrameConstructor();
+    virtual ~MfxC2HEVCSecureFrameConstructor();
+
+protected:
+    virtual bool   isSPS(mfxI32 code) {return MfxC2HEVCFrameConstructor::isSPS(code);}
+    virtual bool   isPPS(mfxI32 code) {return MfxC2HEVCFrameConstructor::isPPS(code);}
+
+private:
+    MFX_CLASS_NO_COPY(MfxC2HEVCSecureFrameConstructor)
 };
 
 class MfxC2FrameConstructorFactory
