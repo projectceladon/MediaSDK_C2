@@ -25,6 +25,8 @@
 #include <vector>
 #include <map>
 
+#include "mfx_c2_widevine_crypto_defs.h"
+
 enum MfxC2FrameConstructorType
 {
     MfxC2FC_None,
@@ -73,6 +75,8 @@ public:
     virtual mfxStatus SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset) = 0;
     // get whether in reset state
     virtual bool IsInReset() = 0;
+    
+    virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame) = 0;
 
 protected:
     struct StartCode
@@ -116,6 +120,8 @@ public:
     }
     // get whether in reset state
     virtual bool IsInReset();
+
+    virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame);
 
 protected: // functions
     virtual mfxStatus LoadHeader(const mfxU8* data, mfxU32 size, bool header);
@@ -184,6 +190,8 @@ protected: // functions
     virtual bool      isIDR(mfxI32 code) {return NAL_UT_AVC_SLICE_IDR == code;}
     virtual bool      needWaitSEI(mfxI32 /*code*/) {return false;}
 
+    virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame);
+
 protected: // data
     const static mfxU32 NAL_UT_AVC_SPS = 7;
     const static mfxU32 NAL_UT_AVC_PPS = 8;
@@ -237,6 +245,17 @@ class MfxC2SecureFrameConstructor
 public:
     MfxC2SecureFrameConstructor();
     virtual ~MfxC2SecureFrameConstructor();
+protected:
+    virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
+
+    // metadata of hucbuffer
+    HUCVideoBuffer* m_hucBuffer = nullptr;
+    // bs buffer used for WV L1
+    std::shared_ptr<mfxBitstream> m_bstEnc;
+    // ext buffer vector
+    std::vector<mfxExtBuffer*> m_extBufs;
+    // MFX_EXTBUFF_ENCRYPTION_PARAM
+    mfxExtEncryptionParam m_decryptParams;
 
 private:
     MFX_CLASS_NO_COPY(MfxC2SecureFrameConstructor)
@@ -249,7 +268,8 @@ public:
     virtual ~MfxC2AVCSecureFrameConstructor();
 
     virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool b_header, bool bCompleteFrame);
-
+    virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame);
+    
 protected:
     virtual StartCode ReadStartCode(const mfxU8** position, mfxU32* size_left);
     virtual bool   isSPS(mfxI32 code) {return MfxC2AVCFrameConstructor::isSPS(code);}
@@ -265,8 +285,6 @@ protected:
     const static mfxU32 NAL_UT_AVC_SLICE       = 1;
     const static mfxU32 NAL_UT_AVC_IDR_SLICE   = 5;
 
-    AVCParser::AVCHeaders m_H264Headers;
-    std::vector<mfxU8>  m_swappingMemory;
 private:
     MFX_CLASS_NO_COPY(MfxC2AVCSecureFrameConstructor)
 };
