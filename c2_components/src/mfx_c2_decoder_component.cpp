@@ -44,6 +44,7 @@ constexpr c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 constexpr uint64_t kMinInputBufferSize = 1 * WIDTH_1K * HEIGHT_1K;
 constexpr uint64_t kDefaultConsumerUsage =
     (GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_HW_COMPOSER);
+constexpr uint64_t kProtectedUsage = C2MemoryUsage::READ_PROTECTED;
 
 // Android S declared VP8 profile
 #if PLATFORM_SDK_VERSION <= 30 // Android 11(R)
@@ -1188,6 +1189,10 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             if (nullptr == m_mfxDecoder) {
                 mfx_res = MFX_ERR_MEMORY_ALLOC;
             }
+        }
+
+        if (m_secure) {
+            m_consumerUsage |= kProtectedUsage;
         }
 
         if (MFX_ERR_NONE == mfx_res) {

@@ -556,7 +556,7 @@ mfxStatus MfxVaFrameAllocator::CreateSurfaceFromGralloc(const IMfxGrallocModule:
     VASurfaceAttrib attribs[2];
     MFX_ZERO_MEMORY(attribs);
 
-#if 0
+#if 1
     VASurfaceAttribExternalBuffers surfExtBuf;
     MFX_ZERO_MEMORY(surfExtBuf);
 
@@ -577,7 +577,7 @@ mfxStatus MfxVaFrameAllocator::CreateSurfaceFromGralloc(const IMfxGrallocModule:
     surfExtBuf.num_buffers = 1;
     if (IS_PRIME_VALID(info.prime)) {
         surfExtBuf.buffers = (uintptr_t *)&info.prime;
-        surfExtBuf.flags = VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME;
+        surfExtBuf.flags = VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME | VA_SURFACE_EXTBUF_DESC_PROTECTED | VA_SURFACE_EXTBUF_DESC_ENABLE_TILING;
     } else {
         surfExtBuf.buffers = (uintptr_t *)&info.handle;
         surfExtBuf.flags = VA_SURFACE_ATTRIB_MEM_TYPE_ANDROID_GRALLOC;
