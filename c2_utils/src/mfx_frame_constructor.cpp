@@ -354,6 +354,12 @@ std::shared_ptr<mfxBitstream> MfxC2FrameConstructor::GetMfxBitstream()
     return bst;
 }
 
+mfxStatus MfxC2FrameConstructor::Load_data(const mfxU8* data, mfxU32 size, const mfxU8* bs, mfxU64 pts, bool b_header, bool bComplete)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    return MFX_ERR_NONE;
+}
+
 MfxC2AVCFrameConstructor::MfxC2AVCFrameConstructor():
     MfxC2FrameConstructor()
 {
@@ -601,6 +607,12 @@ mfxStatus MfxC2AVCFrameConstructor::Load(const mfxU8* data, mfxU32 size, mfxU64 
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
+}
+
+mfxStatus MfxC2AVCFrameConstructor::Load_data(const mfxU8* data, mfxU32 size, const mfxU8* bs, mfxU64 pts, bool b_header, bool bComplete)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    return MFX_ERR_NONE;
 }
 
 MfxC2HEVCFrameConstructor::MfxC2HEVCFrameConstructor():

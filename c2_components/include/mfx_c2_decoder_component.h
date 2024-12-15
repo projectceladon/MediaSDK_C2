@@ -26,6 +26,7 @@
 #include "mfx_cmd_queue.h"
 #include "mfx_c2_frame_out.h"
 #include "mfx_c2_bitstream_in.h"
+#include "mfx_c2_secure_bitstream_in.h"
 #include "mfx_frame_pool_allocator.h"
 #include "mfx_gralloc_instance.h"
 #include "mfx_intel_device.h"
@@ -43,6 +44,8 @@ public:
         DECODER_VP8,
         DECODER_MPEG2,
         DECODER_AV1,
+        DECODER_H264_SECURE,
+        DECODER_H265_SECURE
     };
 
     enum class OperationState {
@@ -266,6 +269,9 @@ private:
     // second dumped file named xxx_1.yuv ...
     uint32_t m_file_num = 0;
     bool m_needCpuAccess = false;
+
+protected:
+    bool m_secure;
 
     /* -----------------------C2Parameters--------------------------- */
     std::shared_ptr<C2ComponentNameSetting> m_name;

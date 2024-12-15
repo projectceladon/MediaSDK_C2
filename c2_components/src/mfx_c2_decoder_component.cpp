@@ -44,6 +44,7 @@ constexpr c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 constexpr uint64_t kMinInputBufferSize = 1 * WIDTH_1K * HEIGHT_1K;
 constexpr uint64_t kDefaultConsumerUsage =
     (GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_HW_COMPOSER);
+constexpr uint64_t kProtectedUsage = C2MemoryUsage::READ_PROTECTED;
 
 // Android S declared VP8 profile
 #if PLATFORM_SDK_VERSION <= 30 // Android 11(R)
@@ -174,7 +175,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         m_bInitialized(false),
         m_uSyncedPointsCount(0),
         m_bSetHdrStatic(false),
-        m_surfaceNum(0)
+        m_surfaceNum(0),
+        m_secure(false)
 {
     MFX_DEBUG_TRACE_FUNC;
     const unsigned int SINGLE_STREAM_ID = 0u;
@@ -247,6 +249,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     );
 
     switch(m_decoderType) {
+        case DECODER_H264_SECURE:
         case DECODER_H264: {
             m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
 
@@ -302,6 +305,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 .build());
             break;
         }
+        case DECODER_H265_SECURE:
         case DECODER_H265: {
             m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
 
@@ -951,12 +955,24 @@ void MfxC2DecoderComponent::InitFrameConstructor()
     case DECODER_AV1:
         fc_type = MfxC2FC_AV1;
         break;
+    case DECODER_H264_SECURE:
+        fc_type = MfxC2FC_SEC_AVC;
+        break;
+    case DECODER_H265_SECURE:
+        fc_type = MfxC2FC_SEC_HEVC;
+        break;
     default:
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");
         fc_type = MfxC2FC_None;
         break;
     }
-    m_c2Bitstream = std::make_unique<MfxC2BitstreamIn>(fc_type);
+
+    if (fc_type == MfxC2FC_SEC_AVC || fc_type == MfxC2FC_SEC_HEVC)
+    {
+        m_c2Bitstream = std::make_unique<MfxC2SecureBitstreamIn>(fc_type);
+    } else {
+        m_c2Bitstream = std::make_unique<MfxC2BitstreamIn>(fc_type);
+    }
 }
 
 #ifdef USE_ONEVPL
@@ -1095,9 +1111,11 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
 
     switch (m_decoderType)
     {
+    case DECODER_H264_SECURE:
     case DECODER_H264:
         m_mfxVideoParams.mfx.CodecId = MFX_CODEC_AVC;
         break;
+    case DECODER_H265_SECURE:
     case DECODER_H265:
         m_mfxVideoParams.mfx.CodecId = MFX_CODEC_HEVC;
         break;
@@ -1177,6 +1195,10 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             if (nullptr == m_mfxDecoder) {
                 mfx_res = MFX_ERR_MEMORY_ALLOC;
             }
+        }
+
+        if (m_secure) {
+            m_consumerUsage |= kProtectedUsage;
         }
 
         if (MFX_ERR_NONE == mfx_res) {

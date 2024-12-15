@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022 Intel Corporation
+// Copyright (c) 2017-2024 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,70 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "mfx_c2_bitstream_in.h"
+
+#include "mfx_c2_secure_bitstream_in.h"
 #include "mfx_c2_utils.h"
 #include "mfx_debug.h"
 #include "mfx_c2_debug.h"
 #include "mfx_msdk_debug.h"
 
-using namespace android;
-
 #undef MFX_DEBUG_MODULE_NAME
-#define MFX_DEBUG_MODULE_NAME "mfx_c2_bitstream_in"
+#define MFX_DEBUG_MODULE_NAME "mfx_c2_secure_bitstream_in"
 
-MfxC2BitstreamIn::MfxC2BitstreamIn(MfxC2FrameConstructorType fc_type)
+constexpr c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
+
+MfxC2SecureBitstreamIn::MfxC2SecureBitstreamIn(MfxC2FrameConstructorType fc_type)
+    : MfxC2BitstreamIn(fc_type)
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    m_frameConstructor = MfxC2FrameConstructorFactory::CreateFrameConstructor(fc_type);
+    m_frameConstructor = MfxC2SecureFrameConstructorFactory::CreateFrameConstructor(fc_type);
 }
 
-MfxC2BitstreamIn::~MfxC2BitstreamIn()
+MfxC2SecureBitstreamIn::~MfxC2SecureBitstreamIn()
 {
     MFX_DEBUG_TRACE_FUNC;
 }
 
-c2_status_t MfxC2BitstreamIn::Reset()
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    c2_status_t res = C2_OK;
-
-    do {
-        mfxStatus mfx_res = m_frameConstructor->Reset();
-        res = MfxStatusToC2(mfx_res);
-        if(C2_OK != res) break;
-    } while(false);
-
-    MFX_DEBUG_TRACE__android_c2_status_t(res);
-    return res;
-}
-
-bool MfxC2BitstreamIn::IsInReset()
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    return m_frameConstructor->IsInReset();
-}
-
-c2_status_t MfxC2BitstreamIn::Unload()
-{
-    MFX_DEBUG_TRACE_FUNC;
-
-    c2_status_t res = C2_OK;
-
-    do {
-        mfxStatus mfx_res = m_frameConstructor->Unload();
-        res = MfxStatusToC2(mfx_res);
-        if(C2_OK != res) break;
-    } while(false);
-
-    MFX_DEBUG_TRACE__android_c2_status_t(res);
-    return res;
-}
-
-
-c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_t timeout,
+c2_status_t MfxC2SecureBitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_t timeout,
     std::unique_ptr<C2ReadView>* frame_view)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -89,6 +51,23 @@ c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_
     c2_status_t res = C2_OK;
     const mfxU8* data = nullptr;
     mfxU32 filled_len = 0;
+
+    std::unique_ptr<C2ConstLinearBlock> encryptedBlock;
+    for (auto &infoBuffer: buf_pack.infoBuffers) {
+        if (infoBuffer.index().typeIndex() == kParamIndexEncryptedBuffer) {
+            const C2BufferData& buf_data = infoBuffer.data();
+            encryptedBlock = std::make_unique<C2ConstLinearBlock>(buf_data.linearBlocks().front());
+        }
+    }
+
+    const mfxU8* infobuffer = nullptr;
+    std::unique_ptr<C2ReadView> bs_read_view;
+    
+    if (encryptedBlock != nullptr) {
+        MapConstLinearBlock(*encryptedBlock, TIMEOUT_NS, &bs_read_view);
+        infobuffer = bs_read_view->data() + encryptedBlock->offset();
+        MFX_DEBUG_TRACE_STREAM("c2 infobuffer data: " << FormatHex(infobuffer, encryptedBlock->size()));
+    }
 
     do {
         if (!frame_view) {
@@ -118,11 +97,23 @@ c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_
 
         m_frameConstructor->SetEosMode(buf_pack.flags & C2FrameData::FLAG_END_OF_STREAM);
 
-        mfxStatus mfx_res = m_frameConstructor->Load(data,
-                                                     filled_len,
-                                                     buf_pack.ordinal.timestamp.peeku(), // pass pts
-                                                     buf_pack.flags & C2FrameData::FLAG_CODEC_CONFIG,
-                                                     true);
+        mfxStatus mfx_res;
+        HUCVideoBuffer *hucBuffer = NULL;
+        hucBuffer = (HUCVideoBuffer *) data;
+        if (hucBuffer->pr_magic == PROTECTED_DATA_BUFFER_MAGIC) {
+            mfx_res = m_frameConstructor->Load_data(data,
+                                                    filled_len,
+                                                    infobuffer,
+                                                    buf_pack.ordinal.timestamp.peeku(), // pass pts
+                                                    buf_pack.flags & C2FrameData::FLAG_CODEC_CONFIG,
+                                                    true);
+        } else {
+             mfx_res = m_frameConstructor->Load(data,
+                                                filled_len,
+                                                buf_pack.ordinal.timestamp.peeku(), // pass pts
+                                                buf_pack.flags & C2FrameData::FLAG_CODEC_CONFIG,
+                                                true);
+        }
         res = MfxStatusToC2(mfx_res);
         if(C2_OK != res) break;
 

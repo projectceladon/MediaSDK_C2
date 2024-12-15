@@ -34,6 +34,8 @@ enum MfxC2FrameConstructorType
     MfxC2FC_VP9,
     MfxC2FC_MP2,
     MfxC2FC_AV1,
+    MfxC2FC_SEC_AVC,
+    MfxC2FC_SEC_HEVC,
 };
 
 enum MfxC2BitstreamState
@@ -71,6 +73,8 @@ public:
     virtual mfxStatus SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset) = 0;
     // get whether in reset state
     virtual bool IsInReset() = 0;
+    
+    virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame) = 0;
 
 protected:
     struct StartCode
@@ -114,6 +118,8 @@ public:
     }
     // get whether in reset state
     virtual bool IsInReset();
+
+    virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame);
 
 protected: // functions
     virtual mfxStatus LoadHeader(const mfxU8* data, mfxU32 size, bool header);
@@ -181,6 +187,8 @@ protected: // functions
     virtual bool      isSEI(mfxI32 /*code*/) {return false;}
     virtual bool      isIDR(mfxI32 code) {return NAL_UT_AVC_SLICE_IDR == code;}
     virtual bool      needWaitSEI(mfxI32 /*code*/) {return false;}
+
+    virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame);
 
 protected: // data
     const static mfxU32 NAL_UT_AVC_SPS = 7;
