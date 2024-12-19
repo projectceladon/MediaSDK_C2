@@ -21,7 +21,6 @@
 #include "mfx_c2_decoder_component.h"
 
 #include "mfx_debug.h"
-#include "mfx_intel_device.h"
 #include "mfx_msdk_debug.h"
 #include "mfx_c2_debug.h"
 #include "mfx_c2_components_registry.h"
@@ -182,12 +181,6 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     MFX_DEBUG_TRACE_FUNC;
     const unsigned int SINGLE_STREAM_ID = 0u;
 
-    // We need to enable CPU access to the buffers of decoded images when
-    // 1. decode with DG2 and display with RPL-p iGPU;
-    // 2. decode with RPL-p iGPU and display with DG2.
-    // The displaying GPU will appear as virtio-GPU.
-    m_needCpuAccess = enforceLinearBuffer();
-
     addParameter(
         DefineParam(m_kind, C2_PARAMKEY_COMPONENT_KIND)
         .withConstValue(new C2ComponentKindSetting(C2Component::KIND_DECODER))
@@ -236,11 +229,6 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         .build());
 
     m_consumerUsage = C2AndroidMemoryUsage::FromGrallocUsage(kDefaultConsumerUsage).expected;
-    // We need these flags in the case of hybrid GPU.
-    if (m_needCpuAccess) {
-        m_consumerUsage |= C2AndroidMemoryUsage::CPU_READ;
-        m_consumerUsage |= C2AndroidMemoryUsage::CPU_WRITE;
-    }
     addParameter(
         DefineParam(m_outputUsage, C2_PARAMKEY_OUTPUT_STREAM_USAGE)
         .withDefault(new C2StreamUsageTuning::output(SINGLE_STREAM_ID, m_consumerUsage))
@@ -279,7 +267,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 })
                 .withSetter(MaxPictureSizeSetter, m_size)
                 .build());
-            
+
             addParameter(DefineParam(m_profileLevel, C2_PARAMKEY_PROFILE_LEVEL)
                 .withDefault(new C2StreamProfileLevelInfo::input(
                     SINGLE_STREAM_ID, PROFILE_AVC_CONSTRAINED_BASELINE, LEVEL_AVC_5_2))
@@ -1208,7 +1196,7 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
 
             // decoding header
             mfx_res = m_mfxDecoder->DecodeHeader(m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get(), &m_mfxVideoParams);
-            // MSDK will call the function av1_native_profile_to_mfx_profile to change CodecProfile in DecodeHeader while 
+            // MSDK will call the function av1_native_profile_to_mfx_profile to change CodecProfile in DecodeHeader while
             // decoder type is av1. So after calling DecodeHeader, we have to revert this value to avoid unexpected behavior.
             if (m_decoderType == DECODER_AV1)
                 m_mfxVideoParams.mfx.CodecProfile = av1_mfx_profile_to_native_profile(m_mfxVideoParams.mfx.CodecProfile);
@@ -1624,10 +1612,6 @@ void MfxC2DecoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
             case kParamIndexUsage: {
                 if (C2StreamUsageTuning::output::PARAM_TYPE == param->index()) {
                     m_consumerUsage = m_outputUsage->value;
-                    if (m_needCpuAccess) {
-                        m_consumerUsage |= C2AndroidMemoryUsage::CPU_READ;
-                        m_consumerUsage |= C2AndroidMemoryUsage::CPU_WRITE;
-                    }
                     /* Do not set IO pattern during decoding, only set IO pattern in
                        the first time decoder initialization */
                     if (!m_bInitialized_once) {
@@ -1640,7 +1624,7 @@ void MfxC2DecoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
                 break;
             }
             default:
-                MFX_DEBUG_TRACE_STREAM("attempt to configure " 
+                MFX_DEBUG_TRACE_STREAM("attempt to configure "
                                     << C2Param::Type(param->type()).typeIndex() << " type, but not found");
                 break;
         }
