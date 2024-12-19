@@ -28,7 +28,6 @@
 #include "mfx_c2_bitstream_in.h"
 #include "mfx_frame_pool_allocator.h"
 #include "mfx_gralloc_instance.h"
-#include "mfx_intel_device.h"
 #include "mfx_c2_setters.h"
 #include "mfx_c2_utils.h"
 #include <cutils/properties.h>
@@ -265,7 +264,6 @@ private:
     // dump output multiple times, the first dumped file named xxx_0.yuv,
     // second dumped file named xxx_1.yuv ...
     uint32_t m_file_num = 0;
-    bool m_needCpuAccess = false;
 
     /* -----------------------C2Parameters--------------------------- */
     std::shared_ptr<C2ComponentNameSetting> m_name;
