@@ -1520,91 +1520,91 @@ static C2ParamValues GetKeptParamValues()
 // (like how streams are split into chunks supplied to decoder).
 // Name Check is chosen to produce readable test name like:
 // MfxComponents/DecoderDecode.Check/BrokenHeader_C2_h264vd
-// TEST_P(DecoderDecode, Check)
-// {
-//     DecodingConditions conditions = std::get<DecodingConditions>(GetParam());
+TEST_P(DecoderDecode, Check)
+{
+    DecodingConditions conditions = std::get<DecodingConditions>(GetParam());
 
-//     CallComponentTest<ComponentDesc>(std::get<ComponentDesc>(GetParam()),
-//         [&] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
+    CallComponentTest<ComponentDesc>(std::get<ComponentDesc>(GetParam()),
+        [&] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr comp_intf) {
 
-//         const int TESTS_COUNT = conditions.repeat_count;
+        const int TESTS_COUNT = conditions.repeat_count;
 
-//         std::map<bool, std::string> memory_names = {
-//             { false, "(system memory)" },
-//             { true, "(video memory)" },
-//         };
+        std::map<bool, std::string> memory_names = {
+            { false, "(system memory)" },
+            { true, "(video memory)" },
+        };
 
-//         for (const std::vector<const StreamDescription*>& streams : desc.streams) {
+        for (const std::vector<const StreamDescription*>& streams : desc.streams) {
 
-//             if (conditions.skip && conditions.skip(streams, desc)) continue;
+            if (conditions.skip && conditions.skip(streams, desc)) continue;
 
-//             SCOPED_TRACE("Stream: " + std::to_string(&streams - desc.streams.data()));
+            SCOPED_TRACE("Stream: " + std::to_string(&streams - desc.streams.data()));
 
-//             for (int i = 0; i < TESTS_COUNT; ++i) {
+            for (int i = 0; i < TESTS_COUNT; ++i) {
 
-//                 for (bool use_graphics_memory : { false, true }) {
+                for (bool use_graphics_memory : { false, true }) {
 
-//                     CRC32Generator crc_generator;
+                    CRC32Generator crc_generator;
 
-//                     std::vector<uint32_t> frames_crc32;
+                    std::vector<uint32_t> frames_crc32;
 
-//                     GTestBinaryWriter writer(std::ostringstream()
-//                         << comp_intf->getName() << "-" << GetStreamsCombinedName(streams) << "-" << i << ".nv12");
+                    GTestBinaryWriter writer(std::ostringstream()
+                        << comp_intf->getName() << "-" << GetStreamsCombinedName(streams) << "-" << i << ".nv12");
 
-//                     DecoderConsumer::OnFrame on_frame = [&] (uint32_t width, uint32_t height,
-//                         const uint8_t* data, size_t length) {
+                    DecoderConsumer::OnFrame on_frame = [&] (uint32_t width, uint32_t height,
+                        const uint8_t* data, size_t length) {
 
-//                         writer.Write(data, length);
+                        writer.Write(data, length);
 
-//                         if (conditions.check_frame_crc) {
-//                             CRC32Generator frame_crc_generator;
-//                             frame_crc_generator.AddData(width, height, data, length);
-//                             frames_crc32.push_back(frame_crc_generator.GetCrc32().front());
-//                         } else {
-//                             crc_generator.AddData(width, height, data, length);
-//                         }
-//                     };
+                        if (conditions.check_frame_crc) {
+                            CRC32Generator frame_crc_generator;
+                            frame_crc_generator.AddData(width, height, data, length);
+                            frames_crc32.push_back(frame_crc_generator.GetCrc32().front());
+                        } else {
+                            crc_generator.AddData(width, height, data, length);
+                        }
+                    };
 
-//                     std::shared_ptr<DecoderConsumer> validator =
-//                         std::make_shared<DecoderConsumer>(on_frame, conditions.check_expectations);
-//                     std::list<StreamChunk> stream_chunks = ReadChunks(streams);
-//                     if (conditions.chunks_mutator) {
-//                         conditions.chunks_mutator(streams, &stream_chunks);
-//                     }
+                    std::shared_ptr<DecoderConsumer> validator =
+                        std::make_shared<DecoderConsumer>(on_frame, conditions.check_expectations);
+                    std::list<StreamChunk> stream_chunks = ReadChunks(streams);
+                    if (conditions.chunks_mutator) {
+                        conditions.chunks_mutator(streams, &stream_chunks);
+                    }
 
-//                     Decode(use_graphics_memory, comp, validator, streams, stream_chunks);
+                    Decode(use_graphics_memory, comp, validator, streams, stream_chunks);
 
-//                     if (conditions.check_frame_crc) {
+                    if (conditions.check_frame_crc) {
 
-//                         std::vector<uint32_t> expected_frames_crc;
-//                         for (auto& stream : streams) {
-//                             std::copy(stream->frames_crc32_nv12.begin(), stream->frames_crc32_nv12.end(),
-//                                 std::back_inserter(expected_frames_crc));
-//                         }
+                        std::vector<uint32_t> expected_frames_crc;
+                        for (auto& stream : streams) {
+                            std::copy(stream->frames_crc32_nv12.begin(), stream->frames_crc32_nv12.end(),
+                                std::back_inserter(expected_frames_crc));
+                        }
 
-//                         size_t checked_frames_count = expected_frames_crc.size();
-//                         if (conditions.checked_frames_count) {
-//                             checked_frames_count = conditions.checked_frames_count(streams);
-//                         }
-//                         EXPECT_GE(frames_crc32.size(), checked_frames_count);
+                        size_t checked_frames_count = expected_frames_crc.size();
+                        if (conditions.checked_frames_count) {
+                            checked_frames_count = conditions.checked_frames_count(streams);
+                        }
+                        EXPECT_GE(frames_crc32.size(), checked_frames_count);
 
-//                         for (size_t j = 0; j < std::min(frames_crc32.size(), checked_frames_count); ++j) {
-//                             EXPECT_EQ(frames_crc32.rbegin()[j], expected_frames_crc.rbegin()[j]);
-//                         }
-//                     } else {
-//                         std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
-//                         std::list<uint32_t> expected_crc;
-//                         std::transform(streams.begin(), streams.end(), std::back_inserter(expected_crc),
-//                             [] (const StreamDescription* stream) { return stream->crc32_nv12; } );
+                        for (size_t j = 0; j < std::min(frames_crc32.size(), checked_frames_count); ++j) {
+                            EXPECT_EQ(frames_crc32.rbegin()[j], expected_frames_crc.rbegin()[j]);
+                        }
+                    } else {
+                        std::list<uint32_t> actual_crc = crc_generator.GetCrc32();
+                        std::list<uint32_t> expected_crc;
+                        std::transform(streams.begin(), streams.end(), std::back_inserter(expected_crc),
+                            [] (const StreamDescription* stream) { return stream->crc32_nv12; } );
 
-//                         EXPECT_EQ(actual_crc, expected_crc) << "Pass " << i << " not equal to reference CRC32"
-//                             << memory_names[use_graphics_memory];
-//                     }
-//                 }
-//             }
-//         }
-//     } );
-// }
+                        EXPECT_EQ(actual_crc, expected_crc) << "Pass " << i << " not equal to reference CRC32"
+                            << memory_names[use_graphics_memory];
+                    }
+                }
+            }
+        }
+    } );
+}
 
 INSTANTIATE_TEST_CASE_P(MfxComponents, CreateDecoder,
     ::testing::ValuesIn(g_components_desc),
@@ -1618,8 +1618,8 @@ INSTANTIATE_TEST_CASE_P(MfxComponents, Decoder,
     ::testing::ValuesIn(g_components_desc),
     ::testing::PrintToStringParamName());
 
-// INSTANTIATE_TEST_CASE_P(MfxComponents, DecoderDecode,
-//     ::testing::Combine(
-//         ::testing::ValuesIn(g_decoding_conditions),
-//         ::testing::ValuesIn(g_components_desc)),
-//     ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(MfxComponents, DecoderDecode,
+    ::testing::Combine(
+        ::testing::ValuesIn(g_decoding_conditions),
+        ::testing::ValuesIn(g_components_desc)),
+    ::testing::PrintToStringParamName());
