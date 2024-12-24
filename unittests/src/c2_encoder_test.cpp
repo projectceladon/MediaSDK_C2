@@ -158,10 +158,10 @@ static ComponentDesc NonExistingEncoderDesc()
 }
 
 static ComponentDesc g_components_desc[] = {
-    { "c2.intel.avc.encoder", MfxC2Component::CreateConfig{}, C2_OK, h264_params_desc, GetDefaultValues("c2.intel.avc.encoder"), C2_CORRUPTED,
+    { "c2.intel.avc.encoder", MfxC2Component::CreateConfig{.concurrent_instances=12,}, C2_OK, h264_params_desc, GetDefaultValues("c2.intel.avc.encoder"), C2_CORRUPTED,
         { g_h264_profile_levels, g_h264_profile_levels + g_h264_profile_levels_count }, MFX_CODEC_AVC,
         &TestAvcStreamProfileLevel },
-    { "c2.intel.hevc.encoder", MfxC2Component::CreateConfig{}, C2_OK, h265_params_desc, GetDefaultValues("c2.intel.hevc.encoder"), C2_CORRUPTED,
+    { "c2.intel.hevc.encoder", MfxC2Component::CreateConfig{.concurrent_instances=12,}, C2_OK, h265_params_desc, GetDefaultValues("c2.intel.hevc.encoder"), C2_CORRUPTED,
         { g_h265_profile_levels, g_h265_profile_levels + g_h265_profile_levels_count }, MFX_CODEC_HEVC,
         &TestHevcStreamProfileLevel },
 };
@@ -172,14 +172,14 @@ static ComponentDesc g_invalid_components_desc[] = {
 
 // Assures that all encoding components might be successfully created.
 // NonExistingEncoder cannot be created and C2_NOT_FOUND error is returned.
-// TEST_P(CreateEncoder, Create)
-// {
-//     const ComponentDesc& desc = GetParam();
+TEST_P(CreateEncoder, Create)
+{
+    const ComponentDesc& desc = GetParam();
 
-//     std::shared_ptr<MfxC2Component> encoder = GetCachedComponent(desc);
+    std::shared_ptr<MfxC2Component> encoder = GetCachedComponent(desc);
 
-//     EXPECT_EQ(encoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;
-// }
+    EXPECT_EQ(encoder != nullptr, desc.creation_status == C2_OK) << " for " << desc.component_name;
+}
 
 // Checks that all successfully created encoding components expose C2ComponentInterface
 // and return correct information once queried (component name).
@@ -1521,49 +1521,49 @@ static std::vector<char> ExtractHeader(std::vector<char>&& bitstream, uint32_t f
 // Tests that header (vps + sps + pps) is supplied with C2StreamInitDataInfo::output
 // through C2Worklet::output::configUpdate.
 // Checks if C2StreamInitDataInfo::output contents is the same as vps + sps + pps from encoded stream.
-// TEST_P(Encoder, EncodeHeaderSupplied)
-// {
-//     CallComponentTest<ComponentDesc>(GetParam(),
-//         [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr) {
+TEST_P(Encoder, EncodeHeaderSupplied)
+{
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [] (const ComponentDesc& desc, C2CompPtr comp, C2CompIntfPtr) {
 
-//         StripeGenerator stripe_generator;
+        StripeGenerator stripe_generator;
 
-//         int header_update_count = 0;
+        int header_update_count = 0;
 
-//         EncoderConsumer::OnFrame on_frame =
-//             [&] (const C2Worklet& worklet, const uint8_t* data, size_t length) {
+        EncoderConsumer::OnFrame on_frame =
+            [&] (const C2Worklet& worklet, const uint8_t* data, size_t length) {
 
-//             const auto& update = worklet.output.configUpdate;
-//             const auto& it = std::find_if(update.begin(), update.end(), [](const auto& p) {
-//                 return p->type() == C2Param::Type(C2StreamInitDataInfo::output::PARAM_TYPE);
-//             });
+            const auto& update = worklet.output.configUpdate;
+            const auto& it = std::find_if(update.begin(), update.end(), [](const auto& p) {
+                return p->type() == C2Param::Type(C2StreamInitDataInfo::output::PARAM_TYPE);
+            });
 
-//             if (it != update.end() && *it) {
+            if (it != update.end() && *it) {
 
-//                 const C2StreamInitDataInfo::output* csd_info = (const C2StreamInitDataInfo::output*)it->get();
+                const C2StreamInitDataInfo::output* csd_info = (const C2StreamInitDataInfo::output*)it->get();
 
-//                 ++header_update_count;
+                ++header_update_count;
 
-//                 EXPECT_EQ(csd_info->stream(), 0u);
+                EXPECT_EQ(csd_info->stream(), 0u);
 
-//                 std::vector<char> frame_contents((const char*)data, (const char*)data + length);
-//                 std::vector<char> read_header = ExtractHeader(std::move(frame_contents), desc.four_cc);
+                std::vector<char> frame_contents((const char*)data, (const char*)data + length);
+                std::vector<char> read_header = ExtractHeader(std::move(frame_contents), desc.four_cc);
 
-//                 EXPECT_EQ(csd_info->flexCount(), read_header.size());
+                EXPECT_EQ(csd_info->flexCount(), read_header.size());
 
-//                 size_t compare_len = std::min(csd_info->flexCount(), read_header.size());
-//                 EXPECT_EQ(0, memcmp(csd_info->m.value, read_header.data(), compare_len));
-//             }
-//         };
+                size_t compare_len = std::min(csd_info->flexCount(), read_header.size());
+                EXPECT_EQ(0, memcmp(csd_info->m.value, read_header.data(), compare_len));
+            }
+        };
 
-//         std::shared_ptr<EncoderConsumer> validator =
-//             std::make_shared<EncoderConsumer>(on_frame);
+        std::shared_ptr<EncoderConsumer> validator =
+            std::make_shared<EncoderConsumer>(on_frame);
 
-//         Encode(FRAME_COUNT, true, comp, validator, { &stripe_generator } );
+        Encode(FRAME_COUNT, true, comp, validator, { &stripe_generator } );
 
-//         EXPECT_EQ(header_update_count, 1);
-//     } );
-// }
+        EXPECT_EQ(header_update_count, 1);
+    } );
+}
 
 // // Tests that output resolution is provided through
 // // C2StreamPictureSizeInfo::input parameter.
@@ -1616,32 +1616,32 @@ static C2ParamValues GetConstParamValues(uint32_t four_cc)
 }
 
 // Queries constant platform parameters values and checks expectations.
-// TEST_P(Encoder, ComponentConstParams)
-// {
-//     CallComponentTest<ComponentDesc>(GetParam(),
-//         [&] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
+TEST_P(Encoder, ComponentConstParams)
+{
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [&] (const ComponentDesc& desc, C2CompPtr, C2CompIntfPtr comp_intf) {
 
-//         // check query through stack placeholders and the same with heap allocated
-//         std::vector<std::unique_ptr<C2Param>> heap_params;
-//         const C2ParamValues& const_values = GetConstParamValues(desc.four_cc);
-//         c2_blocking_t may_block{C2_MAY_BLOCK};
-//         c2_status_t res = comp_intf->query_vb(const_values.GetStackPointers(),
-//             const_values.GetIndices(), may_block, &heap_params);
-//         EXPECT_EQ(res, C2_OK);
+        // check query through stack placeholders and the same with heap allocated
+        std::vector<std::unique_ptr<C2Param>> heap_params;
+        const C2ParamValues& const_values = GetConstParamValues(desc.four_cc);
+        c2_blocking_t may_block{C2_MAY_BLOCK};
+        c2_status_t res = comp_intf->query_vb(const_values.GetStackPointers(),
+            const_values.GetIndices(), may_block, &heap_params);
+        EXPECT_EQ(res, C2_OK);
 
-//         const_values.CheckStackValues();
-//         const_values.Check(heap_params, false);
-//     }); // CallComponentTest
-// }
+        const_values.CheckStackValues();
+        const_values.Check(heap_params, false);
+    }); // CallComponentTest
+}
 
-// INSTANTIATE_TEST_CASE_P(MfxComponents, CreateEncoder,
-//     ::testing::ValuesIn(g_components_desc),
-//     ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(MfxComponents, CreateEncoder,
+    ::testing::ValuesIn(g_components_desc),
+    ::testing::PrintToStringParamName());
 
-// INSTANTIATE_TEST_CASE_P(MfxInvalidComponents, CreateEncoder,
-//     ::testing::ValuesIn(g_invalid_components_desc),
-//     ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(MfxInvalidComponents, CreateEncoder,
+    ::testing::ValuesIn(g_invalid_components_desc),
+    ::testing::PrintToStringParamName());
 
-// INSTANTIATE_TEST_CASE_P(MfxComponents, Encoder,
-//     ::testing::ValuesIn(g_components_desc),
-//     ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(MfxComponents, Encoder,
+    ::testing::ValuesIn(g_components_desc),
+    ::testing::PrintToStringParamName());
