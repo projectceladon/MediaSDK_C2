@@ -639,26 +639,26 @@ struct EncoderListener : public C2Component::Listener
 // Checks the correctness of all encoding components state machine.
 // The component should be able to start from STOPPED (initial) state,
 // stop from RUNNING state. Otherwise, C2_BAD_STATE should be returned.
-// TEST_P(Encoder, State)
-// {
-//     CallComponentTest<ComponentDesc>(GetParam(),
-//         [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr) {
+TEST_P(Encoder, State)
+{
+    CallComponentTest<ComponentDesc>(GetParam(),
+        [] (const ComponentDesc&, C2CompPtr comp, C2CompIntfPtr) {
 
-//         c2_status_t sts = C2_OK;
+        c2_status_t sts = C2_OK;
 
-//         sts = comp->start();
-//         EXPECT_EQ(sts, C2_OK);
+        sts = comp->start();
+        EXPECT_EQ(sts, C2_OK);
 
-//         sts = comp->start();
-//         EXPECT_EQ(sts, C2_BAD_STATE);
+        sts = comp->start();
+        EXPECT_EQ(sts, C2_BAD_STATE);
 
-//         sts = comp->stop();
-//         EXPECT_EQ(sts, C2_OK);
+        sts = comp->stop();
+        EXPECT_EQ(sts, C2_OK);
 
-//         sts = comp->stop();
-//         EXPECT_EQ(sts, C2_BAD_STATE);
-//     } );
-// }
+        sts = comp->stop();
+        EXPECT_EQ(sts, C2_BAD_STATE);
+    } );
+}
 
 // // Checks list of actually supported parameters by all encoding components.
 // // Parameters order doesn't matter.
