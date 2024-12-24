@@ -1129,8 +1129,16 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             m_mfxVideoParams.NumExtParam = m_extBuffers.size();
             m_mfxVideoParams.ExtParam = &m_extBuffers.front();
 
+	    std::shared_ptr<mfxBitstream> bs = m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream();
+	    std::shared_ptr<mfxBitstream> header = m_c2Bitstream->GetFrameConstructor()->GetHeaderInfo();
+
+	    if (nullptr != header && nullptr != bs && header->DataLength > bs->DataLength) {
+      	        m_c2Bitstream->GetFrameConstructor()->AppendSps(bs);
+	    }
+
             // decoding header
-            mfx_res = m_mfxDecoder->DecodeHeader(m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get(), &m_mfxVideoParams);
+            mfx_res = m_mfxDecoder->DecodeHeader(bs.get(), &m_mfxVideoParams);
+
             // MSDK will call the function av1_native_profile_to_mfx_profile to change CodecProfile in DecodeHeader while 
             // decoder type is av1. So after calling DecodeHeader, we have to revert this value to avoid unexpected behavior.
             if (m_decoderType == DECODER_AV1)
