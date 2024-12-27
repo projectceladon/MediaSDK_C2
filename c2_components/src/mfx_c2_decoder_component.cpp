@@ -1224,12 +1224,16 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             uint64_t usage, igbp_id;
             android::_UnwrapNativeCodec2GrallocMetadata(out_block->handle(), &width, &height, &format, &usage,
                                                         &stride, &generation, &igbp_id, &igbp_slot);
+// For android 15, it's using IGBA instead of BQ, we can not check if
+// surface is allocated by IGBA by igbp_id and igbp_slot
+#if PLATFORM_SDK_VERSION <= 34
             if ((!igbp_id && !igbp_slot) || (!igbp_id && igbp_slot == 0xffffffff))
             {
                 // No surface & BQ
                 m_mfxVideoParams.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
                 m_allocator = nullptr;
             }
+#endif
         }
     }
 
