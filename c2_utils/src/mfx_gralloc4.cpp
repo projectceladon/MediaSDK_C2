@@ -41,7 +41,7 @@ c2_status_t MfxGralloc4Module::Init()
         return C2_CORRUPTED;
     }
 
-    m_mapper = mapper;
+    m_mapper = std::move(mapper);
     
     return C2_OK;
 }

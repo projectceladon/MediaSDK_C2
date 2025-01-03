@@ -662,6 +662,8 @@ static void InitDump(std::unique_ptr<BinaryWriter>& output_writer,
         }
     }
 
+    delete[] value;
+
     if (dump_output_enabled || dump_input_enabled) {
         std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
         std::time_t now_c = std::chrono::system_clock::to_time_t(now);
@@ -1572,10 +1574,9 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             break;
         }
 
-        // XXX: "Big parameter passed by value(PASS_BY_VALUE)" by Coverity scanning.
-        // mfx_frame of type size 136 bytes.
-        m_waitingQueue.Push( [ mfx_frame = std::move(mfx_frame_in), this ] () mutable {
-            RetainLockedFrame(std::move(mfx_frame));
+        auto mfx_frame_ptr = std::make_unique<MfxC2FrameIn>(std::move(mfx_frame_in));
+        m_waitingQueue.Push( [ mfx_frame = std::move(mfx_frame_ptr), this ] () mutable {
+            RetainLockedFrame(std::move(*mfx_frame));
         } );
 
         m_pendingWorks.push(std::move(work));

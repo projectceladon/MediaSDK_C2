@@ -783,6 +783,7 @@ static void InitDump(std::unique_ptr<BinaryWriter>& input_writer,
             property_set(DECODER_DUMP_INPUT_KEY, NULL);
         }
     }
+    delete[] value;
 
     if (dump_input_enabled) {
         std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
@@ -2447,7 +2448,7 @@ static bool NeedDumpOutput(uint32_t& dump_count,
 
 static void DumpOutput(std::shared_ptr<C2GraphicBlock> block,
 	               std::shared_ptr<mfxFrameSurface1> mfx_surface,
-	               uint32_t& dump_count, mfxVideoParam mfxVideoParams,
+	               uint32_t& dump_count, const mfxVideoParam& mfxVideoParams,
 	               std::unique_ptr<BinaryWriter>& output_writer)
 {
     MFX_DEBUG_TRACE_FUNC;
