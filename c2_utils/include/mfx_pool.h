@@ -119,10 +119,10 @@ private:
             }
 
             std::weak_ptr<MfxPoolImpl> weak_this { this->shared_from_this() };
-            auto deleter = [weak_this] (T* item) {
+            auto deleter = [weak_thiz = std::move(weak_this)] (T* item) {
                 // weak_ptr and its lock needed to make possible allocated resources
                 // live longer than this pool
-                std::shared_ptr<MfxPoolImpl> shared_this = weak_this.lock();
+                std::shared_ptr<MfxPoolImpl> shared_this = weak_thiz.lock();
                 if (shared_this) {
                     shared_this->Append(std::unique_ptr<T>(item));
                 } else {
