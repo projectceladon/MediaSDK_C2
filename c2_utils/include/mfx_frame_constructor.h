@@ -281,6 +281,7 @@ protected:
 
 protected:
     bool m_bNeedAttachSPSPPS;
+    size_t m_uSpsppssei_size;
 
     const static mfxU32 NAL_UT_AVC_SLICE       = 1;
     const static mfxU32 NAL_UT_AVC_IDR_SLICE   = 5;

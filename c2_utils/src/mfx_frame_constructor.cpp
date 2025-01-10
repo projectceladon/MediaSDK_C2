@@ -23,6 +23,7 @@
 #include "mfx_msdk_debug.h"
 #include "mfx_c2_bs_utils.h"
 #include "mfx_c2_hevc_bitstream.h"
+#include "mfx_c2_utils.h"
 
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_frame_constructor"
@@ -859,6 +860,7 @@ mfxStatus MfxC2AVCSecureFrameConstructor::Load_data(const mfxU8* data, mfxU32 si
     MFX_DEBUG_TRACE_FUNC;
 
     mfxStatus mfx_res = MfxC2SecureFrameConstructor::Load(data, size, pts, b_header, bCompleteFrame);
+    LoadHeader(bs, m_hucBuffer->sample_size, b_header);
 
     // if (MFX_ERR_NONE == mfx_res)
     // {
@@ -871,12 +873,7 @@ mfxStatus MfxC2AVCSecureFrameConstructor::Load_data(const mfxU8* data, mfxU32 si
     //     MFX_DEBUG_TRACE_I32(m_hucBuffer->num_packet_data);
     //     MFX_DEBUG_TRACE_I32(m_hucBuffer->sample_size);
     //     MFX_DEBUG_TRACE_I32(m_hucBuffer->cipher_mode);
-    //     std::ostringstream oss_id;
-    //     oss_id << "m_hucBuffer->hw_key_data: ";
-    //     for (auto byte : m_hucBuffer->hw_key_data) {
-    //         oss_id << std::setw(2) << std::setfill('0') << std::hex << std::uppercase << static_cast<int>(byte) << " ";
-    //     }
-    //     MFX_DEBUG_TRACE_STREAM(oss_id.str().c_str());
+    //     MFX_DEBUG_TRACE_STREAM("hw_key_data = " << FormatHex(m_hucBuffer->hw_key_data, 16).c_str());
 
     //     for (int i=0; i<m_hucBuffer->num_packet_data; i++)
     //     {
@@ -888,21 +885,17 @@ mfxStatus MfxC2AVCSecureFrameConstructor::Load_data(const mfxU8* data, mfxU32 si
     //         MFX_DEBUG_TRACE_I32(packet->encrypted_bytes);
     //         MFX_DEBUG_TRACE_I32(packet->pattern_clear);
     //         MFX_DEBUG_TRACE_I32(packet->pattern_encrypted);
-
-    //         std::ostringstream oss;
-    //         oss << "packet->current_iv: ";
-    //         for (auto byte : packet->current_iv) {
-    //             oss << std::setw(2) << std::setfill('0') << std::hex << std::uppercase << static_cast<int>(byte) << " ";
-    //         }
-    //         MFX_DEBUG_TRACE_STREAM(oss.str());
+    //         MFX_DEBUG_TRACE_STREAM("iv = " << FormatHex(packet->current_iv.begin(), 16).c_str());
     //     }
     // }
 
     bool bFoundSps = false;
     bool bFoundPps = false;
+    bool bFound_sei = false;
     bool bFoundIDR = false;
     bool bFoundRegularSlice = false;
     char* baseAddress = reinterpret_cast<char*>(m_hucBuffer);
+    m_uSpsppssei_size = 0;
 
     // Save SPS/PPS if exists
     if (MFX_ERR_NONE == mfx_res)
@@ -932,13 +925,14 @@ mfxStatus MfxC2AVCSecureFrameConstructor::Load_data(const mfxU8* data, mfxU32 si
                     auto sps = std::make_shared<mfxBitstream>();
                     sps->Data = const_cast<mfxU8*>(data) - startCode.size;
 
-                    length = size + startCode.type;
+                    length = size + startCode.size;
                     startCode = ReadStartCode(&data, &size);
                     if (-1 != startCode.type)
                         length -= size + startCode.size;
                     sps->DataLength = length;
                     MFX_DEBUG_TRACE_MSG("Found SPS, length =");
                     MFX_DEBUG_TRACE_I32(length);
+                    m_uSpsppssei_size += length;
                     mfx_res = SaveHeaders(sps, NULL, false);
                     if (MFX_ERR_NONE != mfx_res) return mfx_res;
                     bFoundSps = true;
@@ -955,9 +949,24 @@ mfxStatus MfxC2AVCSecureFrameConstructor::Load_data(const mfxU8* data, mfxU32 si
                     pps->DataLength = length;
                     MFX_DEBUG_TRACE_MSG("Found PPS, length =");
                     MFX_DEBUG_TRACE_I32(length);
+                    m_uSpsppssei_size += length;
                     mfx_res = SaveHeaders(NULL, pps, false);
                     if (MFX_ERR_NONE != mfx_res) return mfx_res;
                     bFoundPps = true;
+                }
+                while (isSEI(startCode.type))
+                {
+                    mfxBitstream sei = {};
+                    MFX_ZERO_MEMORY(sei);
+                    sei.Data = (mfxU8*)data - startCode.size;
+                    sei.DataLength = size + startCode.size;
+                    startCode = ReadStartCode(&data, &size);
+                    if (-1 != startCode.type)
+                        sei.DataLength -= size + startCode.size;
+                    MFX_DEBUG_TRACE_STREAM("Found SEI size " << sei.DataLength);
+                    m_uSpsppssei_size += sei.DataLength;
+                    mfx_res = SaveSEI(&sei);
+                    bFound_sei = true;
                 }
                 if (isIDR(startCode.type))
                 {
@@ -976,28 +985,48 @@ mfxStatus MfxC2AVCSecureFrameConstructor::Load_data(const mfxU8* data, mfxU32 si
         }
     }
 
+    // cached header to process
+    uint32_t CachedHeader_size = 0;
+    uint8_t* CachedHeader_data = nullptr;
+    if (m_bstBuf->Data && m_bstBuf->DataLength) {
+        CachedHeader_data = m_bstBuf->Data + m_bstBuf->DataOffset;
+        CachedHeader_size = m_bstBuf->DataLength;
+    }
+    MFX_DEBUG_TRACE_I32(m_bstBuf->DataLength);
+    MFX_DEBUG_TRACE_I32(CachedHeader_size);
+    MFX_DEBUG_TRACE_I32(m_uSpsppssei_size);
+
     // alloc enough space for m_bstEnc->Data
-    if (m_bstEnc->MaxLength < m_hucBuffer->sample_size)
+    if (m_bstEnc->MaxLength < m_hucBuffer->sample_size + m_bstBuf->DataLength)
     {
-        m_bstEnc->Data = (mfxU8*)realloc(m_bstEnc->Data, m_hucBuffer->sample_size);
+        m_bstEnc->Data = (mfxU8*)realloc(m_bstEnc->Data, m_hucBuffer->sample_size + m_bstBuf->DataLength);
         if (!m_bstEnc->Data)
             return MFX_ERR_MEMORY_ALLOC;
-        m_bstEnc->MaxLength = m_hucBuffer->sample_size;
+        m_bstEnc->MaxLength = m_hucBuffer->sample_size + m_bstBuf->DataLength;
     }
 
     packet_info* packet = reinterpret_cast<packet_info*>(baseAddress + sizeof(HUCVideoBuffer) - 8);
 
-    // copy  data to m_bstEnc->Data
+    // copy data to m_bstEnc->Data
     m_bstEnc->DataOffset = 0;
-    std::copy(bs, bs + m_hucBuffer->sample_size, m_bstEnc->Data);
-    m_bstEnc->DataLength = m_hucBuffer->sample_size;
+    if (CachedHeader_data != nullptr) {
+        MFX_DEBUG_TRACE_MSG("copy cached header");
+        std::copy(CachedHeader_data, CachedHeader_data + CachedHeader_size, m_bstEnc->Data);
+        m_bstEnc->DataLength = CachedHeader_size;
+        std::copy(bs, bs + m_hucBuffer->sample_size, m_bstEnc->Data + CachedHeader_size);
+        m_bstEnc->DataLength += m_hucBuffer->sample_size;
+    } else {
+        std::copy(bs, bs + m_hucBuffer->sample_size, m_bstEnc->Data);
+        m_bstEnc->DataLength = m_hucBuffer->sample_size;
+    }
+    m_bstBuf->DataLength = 0;
 
     // m_bstEnc->EncryptedData->Data points to encrypted part
     if (bFoundIDR || bFoundRegularSlice) {
         mfxEncryptedData *pEncryptedData = new mfxEncryptedData;
         if (pEncryptedData)
         {
-            pEncryptedData->Data = m_bstEnc->Data + packet->clear_bytes;
+            pEncryptedData->Data = m_bstEnc->Data + CachedHeader_size + packet->clear_bytes;
             pEncryptedData->DataLength = packet->encrypted_bytes;
             pEncryptedData->DataOffset = 0;
             pEncryptedData->Next = NULL;
@@ -1044,10 +1073,9 @@ std::shared_ptr<mfxBitstream> MfxC2AVCSecureFrameConstructor::GetMfxBitstream()
         for (int i = 0; i < m_hucBuffer->num_packet_data; i++)
         {
             packet_info* packet = reinterpret_cast<packet_info*>(baseAddress + sizeof(HUCVideoBuffer) - 8 + (i * sizeof(packet_info)));
-
             m_decryptParams.pSegmentInfo[i].segment_start_offset = packet->block_offset;
-            m_decryptParams.pSegmentInfo[i].segment_length = packet->encrypted_bytes;
-            m_decryptParams.pSegmentInfo[i].init_byte_length = packet->block_offset;
+            m_decryptParams.pSegmentInfo[i].segment_length = m_hucBuffer->sample_size - m_uSpsppssei_size - 4;
+            m_decryptParams.pSegmentInfo[i].init_byte_length = packet->clear_bytes + packet->block_offset - m_uSpsppssei_size - 4;
             m_decryptParams.pSegmentInfo[i].partial_aes_block_size = 0;
 
             IV temp_iv = packet->current_iv;
