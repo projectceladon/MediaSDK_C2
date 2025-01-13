@@ -29,7 +29,6 @@ public:
     virtual void SetC2Allocator(std::shared_ptr<C2BlockPool> c2_allocator) = 0;
     virtual std::shared_ptr<C2GraphicBlock> Alloc() = 0;
     virtual void Reset() = 0;
-    virtual bool InCache(uint64_t id) = 0;
     virtual void SetBufferCount(unsigned int cnt) = 0;
     virtual void SetConsumerUsage(uint64_t usage) = 0;
 
