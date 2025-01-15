@@ -2492,13 +2492,13 @@ static void DumpOutput(std::shared_ptr<C2GraphicBlock> block,
                 }
             } else { // IOPattern is system memory
                 if (NULL != srcY && NULL != srcUV) {
-                    output_writer->Write(srcY, mfx_surface->Data.PitchLow * mfxVideoParams.mfx.FrameInfo.CropH);
-                    output_writer->Write(srcUV,
-                        (static_cast<unsigned int>(mfx_surface->Data.PitchLow) *
-                        static_cast<unsigned int>(mfxVideoParams.mfx.FrameInfo.CropH)) / 2);
+                    uint32_t pitchLow = mfx_surface->Data.PitchLow;
+                    uint32_t cropH = mfxVideoParams.mfx.FrameInfo.CropH;
+                    output_writer->Write(srcY, pitchLow * cropH);
+                    output_writer->Write(srcUV, (pitchLow * cropH) / 2);
 
                     uint32_t dump_width = (MFX_FOURCC_P010 == mfx_surface->Info.FourCC) ?
-                            mfx_surface->Data.PitchLow / 2 : mfx_surface->Data.PitchLow;
+                            pitchLow / 2 : pitchLow;
 
                     dump_count --;
 
