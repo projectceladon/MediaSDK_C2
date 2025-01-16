@@ -36,8 +36,6 @@ enum MfxC2FrameConstructorType
     MfxC2FC_VP9,
     MfxC2FC_MP2,
     MfxC2FC_AV1,
-    MfxC2FC_SEC_AVC,
-    MfxC2FC_SEC_HEVC,
 };
 
 enum MfxC2BitstreamState
@@ -58,6 +56,7 @@ public:
     virtual mfxStatus Init(mfxU16 profile, mfxFrameInfo fr_info) = 0;
     // loads next portion of data; fc may directly use that buffer or append header, etc.
     virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame) = 0;
+    virtual mfxStatus Load(const mfxU8* hucbuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame) = 0;
     // unloads previously sent buffer, copy data to internal buffer if needed
     virtual mfxStatus Unload() = 0;
     // resets frame constructor
@@ -75,8 +74,6 @@ public:
     virtual mfxStatus SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset) = 0;
     // get whether in reset state
     virtual bool IsInReset() = 0;
-    
-    virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame) = 0;
 
 protected:
     struct StartCode
@@ -96,6 +93,7 @@ public:
     virtual mfxStatus Init(mfxU16 profile, mfxFrameInfo fr_info);
     // loads next portion of data; fc may directly use that buffer or append header, etc.
     virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
+    virtual mfxStatus Load(const mfxU8* hucbuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
     // unloads previously sent buffer, copy data to internal buffer if needed
     virtual mfxStatus Unload();
     // resets frame constructor
@@ -121,11 +119,10 @@ public:
     // get whether in reset state
     virtual bool IsInReset();
 
-    virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame);
-
 protected: // functions
     virtual mfxStatus LoadHeader(const mfxU8* data, mfxU32 size, bool header);
     virtual mfxStatus Load_None(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
+    virtual mfxStatus Load_None(const mfxU8* hucbuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
 
     // increase buffer capacity with saving of buffer content (realloc)
     mfxStatus BstBufRealloc(mfxU32 add_size);
@@ -160,6 +157,11 @@ protected: // data
     mfxU32 m_uBstBufCopyBytes;
 
     bool m_bInReset;
+    
+    // ext buffer vector
+    std::vector<mfxExtBuffer*> m_extBufs;
+    // MFX_EXTBUFF_ENCRYPTION_PARAM
+    mfxExtEncryptionParam m_decryptParams;
 private:
     MFX_CLASS_NO_COPY(MfxC2FrameConstructor)
 };
@@ -178,6 +180,7 @@ public:
 
 protected: // functions
     virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
+    virtual mfxStatus Load(const mfxU8* hucbuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
     virtual mfxStatus LoadHeader(const mfxU8* data, mfxU32 size, bool header);
     // save current SEI
     virtual mfxStatus SaveSEI(mfxBitstream * /*pSEI*/) {return MFX_ERR_NONE;}
@@ -189,8 +192,6 @@ protected: // functions
     virtual bool      isSEI(mfxI32 /*code*/) {return false;}
     virtual bool      isIDR(mfxI32 code) {return NAL_UT_AVC_SLICE_IDR == code;}
     virtual bool      needWaitSEI(mfxI32 /*code*/) {return false;}
-
-    virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame);
 
 protected: // data
     const static mfxU32 NAL_UT_AVC_SPS = 7;
@@ -238,72 +239,6 @@ protected: // data
 
 private:
     MFX_CLASS_NO_COPY(MfxC2HEVCFrameConstructor)
-};
-
-class MfxC2SecureFrameConstructor
-{
-public:
-    MfxC2SecureFrameConstructor();
-    virtual ~MfxC2SecureFrameConstructor();
-protected:
-    virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
-
-    // metadata of hucbuffer
-    HUCVideoBuffer* m_hucBuffer = nullptr;
-    // bs buffer used for WV L1
-    std::shared_ptr<mfxBitstream> m_bstEnc;
-    // ext buffer vector
-    std::vector<mfxExtBuffer*> m_extBufs;
-    // MFX_EXTBUFF_ENCRYPTION_PARAM
-    mfxExtEncryptionParam m_decryptParams;
-
-private:
-    MFX_CLASS_NO_COPY(MfxC2SecureFrameConstructor)
-};
-
-class MfxC2AVCSecureFrameConstructor : public MfxC2HEVCFrameConstructor, public MfxC2SecureFrameConstructor
-{
-public:
-    MfxC2AVCSecureFrameConstructor();
-    virtual ~MfxC2AVCSecureFrameConstructor();
-
-    virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool b_header, bool bCompleteFrame);
-    virtual mfxStatus Load_data(const mfxU8* data, mfxU32 size, const mfxU8* infobuffer, mfxU64 pts, bool header, bool complete_frame);
-    
-protected:
-    virtual StartCode ReadStartCode(const mfxU8** position, mfxU32* size_left);
-    virtual bool   isSPS(mfxI32 code) {return MfxC2AVCFrameConstructor::isSPS(code);}
-    virtual bool   isPPS(mfxI32 code) {return MfxC2AVCFrameConstructor::isPPS(code);}
-    virtual bool   isIDR(mfxI32 code) {return NAL_UT_AVC_IDR_SLICE == code;}
-    virtual bool   isRegularSlice(mfxI32 code) {return NAL_UT_AVC_SLICE == code;}
-
-    std::shared_ptr<mfxBitstream> GetMfxBitstream();
-
-protected:
-    bool m_bNeedAttachSPSPPS;
-    size_t m_uSpsppssei_size;
-
-    const static mfxU32 NAL_UT_AVC_SLICE       = 1;
-    const static mfxU32 NAL_UT_AVC_IDR_SLICE   = 5;
-
-private:
-    MFX_CLASS_NO_COPY(MfxC2AVCSecureFrameConstructor)
-};
-
-/*------------------------------------------------------------------------------*/
-
-class MfxC2HEVCSecureFrameConstructor : public MfxC2AVCSecureFrameConstructor
-{
-public:
-    MfxC2HEVCSecureFrameConstructor();
-    virtual ~MfxC2HEVCSecureFrameConstructor();
-
-protected:
-    virtual bool   isSPS(mfxI32 code) {return MfxC2HEVCFrameConstructor::isSPS(code);}
-    virtual bool   isPPS(mfxI32 code) {return MfxC2HEVCFrameConstructor::isPPS(code);}
-
-private:
-    MFX_CLASS_NO_COPY(MfxC2HEVCSecureFrameConstructor)
 };
 
 class MfxC2FrameConstructorFactory

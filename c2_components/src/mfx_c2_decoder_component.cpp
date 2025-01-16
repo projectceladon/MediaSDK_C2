@@ -937,9 +937,11 @@ void MfxC2DecoderComponent::InitFrameConstructor()
     MfxC2FrameConstructorType fc_type;
     switch (m_decoderType)
     {
+    case DECODER_H264_SECURE:
     case DECODER_H264:
         fc_type = MfxC2FC_AVC;
         break;
+    case DECODER_H265_SECURE:
     case DECODER_H265:
         fc_type = MfxC2FC_HEVC;
         break;
@@ -954,12 +956,6 @@ void MfxC2DecoderComponent::InitFrameConstructor()
         break;
     case DECODER_AV1:
         fc_type = MfxC2FC_AV1;
-        break;
-    case DECODER_H264_SECURE:
-        fc_type = MfxC2FC_SEC_AVC;
-        break;
-    case DECODER_H265_SECURE:
-        fc_type = MfxC2FC_SEC_HEVC;
         break;
     default:
         MFX_DEBUG_TRACE_MSG("unhandled codec type: BUG in plug-ins registration");

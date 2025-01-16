@@ -29,7 +29,6 @@ using namespace android;
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_c2_bitstream_in"
 
-constexpr c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 
 MfxC2BitstreamIn::MfxC2BitstreamIn(MfxC2FrameConstructorType fc_type)
 {
@@ -104,7 +103,7 @@ c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_
     std::unique_ptr<C2ReadView> bs_read_view;
     
     if (encryptedBlock != nullptr) {
-        MapConstLinearBlock(*encryptedBlock, TIMEOUT_NS, &bs_read_view);
+        MapConstLinearBlock(*encryptedBlock, timeout, &bs_read_view);
         infobuffer = bs_read_view->data() + encryptedBlock->offset();
         MFX_DEBUG_TRACE_STREAM("c2 infobuffer data: " << FormatHex(infobuffer, encryptedBlock->size()));
     }
@@ -141,12 +140,12 @@ c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_
         HUCVideoBuffer *hucBuffer = NULL;
         hucBuffer = (HUCVideoBuffer *) data;
         if (hucBuffer->pr_magic == PROTECTED_DATA_BUFFER_MAGIC) {
-            mfx_res = m_frameConstructor->Load_data(data,
-                                                    filled_len,
-                                                    infobuffer,
-                                                    buf_pack.ordinal.timestamp.peeku(), // pass pts
-                                                    buf_pack.flags & C2FrameData::FLAG_CODEC_CONFIG,
-                                                    true);
+             mfx_res = m_frameConstructor->Load(data,
+                                                infobuffer,
+                                                filled_len,
+                                                buf_pack.ordinal.timestamp.peeku(), // pass pts
+                                                buf_pack.flags & C2FrameData::FLAG_CODEC_CONFIG,
+                                                true);
         } else {
              mfx_res = m_frameConstructor->Load(data,
                                                 filled_len,
