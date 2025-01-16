@@ -161,7 +161,7 @@ protected: // data
     // ext buffer vector
     std::vector<mfxExtBuffer*> m_extBufs;
     // MFX_EXTBUFF_ENCRYPTION_PARAM
-    mfxExtEncryptionParam m_decryptParams;
+    mfxExtDecryptConfig m_decryptConfig;
 private:
     MFX_CLASS_NO_COPY(MfxC2FrameConstructor)
 };

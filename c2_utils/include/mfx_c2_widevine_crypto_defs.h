@@ -20,6 +20,7 @@
 
 #pragma once
 #include <array>
+#include <mfxstructures.h>
 
 #define PROTECTED_DATA_BUFFER_MAGIC (0UL | ('E' << 24) | ('B' << 16) | ('D' << 8) | 'P')
 using IV = std::array<uint8_t, 16>;
@@ -50,6 +51,17 @@ typedef struct {
     size_t num_packet_data;
     size_t sample_size;
     OEMCryptoCipherMode cipher_mode;
-    uint8_t hw_key_data[16];
+    uint8_t hw_key_id[16];
     packet_info* packet_data;
 } HUCVideoBuffer;
+
+inline EncryptionScheme GetEncryptionScheme(OEMCryptoCipherMode mode) {
+    switch (mode) {
+        case OEMCrypto_CipherMode_CTR:
+            return EncryptionScheme::kCenc;
+        case OEMCrypto_CipherMode_CBC:
+            return EncryptionScheme::kCbcs;
+        default:
+            return EncryptionScheme::kUnencrypted;
+    }
+}

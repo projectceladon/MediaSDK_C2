@@ -248,41 +248,37 @@ mfxStatus MfxC2FrameConstructor::Load_None(const mfxU8* hucbuffer, const mfxU8* 
 
     // add extern parameter
     if (MFX_ERR_NONE == mfx_res) {
-        MFX_ZERO_MEMORY(m_decryptParams);
-        m_decryptParams.Header.BufferId = MFX_EXTBUFF_DECRYPT_CONFIG;
-        m_decryptParams.Header.BufferSz = sizeof(mfxExtDecryptConfig);
-        m_decryptParams.session = hucBuffer->session_id;
-        m_decryptParams.uiNumSegments = hucBuffer->num_packet_data;
-        if (hucBuffer->cipher_mode == OEMCrypto_CipherMode_CTR) {
-            m_decryptParams.encryption_type = VA_ENCRYPTION_TYPE_SUBSAMPLE_CTR;
-        } else {
-            m_decryptParams.encryption_type = VA_ENCRYPTION_TYPE_SUBSAMPLE_CBC;
-        }
-        std::memcpy(m_decryptParams.key_blob, hucBuffer->hw_key_id, sizeof(hucBuffer->hw_key_id));
+        MFX_ZERO_MEMORY(m_decryptConfig);
+        m_decryptConfig.Header.BufferId = MFX_EXTBUFF_DECRYPT_CONFIG;
+        m_decryptConfig.Header.BufferSz = sizeof(mfxExtDecryptConfig);
+        m_decryptConfig.session = hucBuffer->session_id;
+        m_decryptConfig.num_subsamples  = hucBuffer->num_packet_data;
+        m_decryptConfig.encryption_scheme = GetEncryptionScheme(hucBuffer->cipher_mode);
+        std::memcpy(m_decryptConfig.hw_key_id, hucBuffer->hw_key_id, sizeof(hucBuffer->hw_key_id));
 
-        m_decryptParams.pSegmentInfo = (EncryptionSegmentInfo*)malloc(hucBuffer->num_packet_data * sizeof(EncryptionSegmentInfo));
         char* baseAddress = reinterpret_cast<char*>(hucBuffer);
+        packet_info* packet = reinterpret_cast<packet_info*>(baseAddress + sizeof(HUCVideoBuffer) - 8);
+        std::memcpy(m_decryptConfig.iv, packet->current_iv.data(), packet->current_iv.size());
+
+        m_decryptConfig.subsamples  = (SubsampleEntry*)malloc(hucBuffer->num_packet_data * sizeof(SubsampleEntry));
         for (int i = 0; i < hucBuffer->num_packet_data; i++)
         {
             packet_info* packet = reinterpret_cast<packet_info*>(baseAddress + sizeof(HUCVideoBuffer) - 8 + (i * sizeof(packet_info)));
-            m_decryptParams.pSegmentInfo[i].segment_start_offset = packet->block_offset;
-            m_decryptParams.pSegmentInfo[i].segment_length = hucBuffer->sample_size - 4;
-            m_decryptParams.pSegmentInfo[i].init_byte_length = packet->clear_bytes + packet->block_offset - 4;
-            m_decryptParams.pSegmentInfo[i].partial_aes_block_size = 0;
-
-            IV temp_iv = packet->current_iv;
-            std::memcpy(m_decryptParams.pSegmentInfo[i].aes_cbc_iv_or_ctr, temp_iv.data(), temp_iv.size());
-            std::memset(m_decryptParams.pSegmentInfo[i].aes_cbc_iv_or_ctr + temp_iv.size(), 0, sizeof(m_decryptParams.pSegmentInfo[i].aes_cbc_iv_or_ctr) - temp_iv.size());
+            m_decryptConfig.subsamples[i].clear_bytes = packet->clear_bytes + appendHeaderSize;
+            if (m_bstBuf->DataOffset != 0){
+                    m_decryptConfig.subsamples[i].clear_bytes -= m_bstBuf->DataOffset;
+            }
+            m_decryptConfig.subsamples[i].cypher_bytes = packet->encrypted_bytes;
+            MFX_DEBUG_TRACE_I32(packet->block_offset);
+            MFX_DEBUG_TRACE_I32(packet->data_length);
+            MFX_DEBUG_TRACE_I32(packet->clear_bytes);
+            MFX_DEBUG_TRACE_I32(packet->encrypted_bytes);
         }
 
         m_extBufs.clear();
-        m_extBufs.push_back(reinterpret_cast<mfxExtBuffer*>(&m_decryptParams));
+        m_extBufs.push_back(reinterpret_cast<mfxExtBuffer*>(&m_decryptConfig));
         m_bstCurrent->ExtParam = &m_extBufs.back();
         m_bstCurrent->NumExtParam = 1;
-
-        MFX_DEBUG_TRACE_I32(m_decryptParams.session);
-        MFX_DEBUG_TRACE_I32(m_bstCurrent->TimeStamp);
-        MFX_DEBUG_TRACE_I32(m_bstCurrent->DataLength);
     }
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
