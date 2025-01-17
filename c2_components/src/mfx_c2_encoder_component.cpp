@@ -562,28 +562,28 @@ void MfxC2EncoderComponent::getMaxMinResolutionSupported(
     switch(m_encoderType) {
         case ENCODER_AV1: {
             *min_w = 176;
-            *min_h = 144;
+            *min_h = 176;
             *max_w = 4096;
             *max_h = 4096;
             break;
         }
         case ENCODER_H264: {
             *min_w = 128;
-            *min_h = 96;
+            *min_h = 128;
             *max_w = 4096;
             *max_h = 4096;
             break;
         }
         case ENCODER_H265: {
             *min_w = 176;
-            *min_h = 144;
+            *min_h = 176;
             *max_w = 8192;
             *max_h = 8192;
             break;
         }
         case ENCODER_VP9: {
             *min_w = 128;
-            *min_h = 96;
+            *min_h = 128;
             *max_w = 8192;
             *max_h = 8192;
             break;
