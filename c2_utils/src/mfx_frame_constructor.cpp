@@ -23,6 +23,7 @@
 #include "mfx_msdk_debug.h"
 #include "mfx_c2_bs_utils.h"
 #include "mfx_c2_hevc_bitstream.h"
+#include "mfx_c2_utils.h"
 
 #undef MFX_DEBUG_MODULE_NAME
 #define MFX_DEBUG_MODULE_NAME "mfx_frame_constructor"
@@ -176,6 +177,114 @@ mfxStatus MfxC2FrameConstructor::Load_None(const mfxU8* data, mfxU32 size, mfxU6
     return mfx_res;
 }
 
+mfxStatus MfxC2FrameConstructor::Load_None(const mfxU8* hucbuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxStatus mfx_res = MFX_ERR_NONE;
+
+    // print hucbuffer
+    HUCVideoBuffer *hucBuffer = (HUCVideoBuffer *) hucbuffer;
+    if (!hucBuffer) {
+        MFX_DEBUG_TRACE_P(hucBuffer);
+        mfx_res = MFX_ERR_NULL_PTR;
+    }
+
+    if (MFX_ERR_NONE == mfx_res) {
+        MFX_DEBUG_TRACE_STREAM("hucBuffer content:");
+        MFX_DEBUG_TRACE_I32(pts);
+        MFX_DEBUG_TRACE_I32(hucBuffer->pr_magic);
+        MFX_DEBUG_TRACE_I32(hucBuffer->app_id);
+        MFX_DEBUG_TRACE_I32(hucBuffer->session_id);
+        MFX_DEBUG_TRACE_I32(hucBuffer->num_packet_data);
+        MFX_DEBUG_TRACE_I32(hucBuffer->sample_size);
+        MFX_DEBUG_TRACE_I32(hucBuffer->cipher_mode);
+        MFX_DEBUG_TRACE_STREAM("hw_key_id = " << FormatHex(hucBuffer->hw_key_id, 16).c_str());
+
+        for (int i=0; i<hucBuffer->num_packet_data; i++)
+        {
+            char* baseAddress = reinterpret_cast<char*>(hucBuffer);
+            packet_info* packet = reinterpret_cast<packet_info*>(baseAddress + sizeof(HUCVideoBuffer) - 8 + (i * sizeof(packet_info)));
+            MFX_DEBUG_TRACE_I32(packet->block_offset);
+            MFX_DEBUG_TRACE_I32(packet->data_length);
+            MFX_DEBUG_TRACE_I32(packet->clear_bytes);
+            MFX_DEBUG_TRACE_I32(packet->encrypted_bytes);
+            MFX_DEBUG_TRACE_I32(packet->pattern_clear);
+            MFX_DEBUG_TRACE_I32(packet->pattern_encrypted);
+            MFX_DEBUG_TRACE_STREAM("iv = " << FormatHex(packet->current_iv.begin(), 16).c_str());
+        }
+    }
+
+    // handle header and left data
+    mfx_res = LoadHeader(data, size, header);
+    mfxU32 appendHeaderSize = 0;
+    if ((MFX_ERR_NONE == mfx_res) && m_bstBuf->DataLength) {
+        appendHeaderSize = m_bstBuf->DataLength;
+        mfx_res = BstBufRealloc(size);
+        if (MFX_ERR_NONE == mfx_res) {
+            mfxU8* buf = m_bstBuf->Data + m_bstBuf->DataOffset + m_bstBuf->DataLength;
+
+            std::copy(data, data + size, buf);
+            m_bstBuf->DataLength += size;
+            m_uBstBufCopyBytes += size;
+        }
+    }
+    if (MFX_ERR_NONE == mfx_res) {
+        if (m_bstBuf->DataLength) m_bstCurrent = m_bstBuf;
+        else {
+            m_bstIn->Data = (mfxU8*)data;
+            m_bstIn->DataOffset = 0;
+            m_bstIn->DataLength = size;
+            m_bstIn->MaxLength = size;
+            if (complete_frame)
+                m_bstIn->DataFlag |= MFX_BITSTREAM_COMPLETE_FRAME;
+
+            m_bstCurrent = m_bstIn;
+        }
+        m_bstCurrent->TimeStamp = pts;
+    }
+    else m_bstCurrent = nullptr;
+
+    MFX_DEBUG_TRACE_I32(appendHeaderSize);
+
+    // add extern parameter
+    if (MFX_ERR_NONE == mfx_res) {
+        MFX_ZERO_MEMORY(m_decryptConfig);
+        m_decryptConfig.Header.BufferId = MFX_EXTBUFF_DECRYPT_CONFIG;
+        m_decryptConfig.Header.BufferSz = sizeof(mfxExtDecryptConfig);
+        m_decryptConfig.session = hucBuffer->session_id;
+        m_decryptConfig.num_subsamples  = hucBuffer->num_packet_data;
+        m_decryptConfig.encryption_scheme = GetEncryptionScheme(hucBuffer->cipher_mode);
+        std::memcpy(m_decryptConfig.hw_key_id, hucBuffer->hw_key_id, sizeof(hucBuffer->hw_key_id));
+
+        char* baseAddress = reinterpret_cast<char*>(hucBuffer);
+        packet_info* packet = reinterpret_cast<packet_info*>(baseAddress + sizeof(HUCVideoBuffer) - 8);
+        std::memcpy(m_decryptConfig.iv, packet->current_iv.data(), packet->current_iv.size());
+
+        m_decryptConfig.subsamples  = (SubsampleEntry*)malloc(hucBuffer->num_packet_data * sizeof(SubsampleEntry));
+        for (int i = 0; i < hucBuffer->num_packet_data; i++)
+        {
+            packet_info* packet = reinterpret_cast<packet_info*>(baseAddress + sizeof(HUCVideoBuffer) - 8 + (i * sizeof(packet_info)));
+            m_decryptConfig.subsamples[i].clear_bytes = packet->clear_bytes + appendHeaderSize;
+            if (m_bstBuf->DataOffset != 0){
+                    m_decryptConfig.subsamples[i].clear_bytes -= m_bstBuf->DataOffset;
+            }
+            m_decryptConfig.subsamples[i].cypher_bytes = packet->encrypted_bytes;
+            MFX_DEBUG_TRACE_I32(packet->block_offset);
+            MFX_DEBUG_TRACE_I32(packet->data_length);
+            MFX_DEBUG_TRACE_I32(packet->clear_bytes);
+            MFX_DEBUG_TRACE_I32(packet->encrypted_bytes);
+        }
+
+        m_extBufs.clear();
+        m_extBufs.push_back(reinterpret_cast<mfxExtBuffer*>(&m_decryptConfig));
+        m_bstCurrent->ExtParam = &m_extBufs.back();
+        m_bstCurrent->NumExtParam = 1;
+    }
+
+    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+    return mfx_res;
+}
+
 mfxStatus MfxC2FrameConstructor::Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -190,6 +299,26 @@ mfxStatus MfxC2FrameConstructor::Load(const mfxU8* data, mfxU32 size, mfxU64 pts
     }
     MFX_DEBUG_TRACE__mfxBitstream((*m_bstBuf));
     MFX_DEBUG_TRACE__mfxBitstream((*m_bstIn));
+    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+    return mfx_res;
+}
+
+mfxStatus MfxC2FrameConstructor::Load(const mfxU8* hucbuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxStatus mfx_res = MFX_ERR_NONE;
+
+    MFX_DEBUG_TRACE_P(hucbuffer);
+    MFX_DEBUG_TRACE_P(data);
+    MFX_DEBUG_TRACE_I32(size);
+    MFX_DEBUG_TRACE_I64(pts);
+    if (!hucbuffer || !data || !size) mfx_res = MFX_ERR_NULL_PTR;
+    if (MFX_ERR_NONE == mfx_res) {
+        mfx_res = Load_None(hucbuffer, data, size, pts, header, complete_frame);
+    }
+    MFX_DEBUG_TRACE__mfxBitstream((*m_bstBuf));
+    MFX_DEBUG_TRACE__mfxBitstream((*m_bstIn));
+    MFX_DEBUG_TRACE__mfxBitstream((*m_bstCurrent));
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }
@@ -598,6 +727,17 @@ mfxStatus MfxC2AVCFrameConstructor::Load(const mfxU8* data, mfxU32 size, mfxU64 
     mfxStatus mfx_res = MFX_ERR_NONE;
 
     mfx_res = MfxC2FrameConstructor::Load(data, size, pts, header, complete_frame);
+
+    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+    return mfx_res;
+}
+
+mfxStatus MfxC2AVCFrameConstructor::Load(const mfxU8* hucbuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxStatus mfx_res = MFX_ERR_NONE;
+
+    mfx_res = MfxC2FrameConstructor::Load(hucbuffer, data, size, pts, header, complete_frame);
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;

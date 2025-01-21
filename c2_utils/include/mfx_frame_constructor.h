@@ -25,6 +25,8 @@
 #include <vector>
 #include <map>
 
+#include "mfx_c2_widevine_crypto_defs.h"
+
 enum MfxC2FrameConstructorType
 {
     MfxC2FC_None,
@@ -54,6 +56,7 @@ public:
     virtual mfxStatus Init(mfxU16 profile, mfxFrameInfo fr_info) = 0;
     // loads next portion of data; fc may directly use that buffer or append header, etc.
     virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame) = 0;
+    virtual mfxStatus Load(const mfxU8* hucbuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame) = 0;
     // unloads previously sent buffer, copy data to internal buffer if needed
     virtual mfxStatus Unload() = 0;
     // resets frame constructor
@@ -90,6 +93,7 @@ public:
     virtual mfxStatus Init(mfxU16 profile, mfxFrameInfo fr_info);
     // loads next portion of data; fc may directly use that buffer or append header, etc.
     virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
+    virtual mfxStatus Load(const mfxU8* hucbuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
     // unloads previously sent buffer, copy data to internal buffer if needed
     virtual mfxStatus Unload();
     // resets frame constructor
@@ -118,6 +122,7 @@ public:
 protected: // functions
     virtual mfxStatus LoadHeader(const mfxU8* data, mfxU32 size, bool header);
     virtual mfxStatus Load_None(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
+    virtual mfxStatus Load_None(const mfxU8* hucbuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
 
     // increase buffer capacity with saving of buffer content (realloc)
     mfxStatus BstBufRealloc(mfxU32 add_size);
@@ -152,6 +157,11 @@ protected: // data
     mfxU32 m_uBstBufCopyBytes;
 
     bool m_bInReset;
+    
+    // ext buffer vector
+    std::vector<mfxExtBuffer*> m_extBufs;
+    // MFX_EXTBUFF_ENCRYPTION_PARAM
+    mfxExtDecryptConfig m_decryptConfig;
 private:
     MFX_CLASS_NO_COPY(MfxC2FrameConstructor)
 };
@@ -170,6 +180,7 @@ public:
 
 protected: // functions
     virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
+    virtual mfxStatus Load(const mfxU8* hucbuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
     virtual mfxStatus LoadHeader(const mfxU8* data, mfxU32 size, bool header);
     // save current SEI
     virtual mfxStatus SaveSEI(mfxBitstream * /*pSEI*/) {return MFX_ERR_NONE;}
