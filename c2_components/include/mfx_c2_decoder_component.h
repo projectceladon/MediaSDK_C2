@@ -198,6 +198,7 @@ private:
     mfxVideoParam m_mfxVideoParams {};
     std::vector<mfxExtBuffer*> m_extBuffers;
     mfxExtVideoSignalInfo m_signalInfo;
+    mfxExtSecureCodec m_secureCodec;
 
     // Protects decoder initialization and m_mfxVideoParams
     mutable std::mutex m_initDecoderMutex;
