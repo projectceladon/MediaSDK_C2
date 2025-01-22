@@ -693,6 +693,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     m_hdrStaticInfo->maxFall = 0;
 
     MFX_ZERO_MEMORY(m_signalInfo);
+    MFX_ZERO_MEMORY(m_secureCodec);
     //m_paramStorage.DumpParams();
 }
 
@@ -1096,9 +1097,13 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
     mfxStatus res = MFX_ERR_NONE;
     MFX_ZERO_MEMORY(m_mfxVideoParams);
     MFX_ZERO_MEMORY(m_signalInfo);
+    MFX_ZERO_MEMORY(m_secureCodec);
 
     m_signalInfo.Header.BufferId = MFX_EXTBUFF_VIDEO_SIGNAL_INFO;
     m_signalInfo.Header.BufferSz = sizeof(mfxExtVideoSignalInfo);
+    m_secureCodec.Header.BufferId = MFX_EXTBUFF_SECURE_CODEC;
+    m_secureCodec.Header.BufferSz = sizeof(mfxExtSecureCodec);
+    m_secureCodec.on = m_secure;
 
     switch (m_decoderType)
     {
@@ -1306,10 +1311,16 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             m_allocator->SetConsumerUsage(m_consumerUsage);
         }
 
+        mfxVideoParam oldParams = m_mfxVideoParams;
+        m_extBuffers.push_back(reinterpret_cast<mfxExtBuffer*>(&m_secureCodec));
+        m_mfxVideoParams.NumExtParam = m_extBuffers.size();
+        m_mfxVideoParams.ExtParam = &m_extBuffers.front();
         MFX_DEBUG_TRACE_MSG("Decoder initializing...");
         mfx_res = m_mfxDecoder->Init(&m_mfxVideoParams);
         MFX_DEBUG_TRACE_PRINTF("Decoder initialized, sts = %d", mfx_res);
-
+        m_extBuffers.pop_back();
+        m_mfxVideoParams.NumExtParam = oldParams.NumExtParam;
+        m_mfxVideoParams.ExtParam = oldParams.ExtParam;
 
         // c2 allocator is needed to handle mfxAllocRequest coming from m_mfxDecoder->Init,
         // not needed after that.
