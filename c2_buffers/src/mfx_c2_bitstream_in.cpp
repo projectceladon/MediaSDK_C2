@@ -82,18 +82,31 @@ c2_status_t MfxC2BitstreamIn::Unload()
 
 
 c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_t timeout,
-    std::unique_ptr<C2ReadView>* frame_view)
+    std::unique_ptr<C2ReadView>* frame_view, bool header)
 {
     MFX_DEBUG_TRACE_FUNC;
 
     c2_status_t res = C2_OK;
     const mfxU8* data = nullptr;
     mfxU32 filled_len = 0;
+    const mfxU8* infobuffer = nullptr;
+    std::unique_ptr<C2ReadView> bs_read_view;
 
+    MFX_DEBUG_TRACE_I32(header);
     do {
         if (!frame_view) {
             res = C2_BAD_VALUE;
             break;
+        }
+
+        for (auto &infoBuffer: buf_pack.infoBuffers) {
+            if (infoBuffer.index().typeIndex() == kParamIndexEncryptedBuffer) {
+                const C2BufferData& buf_data = infoBuffer.data();
+                C2ConstLinearBlock encryptedBlock = buf_data.linearBlocks().front();
+                MapConstLinearBlock(encryptedBlock, timeout, &bs_read_view);
+                infobuffer = bs_read_view->data() + encryptedBlock.offset();
+                MFX_DEBUG_TRACE_STREAM("c2 infobuffer data: " << FormatHex(infobuffer, encryptedBlock.size()));
+            }
         }
 
         if (buf_pack.buffers.size() == 0) {
@@ -118,15 +131,27 @@ c2_status_t MfxC2BitstreamIn::AppendFrame(const C2FrameData& buf_pack, c2_nsecs_
 
         m_frameConstructor->SetEosMode(buf_pack.flags & C2FrameData::FLAG_END_OF_STREAM);
 
-        mfxStatus mfx_res = m_frameConstructor->Load(data,
-                                                     filled_len,
-                                                     buf_pack.ordinal.timestamp.peeku(), // pass pts
-                                                     buf_pack.flags & C2FrameData::FLAG_CODEC_CONFIG,
-                                                     true);
+        mfxStatus mfx_res;
+        HUCVideoBuffer *hucBuffer = NULL;
+        hucBuffer = (HUCVideoBuffer *) data;
+        if (hucBuffer->pr_magic == PROTECTED_DATA_BUFFER_MAGIC) {
+             mfx_res = m_frameConstructor->LoadSecure(hucBuffer,
+                                                infobuffer,
+                                                filled_len,
+                                                buf_pack.ordinal.timestamp.peeku(), // pass pts
+                                                header,
+                                                true);
+            *frame_view = std::move(bs_read_view);
+        } else {
+             mfx_res = m_frameConstructor->Load(data,
+                                                filled_len,
+                                                buf_pack.ordinal.timestamp.peeku(), // pass pts
+                                                header,
+                                                true);
+            *frame_view = std::move(read_view);
+        }
         res = MfxStatusToC2(mfx_res);
         if(C2_OK != res) break;
-
-        *frame_view = std::move(read_view);
 
     } while(false);
 

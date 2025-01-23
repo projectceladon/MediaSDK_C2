@@ -47,6 +47,7 @@ MfxC2FrameConstructor::MfxC2FrameConstructor():
     MFX_ZERO_MEMORY((*m_bstBuf));
     MFX_ZERO_MEMORY((*m_bstIn));
     MFX_ZERO_MEMORY(m_frInfo);
+    MFX_ZERO_MEMORY(m_decryptConfig);
 }
 
 MfxC2FrameConstructor::~MfxC2FrameConstructor()
@@ -62,6 +63,7 @@ MfxC2FrameConstructor::~MfxC2FrameConstructor()
     }
 
     MFX_FREE(m_bstHeader->Data);
+    MFX_FREE(m_decryptConfig.subsamples);
 }
 
 mfxStatus MfxC2FrameConstructor::Init(
@@ -188,8 +190,63 @@ mfxStatus MfxC2FrameConstructor::Load(const mfxU8* data, mfxU32 size, mfxU64 pts
     if (MFX_ERR_NONE == mfx_res) {
         mfx_res = Load_None(data, size, pts, header, complete_frame);
     }
+    if (m_decryptConfig.subsamples) {
+        MFX_FREE(m_decryptConfig.subsamples);
+    }
+    MFX_ZERO_MEMORY(m_decryptConfig);
+    m_subsamples.clear();
     MFX_DEBUG_TRACE__mfxBitstream((*m_bstBuf));
     MFX_DEBUG_TRACE__mfxBitstream((*m_bstIn));
+    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+    return mfx_res;
+}
+
+mfxStatus MfxC2FrameConstructor::LoadSecure(HUCVideoBuffer *hucBuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxStatus mfx_res = MFX_ERR_NONE;
+
+    if (!data || !size) mfx_res = MFX_ERR_NULL_PTR;
+    if (MFX_ERR_NONE == mfx_res) {
+        mfx_res = Load_None(data, hucBuffer->sample_size, pts, header, complete_frame);
+    }
+    MFX_DEBUG_TRACE__mfxBitstream((*m_bstBuf));
+    MFX_DEBUG_TRACE__mfxBitstream((*m_bstIn));
+    if (m_decryptConfig.subsamples) {
+        MFX_FREE(m_decryptConfig.subsamples);
+    }
+    MFX_ZERO_MEMORY(m_decryptConfig);
+    m_subsamples.clear();
+
+    // add extern parameter
+    if (MFX_ERR_NONE == mfx_res) {
+        m_decryptConfig.Header.BufferId = MFX_EXTBUFF_DECRYPT_CONFIG;
+        m_decryptConfig.Header.BufferSz = sizeof(mfxExtDecryptConfig);
+        m_decryptConfig.session = hucBuffer->session_id;
+        m_decryptConfig.num_subsamples  = hucBuffer->num_packet_data;
+        m_decryptConfig.encryption_scheme = GetEncryptionScheme(hucBuffer->cipher_mode);
+        std::memcpy(m_decryptConfig.hw_key_id, hucBuffer->hw_key_id, sizeof(hucBuffer->hw_key_id));
+
+        char* baseAddress = reinterpret_cast<char*>(hucBuffer);
+        packet_info* packet = reinterpret_cast<packet_info*>(baseAddress + sizeof(HUCVideoBuffer) - 8);
+        std::memcpy(m_decryptConfig.iv, packet->current_iv.data(), packet->current_iv.size());
+
+        m_decryptConfig.subsamples  = (SubsampleEntry*)malloc(hucBuffer->num_packet_data * sizeof(SubsampleEntry));
+        for (int i = 0; i < hucBuffer->num_packet_data; i++)
+        {
+            packet_info* packet = reinterpret_cast<packet_info*>(baseAddress + sizeof(HUCVideoBuffer) - 8 + (i * sizeof(packet_info)));
+            SubsampleEntry entry {(mfxU32)packet->clear_bytes, (mfxU32)packet->encrypted_bytes};
+            if (i == 0)
+                entry.clear_bytes += m_appendHeaderSize;
+            m_subsamples.push_back(std::move(entry));
+            MFX_DEBUG_TRACE_I32(m_appendHeaderSize);
+            MFX_DEBUG_TRACE_I32(entry.clear_bytes);
+            MFX_DEBUG_TRACE_I32(entry.cypher_bytes);
+            MFX_DEBUG_TRACE_I32(packet->clear_bytes);
+            MFX_DEBUG_TRACE_I32(packet->encrypted_bytes);
+        }
+    }
+
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }
@@ -327,6 +384,8 @@ mfxStatus MfxC2FrameConstructor::BstBufSync()
             m_bstIn = std::make_shared<mfxBitstream>();
             MFX_ZERO_MEMORY((*m_bstIn));
         }
+        m_bstCurrent->ExtParam = nullptr;
+        m_bstCurrent->NumExtParam = 0;
         m_bstCurrent = nullptr;
     }
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
@@ -350,6 +409,22 @@ std::shared_ptr<mfxBitstream> MfxC2FrameConstructor::GetMfxBitstream()
     MFX_DEBUG_TRACE_P(m_bstIn.get());
     MFX_DEBUG_TRACE_P(m_bstBuf.get());
     MFX_DEBUG_TRACE_P(bst.get());
+
+    if(!m_subsamples.empty()) {
+        memcpy(m_decryptConfig.subsamples, m_subsamples.data(), m_subsamples.size() * sizeof(SubsampleEntry));
+        // FIXME: When the resolution changes, DataOffset is updated to 1. Need find the reason why?
+        // In this case, we subtract this value to adjust clear_bytes.
+        if (bst->DataOffset) {
+            m_decryptConfig.subsamples[0].clear_bytes -= bst->DataOffset;
+        }
+        m_extBufs.clear();
+        m_extBufs.push_back(reinterpret_cast<mfxExtBuffer*>(&m_decryptConfig));
+        bst->ExtParam = &m_extBufs.back();
+        bst->NumExtParam = 1;
+        bst->DataFlag |= MFX_BITSTREAM_COMPLETE_FRAME;
+    }
+
+    MFX_DEBUG_TRACE__mfxBitstream((*bst));
 
     return bst;
 }
@@ -488,6 +563,7 @@ mfxStatus MfxC2AVCFrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, b
     bool bFoundPps = false;
     bool bFoundSei = false;
 
+    m_appendHeaderSize = 0;
     if (header && data && size) {
         if (MfxC2BS_HeaderAwaiting == m_bsState) m_bsState = MfxC2BS_HeaderCollecting;
 
@@ -508,6 +584,7 @@ mfxStatus MfxC2AVCFrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, b
                     buf += m_sps.DataLength;
                     std::copy(m_pps.Data, m_pps.Data + m_pps.DataLength, buf);
 
+                    m_appendHeaderSize = m_sps.DataLength + m_pps.DataLength;
                     m_bstBuf->DataLength += m_sps.DataLength + m_pps.DataLength;
                     m_uBstBufCopyBytes += m_sps.DataLength + m_pps.DataLength;
                 }
@@ -598,6 +675,17 @@ mfxStatus MfxC2AVCFrameConstructor::Load(const mfxU8* data, mfxU32 size, mfxU64 
     mfxStatus mfx_res = MFX_ERR_NONE;
 
     mfx_res = MfxC2FrameConstructor::Load(data, size, pts, header, complete_frame);
+
+    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+    return mfx_res;
+}
+
+mfxStatus MfxC2AVCFrameConstructor::LoadSecure(HUCVideoBuffer *hucBuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    mfxStatus mfx_res = MFX_ERR_NONE;
+
+    mfx_res = MfxC2FrameConstructor::LoadSecure(hucBuffer, data, size, pts, header, complete_frame);
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
