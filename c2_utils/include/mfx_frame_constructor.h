@@ -25,6 +25,8 @@
 #include <vector>
 #include <map>
 
+#include "mfx_c2_widevine_crypto_defs.h"
+
 enum MfxC2FrameConstructorType
 {
     MfxC2FC_None,
@@ -54,6 +56,7 @@ public:
     virtual mfxStatus Init(mfxU16 profile, mfxFrameInfo fr_info) = 0;
     // loads next portion of data; fc may directly use that buffer or append header, etc.
     virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame) = 0;
+    virtual mfxStatus LoadSecure(HUCVideoBuffer *hucBuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame) = 0;
     // unloads previously sent buffer, copy data to internal buffer if needed
     virtual mfxStatus Unload() = 0;
     // resets frame constructor
@@ -90,6 +93,7 @@ public:
     virtual mfxStatus Init(mfxU16 profile, mfxFrameInfo fr_info);
     // loads next portion of data; fc may directly use that buffer or append header, etc.
     virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
+    virtual mfxStatus LoadSecure(HUCVideoBuffer *hucBuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
     // unloads previously sent buffer, copy data to internal buffer if needed
     virtual mfxStatus Unload();
     // resets frame constructor
@@ -152,6 +156,11 @@ protected: // data
     mfxU32 m_uBstBufCopyBytes;
 
     bool m_bInReset;
+
+    mfxU32 m_appendHeaderSize = 0;
+    std::vector<mfxExtBuffer*> m_extBufs;
+    mfxExtDecryptConfig m_decryptConfig;
+    std::vector<SubsampleEntry> m_subsamples;
 private:
     MFX_CLASS_NO_COPY(MfxC2FrameConstructor)
 };
@@ -170,6 +179,7 @@ public:
 
 protected: // functions
     virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
+    virtual mfxStatus LoadSecure(HUCVideoBuffer *hucBuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
     virtual mfxStatus LoadHeader(const mfxU8* data, mfxU32 size, bool header);
     // save current SEI
     virtual mfxStatus SaveSEI(mfxBitstream * /*pSEI*/) {return MFX_ERR_NONE;}
