@@ -1438,24 +1438,27 @@ mfxStatus MfxC2DecoderComponent::HandleFormatChange()
 
     if (!m_mfxDecoder) return MFX_ERR_NULL_PTR;
 
-    mfx_res = m_mfxDecoder->DecodeHeader(m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get(), &m_mfxVideoParams);
-    MFX_DEBUG_TRACE__mfxStatus(mfx_res);
-    // when oneVPL returns an error of resolution change, it is not necessarily the width or height has changed,
-    // it may be the profile or other SPS paramters.
+    // When gallery seek, reinitialization of decoder is not required
+    if(m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get()->Data) {
+        mfx_res = m_mfxDecoder->DecodeHeader(m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get(), &m_mfxVideoParams);
+        MFX_DEBUG_TRACE__mfxStatus(mfx_res);
+        // when oneVPL returns an error of resolution change, it is not necessarily the width or height has changed,
+        // it may be the profile or other SPS paramters.
 
-    // Free all the surfaces
-    mfx_res = m_mfxDecoder->Close();
-    if (MFX_ERR_NONE == mfx_res) {
-        // De-allocate all the surfaces
-        m_lockedSurfaces.clear();
-        FreeSurfaces();
-        if (m_allocator) {
-            m_allocator->Reset();
+        // Free all the surfaces
+        mfx_res = m_mfxDecoder->Close();
+        if (MFX_ERR_NONE == mfx_res) {
+            // De-allocate all the surfaces
+            m_lockedSurfaces.clear();
+            FreeSurfaces();
+            if (m_allocator) {
+                m_allocator->Reset();
+            }
+            // Re-init decoder
+            m_bInitialized = false;
+            m_uMaxWidth = m_mfxVideoParams.mfx.FrameInfo.Width;
+            m_uMaxHeight = m_mfxVideoParams.mfx.FrameInfo.Height;
         }
-        // Re-init decoder
-        m_bInitialized = false;
-        m_uMaxWidth = m_mfxVideoParams.mfx.FrameInfo.Width;
-        m_uMaxHeight = m_mfxVideoParams.mfx.FrameInfo.Height;
     }
 
     return mfx_res;
