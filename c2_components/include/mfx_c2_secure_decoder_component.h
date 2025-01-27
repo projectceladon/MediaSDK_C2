@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022 Intel Corporation
+// Copyright (c) 2017-2024 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,32 +20,27 @@
 
 #pragma once
 
-#include <C2Buffer.h>
-#include <C2Work.h>
+#include "mfx_c2_component.h"
+#include "mfx_c2_decoder_component.h"
+#include "mfx_c2_components_registry.h"
+#include "mfx_dev.h"
+#include "mfx_c2_setters.h"
+#include <cutils/properties.h>
 
-#include "mfx_defs.h"
-#include "mfx_frame_constructor.h"
-
-class MfxC2BitstreamIn
+class MfxC2SecureDecoderComponent : public MfxC2DecoderComponent
 {
 public:
-    MfxC2BitstreamIn(MfxC2FrameConstructorType fc_type);
-    virtual ~MfxC2BitstreamIn();
+    MfxC2SecureDecoderComponent(const C2String name, const CreateConfig& config,
+        std::shared_ptr<C2ReflectorHelper> reflector, DecoderType decoder_type);
 
-    virtual c2_status_t Reset();
+    virtual ~MfxC2SecureDecoderComponent();
 
-    virtual c2_status_t Unload();
+    static void RegisterClass(MfxC2ComponentsRegistry& registry);
 
-    virtual std::shared_ptr<IMfxC2FrameConstructor> GetFrameConstructor() { return m_frameConstructor; }
-    // Maps c2 linear block and can leave it in mapped state until
-    // frame_view freed or frame_view->Release is called.
-    virtual c2_status_t AppendFrame(const C2FrameData& buf_pack, c2_nsecs_t timeout,
-        std::unique_ptr<C2ReadView>* view, bool header);
-
-    virtual bool IsInReset();
-protected: // variables
-    std::shared_ptr<IMfxC2FrameConstructor> m_frameConstructor;
+    MFX_CLASS_NO_COPY(MfxC2SecureDecoderComponent)
 
 private:
-    MFX_CLASS_NO_COPY(MfxC2BitstreamIn)
+    /* -----------------------C2Parameters--------------------------- */
+    std::shared_ptr<C2SecureModeTuning> m_secureMode;
 };
+

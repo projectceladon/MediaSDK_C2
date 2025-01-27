@@ -42,6 +42,8 @@ public:
         DECODER_VP8,
         DECODER_MPEG2,
         DECODER_AV1,
+        DECODER_H264_SECURE,
+        DECODER_H265_SECURE
     };
 
     enum class OperationState {
@@ -195,6 +197,7 @@ private:
     mfxVideoParam m_mfxVideoParams {};
     std::vector<mfxExtBuffer*> m_extBuffers;
     mfxExtVideoSignalInfo m_signalInfo;
+    mfxExtSecureCodec m_secureCodec;
 
     // Protects decoder initialization and m_mfxVideoParams
     mutable std::mutex m_initDecoderMutex;
@@ -264,6 +267,9 @@ private:
     // dump output multiple times, the first dumped file named xxx_0.yuv,
     // second dumped file named xxx_1.yuv ...
     uint32_t m_file_num = 0;
+
+protected:
+    bool m_secure;
 
     /* -----------------------C2Parameters--------------------------- */
     std::shared_ptr<C2ComponentNameSetting> m_name;
