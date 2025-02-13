@@ -225,13 +225,13 @@ mfxStatus MfxC2FrameConstructor::LoadSecure(HUCVideoBuffer *hucBuffer, const mfx
         m_decryptConfig.session = hucBuffer->session_id;
         m_decryptConfig.num_subsamples  = hucBuffer->num_packet_data;
         m_decryptConfig.encryption_scheme = GetEncryptionScheme(hucBuffer->cipher_mode);
+        m_decryptConfig.pattern.clear_byte_block = hucBuffer->pattern_clear;
+        m_decryptConfig.pattern.cypher_byte_block = hucBuffer->pattern_encrypted;
         std::memcpy(m_decryptConfig.hw_key_id, hucBuffer->hw_key_id, sizeof(hucBuffer->hw_key_id));
-
-        char* baseAddress = reinterpret_cast<char*>(hucBuffer);
-        packet_info* packet = reinterpret_cast<packet_info*>(baseAddress + sizeof(HUCVideoBuffer) - 8);
-        std::memcpy(m_decryptConfig.iv, packet->current_iv.data(), packet->current_iv.size());
+        std::memcpy(m_decryptConfig.iv, hucBuffer->current_iv.data(), hucBuffer->current_iv.size());
 
         m_decryptConfig.subsamples  = (SubsampleEntry*)malloc(hucBuffer->num_packet_data * sizeof(SubsampleEntry));
+        char* baseAddress = reinterpret_cast<char*>(hucBuffer);
         for (int i = 0; i < hucBuffer->num_packet_data; i++)
         {
             packet_info* packet = reinterpret_cast<packet_info*>(baseAddress + sizeof(HUCVideoBuffer) - 8 + (i * sizeof(packet_info)));
@@ -247,6 +247,8 @@ mfxStatus MfxC2FrameConstructor::LoadSecure(HUCVideoBuffer *hucBuffer, const mfx
         }
     }
 
+    MFX_DEBUG_TRACE_I32(hucBuffer->pattern_clear);
+    MFX_DEBUG_TRACE_I32(hucBuffer->pattern_encrypted);
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }

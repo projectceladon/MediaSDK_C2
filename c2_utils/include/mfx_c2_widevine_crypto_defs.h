@@ -36,20 +36,18 @@ typedef enum OEMCryptoCipherMode {
 
 typedef struct {
     size_t block_offset;
-    IV current_iv;
-    size_t data_length;
     size_t clear_bytes;
     size_t encrypted_bytes;
-    size_t pattern_clear;
-    size_t pattern_encrypted;
 } packet_info;
 
 typedef struct {
     uint32_t pr_magic;
-    uint32_t app_id;
     uint32_t session_id;
+    IV current_iv;
     size_t num_packet_data;
     size_t sample_size;
+    size_t pattern_clear;
+    size_t pattern_encrypted;
     OEMCryptoCipherMode cipher_mode;
     uint8_t hw_key_id[16];
     packet_info* packet_data;
