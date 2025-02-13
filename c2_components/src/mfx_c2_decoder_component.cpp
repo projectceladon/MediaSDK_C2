@@ -629,7 +629,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         .withSetter(DefaultColorAspectsSetter)
         .build());
 
-    if (DECODER_VP9 != m_decoderType && DECODER_VP8 != m_decoderType) {
+    if (DECODER_VP8 != m_decoderType) {
         addParameter(
             DefineParam(m_inColorAspects, C2_PARAMKEY_VUI_COLOR_ASPECTS)
             .withDefault(new C2StreamColorAspectsInfo::input(
@@ -1489,6 +1489,11 @@ mfxStatus MfxC2DecoderComponent::HandleFormatChange()
         m_bInitialized = false;
         m_uMaxWidth = m_mfxVideoParams.mfx.FrameInfo.Width;
         m_uMaxHeight = m_mfxVideoParams.mfx.FrameInfo.Height;
+    }
+
+    if ((DECODER_H264 == m_decoderType || DECODER_H265 == m_decoderType) && m_c2Bitstream) {
+        MFX_DEBUG_TRACE_MSG("Reset BitStream for re-append header.");
+        m_c2Bitstream->Reset();
     }
 
     return mfx_res;
@@ -2996,7 +3001,7 @@ void MfxC2DecoderComponent::UpdateColorAspectsFromBitstream(const mfxExtVideoSig
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    if (DECODER_VP9 == m_decoderType || DECODER_VP8 == m_decoderType) return;
+    if (DECODER_VP8 == m_decoderType) return;
 
     MFX_DEBUG_TRACE_I32(signalInfo.VideoFullRange);
     MFX_DEBUG_TRACE_I32(signalInfo.ColourPrimaries);
