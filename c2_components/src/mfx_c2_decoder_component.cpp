@@ -1254,18 +1254,20 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
                                             MfxFourCCToGralloc(m_mfxVideoParams.mfx.FrameInfo.FourCC),
                                             mem_usage, &out_block);
 
-        if (res == C2_OK)
-        {
+        if (res == C2_OK) {
+// Before android 15, it's using BUFFER QUEUE for surface allocation, check if
+// surface is allocated by BUFFER QUEUE with igbp_id and igbp_slot
+#if PLATFORM_SDK_VERSION <= 34
             uint32_t width, height, format, stride, igbp_slot, generation;
             uint64_t usage, igbp_id;
             android::_UnwrapNativeCodec2GrallocMetadata(out_block->handle(), &width, &height, &format, &usage,
                                                         &stride, &generation, &igbp_id, &igbp_slot);
-// For android 15, it's using IGBA instead of BQ, we can not check if
-// surface is allocated by IGBA by igbp_id and igbp_slot
-#if PLATFORM_SDK_VERSION <= 34
-            if ((!igbp_id && !igbp_slot) || (!igbp_id && igbp_slot == 0xffffffff))
-            {
+            if ((!igbp_id && !igbp_slot) || (!igbp_id && igbp_slot == 0xffffffff)) {
                 // No surface & BQ
+                m_mfxVideoParams.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
+            }
+#else // For android 15, it's using IGBA and Ahwb buffer for surface allocation
+            if(!C2AllocatorAhwb::CheckHandle(out_block->handle())) {
                 m_mfxVideoParams.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
             }
 #endif
