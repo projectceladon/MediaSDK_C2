@@ -1,0 +1,180 @@
+// Copyright (c) 2017-2023 Intel Corporation
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+cc_defaults {
+    name: "mfx_c2_default_unittest",
+
+    cflags: [
+        "-std=c++17",
+        "-fstack-protector-strong",
+        "-fPIE",
+        "-fPIC",
+        "-O2",
+        "-D_FORTIFY_SOURCE=2",
+        "-Wno-error",
+        "-Wno-deprecated-declarations",
+        "-fexceptions",
+    ],
+
+    ldflags: [
+        "-z noexecstack",
+        "-z relro",
+        "-z now",
+    ],
+
+    export_include_dirs: [
+        "include",
+    ],
+
+    local_include_dirs: [
+        "include",
+    ],
+
+    include_dirs: [
+        "vendor/intel/mediasdk_c2/c2_components/include",
+        "vendor/intel/mediasdk_c2/c2_utils/include",
+        "frameworks/av/media/codec2/vndk/include",
+        "hardware/intel/external/minigbm-intel/cros_gralloc",
+    ],
+
+    srcs: [
+        "src/test_main.cpp",
+    ],
+
+    static_libs: [
+        "libgtest",
+        "libz",
+    ],
+
+    shared_libs: [
+        "libdl",
+        "liblog",
+        "libcodec2_vndk",
+    ],
+
+    header_libs: [
+        "libcodec2_headers",
+        "libhardware_headers",
+        "libutils_headers",
+    ],
+}
+
+cc_binary {
+    name: "mfx_c2_service_unittests",
+
+    proprietary: false,
+
+    defaults: [
+        "mfx_c2_default_unittest",
+    ],
+
+    include_dirs: [
+        "vendor/intel/external/onevpl/api/vpl",
+        "vendor/intel/external/onevpl-intel-gpu/android/include",
+    ],
+
+    srcs: [
+        "src/c2_service_test.cpp",
+        "src/test_components.cpp",
+    ],
+
+    shared_libs: [
+        "libcodec2_hidl_client@1.0",
+        "libcodec2_client",
+    ],
+}
+
+cc_binary {
+    name: "mfx_c2_store_unittests",
+
+    defaults: [
+        "mfx_c2_default_unittest",
+    ],
+    
+    srcs: [
+        "src/c2_store_test.cpp",
+        "src/test_components.cpp",
+    ],
+
+    include_dirs: [
+        "vendor/intel/mediasdk_c2/c2_store/include",
+    ],
+    
+    static_libs: [
+        "libmfx_c2_store",
+        "libmfx_c2_utils_va",
+    ],
+    
+    shared_libs: [
+        "libexpat",
+        "libcutils",
+        "libvpl",
+    ],
+
+    header_libs: [
+        "libvpl_headers",
+        "libmfx_android_headers",
+    ],
+
+    ldflags: [
+        "-pie",
+    ],
+
+    vendor: true,
+}
+
+cc_binary {
+    name: "mfx_c2_components_unittests",
+
+    defaults: [
+        "mfx_c2_default_unittest",
+    ],
+
+    srcs: [
+        "src/c2_decoder_test.cpp",
+        "src/c2_encoder_test.cpp",
+        "src/test_components.cpp",
+        "src/test_streams.cpp",
+        "streams/h264/*.cpp",
+        "streams/h265/*.cpp",
+        "streams/vp9/*.cpp",
+    ],
+
+    static_libs: [
+        "libmfx_c2_utils_va",
+    ],
+
+    shared_libs: [
+        "libcutils",
+        "libdrm",
+        "libmfx_c2_components_hw",
+    ],
+
+    header_libs: [
+        "libvpl_headers",
+        "libmfx_android_headers",
+    ],
+
+    ldflags: [
+        "-pie",
+    ],
+
+    vendor: true,
+}
