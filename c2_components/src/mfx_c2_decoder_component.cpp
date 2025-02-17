@@ -44,6 +44,11 @@ constexpr c2_nsecs_t TIMEOUT_NS = MFX_SECOND_NS;
 constexpr uint64_t kMinInputBufferSize = 1 * WIDTH_1K * HEIGHT_1K;
 constexpr uint64_t kDefaultConsumerUsage =
     (GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_HW_COMPOSER);
+// From Android 15, Buffer pool use IGBA instead of BufferQueue.
+// IGBA will strictly limit the number of buffers that can be allocated.
+// We added an extra buffer cache to prevent stucking when call
+// fetchGraphicBlock during resolution changes.
+constexpr uint32_t BufferPoolExtraCache = 1;
 
 // Android S declared VP8 profile
 #if PLATFORM_SDK_VERSION <= 30 // Android 11(R)
@@ -591,8 +596,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     // form QueryIOSurf function call result.
     addParameter(
         DefineParam(m_actualOutputDelay, C2_PARAMKEY_OUTPUT_DELAY)
-        .withDefault(new C2PortActualDelayTuning::output(m_uOutputDelay))
-        .withFields({C2F(m_actualOutputDelay, value).inRange(0, m_uOutputDelay)})
+        .withDefault(new C2PortActualDelayTuning::output(m_uOutputDelay + BufferPoolExtraCache))
+        .withFields({C2F(m_actualOutputDelay, value).inRange(0, m_uOutputDelay + BufferPoolExtraCache)})
         .withSetter(Setter<decltype(*m_actualOutputDelay)>::StrictValueWithNoDeps)
         .build());
 
