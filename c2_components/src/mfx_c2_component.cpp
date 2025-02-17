@@ -143,11 +143,13 @@ c2_status_t MfxC2Component::query_vb(
     if (mayBlock == C2_MAY_BLOCK) {
         lock.lock();
     } else {
-        lock.try_lock();
+        if (!lock.try_lock()) {
+            res = C2_BLOCKING;
+        }
     }
 
     // Func query will return c2 params to framework, so we must update MFX params to c2 before calling it.
-    if (lock.owns_lock()) {
+    if ((res == C2_OK) && lock.owns_lock()) {
         if (State::RELEASED != m_state) {
             res = UpdateMfxParamToC2(std::move(lock), stackParams, heapParamIndices, mayBlock, heapParams);
         } else {
