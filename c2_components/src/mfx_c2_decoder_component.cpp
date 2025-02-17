@@ -2112,8 +2112,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
     // Av1 and VP9 don't need the bs which flag is config.
     if (codecConfig && (DECODER_AV1 == m_decoderType || DECODER_VP9 == m_decoderType)) {
         FillEmptyWork(std::move(work), C2_OK);
-        // when seek during playback, no need to reinitialize decoder
-        if (true == m_bInitialized && !m_c2Bitstream->IsInReset()) {
+        if (true == m_bInitialized) {
             mfxStatus format_change_sts = HandleFormatChange();
             MFX_DEBUG_TRACE__mfxStatus(format_change_sts);
             mfx_sts = format_change_sts;
