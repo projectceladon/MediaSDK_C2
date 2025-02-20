@@ -49,6 +49,7 @@ constexpr uint64_t kDefaultConsumerUsage =
 // We added an extra buffer cache to prevent stucking when call
 // fetchGraphicBlock during resolution changes.
 constexpr uint32_t BufferPoolExtraCache = 1;
+constexpr uint64_t kProtectedUsage = C2MemoryUsage::READ_PROTECTED;
 
 // Android S declared VP8 profile
 #if PLATFORM_SDK_VERSION <= 30 // Android 11(R)
@@ -179,7 +180,8 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         m_bInitialized(false),
         m_uSyncedPointsCount(0),
         m_bSetHdrStatic(false),
-        m_surfaceNum(0)
+        m_surfaceNum(0),
+        m_secure(false)
 {
     MFX_DEBUG_TRACE_FUNC;
     const unsigned int SINGLE_STREAM_ID = 0u;
@@ -252,6 +254,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     );
 
     switch(m_decoderType) {
+        case DECODER_H264_SECURE:
         case DECODER_H264: {
             m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
 
@@ -307,6 +310,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
                 .build());
             break;
         }
+        case DECODER_H265_SECURE:
         case DECODER_H265: {
             m_uOutputDelay = /*max_dpb_size*/16 + /*for async depth*/1 + /*for msdk unref in sync part*/1;
 
@@ -694,6 +698,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     m_hdrStaticInfo->maxFall = 0;
 
     MFX_ZERO_MEMORY(m_signalInfo);
+    MFX_ZERO_MEMORY(m_secureCodec);
     //m_paramStorage.DumpParams();
 }
 
@@ -939,9 +944,11 @@ void MfxC2DecoderComponent::InitFrameConstructor()
     MfxC2FrameConstructorType fc_type;
     switch (m_decoderType)
     {
+    case DECODER_H264_SECURE:
     case DECODER_H264:
         fc_type = MfxC2FC_AVC;
         break;
+    case DECODER_H265_SECURE:
     case DECODER_H265:
         fc_type = MfxC2FC_HEVC;
         break;
@@ -1095,15 +1102,21 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
     mfxStatus res = MFX_ERR_NONE;
     MFX_ZERO_MEMORY(m_mfxVideoParams);
     MFX_ZERO_MEMORY(m_signalInfo);
+    MFX_ZERO_MEMORY(m_secureCodec);
 
     m_signalInfo.Header.BufferId = MFX_EXTBUFF_VIDEO_SIGNAL_INFO;
     m_signalInfo.Header.BufferSz = sizeof(mfxExtVideoSignalInfo);
+    m_secureCodec.Header.BufferId = MFX_EXTBUFF_SECURE_CODEC;
+    m_secureCodec.Header.BufferSz = sizeof(mfxExtSecureCodec);
+    m_secureCodec.on = m_secure;
 
     switch (m_decoderType)
     {
+    case DECODER_H264_SECURE:
     case DECODER_H264:
         m_mfxVideoParams.mfx.CodecId = MFX_CODEC_AVC;
         break;
+    case DECODER_H265_SECURE:
     case DECODER_H265:
         m_mfxVideoParams.mfx.CodecId = MFX_CODEC_HEVC;
         break;
@@ -1183,6 +1196,10 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             if (nullptr == m_mfxDecoder) {
                 mfx_res = MFX_ERR_MEMORY_ALLOC;
             }
+        }
+
+        if (m_secure) {
+            m_consumerUsage |= kProtectedUsage;
         }
 
         if (MFX_ERR_NONE == mfx_res) {
@@ -1305,10 +1322,16 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
             m_allocator->SetConsumerUsage(m_consumerUsage);
         }
 
+        mfxVideoParam oldParams = m_mfxVideoParams;
+        m_extBuffers.push_back(reinterpret_cast<mfxExtBuffer*>(&m_secureCodec));
+        m_mfxVideoParams.NumExtParam = m_extBuffers.size();
+        m_mfxVideoParams.ExtParam = &m_extBuffers.front();
         MFX_DEBUG_TRACE_MSG("Decoder initializing...");
         mfx_res = m_mfxDecoder->Init(&m_mfxVideoParams);
         MFX_DEBUG_TRACE_PRINTF("Decoder initialized, sts = %d", mfx_res);
-
+        m_extBuffers.pop_back();
+        m_mfxVideoParams.NumExtParam = oldParams.NumExtParam;
+        m_mfxVideoParams.ExtParam = oldParams.ExtParam;
 
         // c2 allocator is needed to handle mfxAllocRequest coming from m_mfxDecoder->Init,
         // not needed after that.
@@ -2140,7 +2163,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
     bool encounterResolutionChanged = false;
     do {
         std::unique_ptr<C2ReadView> read_view;
-        res = m_c2Bitstream->AppendFrame(work->input, TIMEOUT_NS, &read_view);
+        res = m_c2Bitstream->AppendFrame(work->input, TIMEOUT_NS, &read_view, codecConfig | !m_bInitialized);
         if (C2_OK != res) break;
 
         {
