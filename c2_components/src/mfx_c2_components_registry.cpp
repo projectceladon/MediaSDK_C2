@@ -31,6 +31,7 @@
 #else
 #include "mfx_c2_decoder_component.h"
 #include "mfx_c2_encoder_component.h"
+#include "mfx_c2_secure_decoder_component.h"
 #endif
 
 using namespace android;
@@ -65,6 +66,7 @@ MfxC2ComponentsRegistry::MfxC2ComponentsRegistry()
 #else
     MfxC2DecoderComponent::RegisterClass(*this);
     MfxC2EncoderComponent::RegisterClass(*this);
+    MfxC2SecureDecoderComponent::RegisterClass(*this);
 #endif
 }
 

@@ -173,7 +173,8 @@ MFX_DEBUG_DECLARE_VALUE_DESC_PRINTF(mfxStatus)
     MFX_DEBUG_TRACE_I32(_s.MaxLength); \
     MFX_DEBUG_TRACE_I32(_s.PicStruct); \
     MFX_DEBUG_TRACE_I32(_s.FrameType); \
-    MFX_DEBUG_TRACE_I32(_s.DataFlag);
+    MFX_DEBUG_TRACE_I32(_s.DataFlag); \
+    MFX_DEBUG_TRACE_I32(_s.NumExtParam);
 
 
 #if MFX_DEBUG == MFX_DEBUG_YES
