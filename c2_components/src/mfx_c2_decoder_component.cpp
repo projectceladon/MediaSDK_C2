@@ -783,6 +783,7 @@ static void InitDump(std::unique_ptr<BinaryWriter>& input_writer,
             property_set(DECODER_DUMP_INPUT_KEY, NULL);
         }
     }
+    delete[] value;
 
     if (dump_input_enabled) {
         std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
@@ -2454,7 +2455,7 @@ static bool NeedDumpOutput(uint32_t& dump_count,
 
 static void DumpOutput(std::shared_ptr<C2GraphicBlock> block,
 	               std::shared_ptr<mfxFrameSurface1> mfx_surface,
-	               uint32_t& dump_count, mfxVideoParam mfxVideoParams,
+	               uint32_t& dump_count, const mfxVideoParam& mfxVideoParams,
 	               std::unique_ptr<BinaryWriter>& output_writer)
 {
     MFX_DEBUG_TRACE_FUNC;
@@ -2498,13 +2499,15 @@ static void DumpOutput(std::shared_ptr<C2GraphicBlock> block,
                 }
             } else { // IOPattern is system memory
                 if (NULL != srcY && NULL != srcUV) {
-                    output_writer->Write(srcY, mfx_surface->Data.PitchLow * mfxVideoParams.mfx.FrameInfo.CropH);
-                    output_writer->Write(srcUV, mfx_surface->Data.PitchLow * mfxVideoParams.mfx.FrameInfo.CropH / 2);
+                    uint32_t pitchLow = mfx_surface->Data.PitchLow;
+                    uint32_t cropH = mfxVideoParams.mfx.FrameInfo.CropH;
+                    output_writer->Write(srcY, pitchLow * cropH);
+                    output_writer->Write(srcUV, (pitchLow * cropH) / 2);
 
                     uint32_t dump_width = (MFX_FOURCC_P010 == mfx_surface->Info.FourCC) ?
-                            mfx_surface->Data.PitchLow / 2 : mfx_surface->Data.PitchLow;
+                            pitchLow / 2 : pitchLow;
 
-                    dump_count --;
+                    dump_count--;
 
                     MFX_DEBUG_TRACE_PRINTF("######## dumping #%d to last decoded buffer in size: %dx%d  ########",
                             dump_count, dump_width, mfxVideoParams.mfx.FrameInfo.CropH);

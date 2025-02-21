@@ -268,7 +268,7 @@ void Codec2Fuzzer::decodeFrames(const uint8_t* data, size_t size) {
         work->input.ordinal.timestamp = 0;
         work->input.ordinal.frameIndex = ++numFrames;
         work->input.buffers.clear();
-        int32_t alignedSize = C2FUZZER_ALIGN(frameSize, PAGE_SIZE);
+        int32_t alignedSize = C2FUZZER_ALIGN(frameSize, sysconf(_SC_PAGESIZE));
 
         std::shared_ptr<C2LinearBlock> block;
         status = m_linearPool->fetchLinearBlock(
