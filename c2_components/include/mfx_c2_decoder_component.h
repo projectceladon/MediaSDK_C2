@@ -204,7 +204,7 @@ private:
     mfxU16 m_uMaxWidth {};
     mfxU16 m_uMaxHeight {};
 
-    std::atomic<bool> m_bEosReceived {};
+    std::atomic<bool> m_bEosReceived { false };
     // Members handling MFX_WRN_DEVICE_BUSY.
     // Active sync points got from DecodeFrameAsync for waiting on.
     std::atomic_uint m_uSyncedPointsCount;
@@ -230,7 +230,7 @@ private:
     // for pre-allocation when Video memory is chosen and always when System memory output
     std::shared_ptr<C2BlockPool> m_c2Allocator;
     C2BlockPool::local_id_t m_outputPoolId = C2BlockPool::BASIC_GRAPHIC;
-    std::atomic<bool> m_bFlushing{false};
+    std::atomic<bool> m_bFlushing { false };
 
     std::list<std::unique_ptr<C2Work>> m_flushedWorks;
 
@@ -251,7 +251,7 @@ private:
     unsigned int m_uOutputDelay = 8u;
     unsigned int m_uInputDelay = 0u;
 
-    MFXVideoVPP* m_vpp;
+    MFXVideoVPP* m_vpp = NULL;
     bool m_vppConversion = false;
 
     std::unique_ptr<BinaryWriter> m_outputWriter;
