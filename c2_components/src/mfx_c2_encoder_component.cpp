@@ -649,7 +649,7 @@ static void InitDump(std::unique_ptr<BinaryWriter>& output_writer,
         }
     }
 
-    memset(value, sizeof(value), 0);
+    memset(value, 0, sizeof(value));
 
     if(property_get(ENCODER_DUMP_INPUT_KEY, value, NULL) > 0) {
         std::stringstream strValue;
@@ -661,6 +661,8 @@ static void InitDump(std::unique_ptr<BinaryWriter>& output_writer,
             property_set(ENCODER_DUMP_INPUT_KEY, NULL);
         }
     }
+
+    delete[] value;
 
     if (dump_output_enabled || dump_input_enabled) {
         std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
@@ -1519,7 +1521,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             }
         }
 
-	{
+        {
             std::lock_guard<std::mutex> lock(m_dump_input_lock);
 
             if (m_inputWriter.get() != NULL && m_dump_count < m_dump_frames_number
@@ -1531,12 +1533,14 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 const uint8_t* srcY = mfx_surface->Data.Y;
                 const uint8_t* srcUV = mfx_surface->Data.UV;
 
-               if (NULL != srcY && NULL != srcUV) {
-                   m_inputWriter->Write(srcY, mfx_surface->Data.PitchLow * mfx_surface->Info.CropH);
-                   m_inputWriter->Write(srcUV, mfx_surface->Data.PitchLow * mfx_surface->Info.CropH / 2);
+                if (NULL != srcY && NULL != srcUV) {
+                    uint32_t pitchLow = mfx_surface->Data.PitchLow;
+                    uint32_t cropH = mfx_surface->Info.CropH;
+                    m_inputWriter->Write(srcY, pitchLow * cropH);
+                    m_inputWriter->Write(srcUV, pitchLow * cropH / 2);
 
                     uint32_t dump_width = (MFX_FOURCC_P010 == m_mfxVideoParamsState.mfx.FrameInfo.FourCC) ?
-                            mfx_surface->Data.PitchLow / 2 : mfx_surface->Data.PitchLow;
+                            pitchLow / 2 : pitchLow;
 
                     m_dump_count ++;
 
@@ -1544,7 +1548,7 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                              m_dump_count, dump_width, mfx_surface->Info.CropH);
                 }
 
-	        if(m_dump_count == m_dump_frames_number) {
+                if (m_dump_count == m_dump_frames_number) {
                     m_inputWriter->Close();
                 }
             }
@@ -1572,11 +1576,10 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             break;
         }
 
-        // XXX: "Big parameter passed by value(PASS_BY_VALUE)" by Coverity scanning.
-        // mfx_frame of type size 136 bytes.
-        m_waitingQueue.Push( [ mfx_frame = std::move(mfx_frame_in), this ] () mutable {
-            RetainLockedFrame(std::move(mfx_frame));
-        } );
+        auto mfx_frame_ptr = std::make_unique<MfxC2FrameIn>(std::move(mfx_frame_in));
+        m_waitingQueue.Push( [ mfx_frame = std::move(mfx_frame_ptr), this ] () mutable {
+            RetainLockedFrame(std::move(*mfx_frame));
+        });
 
         m_pendingWorks.push(std::move(work));
 

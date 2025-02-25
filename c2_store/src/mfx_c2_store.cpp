@@ -280,7 +280,7 @@ c2_status_t MfxC2ComponentStore::readConfigFile()
             variant_config_file.insert(variant_config_file.size() - 5, codecsVariant);
             struct stat fileStat;
             if (stat(variant_config_file.c_str(), &fileStat) == 0 && S_ISREG(fileStat.st_mode)) {
-                config_filename = variant_config_file;
+                config_filename = std::move(variant_config_file);
                 MFX_DEBUG_TRACE_STREAM("Changing config_filename to: " << config_filename.c_str());
             }
         }
@@ -354,7 +354,7 @@ c2_status_t MfxC2ComponentStore::readXmlConfigFile()
             variant_config_file.insert(variant_config_file.size() - 4, codecsVariant);
             struct stat fileStat;
             if (stat(variant_config_file.c_str(), &fileStat) == 0 && S_ISREG(fileStat.st_mode)) {
-                config_filename = variant_config_file;
+                config_filename = std::move(variant_config_file);
                 MFX_DEBUG_TRACE_STREAM("Changing xml config_filename to: " << config_filename.c_str());
             }
         }
