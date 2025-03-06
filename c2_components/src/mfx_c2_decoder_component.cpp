@@ -1865,28 +1865,6 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
             C2MemoryUsage mem_usage = {m_consumerUsage, C2AndroidMemoryUsage::HW_CODEC_WRITE};
             res = m_c2Allocator->fetchGraphicBlock(width, height,
                                                MfxFourCCToGralloc(fourcc), mem_usage, out_block);
-            if (res == C2_OK) {
-                auto hndl_deleter = [](native_handle_t *hndl) {
-                    native_handle_delete(hndl);
-                    hndl = nullptr;
-                };
-
-                std::unique_ptr<native_handle_t, decltype(hndl_deleter)> hndl(
-                    android::UnwrapNativeCodec2GrallocHandle((*out_block)->handle()), hndl_deleter);
-
-                uint64_t id;
-                if (C2_OK != MfxGrallocInstance::getInstance()->GetBackingStore(hndl.get(), &id))
-                    return C2_CORRUPTED;
-                if(!m_vppConversion) {
-                    if (m_allocator && !m_allocator->InCache(id)) {
-                        res = C2_BLOCKING;
-                        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                        // If always fetch a nocached block, check if width or height have changed
-                        // compare to when it was initialized.
-                        MFX_DEBUG_TRACE_STREAM("fetchGraphicBlock a nocached block, please retune output blocks. id = " << id);
-                    }
-                }
-            }
         } else if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
             C2MemoryUsage mem_usage = {m_consumerUsage, C2MemoryUsage::CPU_WRITE};
             res = m_c2Allocator->fetchGraphicBlock(width, height,
@@ -1968,12 +1946,57 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out, bool 
                 }
                 m_surfaces.emplace(id, frame_out->GetMfxFrameSurface());
             } else {
-                if (it->second->Data.Locked) {
-                    /* Buffer locked, try next block. */
-                    MFX_DEBUG_TRACE_PRINTF("Buffer still locked, try next block");
-                    res = C2_TIMED_OUT;
+                if(!it->second->Data.Locked) {
+                     *frame_out = MfxC2FrameOut(std::move(out_block), it->second);
                 } else {
-                    *frame_out = MfxC2FrameOut(std::move(out_block), it->second);
+                    // when surface detached in framework, keep AllocateC2Block until we get an unlocked surface.
+	            std::list<C2GraphicBlock> block_pool;
+                    std::shared_ptr<C2GraphicBlock> new_block;
+                    bool found_surface = false;
+
+                    while (it != m_surfaces.end() && !found_surface) {
+                        // Buffer locked, try next block.
+                        res = AllocateC2Block(MFXGetSurfaceWidth(m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
+                                      MFXGetSurfaceHeight(m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
+                                      m_mfxVideoParams.mfx.FrameInfo.FourCC, &new_block);
+
+                        if (C2_TIMED_OUT == res) continue;
+
+                        if (C2_OK != res) break;
+
+                        block_pool.push_back(*new_block);
+
+                        std::unique_ptr<native_handle_t, decltype(hndl_deleter)> new_hndl(
+                            android::UnwrapNativeCodec2GrallocHandle(new_block->handle()), hndl_deleter);
+
+                        if(new_hndl == nullptr)
+                        {
+                           return C2_NO_MEMORY;
+                        }
+
+                        it = m_surfaces.end();
+
+                        if (C2_OK != MfxGrallocInstance::getInstance()->GetBackingStore(new_hndl.get(), &id))
+                        {
+                            return C2_CORRUPTED;
+                        }
+
+                        it = m_surfaces.find(id);
+
+                        if(C2_OK == res && (it == m_surfaces.end() || (it != m_surfaces.end() && !it->second->Data.Locked))) {
+                             block_pool.clear();
+			     found_surface = true;
+                             if(it == m_surfaces.end()) {
+                                 res = MfxC2FrameOut::Create(converter, std::move(new_block), m_mfxVideoParams.mfx.FrameInfo, frame_out, new_hndl.get());
+                                 if (C2_OK != res) {
+                                     break;
+                                 }
+                                 m_surfaces.emplace(id, frame_out->GetMfxFrameSurface());
+                             } else {
+                                 *frame_out = MfxC2FrameOut(std::move(new_block), it->second);
+                             }
+                        }
+                    }
                 }
             }
         } else {
