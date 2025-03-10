@@ -1109,6 +1109,7 @@ mfxStatus MfxC2DecoderComponent::ResetSettings()
 
     m_signalInfo.VideoFullRange = 2; // UNSPECIFIED Range
     mfx_set_defaults_mfxVideoParam_dec(&m_mfxVideoParams);
+    mfx_set_defaults_mfxVideoParam_dec(&m_mfxVPPParams);
 
     m_mfxVideoParams.IOPattern = MFX_IOPATTERN_OUT_VIDEO_MEMORY;
 
@@ -1215,9 +1216,35 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
                 mfx_res = MFX_ERR_UNKNOWN;
             }
         }
+        int32_t vppOutWidth = 3840;
+        int32_t vppOutHeight = 2160;
+        char property[PROPERTY_VALUE_MAX];
+        memset(property, 0 , PROPERTY_VALUE_MAX);
+        property_get("vendor.demo.vppout.width", property, "-1");
+        vppOutWidth = atoi(property);
+        __android_log_print(ANDROID_LOG_ERROR, "C2", "The property 'vendor.demo.vppout.width' value is %d", vppOutWidth);
+        memset(property, 0 , PROPERTY_VALUE_MAX);
+        property_get("vendor.demo.vppout.height", property, "-1");
+        vppOutHeight = atoi(property);
+        __android_log_print(ANDROID_LOG_ERROR, "C2", "The property 'vendor.demo.vppout.height' value is %d", vppOutHeight);
+
+        m_mfxVPPParams.mfx.FrameInfo = m_mfxVideoParams.mfx.FrameInfo;
+        if (!(vppOutWidth < m_mfxVideoParams.mfx.FrameInfo.Width || vppOutHeight < m_mfxVideoParams.mfx.FrameInfo.Height)) {
+            m_mfxVPPParams.mfx.FrameInfo.Width = vppOutWidth;
+            m_mfxVPPParams.mfx.FrameInfo.Height = vppOutHeight;
+            m_mfxVPPParams.mfx.FrameInfo.CropW = vppOutWidth;
+            m_mfxVPPParams.mfx.FrameInfo.CropH = vppOutHeight;
+            m_bVPPoutNeeded = true;
+        } else {
+            m_bVPPoutNeeded = false;
+        }
+
+        m_mfxVPPParams.mfx.FrameInfo.Width = MFX_MEM_ALIGN(m_mfxVPPParams.mfx.FrameInfo.Width, 16);
+        m_mfxVPPParams.mfx.FrameInfo.Height = MFX_MEM_ALIGN(m_mfxVPPParams.mfx.FrameInfo.Height, 16);
 
         m_mfxVideoParams.mfx.FrameInfo.Width = MFX_MEM_ALIGN(m_mfxVideoParams.mfx.FrameInfo.Width, 16);
         m_mfxVideoParams.mfx.FrameInfo.Height = MFX_MEM_ALIGN(m_mfxVideoParams.mfx.FrameInfo.Height, 16);
+
         if (MFX_ERR_NONE == mfx_res) {
             mfx_res = m_c2Bitstream->GetFrameConstructor()->Init(m_mfxVideoParams.mfx.CodecProfile, m_mfxVideoParams.mfx.FrameInfo);
         }
@@ -1238,9 +1265,10 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         C2MemoryUsage mem_usage = {C2AndroidMemoryUsage::CPU_READ | C2AndroidMemoryUsage::HW_COMPOSER_READ,
                                 C2AndroidMemoryUsage::HW_CODEC_WRITE};
 
-        res = m_c2Allocator->fetchGraphicBlock(m_mfxVideoParams.mfx.FrameInfo.Width,
-                                            m_mfxVideoParams.mfx.FrameInfo.Height,
-                                            MfxFourCCToGralloc(m_mfxVideoParams.mfx.FrameInfo.FourCC),
+        mfxFrameInfo frame_info = m_bVPPoutNeeded ? m_mfxVPPParams.mfx.FrameInfo : m_mfxVideoParams.mfx.FrameInfo;
+        res = m_c2Allocator->fetchGraphicBlock(frame_info.Width,
+                                            frame_info.Height,
+                                            MfxFourCCToGralloc(frame_info.FourCC),
                                             mem_usage, &out_block);
 
         if (res == C2_OK)
@@ -1321,8 +1349,8 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
 
     // Google requires the component to decode to 8-bit color format by default.
     // Reference CTS cases testDefaultOutputColorFormat.
-    if (MFX_ERR_NONE == mfx_res && HAL_PIXEL_FORMAT_YCBCR_420_888 == m_pixelFormat->value &&
-            MFX_FOURCC_P010 == m_mfxVideoParams.mfx.FrameInfo.FourCC) {
+    if (MFX_ERR_NONE == mfx_res && ((HAL_PIXEL_FORMAT_YCBCR_420_888 == m_pixelFormat->value &&
+        MFX_FOURCC_P010 == m_mfxVideoParams.mfx.FrameInfo.FourCC) || m_bVPPoutNeeded ) ){
         m_vppConversion = true;
         mfx_res = InitVPP();
     }
@@ -1363,7 +1391,7 @@ mfxStatus MfxC2DecoderComponent::InitVPP()
     }
 
     vppParam.vpp.In = frame_info;
-    vppParam.vpp.Out = frame_info;
+    vppParam.vpp.Out = (m_bVPPoutNeeded) ? m_mfxVPPParams.mfx.FrameInfo : frame_info;
 
     vppParam.vpp.Out.FourCC = MFX_FOURCC_NV12;
     vppParam.vpp.Out.Shift = 0;
@@ -1504,7 +1532,7 @@ c2_status_t MfxC2DecoderComponent::UpdateMfxParamToC2(
     c2_status_t param_res = C2_OK;
 
     // determine source, update it if needed
-    const mfxVideoParam* params_view = &m_mfxVideoParams;
+    const mfxVideoParam* params_view = m_bVPPoutNeeded ? &m_mfxVPPParams : &m_mfxVideoParams;
     if (nullptr != params_view) {
         // 1st cycle on stack params
         for (C2Param* param : stackParams) {
@@ -1557,10 +1585,11 @@ void MfxC2DecoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
                 if (C2StreamPictureSizeInfo::output::PARAM_TYPE == param->index()) {
                     MFX_DEBUG_TRACE("SetPictureSize");
                     MFX_DEBUG_TRACE_STREAM(NAMED(m_size->width) << NAMED(m_size->height));
-                    m_mfxVideoParams.mfx.FrameInfo.Width = m_size->width;
-                    m_mfxVideoParams.mfx.FrameInfo.Height = m_size->height;
-                    m_mfxVideoParams.mfx.FrameInfo.CropW = m_size->width;
-                    m_mfxVideoParams.mfx.FrameInfo.CropH = m_size->height;
+                    mfxFrameInfo* frame_info = m_bVPPoutNeeded ? &m_mfxVPPParams.mfx.FrameInfo : &m_mfxVideoParams.mfx.FrameInfo;
+                    frame_info->Width = m_size->width;
+                    frame_info->Height = m_size->height;
+                    frame_info->CropW = m_size->width;
+                    frame_info->CropH = m_size->height;
                 }
                 break;
             }
@@ -1876,8 +1905,8 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out, bool 
                                   MFXGetSurfaceHeight(m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
                                   m_mfxVideoParams.mfx.FrameInfo.FourCC, &out_block);
         } else {
-            res = AllocateC2Block(MFXGetSurfaceWidth(m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
-                                  MFXGetSurfaceHeight(m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
+            res = AllocateC2Block(MFXGetSurfaceWidth(m_bVPPoutNeeded ? m_mfxVPPParams.mfx.FrameInfo : m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
+                                  MFXGetSurfaceHeight(m_bVPPoutNeeded ? m_mfxVPPParams.mfx.FrameInfo : m_mfxVideoParams.mfx.FrameInfo , m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
                                   MFX_FOURCC_NV12, &out_block, vpp_conversion);
         }
         if (C2_TIMED_OUT == res) continue;
@@ -1909,7 +1938,7 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out, bool 
                 if(!vpp_conversion) {
                     res = MfxC2FrameOut::Create(converter, std::move(out_block), m_mfxVideoParams.mfx.FrameInfo, frame_out, hndl.get());
                 } else {
-                    mfxFrameInfo frame_info = m_mfxVideoParams.mfx.FrameInfo;
+                    mfxFrameInfo frame_info = m_bVPPoutNeeded ? m_mfxVPPParams.mfx.FrameInfo : m_mfxVideoParams.mfx.FrameInfo;
                     frame_info.FourCC = MFX_FOURCC_NV12;
                     res = MfxC2FrameOut::Create(converter, std::move(out_block), frame_info, frame_out, hndl.get());
                 }
@@ -2654,12 +2683,14 @@ void MfxC2DecoderComponent::WaitWork(MfxC2FrameOut&& frame_out, mfxSyncPoint syn
             // Pass end of stream flag only.
             worklet->output.flags = (C2FrameData::flags_t)(work->input.flags & C2FrameData::FLAG_END_OF_STREAM);
             worklet->output.ordinal = work->input.ordinal;
-	        if (m_mfxVideoParams.mfx.FrameInfo.Width != m_size->width || m_mfxVideoParams.mfx.FrameInfo.Height != m_size->height) {
-                MFX_DEBUG_TRACE_STREAM("find m_size different from m_mfxVideoParams, update width from " << m_size->width
-                                        << " to " << m_mfxVideoParams.mfx.FrameInfo.Width << ", height from " << m_size->height
-                                        << " to " << m_mfxVideoParams.mfx.FrameInfo.Height);
-                m_size->width = m_mfxVideoParams.mfx.FrameInfo.Width;
-                m_size->height = m_mfxVideoParams.mfx.FrameInfo.Height;
+
+            mfxFrameInfo frame_info = m_bVPPoutNeeded ? m_mfxVPPParams.mfx.FrameInfo : m_mfxVideoParams.mfx.FrameInfo;
+            if (frame_info.Width != m_size->width || frame_info.Height != m_size->height) {
+                MFX_DEBUG_TRACE_STREAM("find m_size different from m_mfxVPPParams, update width from " << m_size->width
+                                        << " to " << frame_info.Width << ", height from " << m_size->height
+                                        << " to " << frame_info.Height);
+                m_size->width = frame_info.Width;
+                m_size->height = frame_info.Height;
                 C2StreamPictureSizeInfo::output new_size(0u, m_size->width, m_size->height);
                 m_updatingC2Configures.push_back(C2Param::Copy(new_size));
             }
