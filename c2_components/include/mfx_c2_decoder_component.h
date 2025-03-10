@@ -193,6 +193,8 @@ private:
     MFX_TRACEABLE(m_waitingQueue);
 
     mfxVideoParam m_mfxVideoParams {};
+    mfxVideoParam m_mfxVPPParams {};
+    bool m_bVPPoutNeeded = false;
     std::vector<mfxExtBuffer*> m_extBuffers;
     mfxExtVideoSignalInfo m_signalInfo;
 
