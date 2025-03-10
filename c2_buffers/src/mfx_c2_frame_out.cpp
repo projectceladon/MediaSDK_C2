@@ -53,6 +53,9 @@ c2_status_t MfxC2FrameOut::Create(const std::shared_ptr<MfxFrameConverter>& fram
             break;
         }
 
+        MFX_DEBUG_TRACE_I32(block->width());
+        MFX_DEBUG_TRACE_I32(block->height());
+
         uint64_t timestamp = 0;
         uint64_t frame_index = 0;
 
