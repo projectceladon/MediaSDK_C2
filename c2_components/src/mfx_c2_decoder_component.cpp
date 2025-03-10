@@ -628,7 +628,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         .withSetter(DefaultColorAspectsSetter)
         .build());
 
-    if (DECODER_VP9 != m_decoderType && DECODER_VP8 != m_decoderType) {
+    if (DECODER_VP8 != m_decoderType) {
         addParameter(
             DefineParam(m_inColorAspects, C2_PARAMKEY_VUI_COLOR_ASPECTS)
             .withDefault(new C2StreamColorAspectsInfo::input(
@@ -1489,6 +1489,11 @@ mfxStatus MfxC2DecoderComponent::HandleFormatChange()
         m_uMaxHeight = m_mfxVideoParams.mfx.FrameInfo.Height;
     }
 
+    if ((DECODER_H264 == m_decoderType || DECODER_H265 == m_decoderType) && m_c2Bitstream) {
+        MFX_DEBUG_TRACE_MSG("Reset BitStream for re-append header.");
+        m_c2Bitstream->Reset();
+    }
+
     return mfx_res;
 }
 
@@ -1782,7 +1787,45 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
         // MFX_ERR_INCOMPATIBLE_VIDEO_PARAM - need to reinitialize decoder with new params
         // status correction
 
-        if (MFX_WRN_VIDEO_PARAM_CHANGED == mfx_sts) mfx_sts = MFX_ERR_MORE_SURFACE;
+        if (MFX_WRN_VIDEO_PARAM_CHANGED == mfx_sts) {
+	    if (DECODER_H264 == m_decoderType || DECODER_H265 == m_decoderType) {
+		mfxU16 old_range     = m_signalInfo.VideoFullRange;
+		mfxU16 old_primaries = m_signalInfo.ColourPrimaries;
+		mfxU16 old_transfer  = m_signalInfo.TransferCharacteristics;
+
+		mfxFrameInfo old_frame = m_mfxVideoParams.mfx.FrameInfo;
+		mfxU16 old_bitDepth    = c2_max(old_frame.BitDepthLuma, old_frame.BitDepthChroma);
+
+		mfxExtVideoSignalInfo videoSignalInfo;
+		videoSignalInfo.Header.BufferId = MFX_EXTBUFF_VIDEO_SIGNAL_INFO;
+                videoSignalInfo.Header.BufferSz = sizeof(mfxExtVideoSignalInfo);
+		videoSignalInfo.VideoFullRange = 2;
+
+                m_extBuffers.push_back(reinterpret_cast<mfxExtBuffer*>(&videoSignalInfo));
+                m_mfxVideoParams.NumExtParam = m_extBuffers.size();
+                m_mfxVideoParams.ExtParam = &m_extBuffers.front();
+
+		mfxStatus mfx_res = MFX_ERR_NONE;
+		mfx_res = m_mfxDecoder->GetVideoParam(&m_mfxVideoParams);
+
+                m_extBuffers.pop_back();
+		m_mfxVideoParams.NumExtParam--;
+
+		mfxFrameInfo new_frame = m_mfxVideoParams.mfx.FrameInfo;
+		mfxU16 new_bitDepth = c2_max(new_frame.BitDepthLuma, new_frame.BitDepthChroma);
+
+		if (old_range != videoSignalInfo.VideoFullRange ||
+				old_primaries != videoSignalInfo.ColourPrimaries ||
+				old_transfer != videoSignalInfo.TransferCharacteristics ||
+				old_bitDepth != new_bitDepth) {
+		    mfx_sts = MFX_ERR_INCOMPATIBLE_VIDEO_PARAM;
+		} else {
+		    mfx_sts = MFX_ERR_MORE_SURFACE;
+		}
+	    } else {
+		mfx_sts = MFX_ERR_MORE_SURFACE;
+	    }
+	}
 
         if ((MFX_ERR_NONE == mfx_sts) || (MFX_ERR_MORE_DATA == mfx_sts) || (MFX_ERR_MORE_SURFACE == mfx_sts)) {
 
@@ -2990,7 +3033,7 @@ void MfxC2DecoderComponent::UpdateColorAspectsFromBitstream(const mfxExtVideoSig
 {
     MFX_DEBUG_TRACE_FUNC;
 
-    if (DECODER_VP9 == m_decoderType || DECODER_VP8 == m_decoderType) return;
+    if (DECODER_VP8 == m_decoderType) return;
 
     MFX_DEBUG_TRACE_I32(signalInfo.VideoFullRange);
     MFX_DEBUG_TRACE_I32(signalInfo.ColourPrimaries);
