@@ -178,6 +178,7 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         m_mfxLoader(nullptr),
 #endif
         m_bInitialized(false),
+        m_bInitialized_once(false),
         m_uSyncedPointsCount(0),
         m_bSetHdrStatic(false),
         m_surfaceNum(0),
@@ -1355,6 +1356,7 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
 
         if (MFX_ERR_NONE == mfx_res) {
             m_bInitialized = true;
+            m_bInitialized_once = true;
         }
         // Same as DecodeHeader, MSDK will call the function av1_native_profile_to_mfx_profile to change CodecProfile
         // in Init().
@@ -1626,9 +1628,13 @@ void MfxC2DecoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
                         m_consumerUsage |= C2AndroidMemoryUsage::CPU_READ;
                         m_consumerUsage |= C2AndroidMemoryUsage::CPU_WRITE;
                     }
-                    // Set memory type according to consumer usage sent from framework
-                    m_mfxVideoParams.IOPattern = (m_consumerUsage & (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE)) ?
-                        MFX_IOPATTERN_OUT_SYSTEM_MEMORY : MFX_IOPATTERN_OUT_VIDEO_MEMORY;
+                    /* Do not set IO pattern during decoding, only set IO pattern in
+                       the first time decoder initialization */
+                    if (!m_bInitialized_once) {
+                        // Set memory type according to consumer usage sent from framework
+                        m_mfxVideoParams.IOPattern = (m_consumerUsage & (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE)) ?
+                            MFX_IOPATTERN_OUT_SYSTEM_MEMORY : MFX_IOPATTERN_OUT_VIDEO_MEMORY;
+                    }
                     MFX_DEBUG_TRACE_STREAM("config kParamIndexUsage to 0x" << std::hex << m_consumerUsage);
                 }
                 break;
@@ -1950,34 +1956,34 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out, bool 
                      *frame_out = MfxC2FrameOut(std::move(out_block), it->second);
                 } else {
                     // when surface detached in framework, keep AllocateC2Block until we get an unlocked surface.
-	            std::list<C2GraphicBlock> block_pool;
+                    std::list<C2GraphicBlock> block_pool;
                     std::shared_ptr<C2GraphicBlock> new_block;
                     bool found_surface = false;
 
-                    while (it != m_surfaces.end() && !found_surface) {
+                    while (!found_surface) {
                         // Buffer locked, try next block.
-                        res = AllocateC2Block(MFXGetSurfaceWidth(m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
-                                      MFXGetSurfaceHeight(m_mfxVideoParams.mfx.FrameInfo, m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY),
+                        res = AllocateC2Block(MFXGetSurfaceWidth(m_mfxVideoParams.mfx.FrameInfo, true),
+                                      MFXGetSurfaceHeight(m_mfxVideoParams.mfx.FrameInfo, true),
                                       m_mfxVideoParams.mfx.FrameInfo.FourCC, &new_block);
 
                         if (C2_TIMED_OUT == res) continue;
 
-                        if (C2_OK != res) break;
+                        if (C2_OK != res) {
+                            return C2_CORRUPTED;
+                        }
 
                         block_pool.push_back(*new_block);
 
                         std::unique_ptr<native_handle_t, decltype(hndl_deleter)> new_hndl(
                             android::UnwrapNativeCodec2GrallocHandle(new_block->handle()), hndl_deleter);
 
-                        if(new_hndl == nullptr)
-                        {
-                           return C2_NO_MEMORY;
+                        if(new_hndl == nullptr) {
+                            return C2_NO_MEMORY;
                         }
 
                         it = m_surfaces.end();
 
-                        if (C2_OK != MfxGrallocInstance::getInstance()->GetBackingStore(new_hndl.get(), &id))
-                        {
+                        if (C2_OK != MfxGrallocInstance::getInstance()->GetBackingStore(new_hndl.get(), &id)) {
                             return C2_CORRUPTED;
                         }
 
@@ -1985,11 +1991,11 @@ c2_status_t MfxC2DecoderComponent::AllocateFrame(MfxC2FrameOut* frame_out, bool 
 
                         if(C2_OK == res && (it == m_surfaces.end() || (it != m_surfaces.end() && !it->second->Data.Locked))) {
                              block_pool.clear();
-			     found_surface = true;
+                             found_surface = true;
                              if(it == m_surfaces.end()) {
                                  res = MfxC2FrameOut::Create(converter, std::move(new_block), m_mfxVideoParams.mfx.FrameInfo, frame_out, new_hndl.get());
                                  if (C2_OK != res) {
-                                     break;
+                                     return C2_CORRUPTED;
                                  }
                                  m_surfaces.emplace(id, frame_out->GetMfxFrameSurface());
                              } else {

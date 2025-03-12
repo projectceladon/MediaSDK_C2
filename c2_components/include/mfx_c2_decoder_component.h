@@ -188,6 +188,9 @@ private:
 
     bool m_bInitialized;
 
+    // If decoder has initialized one time
+    bool m_bInitialized_once;
+
     OperationState m_OperationState { OperationState::INITIALIZATION };
 
     MfxCmdQueue m_workingQueue;
