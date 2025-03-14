@@ -49,6 +49,66 @@ const mfxU32 MFX_MAX_SURFACE_NUM = 10;
 
 #define MAX_B_FRAMES 1
 
+static C2Config::level_t getMinLevelVP9(int width, int height, float frameRate, int bitrate) {
+    struct LevelLimitVP9 {
+        LevelLimitVP9(C2Config::level_t level, long pixelsPerSec, int size, int maxWH, int bitrate) {
+            mLevel = level;
+            mPixelsPerSec = pixelsPerSec;
+            mSize = size;
+            mMaxWH = maxWH;
+            mBitrate = bitrate;
+        }
+
+        C2Config::level_t mLevel;
+        long mPixelsPerSec;
+        int mSize;
+        int mMaxWH;
+        int mBitrate;
+    };
+    LevelLimitVP9 limitsVP9[] = {
+            LevelLimitVP9(LEVEL_VP9_1, 829440, 36864, 512, 200000),
+            LevelLimitVP9(LEVEL_VP9_1_1, 2764800, 73728, 768, 800000),
+            LevelLimitVP9(LEVEL_VP9_2, 4608000, 122880, 960, 1800000),
+            LevelLimitVP9(LEVEL_VP9_2_1, 9216000, 245760, 1344, 3600000),
+            LevelLimitVP9(LEVEL_VP9_3, 20736000, 552960, 2048, 7200000),
+            LevelLimitVP9(LEVEL_VP9_3_1, 36864000, 983040, 2752, 12000000),
+            LevelLimitVP9(LEVEL_VP9_4, 83558400, 2228224, 4160, 18000000),
+            LevelLimitVP9(LEVEL_VP9_4_1, 160432128, 2228224, 4160, 30000000),
+            LevelLimitVP9(LEVEL_VP9_5, 311951360, 8912896, 8384, 60000000),
+            LevelLimitVP9(LEVEL_VP9_5_1, 588251136, 8912896, 8384, 120000000),
+            LevelLimitVP9(LEVEL_VP9_5_2, 1176502272, 8912896, 8384, 180000000),
+            LevelLimitVP9(LEVEL_VP9_6, 1176502272, 35651584, 16832, 180000000),
+            LevelLimitVP9(LEVEL_VP9_6_1, 2353004544L, 35651584, 16832, 240000000),
+            LevelLimitVP9(LEVEL_VP9_6_2, 4706009088L, 35651584, 16832, 480000000),
+    };
+
+    int size = width * height;
+    int pixelsPerSec = (int) (size * frameRate);
+    int maxWH = width >= height ? width : height;
+
+    for (LevelLimitVP9 levelLimitsVP9 : limitsVP9) {
+        if (pixelsPerSec <= levelLimitsVP9.mPixelsPerSec && size <= levelLimitsVP9.mSize
+                && maxWH <= levelLimitsVP9.mMaxWH && bitrate <= levelLimitsVP9.mBitrate) {
+            return levelLimitsVP9.mLevel;
+        }
+    }
+
+    // if none of the levels suffice, select the highest level
+    return LEVEL_VP9_6_2;
+}
+
+static void Vp9LevelToAndroid(uint32_t frameRateExtN, uint32_t frameRateExtD, uint16_t width,
+                    uint16_t height, uint32_t targetKbps,C2Config::level_t &level_value) {
+    float frameRate = (float) frameRateExtN / frameRateExtD;
+    C2Config::level_t minLevel = getMinLevelVP9(width,
+                                      height,
+                                      frameRate,
+                                      targetKbps * 1000);
+    if(level_value < minLevel) {
+           level_value = minLevel;
+    }
+}
+
 C2R MfxC2EncoderComponent::SizeSetter(bool mayBlock, const C2P<C2StreamPictureSizeInfo::input> &oldMe,
                         C2P<C2StreamPictureSizeInfo::input> &me) {
     
@@ -1912,6 +1972,12 @@ c2_status_t MfxC2EncoderComponent::UpdateC2Param(C2Param::Index index) const
                     break;
                 case ENCODER_VP9:
                     Vp9ProfileMfxToAndroid(m_mfxVideoParamsConfig.mfx.CodecProfile, &m_profileLevel->profile);
+                    Vp9LevelToAndroid(m_mfxVideoParamsConfig.mfx.FrameInfo.FrameRateExtN,
+                                      m_mfxVideoParamsConfig.mfx.FrameInfo.FrameRateExtD,
+                                      m_mfxVideoParamsConfig.mfx.FrameInfo.Width,
+                                      m_mfxVideoParamsConfig.mfx.FrameInfo.Height,
+                                      m_mfxVideoParamsConfig.mfx.TargetKbps,
+                                      m_profileLevel->level);
                     break;
                 default:
                     MFX_DEBUG_TRACE_STREAM("cannot find the type " << m_encoderType );
