@@ -97,6 +97,8 @@ protected:
     c2_status_t Queue(std::list<std::unique_ptr<C2Work>>* const items) override;
 
 private:
+    void AdjustLevel();
+
     c2_status_t UpdateC2Param(C2Param::Index index) const;
 
     std::unique_ptr<mfxVideoParam> GetParamsView() const;
