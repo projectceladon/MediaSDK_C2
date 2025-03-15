@@ -1844,27 +1844,9 @@ c2_status_t MfxC2DecoderComponent::AllocateC2Block(uint32_t width, uint32_t heig
             C2MemoryUsage mem_usage = {m_consumerUsage, C2AndroidMemoryUsage::HW_CODEC_WRITE};
             res = m_c2Allocator->fetchGraphicBlock(width, height,
                                                MfxFourCCToGralloc(fourcc), mem_usage, out_block);
-            if (res == C2_OK) {
-                auto hndl_deleter = [](native_handle_t *hndl) {
-                    native_handle_delete(hndl);
-                    hndl = nullptr;
-                };
-
-                std::unique_ptr<native_handle_t, decltype(hndl_deleter)> hndl(
-                    android::UnwrapNativeCodec2GrallocHandle((*out_block)->handle()), hndl_deleter);
-
-                uint64_t id;
-                if (C2_OK != MfxGrallocInstance::getInstance()->GetBackingStore(hndl.get(), &id))
-                    return C2_CORRUPTED;
-                if(!m_vppConversion) {
-                    if (m_allocator && !m_allocator->InCache(id)) {
-                        res = C2_BLOCKING;
-                        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                        // If always fetch a nocached block, check if width or height have changed
-                        // compare to when it was initialized.
-                        MFX_DEBUG_TRACE_STREAM("fetchGraphicBlock a nocached block, please retune output blocks. id = " << id);
-                    }
-                }
+            if (res == C2_BLOCKING) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                MFX_DEBUG_TRACE_MSG("fetchGraphicBlock blocking, wait and try again");
             }
         } else if (m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
             C2MemoryUsage mem_usage = {m_consumerUsage, 0};

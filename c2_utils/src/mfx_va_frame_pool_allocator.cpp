@@ -50,6 +50,7 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
     // buffers_count = output_delay_ + kSmoothnessFactor(4) + kRenderingDepth(3)
     int max_buffers = m_uSuggestBufferCnt + kSmoothnessFactor + kRenderingDepth;
     int min_buffers = MFX_MAX(request->NumFrameSuggested, MFX_MAX(request->NumFrameMin, 1));
+    // int opt_buffers = min_buffers;
     int opt_buffers = max_buffers; // optimal buffer count for better performance
     if (max_buffers < request->NumFrameMin) return MFX_ERR_MEMORY_ALLOC;
 
@@ -113,19 +114,7 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
                 } while(res == C2_BLOCKING);
                 if (res != C2_OK || !new_block) break;
 
-                uint64_t id;
                 native_handle_t *hndl = android::UnwrapNativeCodec2GrallocHandle(new_block->handle());
-                if (C2_OK != MfxGrallocInstance::getInstance()->GetBackingStore(hndl, &id)) {
-                    mfx_res = MFX_ERR_INVALID_HANDLE;
-                    break;
-                }
-
-                m_cachedBufferId.emplace(id, i);
-                // if (C2_OK != res) { //TODO dead code not need.
-                //     native_handle_delete(hndl);
-                //     mfx_res = MFX_ERR_MEMORY_ALLOC;
-                //     break;
-                // }
 
                 // deep copy to have unique_ptr as m_pool required unique_ptr
                 std::unique_ptr<C2GraphicBlock> unique_block = std::make_unique<C2GraphicBlock>(*new_block);
