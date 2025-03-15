@@ -28,6 +28,7 @@
 #include "mfx_defaults.h"
 #include "C2PlatformSupport.h"
 #include "mfx_gralloc_instance.h"
+#include "mfx_c2_enc_minlevel.h"
 
 #include <limits>
 #include <thread>
@@ -586,6 +587,53 @@ void MfxC2EncoderComponent::getMaxMinResolutionSupported(
             *min_h = 128;
             *max_w = 8192;
             *max_h = 8192;
+            break;
+        }
+    }
+}
+
+void MfxC2EncoderComponent::AdjustLevel()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    int width = m_mfxVideoParamsConfig.mfx.FrameInfo.Width;
+    int height = m_mfxVideoParamsConfig.mfx.FrameInfo.Height;
+    int frameRate = (float)m_mfxVideoParamsConfig.mfx.FrameInfo.FrameRateExtN / m_mfxVideoParamsConfig.mfx.FrameInfo.FrameRateExtD;
+    int bitrate = m_mfxVideoParamsConfig.mfx.TargetKbps * 1000;
+
+    C2Config::level_t minLevel;
+    switch (m_encoderType) {
+        case ENCODER_H264: {
+            minLevel = GetMinLevelAVC(width, height, frameRate, bitrate);
+            if (m_profileLevel->level < minLevel) {
+                AvcLevelAndroidToMfx(minLevel, &m_mfxVideoParamsConfig.mfx.CodecLevel);
+                MFX_DEBUG_TRACE_STREAM("avc: m_profileLevel->level = " << m_profileLevel->level << ",  mfx.CodecLevel = " << m_mfxVideoParamsConfig.mfx.CodecLevel);
+            }
+            break;
+        }
+        case ENCODER_H265: {
+            minLevel = GetMinLevelHEVC(width, height, frameRate, bitrate);
+            if (m_profileLevel->level < minLevel) {
+                HevcLevelAndroidToMfx(minLevel, &m_mfxVideoParamsConfig.mfx.CodecLevel);
+                MFX_DEBUG_TRACE_STREAM("hevc: m_profileLevel->level = " << m_profileLevel->level << ",  mfx.CodecLevel = " << m_mfxVideoParamsConfig.mfx.CodecLevel);
+            }
+            break;
+        }
+        case ENCODER_VP9: {
+            minLevel = GetMinLevelVP9(width, height, frameRate, bitrate);
+            if (m_profileLevel->level < minLevel) {
+                // assign minLevel directly to m_profileLevel->Level since vp9 has no level releated calculation in onevpl and UpdateC2Param doesn't update m_profileLevel->Level.
+                m_profileLevel->level = minLevel;
+                MFX_DEBUG_TRACE_STREAM("vp9: m_profileLevel->level = " << m_profileLevel->level << ",  mfx.CodecLevel = " << m_mfxVideoParamsConfig.mfx.CodecLevel);
+            }
+            break;
+        }
+        case ENCODER_AV1: {
+            minLevel = GetMinLevelAV1(width, height, frameRate, bitrate);
+            if (m_profileLevel->level < minLevel) {
+                Av1LevelAndroidToMfx(minLevel, &m_mfxVideoParamsConfig.mfx.CodecLevel);
+                MFX_DEBUG_TRACE_STREAM("av1: m_profileLevel->level = " << m_profileLevel->level << ",  mfx.CodecLevel = " << m_mfxVideoParamsConfig.mfx.CodecLevel);
+            }
             break;
         }
     }
@@ -2178,6 +2226,8 @@ void MfxC2EncoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
                 break;
         }
     }
+
+    AdjustLevel();
 }
 
 c2_status_t MfxC2EncoderComponent::UpdateC2ParamToMfx(std::unique_lock<std::mutex> m_statelock,
