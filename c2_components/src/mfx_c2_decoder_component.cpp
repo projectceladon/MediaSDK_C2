@@ -2192,7 +2192,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
     bool encounterResolutionChanged = false;
     do {
         std::unique_ptr<C2ReadView> read_view;
-        res = m_c2Bitstream->AppendFrame(work->input, TIMEOUT_NS, &read_view, codecConfig | !m_bInitialized);
+        res = m_c2Bitstream->AppendFrame(work->input, TIMEOUT_NS, &read_view, codecConfig);
         if (C2_OK != res) break;
 
         {
