@@ -688,7 +688,8 @@ static void InitDump(std::unique_ptr<BinaryWriter>& output_writer,
 
     bool dump_output_enabled = false;
     bool dump_input_enabled = false;
-    char* value = new char[20];
+    constexpr int prop_buf_size = 20;
+    char* value = new char[prop_buf_size];
 
     if(property_get(ENCODER_DUMP_OUTPUT_KEY, value, NULL) > 0) {
         if(strcasecmp(value, "true") == 0) {
@@ -697,7 +698,7 @@ static void InitDump(std::unique_ptr<BinaryWriter>& output_writer,
         }
     }
 
-    memset(value, 0, sizeof(value));
+    memset(value, 0, prop_buf_size);
 
     if(property_get(ENCODER_DUMP_INPUT_KEY, value, NULL) > 0) {
         std::stringstream strValue;
