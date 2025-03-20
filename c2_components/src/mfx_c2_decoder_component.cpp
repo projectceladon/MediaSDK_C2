@@ -2558,8 +2558,10 @@ static void DumpOutput(std::shared_ptr<C2GraphicBlock> block,
 	               std::unique_ptr<BinaryWriter>& output_writer)
 {
     MFX_DEBUG_TRACE_FUNC;
-    static std::ofstream dump_stream;
 
+    if (!block || !mfx_surface) return;
+
+    static std::ofstream dump_stream;
     const C2GraphicView& output_view = block->map().get();
 
     if (dump_count) {
