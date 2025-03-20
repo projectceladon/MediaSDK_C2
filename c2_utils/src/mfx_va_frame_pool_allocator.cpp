@@ -88,87 +88,14 @@ mfxStatus MfxVaFramePoolAllocator::AllocFrames(mfxFrameAllocRequest *request,
             }
 
             response->NumFrameActual = 0;
-#define RETRY_TIMES 5
-            for (int i = 0; i < opt_buffers; ++i) {
 
-                std::shared_ptr<C2GraphicBlock> new_block;
-                int retry_time_left = RETRY_TIMES;
-                do {
-                    res = m_c2Allocator->fetchGraphicBlock(
-                        MFXGetSurfaceWidth(request->Info), MFXGetSurfaceHeight(request->Info),
-                        MfxFourCCToGralloc(request->Info.FourCC),
-                        { m_consumerUsage, C2AndroidMemoryUsage::HW_CODEC_WRITE },
-                        &new_block);
-                    if (!retry_time_left--) {
-                        if (request->NumFrameMin <= i) {
-                            // Ignore the error here in case system cannot allocate
-                            // the maximum buffers. The minimum buffer is OK.
-                            res = C2_TIMED_OUT;
-                            break;
-                        } else {
-                            // Retry to get minimum request buffers.
-                            retry_time_left = RETRY_TIMES;
-                        }
-                    }
-                } while(res == C2_BLOCKING);
-                if (res != C2_OK || !new_block) break;
-
-                uint64_t id;
-                native_handle_t *hndl = android::UnwrapNativeCodec2GrallocHandle(new_block->handle());
-                if (C2_OK != MfxGrallocInstance::getInstance()->GetBackingStore(hndl, &id)) {
-                    mfx_res = MFX_ERR_INVALID_HANDLE;
-                    break;
-                }
-
-                m_cachedBufferId.emplace(id, i);
-                // if (C2_OK != res) { //TODO dead code not need.
-                //     native_handle_delete(hndl);
-                //     mfx_res = MFX_ERR_MEMORY_ALLOC;
-                //     break;
-                // }
-
-                // deep copy to have unique_ptr as m_pool required unique_ptr
-                std::unique_ptr<C2GraphicBlock> unique_block = std::make_unique<C2GraphicBlock>(*new_block);
-
-                bool decode_target = true;
-                mfx_res = ConvertGrallocToVa(hndl, decode_target, &mids[i]);
-                if (MFX_ERR_NONE != mfx_res) {
-                    native_handle_delete(hndl);
-                    break;
-                }
-
-                MFX_DEBUG_TRACE_STREAM(NAMED(unique_block->handle()) << NAMED(mids[i]));
-
-                m_pool->Append(std::move(unique_block));//tmp cache it, in case return it to system and alloc again at once.
-
-                native_handle_delete(hndl);
-
-                ++response->NumFrameActual;
-            }
-            MFX_DEBUG_TRACE_I32(response->NumFrameActual);
-
-            if (MFX_ERR_NONE != mfx_res) {
-                MFX_DEBUG_TRACE_MSG("Fatal error occurred while allocating memory");
-
-                MFX_DEBUG_TRACE__mfxStatus(mfx_res);
-                return mfx_res;
-            }
-
-            if (response->NumFrameActual >= request->NumFrameMin) {
-                response->mids = mids.release();
-                m_pool = std::make_unique<MfxPool<C2GraphicBlock>>(); //release graphic buffer
-                mfx_res = MFX_ERR_NONE; // suppress the error if allocated enough
-            } else {
-                response->NumFrameActual = 0;
-                response->mids = nullptr;
-                // recreate m_pool to clean it
-                FreeAllMappings();
-                m_pool = std::make_unique<MfxPool<C2GraphicBlock>>();
-                mfx_res = MFX_ERR_MEMORY_ALLOC;
-            }
-        } while(false);
+            response->NumFrameActual = opt_buffers;
+            response->mids = mids.release();
+        } while (false);
     } else {
-        mfx_res = AllocFrames(request, response);
+        response->NumFrameActual = 0;
+        response->mids = nullptr;
+        mfx_res = MFX_ERR_INCOMPATIBLE_VIDEO_PARAM;
     }
 
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
