@@ -1877,7 +1877,39 @@ void MfxC2EncoderComponent::WaitWork(std::unique_ptr<C2Work>&& work,
                     }
                 }
             }
+#if PLATFORM_SDK_VERSION >= 35
+            else if (!m_bHeaderSent && (m_encoderType == ENCODER_VP9)) {
+                // Referenced libvpx implementation
+                // Gets the contents of CodecPrivate described in:
+                // https://www.webmproject.org/docs/container/#vp9-codec-feature-metadata-codecprivate
+                // This includes Profile, Level, Bit depth and Chroma subsampling. Each entry
+                // is 3 bytes. 1 byte ID, 1 byte length (= 1) and 1 byte value.
+                // VP9 profile possible values in private data are from 0-3, while in onevpl are from 1-4
+                const uint16_t profile = m_mfxVideoParamsConfig.mfx.CodecProfile - 1;
+                const uint16_t level = m_mfxVideoParamsConfig.mfx.CodecLevel;
+                const uint8_t bit_depth =
+                        (MFX_FOURCC_P010 == m_mfxVideoParamsConfig.mfx.FrameInfo.FourCC) ? 10 : 8;
+                const int8_t subsampling = 1;
+                const uint32_t private_data_size = 12;
+                std::unique_ptr<C2StreamInitDataInfo::output> csd =
+                        C2StreamInitDataInfo::output::AllocUnique(private_data_size, 0u);
+                uint8_t* dst = csd->m.value;
 
+                const uint8_t buf[private_data_size] = {
+                    1, 1, (uint8_t)profile,   2, 1, (uint8_t)level,
+                    3, 1, (uint8_t)bit_depth, 4, 1, (uint8_t)subsampling
+                };
+
+                memcpy(dst, buf, private_data_size);
+
+                work->worklets.front()->output.configUpdate.push_back(std::move(csd));
+
+                worklet->output.flags = (C2FrameData::flags_t)(worklet->output.flags |
+                        C2FrameData::FLAG_CODEC_CONFIG);
+
+                m_bHeaderSent = true;
+            }
+#endif
             worklet->output.ordinal = work->input.ordinal;
 
             worklet->output.buffers.push_back(std::make_shared<C2Buffer>(out_buffer));
