@@ -129,7 +129,6 @@ mfxStatus MfxC2FrameConstructor::LoadHeader(const mfxU8* data, mfxU32 size, bool
                 mfx_res = BstBufRealloc(m_bstHeader->DataLength);
                 if (MFX_ERR_NONE == mfx_res) {
                     mfxU8* buf = m_bstBuf->Data + m_bstBuf->DataOffset + m_bstBuf->DataLength;
-
                     std::copy(m_bstHeader->Data + m_bstHeader->DataOffset,
                         m_bstHeader->Data + m_bstHeader->DataOffset + m_bstHeader->DataLength, buf);
                     m_bstBuf->DataLength += m_bstHeader->DataLength;
@@ -446,6 +445,50 @@ MfxC2AVCFrameConstructor::~MfxC2AVCFrameConstructor()
 
     MFX_FREE(m_sps.Data);
     MFX_FREE(m_pps.Data);
+
+    if (m_cache_data) {
+	free(m_cache_data);
+	m_cache_data = nullptr;
+    }
+}
+
+mfxStatus MfxC2AVCFrameConstructor::AppendSps(std::shared_ptr<mfxBitstream> bs)
+{
+    MFX_DEBUG_TRACE_FUNC;
+    if (m_sps.Data && m_sps.DataLength && bs->Data && bs->DataLength) {
+        mfxU8* data = (mfxU8*)calloc(0, m_sps.DataLength + bs->DataLength);
+        std::copy(m_sps.Data + m_sps.DataOffset, m_sps.Data + m_sps.DataOffset + m_sps.DataLength, data);
+	std::copy(bs->Data + bs->DataOffset, bs->Data + bs->DataOffset + bs->DataLength, data + m_sps.DataLength);
+
+	if (m_cache_data) free(m_cache_data);
+	m_cache_data = bs->Data;
+	bs->Data = data;
+        bs->DataLength = m_sps.DataLength + bs->DataLength;
+	bs->DataOffset = 0;
+	return MFX_ERR_NONE;
+    }
+    return MFX_ERR_MEMORY_ALLOC;
+}
+
+std::shared_ptr<mfxBitstream> MfxC2AVCFrameConstructor::GetHeaderInfo()
+{
+    MFX_DEBUG_TRACE_FUNC;
+
+    std::shared_ptr<mfxBitstream> header = std::make_shared<mfxBitstream>();
+    MFX_ZERO_MEMORY((*header));
+
+    if ((m_sps.Data && m_sps.DataLength) &&
+	    (m_pps.Data && m_pps.DataLength)){
+        header->DataOffset = 0;
+        header->DataLength = m_sps.DataLength + m_pps.DataLength;
+	header->TimeStamp = m_sps.TimeStamp;
+	header->MaxLength = m_sps.MaxLength + m_pps.MaxLength;
+	header->FrameType = m_sps.FrameType;
+	header->DataFlag = m_sps.DataFlag;
+    } else {
+	header = nullptr;
+    }
+    return header;
 }
 
 mfxStatus MfxC2AVCFrameConstructor::SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset)
@@ -464,6 +507,8 @@ mfxStatus MfxC2AVCFrameConstructor::SaveHeaders(std::shared_ptr<mfxBitstream> sp
         std::copy(sps->Data + sps->DataOffset,
             sps->Data + sps->DataOffset + sps->DataLength, m_sps.Data);
         m_sps.DataLength = sps->DataLength;
+	m_sps.FrameType = sps->FrameType;
+	m_sps.DataFlag = sps->DataFlag;
     }
     if (nullptr != pps) {
         if (m_pps.MaxLength < pps->DataLength) {
@@ -474,6 +519,8 @@ mfxStatus MfxC2AVCFrameConstructor::SaveHeaders(std::shared_ptr<mfxBitstream> sp
         }
         std::copy(pps->Data + pps->DataOffset, pps->Data + pps->DataOffset + pps->DataLength, m_pps.Data);
         m_pps.DataLength = pps->DataLength;
+	m_pps.FrameType = pps->FrameType;
+        m_pps.DataFlag = pps->DataFlag;
     }
     return MFX_ERR_NONE;
 }

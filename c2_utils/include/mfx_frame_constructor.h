@@ -72,6 +72,10 @@ public:
     virtual mfxPayload* GetSEI(mfxU32 /*type*/) = 0;
     // save current SPS/PPS
     virtual mfxStatus SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset) = 0;
+
+    virtual std::shared_ptr<mfxBitstream> GetHeaderInfo() = 0;
+
+    virtual mfxStatus AppendSps(std::shared_ptr<mfxBitstream> bs) = 0;
     // get whether in reset state
     virtual bool IsInReset() = 0;
 
@@ -116,6 +120,15 @@ public:
         (void)is_reset;
         return MFX_ERR_NONE;
     }
+
+    virtual std::shared_ptr<mfxBitstream> GetHeaderInfo() {
+        return nullptr;
+    }
+
+    virtual mfxStatus AppendSps(std::shared_ptr<mfxBitstream> bs) {
+        return MFX_ERR_NONE;
+    }
+
     // get whether in reset state
     virtual bool IsInReset();
 
@@ -177,6 +190,10 @@ public:
     // save current SPS/PPS
     virtual mfxStatus SaveHeaders(std::shared_ptr<mfxBitstream> sps, std::shared_ptr<mfxBitstream> pps, bool is_reset);
 
+    virtual std::shared_ptr<mfxBitstream> GetHeaderInfo();
+
+    virtual mfxStatus AppendSps(std::shared_ptr<mfxBitstream> bs);
+
 protected: // functions
     virtual mfxStatus Load(const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
     virtual mfxStatus LoadSecure(HUCVideoBuffer *hucBuffer, const mfxU8* data, mfxU32 size, mfxU64 pts, bool header, bool complete_frame);
@@ -199,6 +216,7 @@ protected: // data
 
     mfxBitstream m_sps;
     mfxBitstream m_pps;
+    mfxU8* m_cache_data = nullptr;
 
 private:
     MFX_CLASS_NO_COPY(MfxC2AVCFrameConstructor)
