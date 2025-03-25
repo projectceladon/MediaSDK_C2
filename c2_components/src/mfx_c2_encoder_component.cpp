@@ -658,10 +658,10 @@ c2_status_t MfxC2EncoderComponent::Init()
 // 2. In adb shell, $setenforce 0
 // 3. In adb shell,
 //
-//    Case 1) For decoder input dump: $setprop c2.decoder.dump.input true
-//    Case 2) For decoder output dump: $setprop c2.decoder.dump.output.number 10
-//    Case 3) For encoder input dump: $setprop c2.encoder.dump.input.number 10
-//    Case 4) For encoder output dump: $setprop c2.encoder.dump.output true
+//    Case 1) For decoder input dump: $setprop vendor.c2.dump.decoder.input true
+//    Case 2) For decoder output dump: $setprop vendor.c2.dump.decoder.output.number 10
+//    Case 3) For encoder input dump: $setprop vendor.c2.dump.encoder.input.number 10
+//    Case 4) For encoder output dump: $setprop vendor.c2.dump.encoder.output true
 //
 //    yuv frames number to dump can be set as needed.
 //
