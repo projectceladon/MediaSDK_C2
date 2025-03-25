@@ -41,13 +41,13 @@
 #define MFX_C2_DUMP_INPUT_SUB_DIR "input"
 
 // dump when dump frames number > 0
-#define DECODER_DUMP_OUTPUT_KEY "c2.decoder.dump.output.number"
+#define DECODER_DUMP_OUTPUT_KEY "vendor.c2.dump.decoder.output.number"
 // dump when property set to true
-#define DECODER_DUMP_INPUT_KEY "c2.decoder.dump.input"
+#define DECODER_DUMP_INPUT_KEY "vendor.c2.dump.decoder.input"
 // dump when property set to true
-#define ENCODER_DUMP_OUTPUT_KEY "c2.encoder.dump.output"
+#define ENCODER_DUMP_OUTPUT_KEY "vendor.c2.dump.encoder.output"
 // dump when dump frames number > 0
-#define ENCODER_DUMP_INPUT_KEY "c2.encoder.dump.input.number"
+#define ENCODER_DUMP_INPUT_KEY "vendor.c2.dump.encoder.input.number"
 
 const c2_nsecs_t MFX_SECOND_NS = 1000000000; // 1e9
 
