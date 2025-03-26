@@ -126,7 +126,7 @@ private:
 
     void FreeSurfaces();
 
-    mfxStatus HandleFormatChange();
+    mfxStatus HandleFormatChange(bool need_reset = false);
 
     mfxStatus DecodeFrameAsync(
         mfxBitstream *bs, mfxFrameSurface1 *surface_work, mfxFrameSurface1 **surface_out,

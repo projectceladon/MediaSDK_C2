@@ -1459,7 +1459,7 @@ void MfxC2DecoderComponent::FreeSurfaces()
     m_surfacePool.clear();
 }
 
-mfxStatus MfxC2DecoderComponent::HandleFormatChange()
+mfxStatus MfxC2DecoderComponent::HandleFormatChange(bool need_reset)
 {
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
@@ -1486,7 +1486,7 @@ mfxStatus MfxC2DecoderComponent::HandleFormatChange()
         m_uMaxHeight = m_mfxVideoParams.mfx.FrameInfo.Height;
     }
 
-    if (DECODER_H264 == m_decoderType || DECODER_H265 == m_decoderType) {
+    if ((DECODER_H264 == m_decoderType || DECODER_H265 == m_decoderType) && need_reset) {
         MFX_DEBUG_TRACE_MSG("Reset BitStream for re-append header.");
         m_c2Bitstream->Reset();
     }
@@ -1819,7 +1819,7 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
 				old_primaries != videoSignalInfo.ColourPrimaries ||
 				old_transfer != videoSignalInfo.TransferCharacteristics ||
 				old_bitDepth != new_bitDepth) {
-		    mfx_sts = MFX_ERR_INCOMPATIBLE_VIDEO_PARAM;
+		    mfx_sts = MFX_WRN_VIDEO_PARAM_CHANGED;
 		} else {
 		    mfx_sts = MFX_ERR_MORE_SURFACE;
 		}
@@ -2253,6 +2253,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
         // loop repeats DecodeFrame on the same frame
         // if DecodeFrame returns error which is repairable, like resolution change
         bool resolution_change = false;
+	bool need_reset = false;
         do {
             if (!m_bInitialized) {
                 mfx_sts = InitDecoder(m_c2Allocator);
@@ -2300,7 +2301,9 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                 mfx_sts = MFX_ERR_NONE; // valid result of DecodeFrame
             }
 
-            resolution_change = (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == mfx_sts);
+            resolution_change = (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == mfx_sts) ||
+		    (MFX_WRN_VIDEO_PARAM_CHANGED == mfx_sts);
+	    need_reset = (MFX_WRN_VIDEO_PARAM_CHANGED == mfx_sts);
             if (resolution_change) {
                 encounterResolutionChanged = true;
 
@@ -2324,7 +2327,7 @@ void MfxC2DecoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
                     }
                 }
 
-                mfxStatus format_change_sts = HandleFormatChange();
+                mfxStatus format_change_sts = HandleFormatChange(need_reset);
                 MFX_DEBUG_TRACE__mfxStatus(format_change_sts);
                 mfx_sts = format_change_sts;
                 if (MFX_ERR_NONE != mfx_sts) {
