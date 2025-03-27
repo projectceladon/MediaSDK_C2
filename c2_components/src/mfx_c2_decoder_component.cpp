@@ -1469,7 +1469,7 @@ mfxStatus MfxC2DecoderComponent::HandleFormatChange()
     MFX_DEBUG_TRACE_FUNC;
     mfxStatus mfx_res = MFX_ERR_NONE;
 
-    if (!m_mfxDecoder) return MFX_ERR_NULL_PTR;
+    if (!m_mfxDecoder || !m_c2Bitstream) return MFX_ERR_NULL_PTR;
 
     mfx_res = m_mfxDecoder->DecodeHeader(m_c2Bitstream->GetFrameConstructor()->GetMfxBitstream().get(), &m_mfxVideoParams);
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
@@ -1491,7 +1491,7 @@ mfxStatus MfxC2DecoderComponent::HandleFormatChange()
         m_uMaxHeight = m_mfxVideoParams.mfx.FrameInfo.Height;
     }
 
-    if ((DECODER_H264 == m_decoderType || DECODER_H265 == m_decoderType) && m_c2Bitstream) {
+    if (DECODER_H264 == m_decoderType || DECODER_H265 == m_decoderType) {
         MFX_DEBUG_TRACE_MSG("Reset BitStream for re-append header.");
         m_c2Bitstream->Reset();
     }
@@ -1802,7 +1802,7 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
 		mfxFrameInfo old_frame = m_mfxVideoParams.mfx.FrameInfo;
 		mfxU16 old_bitDepth    = c2_max(old_frame.BitDepthLuma, old_frame.BitDepthChroma);
 
-		mfxExtVideoSignalInfo videoSignalInfo;
+		mfxExtVideoSignalInfo videoSignalInfo {};
 		videoSignalInfo.Header.BufferId = MFX_EXTBUFF_VIDEO_SIGNAL_INFO;
                 videoSignalInfo.Header.BufferSz = sizeof(mfxExtVideoSignalInfo);
 		videoSignalInfo.VideoFullRange = 2;
