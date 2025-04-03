@@ -21,6 +21,7 @@
 #include "mfx_c2_decoder_component.h"
 
 #include "mfx_debug.h"
+#include "mfx_intel_device.h"
 #include "mfx_msdk_debug.h"
 #include "mfx_c2_debug.h"
 #include "mfx_c2_components_registry.h"
@@ -178,6 +179,12 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
     MFX_DEBUG_TRACE_FUNC;
     const unsigned int SINGLE_STREAM_ID = 0u;
 
+    // We need to enable CPU access to the buffers of decoded images when
+    // 1. decode with DG2 and display with RPL-p iGPU;
+    // 2. decode with RPL-p iGPU and display with DG2.
+    // The displaying GPU will appear as virtio-GPU.
+    m_needCpuAccess = enforceLinearBuffer();
+
     addParameter(
         DefineParam(m_kind, C2_PARAMKEY_COMPONENT_KIND)
         .withConstValue(new C2ComponentKindSetting(C2Component::KIND_DECODER))
@@ -226,6 +233,11 @@ MfxC2DecoderComponent::MfxC2DecoderComponent(const C2String name, const CreateCo
         .build());
 
     m_consumerUsage = C2AndroidMemoryUsage::FromGrallocUsage(kDefaultConsumerUsage).expected;
+    // We need these flags in the case of hybrid GPU.
+    if (m_needCpuAccess) {
+        m_consumerUsage |= C2AndroidMemoryUsage::CPU_READ;
+        m_consumerUsage |= C2AndroidMemoryUsage::CPU_WRITE;
+    }
     addParameter(
         DefineParam(m_outputUsage, C2_PARAMKEY_OUTPUT_STREAM_USAGE)
         .withDefault(new C2StreamUsageTuning::output(SINGLE_STREAM_ID, m_consumerUsage))
@@ -1605,6 +1617,10 @@ void MfxC2DecoderComponent::DoUpdateMfxParam(const std::vector<C2Param*> &params
             case kParamIndexUsage: {
                 if (C2StreamUsageTuning::output::PARAM_TYPE == param->index()) {
                     m_consumerUsage = m_outputUsage->value;
+                    if (m_needCpuAccess) {
+                        m_consumerUsage |= C2AndroidMemoryUsage::CPU_READ;
+                        m_consumerUsage |= C2AndroidMemoryUsage::CPU_WRITE;
+                    }
                     // Set memory type according to consumer usage sent from framework
                     m_mfxVideoParams.IOPattern = (m_consumerUsage & (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE)) ?
                         MFX_IOPATTERN_OUT_SYSTEM_MEMORY : MFX_IOPATTERN_OUT_VIDEO_MEMORY;
