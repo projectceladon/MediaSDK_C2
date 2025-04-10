@@ -1218,6 +1218,7 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         }
         int32_t vppOutWidth = 3840;
         int32_t vppOutHeight = 2160;
+        int32_t vppOutTranscoding = -1;
         char property[PROPERTY_VALUE_MAX];
         memset(property, 0 , PROPERTY_VALUE_MAX);
         property_get("vendor.demo.vppout.width", property, "-1");
@@ -1227,13 +1228,23 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         property_get("vendor.demo.vppout.height", property, "-1");
         vppOutHeight = atoi(property);
         __android_log_print(ANDROID_LOG_ERROR, "C2", "The property 'vendor.demo.vppout.height' value is %d", vppOutHeight);
+        memset(property, 0 , PROPERTY_VALUE_MAX);
+        property_get("vendor.demo.vppout.transcoding", property, "-1");
+        vppOutTranscoding = atoi(property);
 
         m_mfxVPPParams.mfx.FrameInfo = m_mfxVideoParams.mfx.FrameInfo;
-        if (!(vppOutWidth < m_mfxVideoParams.mfx.FrameInfo.Width || vppOutHeight < m_mfxVideoParams.mfx.FrameInfo.Height)) {
-            m_mfxVPPParams.mfx.FrameInfo.Width = vppOutWidth;
-            m_mfxVPPParams.mfx.FrameInfo.Height = vppOutHeight;
-            m_mfxVPPParams.mfx.FrameInfo.CropW = vppOutWidth;
-            m_mfxVPPParams.mfx.FrameInfo.CropH = vppOutHeight;
+        if (!(vppOutWidth < m_mfxVideoParams.mfx.FrameInfo.Width || vppOutHeight < m_mfxVideoParams.mfx.FrameInfo.Height) || vppOutTranscoding == 1) {
+            if (vppOutTranscoding) {
+                m_mfxVPPParams.mfx.FrameInfo.CropW = m_mfxVideoParams.mfx.FrameInfo.CropW * 2;
+                m_mfxVPPParams.mfx.FrameInfo.CropH = m_mfxVideoParams.mfx.FrameInfo.CropH * 2;
+                m_mfxVPPParams.mfx.FrameInfo.Width = m_mfxVPPParams.mfx.FrameInfo.CropW;
+                m_mfxVPPParams.mfx.FrameInfo.Height = m_mfxVPPParams.mfx.FrameInfo.CropH;
+            } else {
+                m_mfxVPPParams.mfx.FrameInfo.Width = vppOutWidth;
+                m_mfxVPPParams.mfx.FrameInfo.Height = vppOutHeight;
+                m_mfxVPPParams.mfx.FrameInfo.CropW = vppOutWidth;
+                m_mfxVPPParams.mfx.FrameInfo.CropH = vppOutHeight;
+            }
             m_bVPPoutNeeded = true;
         } else {
             m_bVPPoutNeeded = false;
