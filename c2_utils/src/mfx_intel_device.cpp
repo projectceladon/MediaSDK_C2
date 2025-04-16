@@ -18,9 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include <cutils/properties.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <log/log.h>
@@ -721,6 +723,33 @@ uint64_t getGpuGroupType() {
 
 // Returns true in hybrid-GPU case.
 bool enforceLinearBuffer() {
+    int use_linear = 0;
+    FILE *file;
+    int value;
+    #define PROPERTY_VALUE_MAX 92
+    char prop[PROPERTY_VALUE_MAX] = {};
+
+    /**
+    * Check if use linear in the order:
+    * 1, config file: vendor/etc/dgpu-codec.cfg
+    * 2, system property    *
+    */
+    file = fopen("/vendor/etc/dgpu-codec.cfg", "r");
+    if (file) {
+        while (fscanf(file, "%49s %d", prop, &value) == 2) {
+            if (!strcmp(prop, "vendor.video.hw.output.linear")) {
+                use_linear = value;
+            }
+        }
+        fclose(file);
+    } else {
+        property_get("vendor.video.hw.output.linear", prop, "0");
+        use_linear = atoi(prop);
+    }
+
+    if (!use_linear) {
+        return false;
+    }
     // virtio-GPU without blob feature cannot import external buffers at all,
     // we must use linear system memory buffers.
     uint64_t gpu_grp_type = getGpuGroupType();
