@@ -1854,6 +1854,16 @@ mfxStatus MfxC2DecoderComponent::DecodeFrame(mfxBitstream *bs, MfxC2FrameOut&& f
                         ++m_uSyncedPointsCount;
                     }
                 }
+            } else {
+                ALOGE("Null surface_out after decode, notify all pending works");
+                {
+                    std::lock_guard<std::mutex> lock(m_pendingWorksMutex);
+                    auto it = m_pendingWorks.begin();
+                    while (it != m_pendingWorks.end()) {
+                            NotifyWorkDone(std::move(it->second), C2_NOT_FOUND);
+                            it = m_pendingWorks.erase(it);
+                    }
+                }
             }
         } else if (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == mfx_sts) {
             MFX_DEBUG_TRACE_MSG("MFX_ERR_INCOMPATIBLE_VIDEO_PARAM: resolution was changed");
