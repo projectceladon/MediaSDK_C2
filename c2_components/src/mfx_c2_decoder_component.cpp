@@ -1307,15 +1307,19 @@ mfxStatus MfxC2DecoderComponent::InitDecoder(std::shared_ptr<C2BlockPool> c2_all
         }
 
         mfxVideoParam oldParams = m_mfxVideoParams;
-        m_extBuffers.push_back(reinterpret_cast<mfxExtBuffer*>(&m_secureCodec));
-        m_mfxVideoParams.NumExtParam = m_extBuffers.size();
-        m_mfxVideoParams.ExtParam = &m_extBuffers.front();
+        if (m_secure) {
+            m_extBuffers.push_back(reinterpret_cast<mfxExtBuffer*>(&m_secureCodec));
+            m_mfxVideoParams.NumExtParam = m_extBuffers.size();
+            m_mfxVideoParams.ExtParam = &m_extBuffers.front();
+        }
         MFX_DEBUG_TRACE_MSG("Decoder initializing...");
         mfx_res = m_mfxDecoder->Init(&m_mfxVideoParams);
         MFX_DEBUG_TRACE_PRINTF("Decoder initialized, sts = %d", mfx_res);
-        m_extBuffers.pop_back();
-        m_mfxVideoParams.NumExtParam = oldParams.NumExtParam;
-        m_mfxVideoParams.ExtParam = oldParams.ExtParam;
+        if (m_secure) {
+            m_extBuffers.pop_back();
+            m_mfxVideoParams.NumExtParam = oldParams.NumExtParam;
+            m_mfxVideoParams.ExtParam = oldParams.ExtParam;
+        }
 
         // c2 allocator is needed to handle mfxAllocRequest coming from m_mfxDecoder->Init,
         // not needed after that.
