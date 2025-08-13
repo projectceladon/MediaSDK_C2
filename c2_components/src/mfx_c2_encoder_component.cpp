@@ -260,7 +260,7 @@ MfxC2EncoderComponent::MfxC2EncoderComponent(const C2String name, const CreateCo
 
     addParameter(
         DefineParam(m_bitrateMode, C2_PARAMKEY_BITRATE_MODE)
-        .withDefault(new C2StreamBitrateModeTuning::output(SINGLE_STREAM_ID, C2Config::BITRATE_VARIABLE))
+        .withDefault(new C2StreamBitrateModeTuning::output(SINGLE_STREAM_ID, C2Config::BITRATE_CONST))
         .withFields({
             C2F(m_bitrateMode, value).oneOf({
                 C2Config::BITRATE_CONST,
