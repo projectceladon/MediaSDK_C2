@@ -1140,7 +1140,7 @@ mfxU16 MfxC2DecoderComponent::GetAsyncDepth(void)
     if (MFX_CODEC_AV1 == m_mfxVideoParams.mfx.CodecId)
         asyncDepth = (MFX_IMPL_BASETYPE(m_mfxImplementation) == MFX_IMPL_SOFTWARE) ? 0 : 10;
     else
-        asyncDepth = (MFX_IMPL_BASETYPE(m_mfxImplementation) == MFX_IMPL_SOFTWARE) ? 0 : 1;
+        asyncDepth = (MFX_IMPL_BASETYPE(m_mfxImplementation) == MFX_IMPL_SOFTWARE) ? 0 : 2;
 #else
     if ((MFX_IMPL_HARDWARE == MFX_IMPL_BASETYPE(m_mfxImplementation)) &&
         ((MFX_CODEC_AVC == m_mfxVideoParams.mfx.CodecId) ||
