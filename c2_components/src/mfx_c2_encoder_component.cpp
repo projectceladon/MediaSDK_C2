@@ -1066,6 +1066,8 @@ mfxStatus MfxC2EncoderComponent::ResetSettings()
         m_mfxVideoParamsConfig.mfx.LowPower = MFX_CODINGOPTION_ON;
     }
 
+    m_mfxVideoParamsConfig.AsyncDepth = 2;
+
     MFX_DEBUG_TRACE__mfxStatus(mfx_res);
     return mfx_res;
 }
@@ -1649,7 +1651,13 @@ void MfxC2EncoderComponent::DoWork(std::unique_ptr<C2Work>&& work)
             }
         }
 
-        if(MFX_ERR_MORE_DATA == mfx_sts) mfx_sts = MFX_ERR_NONE;
+        if(MFX_ERR_MORE_DATA == mfx_sts) 
+        {
+            // It may get stuck at the last few frames while processing concurrently.
+            if (m_mfxVideoParamsConfig.AsyncDepth > 1)
+                m_workingQueue.Push( [this] () { Drain(nullptr); } );
+            mfx_sts = MFX_ERR_NONE;
+        }
 
     } while(false); // fake loop to have a cleanup point there
 
